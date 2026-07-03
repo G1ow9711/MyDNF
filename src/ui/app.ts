@@ -20,7 +20,7 @@ import {
 } from "../systems/audio";
 import { advanceClass as applyClassAdvancement, selectBaseClass as applyBaseClass } from "../systems/classes";
 import { acceptTrade, listAuction, resolveAuctions } from "../systems/market";
-import { applyQuestEvent, claimQuestReward } from "../systems/quests";
+import { applyQuestEvent, claimQuestReward, getActiveQuestText } from "../systems/quests";
 import { loadGame, saveGame, type SaveStorage } from "../systems/save";
 import { buyShopItem, openRandomBox } from "../systems/shop";
 import { amplify, reinforce } from "../systems/upgrades";
@@ -131,12 +131,13 @@ function renderTownScene(model: AppViewModel): string {
   `;
 }
 
-function renderCombatScene(run: CombatRun): string {
+function renderCombatScene(run: CombatRun, state: GameState): string {
   const plan = createRenderPlan(run, run.dungeonId);
   const enemies = run.enemies
     .map((enemy) => `<li>${enemy.displayName} HP ${enemy.hp}/${enemy.maxHp} · 护甲 ${enemy.armor}</li>`)
     .join("");
   const sparks = plan.commands.filter((command) => command.kind === "hit-spark").length;
+  const activeQuest = getActiveQuestText(state);
 
   return `
     <section class="combat-scene" aria-label="战斗">
@@ -154,6 +155,10 @@ function renderCombatScene(run: CombatRun): string {
         <p>房间 ${run.roomIndex + 1} · 热能 ${run.player.heat} · 连段 ${run.player.comboStep}</p>
         <ul>${enemies}</ul>
       </div>
+      <aside class="quest-tracker" aria-label="任务追踪">
+        <h3>任务追踪</h3>
+        <p>${activeQuest}</p>
+      </aside>
     </section>
   `;
 }
@@ -175,7 +180,7 @@ function renderActivePanel(model: AppViewModel): string {
     case "settings":
       return renderSettingsPanel();
     case "combat":
-      return model.combatRun ? renderCombatScene(model.combatRun) : renderTownScene(model);
+      return model.combatRun ? renderCombatScene(model.combatRun, model.state) : renderTownScene(model);
     case "town":
     default:
       return renderQuestPanel(model.state);
@@ -183,7 +188,7 @@ function renderActivePanel(model: AppViewModel): string {
 }
 
 export function renderAppHtml(model: AppViewModel): string {
-  const scene = model.mode === "combat" && model.combatRun ? renderCombatScene(model.combatRun) : renderTownScene(model);
+  const scene = model.mode === "combat" && model.combatRun ? renderCombatScene(model.combatRun, model.state) : renderTownScene(model);
 
   return `
     <main class="app-shell" aria-label="烬璃纪元">
@@ -354,21 +359,25 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       };
     }
     case "reinforce": {
-      const result = reinforce(model.state, selectedGearId(model.state, action.gearId), model.rng);
+      const gearId = selectedGearId(model.state, action.gearId);
+      const result = reinforce(model.state, gearId, model.rng);
+      const nextState = applyQuestEvent(result.state, { type: "reinforced", itemId: gearId });
 
       return {
         ...model,
-        state: result.state,
+        state: nextState,
         message: `强化 ${result.success ? "成功" : "失败"}：+${result.levelAfter}`,
         audio: playSfx(model.audio, result.success ? "reinforce-success" : "reinforce-fail")
       };
     }
     case "amplify": {
-      const result = amplify(model.state, selectedGearId(model.state, action.gearId), model.rng);
+      const gearId = selectedGearId(model.state, action.gearId);
+      const result = amplify(model.state, gearId, model.rng);
+      const nextState = applyQuestEvent(result.state, { type: "amplified", itemId: gearId });
 
       return {
         ...model,
-        state: result.state,
+        state: nextState,
         message: `增幅 ${result.success ? "成功" : "失败"}：+${result.levelAfter}`,
         audio: playSfx(model.audio, result.success ? "amplify-success" : "amplify-fail")
       };
@@ -376,7 +385,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
     case "buyShopItem":
       return {
         ...model,
-        state: buyShopItem(model.state, action.sku),
+        state: applyQuestEvent(buyShopItem(model.state, action.sku), { type: "shopPurchased", sku: action.sku }),
         message: "礼包已购买",
         audio: playSfx(model.audio, "shop-purchase")
       };
@@ -404,13 +413,17 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         message: "拍卖已寄售",
         audio: playSfx(model.audio, "auction-list")
       };
-    case "resolveAuctions":
+    case "resolveAuctions": {
+      const nextState = resolveAuctions(model.state, model.rng);
+      const sold = nextState.player.currencies.gold > model.state.player.currencies.gold;
+
       return {
         ...model,
-        state: resolveAuctions(model.state, model.rng),
+        state: sold ? applyQuestEvent(nextState, { type: "auctionSold" }) : nextState,
         message: "拍卖结算完成",
         audio: playSfx(model.audio, "auction-sold")
       };
+    }
     case "save":
       if (!model.storage) {
         throw new Error("未配置存档空间");

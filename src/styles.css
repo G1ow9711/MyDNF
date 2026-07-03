@@ -409,6 +409,28 @@ p {
   background: rgba(2, 6, 23, 0.66);
 }
 
+.quest-tracker {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  width: min(360px, calc(100% - 36px));
+  padding: 12px;
+  border: 1px solid rgba(103, 232, 249, 0.26);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.74);
+}
+
+.quest-tracker h3 {
+  font-size: 16px;
+}
+
+.quest-tracker p {
+  color: #dbeafe;
+}
+
 .toast {
   position: fixed;
   right: 18px;
@@ -453,5 +475,13 @@ p {
 
   .town-hud h1 {
     font-size: 38px;
+  }
+
+  .quest-tracker {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    margin-top: 14px;
   }
 }

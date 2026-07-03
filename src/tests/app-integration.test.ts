@@ -74,6 +74,20 @@ describe("playable app integration actions", () => {
     expect(reinforced.audio.commandQueue.at(-1)).toEqual({ type: "sfx", id: "reinforce-success" });
   });
 
+  it("updates the active reinforcement quest through the app reducer", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      rng: () => 0,
+      initialState: withQuestReady(createInitialState(), "prologue-ember-warden")
+    });
+    const gearId = model.state.player.inventory[0].instanceId;
+
+    model = reduceAppAction(model, { type: "claimQuest", questId: "prologue-ember-warden" });
+    model = reduceAppAction(model, { type: "reinforce", gearId });
+
+    expect(model.state.player.quests["smith-first-spark"]).toBe("ready");
+  });
+
   it("claims a ready quest and unlocks the next dungeon and quests", () => {
     const storage = new MemoryStorage();
     const model = createAppModel({
@@ -132,6 +146,16 @@ describe("playable app integration actions", () => {
     expect(model.message).toContain("通关");
     expect(model.audio.currentBgm).toBe("town-forge-market");
     expect(model.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "loot-drop" }]));
+  });
+
+  it("renders the active objective tracker while inside a dungeon", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    const html = renderAppHtml(model);
+    expect(html).toContain("任务追踪");
+    expect(html).toContain("清理灰窑巷");
   });
 
   it("buys a gift pack, opens a box, and renders actionable shop controls", () => {

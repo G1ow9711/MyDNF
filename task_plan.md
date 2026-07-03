@@ -38,6 +38,7 @@ Phase 5 - Verification and Delivery
 - [x] Implement Task 5 market, auction, shop, packs, and boxes
 - [x] Implement Task 6 four base classes and advancement system
 - [x] Implement story and quest system
+- [x] Expose active quest tracker in dungeon and connect app actions to quest events
 - [x] Implement core movement/combat/enemy loop
 - [x] Implement skills and visual effects
 - [x] Implement town UI and system panels

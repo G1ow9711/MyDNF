@@ -425,6 +425,25 @@
   - Browser class switch: selecting `琉璃剑客` updates active class, shows `流光剑使` / `镜火术士`, and toast says `职业已切换：琉璃剑客`; no console errors.
   - Browser mobile viewport: `390x844` check showed four class cards, `职业` panel, no horizontal overflow.
 
+## Task 13 Dungeon Quest Tracker and App Quest Events
+- Started after acceptance audit found two player-facing quest gaps:
+  - Dungeon mode hid the active objective because combat mode removed the quest panel.
+  - App-level reinforcement did not emit quest progress even though the quest system supported `reinforced` events.
+- Wrote regression tests first in `src/tests/app-integration.test.ts`.
+- RED evidence:
+  - `npm test -- src/tests/app-integration.test.ts` failed because `smith-first-spark` stayed `active` after reinforcing through the app reducer.
+  - The same run failed because combat HTML did not contain `任务追踪`.
+- Implemented:
+  - Combat scene now renders a `任务追踪` HUD using `getActiveQuestText(state)`.
+  - App reducer now applies quest events after reinforce, amplify, shop purchase, and successful auction sale resolution.
+  - Added responsive `.quest-tracker` styling.
+- Verification:
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 9 tests.
+  - `npm test`: pass, 94 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
+  - Browser at `http://127.0.0.1:5173/`: entered `灰窑巷`; combat scene showed `任务追踪` with `序章 - 炉火未熄：清理灰窑巷，查明异火来源。（进行中）`; no console errors and no horizontal overflow.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|

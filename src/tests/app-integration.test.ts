@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
 import { SAVE_KEY, type SaveStorage } from "../systems/save";
-import { createAppModel, reduceAppAction, renderAppHtml } from "../ui/app";
+import { combatActionForKeyCode, createAppModel, mountApp, reduceAppAction, renderAppHtml } from "../ui/app";
 
 class MemoryStorage implements SaveStorage {
   readonly data = new Map<string, string>();
@@ -42,6 +42,16 @@ function withCurrency(state: GameState, patch: Partial<GameState["player"]["curr
         ...state.player.currencies,
         ...patch
       }
+    }
+  };
+}
+
+function withHeat(state: GameState, heat: number): GameState {
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      heat
     }
   };
 }
@@ -156,6 +166,139 @@ describe("playable app integration actions", () => {
     const html = renderAppHtml(model);
     expect(html).toContain("任务追踪");
     expect(html).toContain("清理灰窑巷");
+  });
+
+  it("renders concrete combat skill slots and maps hotkeys to those skills", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 80)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    const html = renderAppHtml(model);
+
+    expect(html).toContain('data-combat-skill-id="anvil-crash"');
+    expect(html).toContain('data-hotkey="U"');
+    expect(html).toContain('data-skill-cost="25"');
+    expect(combatActionForKeyCode(model.state, "KeyJ")).toEqual({ type: "combatAction", action: "light" });
+    expect(combatActionForKeyCode(model.state, "KeyU")).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "anvil-crash"
+    });
+
+    const action = combatActionForKeyCode(model.state, "KeyU");
+
+    if (!action) {
+      throw new Error("Expected KeyU to map to a combat skill");
+    }
+
+    const cast = reduceAppAction(model, action);
+    const lastEvent = cast.combatRun?.events.at(-1);
+
+    expect(lastEvent).toMatchObject({ kind: "hit", action: "skill", skillId: "anvil-crash" });
+    expect(cast.combatRun?.player.heat).toBeLessThan(model.combatRun?.player.heat ?? 0);
+    expect(cast.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "skill-burst" }]));
+  });
+
+  it("does not map unaffordable combat skill hotkeys", () => {
+    const state = createInitialState();
+
+    expect(combatActionForKeyCode(state, "KeyU", 10)).toBeUndefined();
+    expect(combatActionForKeyCode(state, "KeyU", 30)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "anvil-crash"
+    });
+  });
+
+  it("mounts combat nested skill-label clicks and returns keyboard cleanup", () => {
+    const previousLocalStorage = globalThis.localStorage;
+    const previousAddEventListener = globalThis.addEventListener;
+    const previousRemoveEventListener = globalThis.removeEventListener;
+    const storage = new MemoryStorage();
+    const listeners = new Map<string, EventListener>();
+    let clickHandler: ((event: Event) => void) | undefined;
+    const classList = new Set<string>();
+    const root = {
+      innerHTML: "",
+      addEventListener(type: string, handler: EventListener): void {
+        if (type === "click") {
+          clickHandler = handler as (event: Event) => void;
+        }
+      }
+    } as unknown as HTMLDivElement;
+
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: storage
+    });
+    Object.defineProperty(globalThis, "addEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => listeners.set(type, handler)
+    });
+    Object.defineProperty(globalThis, "removeEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => {
+        if (listeners.get(type) === handler) {
+          listeners.delete(type);
+        }
+      }
+    });
+
+    try {
+      const cleanup = mountApp(root);
+      const enterButton = {
+        dataset: { enterDungeon: "cinder-kiln-alley" },
+        classList: { contains: (className: string) => classList.has(className) },
+        closest: () => enterButton
+      };
+
+      clickHandler?.({ target: enterButton } as unknown as Event);
+
+      const lightButton = {
+        dataset: { combatAction: "light" },
+        classList: { contains: (className: string) => classList.has(className) },
+        closest: () => lightButton
+      };
+
+      clickHandler?.({ target: lightButton } as unknown as Event);
+      clickHandler?.({ target: lightButton } as unknown as Event);
+      clickHandler?.({ target: lightButton } as unknown as Event);
+      clickHandler?.({ target: lightButton } as unknown as Event);
+
+      const skillButton = {
+        dataset: { combatAction: "skill", combatSkillId: "anvil-crash" },
+        classList: { contains: (className: string) => classList.has(className) },
+        closest: () => skillButton
+      };
+      const nestedSpan = {
+        dataset: {},
+        closest: () => skillButton
+      };
+
+      clickHandler?.({ target: nestedSpan } as unknown as Event);
+
+      expect(root.innerHTML).toContain("火花 5");
+      expect(root.innerHTML).toContain("热能 7");
+      expect(listeners.has("keydown")).toBe(true);
+
+      cleanup();
+      expect(listeners.has("keydown")).toBe(false);
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: previousLocalStorage
+      });
+      Object.defineProperty(globalThis, "addEventListener", {
+        configurable: true,
+        value: previousAddEventListener
+      });
+      Object.defineProperty(globalThis, "removeEventListener", {
+        configurable: true,
+        value: previousRemoveEventListener
+      });
+    }
   });
 
   it("buys a gift pack, opens a box, and renders actionable shop controls", () => {

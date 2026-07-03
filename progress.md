@@ -622,6 +622,32 @@
   - Re-verification: `npm test -- src/tests/ui-smoke.test.ts` pass, 5 tests; `npm run build` pass.
   - Final verification: `npm test` pass, 113 tests; `npm run build` pass; `git diff --check` pass with only CRLF conversion warnings.
 
+## Task 22 Combat Skill Bar and Hotkeys
+- Started after combat UX audit found the combat model had class skills and keyboard input mapping, but the UI only exposed one generic skill button and no concrete skill slots.
+- Wrote regression test first in `src/tests/app-integration.test.ts`:
+  - Combat render must show concrete class skill buttons with `data-combat-skill-id`, hotkey, and skill cost.
+  - `combatActionForKeyCode()` must map `KeyJ` to light attack and `KeyU` to `anvil-crash`.
+  - Reducer must execute the selected skill id and play skill SFX.
+- RED evidence:
+  - `npm test -- src/tests/app-integration.test.ts` failed because combat HTML did not contain `data-combat-skill-id="anvil-crash"`.
+- Implemented:
+  - Added state-aware combat skill discovery from base class and advancement skills.
+  - Combat scene now renders individual skill buttons for L/U/I/O/Space skills, with hotkey and resource cost metadata.
+  - App reducer now accepts a specific combat `skillId` instead of always casting `spark-combo`.
+  - Button click handling reads `data-combat-skill-id`; `keydown` handling maps J/K/U/I/O/L/Space while in combat.
+  - Combat button styling now separates command label from hotkey/cost text.
+- Verification so far:
+  - `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 18 tests.
+  - `npm test`: pass, 114 tests.
+  - `npm run build`: pass after replacing the union ternary with explicit action branches.
+  - `git diff --check`: pass; only CRLF conversion warnings.
+- Code review follow-up:
+  - Reviewer found nested span clicks missed button datasets, global keydown lacked cleanup, hotkeys ignored current combat heat, and optional skill ids could mask missing datasets.
+  - Added RED tests for unaffordable hotkey filtering, nested skill-label click handling, and mount cleanup.
+  - Implemented `closest("button")` click delegation, current-heat hotkey filtering, required skill ids, and `mountApp()` cleanup return.
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 15 tests.
+  - Final verification after review fixes: `npm test` pass, 116 tests; `npm run build` pass; `git diff --check` pass with only CRLF conversion warnings.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -652,6 +678,7 @@
 | 2026-07-04 | PowerShell rejected `&&` while staging and committing | 1 | Switched to separate `git add` and `git commit` commands |
 | 2026-07-04 | Tried to read missing `src/render/renderer.ts` | 1 | Used `rg --files` and read the actual `src/game/render.ts` file |
 | 2026-07-04 | `npm run build` failed because test deleted non-optional `globalThis.AudioContext` | 1 | Replaced `delete` with `Reflect.deleteProperty` in the test cleanup |
+| 2026-07-04 | `npm run build` failed because `combatAction` union did not narrow through nested ternary | 1 | Replaced ternary with explicit `if/else` branches |
 
 ## 5-Question Reboot Check
 | Question | Answer |

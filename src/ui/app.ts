@@ -9,7 +9,7 @@ import {
   type CombatRun
 } from "../game/combat";
 import { addOwnedGear, createInitialState } from "../game/state";
-import type { DungeonId, GameState } from "../game/types";
+import type { AdvancementId, ClassId, ClassSkillDefinition, DungeonId, GameState } from "../game/types";
 import { createRenderPlan } from "../game/render";
 import {
   chooseMusicLayer,
@@ -37,7 +37,6 @@ import {
   renderShopPanel,
   renderSmithPanel
 } from "./panels";
-import type { AdvancementId, ClassId } from "../game/types";
 
 export type AppMode = "town" | "combat" | "inventory" | "smith" | "auction" | "shop" | "quests" | "classes" | "settings";
 
@@ -58,7 +57,8 @@ export interface AppModel extends AppViewModel {
 export type AppAction =
   | { type: "setMode"; mode: AppMode }
   | { type: "enterDungeon"; dungeonId: DungeonId }
-  | { type: "combatAction"; action: "light" | "heavy" | "skill" | "finish" }
+  | { type: "combatAction"; action: "light" | "heavy" | "finish" }
+  | { type: "combatAction"; action: "skill"; skillId: string }
   | { type: "claimQuest"; questId: string }
   | { type: "selectBaseClass"; classId: ClassId }
   | { type: "advanceClass"; advancementId: AdvancementId }
@@ -115,6 +115,60 @@ function dungeonBackgroundAsset(dungeonId: DungeonId): string {
   return dungeonId === "liuli-furnace" ? "/assets/liuli-furnace-bg.png" : "/assets/cinder-kiln-bg.png";
 }
 
+function classSkillIds(state: GameState): Set<string> {
+  const classDef = catalog.classes.find((item) => item.id === state.player.classId);
+  const skillIds = new Set(classDef?.baseSkillIds ?? []);
+
+  if (state.player.advancementId && classDef) {
+    const advancement = classDef.advancements.find((item) => item.id === state.player.advancementId);
+
+    for (const skillId of advancement?.skillIds ?? []) {
+      skillIds.add(skillId);
+    }
+  }
+
+  return skillIds;
+}
+
+function combatSkillsForState(state: GameState): ClassSkillDefinition[] {
+  const skillIds = classSkillIds(state);
+
+  return catalog.classSkills.filter(
+    (skill) => skill.classId === state.player.classId && skillIds.has(skill.id) && skill.key !== "J" && skill.key !== "K"
+  );
+}
+
+export function combatActionForKeyCode(state: GameState, code: string, heat?: number): AppAction | undefined {
+  if (code === "KeyJ") {
+    return { type: "combatAction", action: "light" };
+  }
+
+  if (code === "KeyK") {
+    return { type: "combatAction", action: "heavy" };
+  }
+
+  const keyByCode: Record<string, string> = {
+    KeyL: "L",
+    KeyU: "U",
+    KeyI: "I",
+    KeyO: "O",
+    Space: "Space"
+  };
+  const key = keyByCode[code];
+
+  if (!key) {
+    return undefined;
+  }
+
+  const skill = combatSkillsForState(state).find((item) => item.key === key);
+
+  if (!skill || (heat !== undefined && heat < skill.resourceCost)) {
+    return undefined;
+  }
+
+  return { type: "combatAction", action: "skill", skillId: skill.id };
+}
+
 function renderTownScene(model: AppViewModel): string {
   const state = model.state;
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
@@ -147,6 +201,13 @@ function renderTownScene(model: AppViewModel): string {
 
 function renderCombatScene(run: CombatRun, state: GameState): string {
   const plan = createRenderPlan(run, run.dungeonId);
+  const skillButtons = combatSkillsForState(state)
+    .map((skill) => {
+      const disabled = run.player.heat < skill.resourceCost;
+
+      return `<button data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-skill-cost="${skill.resourceCost}" ${disabled ? "disabled" : ""}>${skill.displayName}<span>${skill.key} · ${skill.resourceCost}</span></button>`;
+    })
+    .join("");
   const enemies = run.enemies
     .map((enemy) => `<li>${enemy.displayName} HP ${enemy.hp}/${enemy.maxHp} · 护甲 ${enemy.armor}</li>`)
     .join("");
@@ -160,9 +221,9 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
       </div>
       <div class="combat-actions">
-        <button data-combat-action="light">轻击</button>
-        <button data-combat-action="heavy">重击</button>
-        <button data-combat-action="skill">技能</button>
+        <button data-combat-action="light" data-hotkey="J">轻击<span>J</span></button>
+        <button data-combat-action="heavy" data-hotkey="K">重击<span>K</span></button>
+        ${skillButtons}
         <button data-combat-action="finish">结算房间</button>
         <button data-mode="town">返回</button>
       </div>
@@ -328,12 +389,17 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       }
 
       const readyRun = stepCombat(model.combatRun, {}, 220);
-      const combatRun =
-        action.action === "light"
-          ? performAction(readyRun, { type: "light" })
-          : action.action === "heavy"
-            ? performAction(readyRun, { type: "heavy" })
-            : performAction(readyRun, { type: "skill", skillId: "spark-combo" });
+      let combatRun: CombatRun;
+
+      if (action.action === "light") {
+        combatRun = performAction(readyRun, { type: "light" });
+      } else if (action.action === "heavy") {
+        combatRun = performAction(readyRun, { type: "heavy" });
+      } else if (action.action === "skill") {
+        combatRun = performAction(readyRun, { type: "skill", skillId: action.skillId });
+      } else {
+        return model;
+      }
 
       return {
         ...model,
@@ -525,7 +591,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
   }
 }
 
-export function mountApp(root: HTMLDivElement): void {
+export function mountApp(root: HTMLDivElement): () => void {
   let model = createAppModel();
   const audioProcessor = createAudioCommandProcessor(createBrowserAudioSink());
 
@@ -555,10 +621,17 @@ export function mountApp(root: HTMLDivElement): void {
     });
 
     root.addEventListener("click", (event) => {
-      const target = event.target as HTMLElement;
+      const rawTarget = event.target as HTMLElement;
+      const target = rawTarget.closest?.("button") as HTMLElement | null;
+
+      if (!target) {
+        return;
+      }
+
       const mode = target.dataset.mode as AppMode | undefined;
       const dungeonId = target.dataset.enterDungeon as DungeonId | undefined;
       const combatAction = target.dataset.combatAction as "light" | "heavy" | "skill" | "finish" | undefined;
+      const combatSkillId = target.dataset.combatSkillId;
       const appAction = target.dataset.appAction;
       const gearId = target.dataset.gearId;
       const sku = target.dataset.shopSku;
@@ -579,7 +652,13 @@ export function mountApp(root: HTMLDivElement): void {
       }
 
       if (combatAction) {
-        dispatch({ type: "combatAction", action: combatAction });
+        if (combatAction === "skill") {
+          if (combatSkillId) {
+            dispatch({ type: "combatAction", action: combatAction, skillId: combatSkillId });
+          }
+        } else {
+          dispatch({ type: "combatAction", action: combatAction });
+        }
       }
 
       if (appAction === "reinforce") {
@@ -654,7 +733,33 @@ export function mountApp(root: HTMLDivElement): void {
 
       render();
     });
+
+    const keydownHandler = (event: KeyboardEvent) => {
+      if (model.mode !== "combat") {
+        return;
+      }
+
+      const action = combatActionForKeyCode(model.state, event.code, model.combatRun?.player.heat);
+
+      if (!action) {
+        return;
+      }
+
+      event.preventDefault();
+      dispatch(action);
+      render();
+    };
+
+    globalThis.addEventListener?.("keydown", keydownHandler);
+
+    render();
+
+    return () => {
+      globalThis.removeEventListener?.("keydown", keydownHandler);
+    };
   }
 
   render();
+
+  return () => undefined;
 }

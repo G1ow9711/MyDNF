@@ -23,10 +23,20 @@ First playable target:
 - Real-time combat with combo canceling, flashy skills, hitstop, knockback, and screen shake.
 - Loot, inventory, trading, auction simulation, reinforcement, amplification, shop, costumes, gift packs, random boxes, and local save.
 - Character art direction: refined 2D action illustration by default.
-- Environment direction: Chinese-style interactive town scene with realistic 2.5D dungeon scene plates.
+- Environment direction: 中国风幻想工业 interactive town scene with realistic 2.5D dungeon scene plates.
+
+## Naming and Localization
+User-facing names should use Chinese display names. English names can remain as internal IDs for code clarity.
+
+- Working display title: `烬璃纪元`.
+- Class display name: `烬拳卫`; internal ID: `Ember Warden`.
+- Dungeon 1 display name: `灰窑巷`; internal ID: `Cinder Kiln Alley`.
+- Dungeon 2 display name: `琉璃熔炉`; internal ID: `Liuli Furnace`.
+- Town display name: `炉山市集`; internal ID: `Forge Market`.
+- Epic set display names should use Chinese names in UI, with optional English IDs in data files.
 
 ## Player Fantasy
-The first class is `Ember Warden`, an original gauntlet fighter using heat, sparks, pressure waves, and impact bursts. The class is readable, high-impact, and easy to animate with generated shapes and particle effects.
+The first class is `烬拳卫` (`Ember Warden` internal ID), an original gauntlet fighter using heat, sparks, pressure waves, and impact bursts. The class is readable, high-impact, and easy to animate with generated shapes and particle effects.
 
 Resource:
 - `Heat`, max 100.
@@ -38,7 +48,7 @@ Resource:
 Character presentation is a hard quality requirement. The player character must not look like a placeholder, simple block figure, or flat icon.
 
 Required character assets:
-- High-detail character concept art for `Ember Warden`.
+- High-detail character concept art for `烬拳卫`.
 - Full-body town portrait with refined costume, face, hair, gauntlets, cloth folds, metal highlights, and readable silhouette.
 - Battle sprite or sprite-sheet derived from the same design.
 - Animation states: idle, run, dash, light chain, heavy finisher, launcher, 6 skills, hit, down, victory, and town idle.
@@ -69,10 +79,10 @@ Required environment assets:
 - Town hub background with believable architecture, shop stalls, smith forge, auction board, costume display, and dungeon gate.
 
 Art direction:
-- Overall map style: Chinese fantasy-industrial, not generic western fantasy.
+- Overall map style: 中国风幻想工业, not generic western fantasy.
 - Architectural language: tiled roofs, carved wooden beams, stone archways, courtyard walls, hanging lanterns, bronze fixtures, paper talismans, ink-wash distant mountains, bamboo/old pines, worn stone slabs, glazed ceramic details, and furnace glow.
-- `Cinder Kiln Alley`: abandoned kiln district, broken grey tiles, collapsed courtyard walls, ash-covered stone lions, ember pockets, blue night rim light, drifting ash.
-- `Liuli Furnace`: molten-glass and weapon-forge complex, glowing crucibles, hanging bronze chains, glazed-tile reflections, heat distortion, red lanterns, smoke vents, bright skill-friendly silhouettes.
+- `灰窑巷` (`Cinder Kiln Alley` internal ID): abandoned kiln district, broken grey tiles, collapsed courtyard walls, ash-covered stone lions, ember pockets, blue night rim light, drifting ash.
+- `琉璃熔炉` (`Liuli Furnace` internal ID): molten-glass and weapon-forge complex, glowing crucibles, hanging bronze chains, glazed-tile reflections, heat distortion, red lanterns, smoke vents, bright skill-friendly silhouettes.
 - Town hub: compact Chinese-style fantasy-industrial market plaza, forge courtyard, auction notice wall, costume pavilion with mannequins, tea-house style shop, and dungeon gate.
 - Selected emphasis: interactive town scene. The town should feel like a real place with clickable system hotspots, not a static menu.
 
@@ -100,16 +110,16 @@ Premise:
 - Working display title: `烬璃纪元`.
 - The forge-market town was built around an ancient liuli furnace that powered weapons, trade, and avatar craft.
 - The furnace cracked after an underground heat surge. Kiln districts collapsed, monsters appeared, and trade routes stopped.
-- The player, `Ember Warden`, is a heat-gauntlet fighter hired by the town guild to recover furnace cores, reopen trade, and uncover who is corrupting the liuli furnace.
+- The player, `烬拳卫`, is a heat-gauntlet fighter hired by the town guild to recover furnace cores, reopen trade, and uncover who is corrupting the liuli furnace.
 
 Main story structure for first version:
 1. Prologue: town intro, movement/combat tutorial, meet smith and auction keeper.
-2. Chapter 1: `Cinder Kiln Alley`.
+2. Chapter 1: `灰窑巷`.
    - Investigate abandoned kiln street.
    - Rescue trader NPC.
    - Defeat elite guard monster.
    - Unlock reinforcement and personal trade simulation.
-3. Chapter 2: `Liuli Furnace`.
+3. Chapter 2: `琉璃熔炉`.
    - Enter furnace complex.
    - Collect Arc Shards.
    - Break boss armor and recover first furnace core.
@@ -253,14 +263,14 @@ Boss:
 - Target: boss staggers every 20-25 seconds when player plays well.
 
 ## Dungeons
-Dungeon 1: `Cinder Kiln Alley`
+Dungeon 1: `灰窑巷` (`Cinder Kiln Alley`)
 - Short training dungeon.
 - 3 rooms plus elite.
 - Teaches lanes, dash, light/heavy chain, and first two skills.
 - Drops common gear, Iron Dust, Gold, and low-tier consumables.
 - Visual target: Chinese-style abandoned kiln alley with grey tiled roofs, ruined courtyard walls, ash heaps, ember pockets, cold blue rim light, drifting particles, and readable lane floor.
 
-Dungeon 2: `Liuli Furnace`
+Dungeon 2: `琉璃熔炉` (`Liuli Furnace`)
 - Full first version dungeon.
 - 5 rooms plus boss.
 - Uses all trash types and one elite.
@@ -298,8 +308,8 @@ Music direction:
 - Original or properly licensed music only. Do not use DFO music or other copyrighted tracks.
 - Chinese fantasy-industrial style: guzheng, pipa, dizi, low drums, bronze percussion, forge hits, processed synth bass, and heat-like ambient textures.
 - Town music: slower loop, warm market ambience, light plucked strings, forge pulse layer near smith area.
-- `Cinder Kiln Alley`: tense exploration loop with ash wind, low drum, muted pipa motifs, and cold night ambience.
-- `Liuli Furnace`: hotter combat loop with percussion, metallic hits, rising synth, glass shimmer, and furnace rumble.
+- `灰窑巷`: tense exploration loop with ash wind, low drum, muted pipa motifs, and cold night ambience.
+- `琉璃熔炉`: hotter combat loop with percussion, metallic hits, rising synth, glass shimmer, and furnace rumble.
 - Boss music: faster percussion, heavier low end, stronger melody, phase 3 adds extra drum/choir/synth layer.
 
 Adaptive music rules:
@@ -378,31 +388,31 @@ Set system:
 - UI must show active and inactive set bonuses clearly.
 
 First-version epic sets:
-1. `Ember Artisan` set
+1. `烬火宗匠` (`Ember Artisan`) set
    - Build: Heat burst and ultimate damage.
    - 2-piece: Heat generation from normal attacks.
    - 3-piece: Heat-spending skills add ember explosion.
    - 5-piece: `Meteor Knuckle` creates a second delayed shockwave.
 
-2. `Liuli Flow` set
+2. `流光琉璃` (`Liuli Flow`) set
    - Build: cooldown, mobility, skill cycling.
    - 2-piece: small cooldown recovery bonus.
    - 3-piece: dash leaves damage trail when Heat is above threshold.
    - 5-piece: after using 3 different skills, next skill costs less Heat and gains VFX.
 
-3. `Kiln Shadow` set
+3. `窑影行者` (`Kiln Shadow`) set
    - Build: crit, back attack, fast combo.
    - 2-piece: crit chance after dash.
    - 3-piece: bonus damage to launched or staggered enemies.
    - 5-piece: successful cancel chain grants short attack-speed buff.
 
-4. `Mountain Guard` set
+4. `镇山玄甲` (`Mountain Guard`) set
    - Build: survival, armor break, boss safety.
    - 2-piece: damage reduction after heavy hit.
    - 3-piece: armor break damage up.
    - 5-piece: once per room, lethal damage leaves player at 1 HP and triggers shield.
 
-5. `Market Wind` set
+5. `市风游商` (`Market Wind`) set
    - Build: farming, gold, movement, material loop.
    - 2-piece: gold pickup radius and move speed.
    - 3-piece: chance for extra material on elite kill.
@@ -619,7 +629,7 @@ Approved so far:
 
 Needs user approval before implementation:
 - Browser TypeScript/Canvas direction.
-- Original `Ember Warden` class direction and refined 2D action illustration visual style.
+- Original `烬拳卫` class direction and refined 2D action illustration visual style.
 - First playable content count, economy scope, and expanded equipment/build system.
 
 After approval, create detailed implementation plan, then scaffold code.

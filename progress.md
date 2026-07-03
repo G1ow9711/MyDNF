@@ -186,6 +186,12 @@
   - `npm test -- src/tests/state-inventory-save.test.ts`: pass, 24 tests.
   - `npm test`: pass, 32 tests.
   - `npm run build`: pass.
+- Spec compliance review passed.
+- Code quality final re-review passed; only remaining note is optional integer validation for level-like numeric fields.
+- Final Task 3 commits:
+  - `d7e3b2c 实现存档背包和配装方案`
+  - `8c70bf1 修复存档背包质量问题`
+  - `360d237 完善存档结构校验`
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |

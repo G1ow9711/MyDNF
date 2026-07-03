@@ -363,6 +363,37 @@
   - `npm test`: pass, 84 tests.
   - `npm run build`: pass.
   - `git diff --check`: pass; only CRLF conversion warnings.
+- Committed and pushed Task 10:
+  - `248bc4d 实现城镇界面和系统面板`
+  - Pushed `feature/vertical-slice` to GitHub.
+
+## Task 11 Playable System Integration
+- Started Task 11 in `.worktrees/vertical-slice` on `feature/vertical-slice`.
+- Read upgrade, inventory, shop, market, save, and current app controller APIs.
+- Wrote `src/tests/app-integration.test.ts` before production integration changes.
+- RED evidence:
+  - `npm test -- src/tests/app-integration.test.ts` failed because `createAppModel` did not exist.
+  - Added loot/dungeon-clear test later; it failed because clearing rooms kept app mode in `combat` and did not write loot back to `GameState`.
+  - Added trade/auction test later; it failed because reducer did not handle `acceptTrade`.
+- Added `createAppModel` and `reduceAppAction` for testable app actions.
+- Integrated UI actions for reinforcement, amplification, quest reward claim, shop pack purchase, box opening, trade offer acceptance, auction listing/resolution, save, and load.
+- Connected room completion to currency/gear loot and dungeon-clear quest progression.
+- Added actionable controls to shop, quest, settings, smith, trade, and auction panels.
+- Added `docs/runbook.md` with install, dev server, test/build, and save instructions.
+- Browser verification on `http://127.0.0.1:5173/`:
+  - Desktop first screen shows `炉山市集`, `烬拳卫`, dungeon buttons, system nav, and quest panel.
+  - Entered `灰窑巷`, used combat actions, saw hit sparks, HP reduction, and room transition.
+  - Cleared all `灰窑巷` rooms; returned to town with `副本通关，战利品已入账`, quest became `可领取`, and inventory showed increased gold/iron dust plus dropped gear.
+  - Claimed prologue quest; `琉璃熔炉` became enabled and next quest activated.
+  - Reinforced gear through UI; currency was deducted and item reached `+1`.
+  - Used save/load buttons; page showed `读取存档完成`.
+  - Verified auction/trade buttons and actions; no browser console errors.
+  - Mobile viewport `390x844` had no horizontal overflow (`scrollWidth 375`, `innerWidth 390`).
+- Verification:
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 6 tests.
+  - `npm test`: pass, 90 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |

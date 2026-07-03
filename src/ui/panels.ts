@@ -72,6 +72,7 @@ export function renderInventoryPanel(state: GameState): string {
 export function renderSmithPanel(state: GameState): string {
   const selected = state.player.inventory[0];
   const selectedName = selected ? gearName(selected) : "无装备";
+  const gearAttribute = selected ? `data-gear-id="${selected.instanceId}"` : "";
 
   return panel(
     "强化 / 增幅",
@@ -81,8 +82,8 @@ export function renderSmithPanel(state: GameState): string {
         <h3>${selectedName}</h3>
         <p>强化消耗金币与铁尘，增幅消耗弧晶并绑定异响槽。</p>
         <div class="action-row">
-          <button data-action="reinforce" aria-label="强化">强化</button>
-          <button data-action="amplify" aria-label="增幅">增幅</button>
+          <button data-app-action="reinforce" ${gearAttribute} aria-label="强化">强化</button>
+          <button data-app-action="amplify" ${gearAttribute} aria-label="增幅">增幅</button>
         </div>
         <p>保护券 ${state.player.currencies.protectionTicket}</p>
       </div>
@@ -91,6 +92,8 @@ export function renderSmithPanel(state: GameState): string {
 }
 
 export function renderAuctionPanel(state: GameState): string {
+  const offer = state.market.tradeBoard.offers[0];
+  const unequipped = state.player.inventory.find((item) => !Object.values(state.player.equipment).includes(item.instanceId));
   const listingRows = state.market.auctions
     .map((listing) => `<li>${listing.id} · ${listing.price} 金币 · ${listing.status}</li>`)
     .join("");
@@ -100,9 +103,18 @@ export function renderAuctionPanel(state: GameState): string {
     `
       <div class="panel-grid">
         <div>
+          <h3>交易</h3>
+          <p>${offer ? offer.label : "暂无交易"}</p>
+          <button data-trade-offer-id="${offer?.id ?? ""}" ${offer ? "" : "disabled"}>完成交易</button>
+        </div>
+        <div>
           <h3>寄售</h3>
           <p>建议价 ${Math.max(300, state.player.level * 80)} 金币</p>
           <p>热度 ${state.market.auctions.length > 0 ? "热门" : "正常"}</p>
+          <div class="action-row">
+            <button data-auction-gear-id="${unequipped?.instanceId ?? ""}" ${unequipped ? "" : "disabled"}>寄售装备</button>
+            <button data-app-action="resolve-auctions">结算拍卖</button>
+          </div>
         </div>
         <div>
           <h3>委托单</h3>
@@ -126,6 +138,10 @@ export function renderShopPanel(state: GameState): string {
           <h3>礼包</h3>
           <p>琉璃市集礼包 · 强化支援礼包 · 锻炉时装礼包</p>
           <p>时装 ${state.shop.ownedCosmetics.length} 件</p>
+          <div class="action-row">
+            <button data-shop-sku="liuli-gift-pack">购买礼包</button>
+            <button data-box-id="ember-mythic-box">开启箱子</button>
+          </div>
         </div>
         <div>
           <h3>概率</h3>
@@ -138,6 +154,8 @@ export function renderShopPanel(state: GameState): string {
 }
 
 export function renderQuestPanel(state: GameState): string {
+  const readyQuest = Object.entries(state.player.quests).find(([, status]) => status === "ready");
+
   return panel(
     "任务",
     `
@@ -146,6 +164,7 @@ export function renderQuestPanel(state: GameState): string {
         <p>锻造 ${isSystemUnlocked(state, "smith") ? "已解锁" : "未解锁"} · 拍卖 ${
           isSystemUnlocked(state, "auction") ? "已解锁" : "未解锁"
         } · 增幅 ${isSystemUnlocked(state, "amplification") ? "已解锁" : "未解锁"}</p>
+        <button data-quest-id="${readyQuest?.[0] ?? ""}" ${readyQuest ? "" : "disabled"}>领取奖励</button>
       </div>
     `
   );
@@ -159,6 +178,10 @@ export function renderSettingsPanel(): string {
         <label>主音量 <input type="range" min="0" max="100" value="90" /></label>
         <label>音乐 <input type="range" min="0" max="100" value="75" /></label>
         <label>音效 <input type="range" min="0" max="100" value="85" /></label>
+        <div class="action-row">
+          <button data-app-action="save">保存</button>
+          <button data-app-action="load">读取</button>
+        </div>
       </div>
     `
   );

@@ -1,8 +1,21 @@
 import { catalog } from "../data/catalog";
-import { applyHit, createCombatRun, finishRoom, performAction, type CombatRun } from "../game/combat";
-import { createInitialState } from "../game/state";
+import {
+  applyHit,
+  createCombatRun,
+  finishRoom,
+  performAction,
+  stepCombat,
+  type CombatLootEvent,
+  type CombatRun
+} from "../game/combat";
+import { addOwnedGear, createInitialState } from "../game/state";
 import type { DungeonId, GameState } from "../game/types";
 import { createRenderPlan } from "../game/render";
+import { acceptTrade, listAuction, resolveAuctions } from "../systems/market";
+import { applyQuestEvent, claimQuestReward } from "../systems/quests";
+import { loadGame, saveGame, type SaveStorage } from "../systems/save";
+import { buyShopItem, openRandomBox } from "../systems/shop";
+import { amplify, reinforce } from "../systems/upgrades";
 import {
   renderAuctionPanel,
   renderInventoryPanel,
@@ -21,6 +34,32 @@ export interface AppViewModel {
   message?: string;
 }
 
+export interface AppModel extends AppViewModel {
+  storage?: SaveStorage;
+  rng: () => number;
+}
+
+export type AppAction =
+  | { type: "setMode"; mode: AppMode }
+  | { type: "enterDungeon"; dungeonId: DungeonId }
+  | { type: "combatAction"; action: "light" | "heavy" | "skill" | "finish" }
+  | { type: "claimQuest"; questId: string }
+  | { type: "reinforce"; gearId?: string }
+  | { type: "amplify"; gearId?: string }
+  | { type: "buyShopItem"; sku: string }
+  | { type: "openBox"; boxId: string }
+  | { type: "acceptTrade"; offerId: string }
+  | { type: "listAuction"; gearId?: string; price: number }
+  | { type: "resolveAuctions" }
+  | { type: "save" }
+  | { type: "load" };
+
+export interface CreateAppModelOptions {
+  initialState?: GameState;
+  storage?: SaveStorage;
+  rng?: () => number;
+}
+
 function navButton(mode: AppMode, label: string, activeMode: AppMode): string {
   return `<button class="nav-button${activeMode === mode ? " is-active" : ""}" data-mode="${mode}">${label}</button>`;
 }
@@ -37,6 +76,14 @@ function renderNav(mode: AppMode): string {
       ${navButton("settings", "设置", mode)}
     </nav>
   `;
+}
+
+function defaultStorage(): SaveStorage | undefined {
+  if (typeof globalThis.localStorage === "undefined") {
+    return undefined;
+  }
+
+  return globalThis.localStorage;
 }
 
 function renderTownScene(model: AppViewModel): string {
@@ -134,6 +181,16 @@ export function renderAppHtml(model: AppViewModel): string {
   `;
 }
 
+function selectedGearId(state: GameState, explicitGearId?: string): string {
+  const gearId = explicitGearId ?? state.player.inventory[0]?.instanceId;
+
+  if (!gearId) {
+    throw new Error("没有可操作的装备");
+  }
+
+  return gearId;
+}
+
 function defeatAll(run: CombatRun): CombatRun {
   return run.enemies.reduce(
     (next, enemy) =>
@@ -149,41 +206,180 @@ function defeatAll(run: CombatRun): CombatRun {
   );
 }
 
+function applyCombatLoot(state: GameState, loot: CombatLootEvent): GameState {
+  let next: GameState = {
+    ...state,
+    player: {
+      ...state.player,
+      currencies: {
+        ...state.player.currencies,
+        gold: state.player.currencies.gold + loot.gold,
+        ironDust: state.player.currencies.ironDust + loot.ironDust,
+        arcShard: state.player.currencies.arcShard + loot.arcShard
+      }
+    }
+  };
+
+  if (loot.gearDropId) {
+    next = addOwnedGear(next, loot.gearDropId);
+  }
+
+  return next;
+}
+
+export function createAppModel(options: CreateAppModelOptions = {}): AppModel {
+  return {
+    state: options.initialState ?? createInitialState(),
+    mode: "town",
+    storage: options.storage ?? defaultStorage(),
+    rng: options.rng ?? Math.random
+  };
+}
+
+export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
+  switch (action.type) {
+    case "setMode":
+      return { ...model, mode: action.mode, message: undefined };
+    case "enterDungeon":
+      return {
+        ...model,
+        mode: "combat",
+        combatRun: createCombatRun(model.state, action.dungeonId),
+        message: undefined
+      };
+    case "combatAction": {
+      if (!model.combatRun) {
+        return model;
+      }
+
+      if (action.action === "finish") {
+        const finishedRun = finishRoom(defeatAll(model.combatRun));
+        const latestLoot = finishedRun.lootEvents[finishedRun.lootEvents.length - 1];
+        let nextState = latestLoot ? applyCombatLoot(model.state, latestLoot) : model.state;
+
+        if (finishedRun.completed) {
+          nextState = applyQuestEvent(nextState, { type: "dungeonCleared", dungeonId: finishedRun.dungeonId });
+
+          return {
+            ...model,
+            state: nextState,
+            mode: "town",
+            combatRun: undefined,
+            message: "副本通关，战利品已入账"
+          };
+        }
+
+        return {
+          ...model,
+          state: nextState,
+          combatRun: {
+            ...finishedRun,
+            state: nextState
+          },
+          message: "房间结算完成"
+        };
+      }
+
+      const readyRun = stepCombat(model.combatRun, {}, 220);
+      const combatRun =
+        action.action === "light"
+          ? performAction(readyRun, { type: "light" })
+          : action.action === "heavy"
+            ? performAction(readyRun, { type: "heavy" })
+            : performAction(readyRun, { type: "skill", skillId: "spark-combo" });
+
+      return { ...model, combatRun, message: undefined };
+    }
+    case "claimQuest":
+      return {
+        ...model,
+        state: claimQuestReward(model.state, action.questId),
+        message: "任务奖励已领取"
+      };
+    case "reinforce": {
+      const result = reinforce(model.state, selectedGearId(model.state, action.gearId), model.rng);
+
+      return {
+        ...model,
+        state: result.state,
+        message: `强化 ${result.success ? "成功" : "失败"}：+${result.levelAfter}`
+      };
+    }
+    case "amplify": {
+      const result = amplify(model.state, selectedGearId(model.state, action.gearId), model.rng);
+
+      return {
+        ...model,
+        state: result.state,
+        message: `增幅 ${result.success ? "成功" : "失败"}：+${result.levelAfter}`
+      };
+    }
+    case "buyShopItem":
+      return {
+        ...model,
+        state: buyShopItem(model.state, action.sku),
+        message: "礼包已购买"
+      };
+    case "openBox": {
+      const result = openRandomBox(model.state, action.boxId, model.rng);
+
+      return {
+        ...model,
+        state: result.state,
+        message: `开启箱子：${result.award.rarity}`
+      };
+    }
+    case "acceptTrade":
+      return {
+        ...model,
+        state: acceptTrade(model.state, action.offerId),
+        message: "交易完成"
+      };
+    case "listAuction":
+      return {
+        ...model,
+        state: listAuction(model.state, selectedGearId(model.state, action.gearId), action.price),
+        message: "拍卖已寄售"
+      };
+    case "resolveAuctions":
+      return {
+        ...model,
+        state: resolveAuctions(model.state, model.rng),
+        message: "拍卖结算完成"
+      };
+    case "save":
+      if (!model.storage) {
+        throw new Error("未配置存档空间");
+      }
+
+      saveGame(model.storage, model.state);
+
+      return { ...model, message: "保存完成" };
+    case "load":
+      if (!model.storage) {
+        throw new Error("未配置存档空间");
+      }
+
+      return {
+        ...model,
+        state: loadGame(model.storage) ?? model.state,
+        message: "读取存档完成"
+      };
+    default:
+      return model;
+  }
+}
+
 export function mountApp(root: HTMLDivElement): void {
-  let model: AppViewModel = { state: createInitialState(), mode: "town" };
+  let model = createAppModel();
 
   function render(): void {
     root.innerHTML = renderAppHtml(model);
   }
 
-  function startDungeon(dungeonId: DungeonId): void {
+  function dispatch(action: AppAction): void {
     try {
-      model = {
-        ...model,
-        mode: "combat",
-        combatRun: createCombatRun(model.state, dungeonId),
-        message: undefined
-      };
-    } catch (error) {
-      model = { ...model, message: error instanceof Error ? error.message : String(error) };
-    }
-  }
-
-  function combatAction(action: string): void {
-    if (!model.combatRun) {
-      return;
-    }
-
-    try {
-      if (action === "light") {
-        model = { ...model, combatRun: performAction(model.combatRun, { type: "light" }) };
-      } else if (action === "heavy") {
-        model = { ...model, combatRun: performAction(model.combatRun, { type: "heavy" }) };
-      } else if (action === "skill") {
-        model = { ...model, combatRun: performAction(model.combatRun, { type: "skill", skillId: "spark-combo" }) };
-      } else if (action === "finish") {
-        model = { ...model, combatRun: finishRoom(defeatAll(model.combatRun)) };
-      }
+      model = reduceAppAction(model, action);
     } catch (error) {
       model = { ...model, message: error instanceof Error ? error.message : String(error) };
     }
@@ -194,18 +390,61 @@ export function mountApp(root: HTMLDivElement): void {
       const target = event.target as HTMLElement;
       const mode = target.dataset.mode as AppMode | undefined;
       const dungeonId = target.dataset.enterDungeon as DungeonId | undefined;
-      const action = target.dataset.combatAction;
+      const combatAction = target.dataset.combatAction as "light" | "heavy" | "skill" | "finish" | undefined;
+      const appAction = target.dataset.appAction;
+      const gearId = target.dataset.gearId;
+      const sku = target.dataset.shopSku;
+      const boxId = target.dataset.boxId;
+      const questId = target.dataset.questId;
+      const tradeOfferId = target.dataset.tradeOfferId;
+      const auctionGearId = target.dataset.auctionGearId;
 
       if (mode) {
-        model = { ...model, mode, message: undefined };
+        dispatch({ type: "setMode", mode });
       }
 
       if (dungeonId) {
-        startDungeon(dungeonId);
+        dispatch({ type: "enterDungeon", dungeonId });
       }
 
-      if (action) {
-        combatAction(action);
+      if (combatAction) {
+        dispatch({ type: "combatAction", action: combatAction });
+      }
+
+      if (appAction === "reinforce") {
+        dispatch({ type: "reinforce", gearId });
+      }
+
+      if (appAction === "amplify") {
+        dispatch({ type: "amplify", gearId });
+      }
+
+      if (sku) {
+        dispatch({ type: "buyShopItem", sku });
+      }
+
+      if (boxId) {
+        dispatch({ type: "openBox", boxId });
+      }
+
+      if (questId) {
+        dispatch({ type: "claimQuest", questId });
+      }
+
+      if (tradeOfferId) {
+        dispatch({ type: "acceptTrade", offerId: tradeOfferId });
+      }
+
+      if (auctionGearId) {
+        dispatch({ type: "listAuction", gearId: auctionGearId, price: 500 });
+      }
+
+      if (appAction === "resolve-auctions") {
+        dispatch({ type: "resolveAuctions" });
+      }
+
+      if (appAction === "save" || appAction === "load") {
+        dispatch({ type: appAction });
       }
 
       render();

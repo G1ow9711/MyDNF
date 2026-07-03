@@ -2,6 +2,7 @@ import { catalog } from "../data/catalog";
 import type { GameState, GearItem, OwnedGearItem } from "../game/types";
 import { evaluateEquipmentBuild } from "../systems/builds";
 import { getAdvancementPreview } from "../systems/classes";
+import { getAuctionPricing } from "../systems/market";
 import { getActiveQuestText, isSystemUnlocked } from "../systems/quests";
 import { getBoxRates } from "../systems/shop";
 import type { AudioState } from "../systems/audio";
@@ -62,6 +63,18 @@ function passiveLine(passives: Record<string, number | undefined>): string {
     .map(([key, value]) => `${key}+${value}`);
 
   return entries.length > 0 ? entries.join(" / ") : "无";
+}
+
+function auctionDemandLabel(demandState: string): string {
+  if (demandState === "hot") {
+    return "热门";
+  }
+
+  if (demandState === "normal") {
+    return "正常";
+  }
+
+  return "冷门";
 }
 
 export function renderClassPanel(state: GameState): string {
@@ -213,6 +226,9 @@ export function renderSmithPanel(state: GameState): string {
 export function renderAuctionPanel(state: GameState): string {
   const offer = state.market.tradeBoard.offers[0];
   const unequipped = state.player.inventory.find((item) => !Object.values(state.player.equipment).includes(item.instanceId));
+  const pricingTarget = unequipped ?? state.market.auctions[0]?.ownedItem;
+  const pricing = getAuctionPricing(state, pricingTarget?.catalogGearId ?? catalog.gear[0]?.id ?? "unknown");
+  const recentPriceText = pricing.recentPrices.length > 0 ? pricing.recentPrices.join(" / ") : "暂无";
   const listingRows = state.market.auctions
     .map((listing) => `<li>${listing.id} · ${listing.price} 金币 · ${listing.status}</li>`)
     .join("");
@@ -228,10 +244,12 @@ export function renderAuctionPanel(state: GameState): string {
         </div>
         <div>
           <h3>寄售</h3>
-          <p>建议价 ${Math.max(300, state.player.level * 80)} 金币</p>
-          <p>热度 ${state.market.auctions.length > 0 ? "热门" : "正常"}</p>
+          <p data-market-metric="suggested-price">建议价 ${pricing.suggestedPrice} 金币</p>
+          <p data-market-metric="auction-demand">需求热度 ${auctionDemandLabel(pricing.demandState)}</p>
+          <p data-market-metric="listing-fee">手续费 ${pricing.listingFee} 金币</p>
+          <p data-market-metric="recent-prices">近期成交 ${recentPriceText}</p>
           <div class="action-row">
-            <button data-auction-gear-id="${unequipped?.instanceId ?? ""}" ${unequipped ? "" : "disabled"}>寄售装备</button>
+            <button data-auction-gear-id="${unequipped?.instanceId ?? ""}" data-auction-price="${pricing.suggestedPrice}" ${unequipped ? "" : "disabled"}>寄售装备</button>
             <button data-app-action="resolve-auctions">结算拍卖</button>
           </div>
         </div>

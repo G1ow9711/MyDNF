@@ -531,6 +531,32 @@
   - `npm run build`: pass.
   - `git diff --check`: pass; only CRLF conversion warnings.
 
+## Task 19 Auction Market Depth
+- Started after acceptance audit found auctions supported listing, fees, and sale settlement, but lacked recent sale prices and demand-aware market feedback.
+- Wrote regression tests first:
+  - `src/tests/economy.test.ts` now checks sold auctions record the last 5 prices, produce cold/hot demand states, and derive suggested price plus fee from recent sales.
+  - `src/tests/economy.test.ts` now rejects malformed `market.priceHistory` save data.
+  - `src/tests/ui-smoke.test.ts` now checks auction UI exposes recent prices, listing fee, demand, and data-backed suggested price.
+- RED evidence:
+  - `npm test -- src/tests/economy.test.ts src/tests/ui-smoke.test.ts` failed because `getAuctionPricing` was missing, `priceHistory` validation was absent, and the auction panel had no market metric attributes.
+- Implemented:
+  - Added auction price history to `MarketState` and initial state.
+  - `resolveAuctions` now records sold listing prices by catalog gear id and retains the most recent 5.
+  - Added `getAuctionPricing(state, catalogGearId)` with suggested price, listing fee, recent prices, and cold/normal/hot demand state.
+  - Auction panel now shows suggested price, demand heat, listing fee, and recent sale prices; the listing button carries `data-auction-price`.
+  - Auction click handling now uses the button-provided suggested price when present.
+- Verification so far:
+  - `npm test -- src/tests/economy.test.ts src/tests/ui-smoke.test.ts`: pass, 13 tests.
+  - `npm test`: pass, 101 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
+- Code review follow-up:
+  - Reviewer found edited saves could keep oversized/unordered `priceHistory`, and old saves could load without the new field.
+  - Added RED tests for unordered history normalization and legacy-save migration.
+  - Implemented sorted last-5 price-history normalization for pricing, auction settlement, and save loading.
+  - `npm test -- src/tests/economy.test.ts`: pass, 12 tests.
+  - Final verification after review fixes: `npm test` pass, 103 tests; `npm run build` pass; `git diff --check` pass with only CRLF conversion warnings.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -558,6 +584,7 @@
 | 2026-07-03 | `Warning: commit message did not conform to UTF-8` | 2 | Re-ran msg-filter with binary UTF-8 stdout keyed by commit hash |
 | 2026-07-04 | `SyntaxError: unexpected character after line continuation character` from `python -c` with literal `\n` in PowerShell | 1 | Switched to semicolon/list-comprehension one-line Python checks |
 | 2026-07-04 | `npm run build` failed because combat test accessed `CombatEvent` union fields without narrowing | 1 | Added `lastHitEvent` type guard in the test file |
+| 2026-07-04 | PowerShell rejected `&&` while staging and committing | 1 | Switched to separate `git add` and `git commit` commands |
 
 ## 5-Question Reboot Check
 | Question | Answer |

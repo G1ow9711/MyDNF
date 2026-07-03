@@ -1,5 +1,7 @@
 import type {
   AuctionListing,
+  AuctionPriceRecord,
+  AuctionPricing,
   CurrencyId,
   CurrencyState,
   GameState,
@@ -63,12 +65,18 @@ function defaultMarket(): MarketState {
     tradeBoard: createTradeBoard("default-market"),
     auctions: [],
     auctionSequence: 1,
-    turn: 0
+    turn: 0,
+    priceHistory: {}
   };
 }
 
 function getMarket(state: GameState): MarketState {
-  return state.market ?? defaultMarket();
+  const market = state.market ?? defaultMarket();
+
+  return {
+    ...market,
+    priceHistory: market.priceHistory ?? {}
+  };
 }
 
 function hasCurrency(currencies: CurrencyState, cost: Partial<Record<CurrencyId, number>>): boolean {
@@ -121,6 +129,20 @@ function normalizeRoll(roll: number): number {
   return Math.min(Math.max(roll, 0), 0.999999);
 }
 
+function auctionListingFee(price: number): number {
+  return Math.max(10, Math.floor(price * 0.05));
+}
+
+function average(values: number[]): number {
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+export function normalizeAuctionPriceRecords(records: AuctionPriceRecord[] | undefined): AuctionPriceRecord[] {
+  return [...(records ?? [])]
+    .sort((left, right) => left.turn - right.turn || left.price - right.price)
+    .slice(-5);
+}
+
 export function createTradeBoard(seed: string): TradeBoard {
   const boardHash = hashText(seed).toString(36);
   const boardId = `trade-${slugSeed(seed)}-${boardHash}`;
@@ -147,6 +169,26 @@ export function createTradeBoard(seed: string): TradeBoard {
     id: boardId,
     seed,
     offers
+  };
+}
+
+export function getAuctionPricing(state: GameState, catalogGearId: string): AuctionPricing {
+  const market = getMarket(state);
+  const recentRecords = normalizeAuctionPriceRecords(market.priceHistory[catalogGearId]);
+  const recentPrices = recentRecords.map((record) => record.price);
+  const fallbackPrice = Math.max(300, state.player.level * 80);
+  const suggestedPrice = recentPrices.length > 0 ? Math.max(300, average(recentPrices)) : fallbackPrice;
+  const activeListings = market.auctions.filter(
+    (listing) => listing.status === "listed" && listing.ownedItem.catalogGearId === catalogGearId
+  ).length;
+  const demandState = recentPrices.length >= 3 ? "hot" : recentPrices.length > 0 || activeListings > 0 ? "normal" : "cold";
+
+  return {
+    catalogGearId,
+    recentPrices,
+    suggestedPrice,
+    demandState,
+    listingFee: auctionListingFee(suggestedPrice)
   };
 }
 
@@ -183,7 +225,7 @@ export function listAuction(state: GameState, itemId: string, price: number): Ga
     throw new Error(`Cannot list equipped item: ${itemId}`);
   }
 
-  const fee = Math.max(10, Math.floor(price * 0.05));
+  const fee = auctionListingFee(price);
 
   if (state.player.currencies.gold < fee) {
     throw new Error(`Insufficient gold for auction fee: need ${fee}, have ${state.player.currencies.gold}`);
@@ -223,6 +265,13 @@ export function resolveAuctions(state: GameState, rng: () => number): GameState 
   const market = getMarket(state);
   const returnedItems: OwnedGearItem[] = [];
   const remainingAuctions: AuctionListing[] = [];
+  const nextTurn = market.turn + 1;
+  const priceHistory: Record<string, AuctionPriceRecord[]> = Object.fromEntries(
+    Object.entries(market.priceHistory).map(([catalogGearId, records]) => [
+      catalogGearId,
+      normalizeAuctionPriceRecords(records)
+    ])
+  );
   let gold = state.player.currencies.gold;
 
   for (const listing of market.auctions) {
@@ -233,6 +282,11 @@ export function resolveAuctions(state: GameState, rng: () => number): GameState 
 
     if (normalizeRoll(rng()) < 0.75) {
       gold += listing.price;
+      const catalogGearId = listing.ownedItem.catalogGearId;
+      priceHistory[catalogGearId] = normalizeAuctionPriceRecords([
+        ...(priceHistory[catalogGearId] ?? []),
+        { catalogGearId, price: listing.price, turn: nextTurn }
+      ]);
     } else {
       returnedItems.push(listing.ownedItem);
     }
@@ -242,8 +296,9 @@ export function resolveAuctions(state: GameState, rng: () => number): GameState 
     ...state,
     market: {
       ...market,
-      turn: market.turn + 1,
-      auctions: remainingAuctions
+      turn: nextTurn,
+      auctions: remainingAuctions,
+      priceHistory
     },
     player: {
       ...state.player,

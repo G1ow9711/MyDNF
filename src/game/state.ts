@@ -108,7 +108,8 @@ export function createInitialState(): GameState {
       tradeBoard: createTradeBoard("initial-market"),
       auctions: [],
       auctionSequence: 1,
-      turn: 0
+      turn: 0,
+      priceHistory: {}
     },
     shop: {
       ownedCosmetics: [],

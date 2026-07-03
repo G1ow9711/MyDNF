@@ -557,6 +557,7 @@ export function mountApp(root: HTMLDivElement): void {
       const questId = target.dataset.questId;
       const tradeOfferId = target.dataset.tradeOfferId;
       const auctionGearId = target.dataset.auctionGearId;
+      const auctionPrice = Number(target.dataset.auctionPrice);
       const classId = target.dataset.classId as ClassId | undefined;
       const advancementId = target.dataset.advancementId as AdvancementId | undefined;
 
@@ -621,7 +622,11 @@ export function mountApp(root: HTMLDivElement): void {
       }
 
       if (auctionGearId) {
-        dispatch({ type: "listAuction", gearId: auctionGearId, price: 500 });
+        dispatch({
+          type: "listAuction",
+          gearId: auctionGearId,
+          price: Number.isFinite(auctionPrice) && auctionPrice > 0 ? auctionPrice : 500
+        });
       }
 
       if (appAction === "resolve-auctions") {

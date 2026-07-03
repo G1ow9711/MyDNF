@@ -45,6 +45,10 @@ describe("town app shell", () => {
     expect(renderSmithPanel(state)).toContain("增幅");
     expect(renderAuctionPanel(state)).toContain("建议价");
     expect(renderAuctionPanel(state)).toContain("热度");
+    expect(renderAuctionPanel(state)).toContain('data-market-metric="recent-prices"');
+    expect(renderAuctionPanel(state)).toContain('data-market-metric="listing-fee"');
+    expect(renderAuctionPanel(state)).toContain('data-market-metric="auction-demand"');
+    expect(renderAuctionPanel(state)).toContain('data-auction-price="300"');
     expect(renderShopPanel(state)).toContain("礼包");
     expect(renderShopPanel(state)).toContain("时装");
     expect(renderShopPanel(state)).toContain("概率");

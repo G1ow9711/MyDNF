@@ -222,6 +222,7 @@ export interface TradeBoard {
 }
 
 export type AuctionStatus = "listed" | "sold" | "expired";
+export type AuctionDemandState = "cold" | "normal" | "hot";
 
 export interface AuctionListing {
   id: string;
@@ -233,11 +234,26 @@ export interface AuctionListing {
   ownedItem: OwnedGearItem;
 }
 
+export interface AuctionPriceRecord {
+  catalogGearId: string;
+  price: number;
+  turn: number;
+}
+
+export interface AuctionPricing {
+  catalogGearId: string;
+  recentPrices: number[];
+  suggestedPrice: number;
+  demandState: AuctionDemandState;
+  listingFee: number;
+}
+
 export interface MarketState {
   tradeBoard: TradeBoard;
   auctions: AuctionListing[];
   auctionSequence: number;
   turn: number;
+  priceHistory: Record<string, AuctionPriceRecord[]>;
 }
 
 export interface ShopState {

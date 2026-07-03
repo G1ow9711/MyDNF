@@ -1,6 +1,7 @@
 import { catalog } from "../data/catalog";
 import type {
   AmplifyStat,
+  AuctionPriceRecord,
   AdvancementId,
   AuctionStatus,
   CurrencyId,
@@ -11,6 +12,7 @@ import type {
   TownId
 } from "../game/types";
 import { isKnownAdvancementId, isKnownClassId } from "./classes";
+import { normalizeAuctionPriceRecords } from "./market";
 import { isKnownBoxId } from "./shop";
 
 export interface SaveStorage {
@@ -295,13 +297,56 @@ function validateAuctions(value: unknown, ownedInstanceIds: Set<string>): void {
   }
 }
 
+function validateAuctionPriceHistory(value: unknown): void {
+  const priceHistory = requireRecord(value, "market.priceHistory");
+
+  for (const [catalogGearId, recordsValue] of Object.entries(priceHistory)) {
+    if (!catalogGearIds.has(catalogGearId)) {
+      throw new Error(`Malformed save data: market.priceHistory contains unknown catalog gear id ${catalogGearId}`);
+    }
+
+    const records = requireArray(recordsValue, `market.priceHistory.${catalogGearId}`);
+
+    for (const [index, recordValue] of records.entries()) {
+      const path = `market.priceHistory.${catalogGearId}[${index}]`;
+      const record = requireRecord(recordValue, path);
+      const recordCatalogGearId = requireString(record.catalogGearId, `${path}.catalogGearId`);
+
+      if (recordCatalogGearId !== catalogGearId) {
+        throw new Error(`Malformed save data: ${path}.catalogGearId must match history key`);
+      }
+
+      requireFiniteNumber(record.price, `${path}.price`, 1);
+      requireFiniteNumber(record.turn, `${path}.turn`, 0);
+    }
+  }
+}
+
 function validateMarket(value: unknown, ownedInstanceIds: Set<string>): void {
   const market = requireRecord(value, "market");
 
   validateTradeBoard(market.tradeBoard);
   validateAuctions(market.auctions, ownedInstanceIds);
+  if (market.priceHistory !== undefined) {
+    validateAuctionPriceHistory(market.priceHistory);
+  }
   requireFiniteNumber(market.auctionSequence, "market.auctionSequence", 1);
   requireFiniteNumber(market.turn, "market.turn", 0);
+}
+
+function normalizeLoadedAuctionPriceHistory(value: unknown): Record<string, AuctionPriceRecord[]> {
+  if (value === undefined) {
+    return {};
+  }
+
+  const priceHistory = requireRecord(value, "market.priceHistory");
+
+  return Object.fromEntries(
+    Object.entries(priceHistory).map(([catalogGearId, recordsValue]) => [
+      catalogGearId,
+      normalizeAuctionPriceRecords(recordsValue as AuctionPriceRecord[])
+    ])
+  );
 }
 
 function validateShop(value: unknown): void {
@@ -381,7 +426,15 @@ function validateSave(value: unknown): GameState {
   validateMarket(candidate.market, ownedInstanceIds);
   validateShop(candidate.shop);
 
-  return candidate as GameState;
+  const market = requireRecord(candidate.market, "market");
+
+  return {
+    ...candidate,
+    market: {
+      ...market,
+      priceHistory: normalizeLoadedAuctionPriceHistory(market.priceHistory)
+    }
+  } as GameState;
 }
 
 export function loadGame(storage: SaveStorage): GameState | null {

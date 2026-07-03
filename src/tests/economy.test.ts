@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { createInitialState } from "../game/state";
+import { createInitialState, createOwnedGear } from "../game/state";
 import type { CurrencyId, GameState, GearItem, OwnedGearItem, Rarity } from "../game/types";
-import { acceptTrade, createTradeBoard, listAuction, resolveAuctions } from "../systems/market";
+import { acceptTrade, createTradeBoard, getAuctionPricing, listAuction, resolveAuctions } from "../systems/market";
 import { loadGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 import { buyShopItem, getBoxRates, openRandomBox } from "../systems/shop";
 
@@ -167,6 +167,85 @@ describe("auction simulation", () => {
     expect(sold.player.inventory.some((owned) => owned.instanceId === item.instanceId)).toBe(false);
   });
 
+  it("records recent sold prices and derives demand-aware suggested pricing", () => {
+    const baseState = createInitialState();
+    const seedItem = findUnequippedGear(baseState);
+    let state = withCurrencies(
+      {
+        ...baseState,
+        player: {
+          ...baseState.player,
+          inventory: [
+            ...baseState.player.inventory,
+            createOwnedGear(seedItem.catalogGearId, "history-2"),
+            createOwnedGear(seedItem.catalogGearId, "history-3"),
+            createOwnedGear(seedItem.catalogGearId, "history-4"),
+            createOwnedGear(seedItem.catalogGearId, "history-5"),
+            createOwnedGear(seedItem.catalogGearId, "history-6")
+          ]
+        }
+      },
+      { gold: 5000 }
+    );
+    const item = findUnequippedGear(state);
+
+    expect(getAuctionPricing(state, item.catalogGearId)).toMatchObject({
+      catalogGearId: item.catalogGearId,
+      recentPrices: [],
+      suggestedPrice: 300,
+      demandState: "cold",
+      listingFee: 15
+    });
+
+    for (const price of [900, 1100, 1300, 1500, 1700, 1900]) {
+      const currentItem = findUnequippedGear(state);
+      const listed = listAuction(state, currentItem.instanceId, price);
+      state = resolveAuctions(listed, () => 0);
+    }
+
+    expect(state.market.priceHistory[item.catalogGearId]).toEqual([
+      { catalogGearId: item.catalogGearId, price: 1100, turn: 2 },
+      { catalogGearId: item.catalogGearId, price: 1300, turn: 3 },
+      { catalogGearId: item.catalogGearId, price: 1500, turn: 4 },
+      { catalogGearId: item.catalogGearId, price: 1700, turn: 5 },
+      { catalogGearId: item.catalogGearId, price: 1900, turn: 6 }
+    ]);
+    expect(getAuctionPricing(state, item.catalogGearId)).toMatchObject({
+      recentPrices: [1100, 1300, 1500, 1700, 1900],
+      suggestedPrice: 1500,
+      demandState: "hot",
+      listingFee: 75
+    });
+  });
+
+  it("normalizes unordered price history before deriving pricing", () => {
+    const state = createInitialState();
+    const item = findUnequippedGear(state);
+    const withHistory: GameState = {
+      ...state,
+      market: {
+        ...state.market,
+        priceHistory: {
+          [item.catalogGearId]: [
+            { catalogGearId: item.catalogGearId, price: 1600, turn: 6 },
+            { catalogGearId: item.catalogGearId, price: 100, turn: 1 },
+            { catalogGearId: item.catalogGearId, price: 1500, turn: 5 },
+            { catalogGearId: item.catalogGearId, price: 1300, turn: 3 },
+            { catalogGearId: item.catalogGearId, price: 1200, turn: 2 },
+            { catalogGearId: item.catalogGearId, price: 1400, turn: 4 }
+          ]
+        }
+      }
+    };
+
+    expect(getAuctionPricing(withHistory, item.catalogGearId)).toMatchObject({
+      recentPrices: [1200, 1300, 1400, 1500, 1600],
+      suggestedPrice: 1400,
+      demandState: "hot",
+      listingFee: 70
+    });
+  });
+
   it("rejects missing, equipped, and non-positive auction listings", () => {
     const state = createInitialState();
     const equippedWeaponId = state.player.equipment.weapon;
@@ -267,6 +346,38 @@ describe("random boxes", () => {
 });
 
 describe("economy save validation", () => {
+  it("migrates missing and oversized auction price history on load", () => {
+    const storage = new MemoryStorage();
+    const state = createInitialState();
+    const item = findUnequippedGear(state);
+    const legacySave = cloneSave(state);
+
+    delete ((legacySave.market as Record<string, unknown>).priceHistory);
+    writeSave(storage, legacySave);
+    expect(loadGame(storage)?.market.priceHistory).toEqual({});
+
+    const editedSave = cloneSave(state);
+    (editedSave.market as Record<string, unknown>).priceHistory = {
+      [item.catalogGearId]: [
+        { catalogGearId: item.catalogGearId, price: 1600, turn: 6 },
+        { catalogGearId: item.catalogGearId, price: 100, turn: 1 },
+        { catalogGearId: item.catalogGearId, price: 1500, turn: 5 },
+        { catalogGearId: item.catalogGearId, price: 1300, turn: 3 },
+        { catalogGearId: item.catalogGearId, price: 1200, turn: 2 },
+        { catalogGearId: item.catalogGearId, price: 1400, turn: 4 }
+      ]
+    };
+    writeSave(storage, editedSave);
+
+    expect(loadGame(storage)?.market.priceHistory[item.catalogGearId]).toEqual([
+      { catalogGearId: item.catalogGearId, price: 1200, turn: 2 },
+      { catalogGearId: item.catalogGearId, price: 1300, turn: 3 },
+      { catalogGearId: item.catalogGearId, price: 1400, turn: 4 },
+      { catalogGearId: item.catalogGearId, price: 1500, turn: 5 },
+      { catalogGearId: item.catalogGearId, price: 1600, turn: 6 }
+    ]);
+  });
+
   it("round-trips economy state and rejects malformed market and shop branches", () => {
     const storage = new MemoryStorage();
     const item = findUnequippedGear(createInitialState());
@@ -296,5 +407,12 @@ describe("economy save validation", () => {
     (auctions[0].ownedItem as Record<string, unknown>).catalogGearId = "missing-catalog";
     writeSave(storage, badAuctionItem);
     expect(() => loadGame(storage)).toThrow(/auction.*ownedItem.*catalogGearId/i);
+
+    const badPriceHistory = cloneSave(economyState);
+    ((badPriceHistory.market as Record<string, unknown>).priceHistory as Record<string, unknown>) = {
+      "missing-catalog": [{ catalogGearId: "missing-catalog", price: 1000, turn: 1 }]
+    };
+    writeSave(storage, badPriceHistory);
+    expect(() => loadGame(storage)).toThrow(/priceHistory.*missing-catalog/i);
   });
 });

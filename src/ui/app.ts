@@ -1,10 +1,216 @@
-export function mountApp(root: HTMLDivElement): void {
-  root.innerHTML = `
-    <main class="app-shell" aria-label="烬璃纪元">
-      <section class="first-screen">
+import { catalog } from "../data/catalog";
+import { applyHit, createCombatRun, finishRoom, performAction, type CombatRun } from "../game/combat";
+import { createInitialState } from "../game/state";
+import type { DungeonId, GameState } from "../game/types";
+import { createRenderPlan } from "../game/render";
+import {
+  renderAuctionPanel,
+  renderInventoryPanel,
+  renderQuestPanel,
+  renderSettingsPanel,
+  renderShopPanel,
+  renderSmithPanel
+} from "./panels";
+
+export type AppMode = "town" | "combat" | "inventory" | "smith" | "auction" | "shop" | "quests" | "settings";
+
+export interface AppViewModel {
+  state: GameState;
+  mode: AppMode;
+  combatRun?: CombatRun;
+  message?: string;
+}
+
+function navButton(mode: AppMode, label: string, activeMode: AppMode): string {
+  return `<button class="nav-button${activeMode === mode ? " is-active" : ""}" data-mode="${mode}">${label}</button>`;
+}
+
+function renderNav(mode: AppMode): string {
+  return `
+    <nav class="top-nav" aria-label="系统导航">
+      ${navButton("town", "城镇", mode)}
+      ${navButton("inventory", "背包", mode)}
+      ${navButton("smith", "强化", mode)}
+      ${navButton("auction", "拍卖", mode)}
+      ${navButton("shop", "商城", mode)}
+      ${navButton("quests", "任务", mode)}
+      ${navButton("settings", "设置", mode)}
+    </nav>
+  `;
+}
+
+function renderTownScene(model: AppViewModel): string {
+  const state = model.state;
+  const classDef = catalog.classes.find((item) => item.id === state.player.classId);
+  const cinderUnlocked = state.player.unlockedDungeons.includes("cinder-kiln-alley");
+  const liuliUnlocked = state.player.unlockedDungeons.includes("liuli-furnace");
+
+  return `
+    <section class="town-scene" aria-label="炉山市集">
+      <div class="scene-backdrop">
+        <div class="moon-gate"></div>
+        <div class="forge-glow"></div>
+        <div class="market-roof"></div>
+        <div class="stone-lane"></div>
+      </div>
+      <div class="hero-portrait" aria-label="${classDef?.displayName ?? state.player.classId}">
+        <div class="hero-face"></div>
+        <div class="hero-coat"></div>
+        <div class="hero-gauntlet"></div>
+      </div>
+      <div class="town-hud">
         <h1>烬璃纪元</h1>
-        <p>炉山市集正在加载。</p>
+        <p>炉山市集 · ${classDef?.displayName ?? "烬拳卫"} · 等级 ${state.player.level}</p>
+        <div class="dungeon-row">
+          <button data-enter-dungeon="cinder-kiln-alley" ${cinderUnlocked ? "" : "disabled"}>灰窑巷</button>
+          <button data-enter-dungeon="liuli-furnace" ${liuliUnlocked ? "" : "disabled"}>琉璃熔炉</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderCombatScene(run: CombatRun): string {
+  const plan = createRenderPlan(run, run.dungeonId);
+  const enemies = run.enemies
+    .map((enemy) => `<li>${enemy.displayName} HP ${enemy.hp}/${enemy.maxHp} · 护甲 ${enemy.armor}</li>`)
+    .join("");
+  const sparks = plan.commands.filter((command) => command.kind === "hit-spark").length;
+
+  return `
+    <section class="combat-scene" aria-label="战斗">
+      <div class="combat-backdrop scene-${run.dungeonId}">
+        <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
+      </div>
+      <div class="combat-actions">
+        <button data-combat-action="light">轻击</button>
+        <button data-combat-action="heavy">重击</button>
+        <button data-combat-action="skill">技能</button>
+        <button data-combat-action="finish">结算房间</button>
+        <button data-mode="town">返回</button>
+      </div>
+      <div class="combat-status">
+        <p>房间 ${run.roomIndex + 1} · 热能 ${run.player.heat} · 连段 ${run.player.comboStep}</p>
+        <ul>${enemies}</ul>
+      </div>
+    </section>
+  `;
+}
+
+function renderActivePanel(model: AppViewModel): string {
+  switch (model.mode) {
+    case "inventory":
+      return renderInventoryPanel(model.state);
+    case "smith":
+      return renderSmithPanel(model.state);
+    case "auction":
+      return renderAuctionPanel(model.state);
+    case "shop":
+      return renderShopPanel(model.state);
+    case "quests":
+      return renderQuestPanel(model.state);
+    case "settings":
+      return renderSettingsPanel();
+    case "combat":
+      return model.combatRun ? renderCombatScene(model.combatRun) : renderTownScene(model);
+    case "town":
+    default:
+      return renderQuestPanel(model.state);
+  }
+}
+
+export function renderAppHtml(model: AppViewModel): string {
+  const scene = model.mode === "combat" && model.combatRun ? renderCombatScene(model.combatRun) : renderTownScene(model);
+
+  return `
+    <main class="app-shell" aria-label="烬璃纪元">
+      ${renderNav(model.mode)}
+      <section class="game-layout">
+        ${scene}
+        ${model.mode === "combat" ? "" : renderActivePanel(model)}
       </section>
+      ${model.message ? `<div class="toast">${model.message}</div>` : ""}
     </main>
   `;
+}
+
+function defeatAll(run: CombatRun): CombatRun {
+  return run.enemies.reduce(
+    (next, enemy) =>
+      applyHit(next, {
+        id: `ui-finish-${enemy.id}`,
+        targetId: enemy.id,
+        damage: 9999,
+        hitstopMs: 70,
+        knockback: 10,
+        juggle: false
+      }),
+    run
+  );
+}
+
+export function mountApp(root: HTMLDivElement): void {
+  let model: AppViewModel = { state: createInitialState(), mode: "town" };
+
+  function render(): void {
+    root.innerHTML = renderAppHtml(model);
+  }
+
+  function startDungeon(dungeonId: DungeonId): void {
+    try {
+      model = {
+        ...model,
+        mode: "combat",
+        combatRun: createCombatRun(model.state, dungeonId),
+        message: undefined
+      };
+    } catch (error) {
+      model = { ...model, message: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  function combatAction(action: string): void {
+    if (!model.combatRun) {
+      return;
+    }
+
+    try {
+      if (action === "light") {
+        model = { ...model, combatRun: performAction(model.combatRun, { type: "light" }) };
+      } else if (action === "heavy") {
+        model = { ...model, combatRun: performAction(model.combatRun, { type: "heavy" }) };
+      } else if (action === "skill") {
+        model = { ...model, combatRun: performAction(model.combatRun, { type: "skill", skillId: "spark-combo" }) };
+      } else if (action === "finish") {
+        model = { ...model, combatRun: finishRoom(defeatAll(model.combatRun)) };
+      }
+    } catch (error) {
+      model = { ...model, message: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  if ("addEventListener" in root) {
+    root.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement;
+      const mode = target.dataset.mode as AppMode | undefined;
+      const dungeonId = target.dataset.enterDungeon as DungeonId | undefined;
+      const action = target.dataset.combatAction;
+
+      if (mode) {
+        model = { ...model, mode, message: undefined };
+      }
+
+      if (dungeonId) {
+        startDungeon(dungeonId);
+      }
+
+      if (action) {
+        combatAction(action);
+      }
+
+      render();
+    });
+  }
+
+  render();
 }

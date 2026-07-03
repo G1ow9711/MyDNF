@@ -8,5 +8,6 @@ describe("project scaffold", () => {
     mountApp(root);
 
     expect(root.innerHTML).toContain("烬璃纪元");
+    expect(root.innerHTML).toContain("炉山市集");
   });
 });

@@ -342,6 +342,27 @@
   - `npm test`: pass, 82 tests.
   - `npm run build`: pass.
   - `git diff --check`: pass; only CRLF conversion warnings.
+- Committed and pushed Task 9:
+  - `633e54b 实现技能特效和音频钩子`
+  - Pushed `feature/vertical-slice` to GitHub.
+
+## Task 10 Town UI and System Panels
+- Started Task 10 in `.worktrees/vertical-slice` on `feature/vertical-slice`.
+- Read current UI scaffold, styles, smoke test, shop/market systems, and current task plan.
+- Wrote `src/tests/ui-smoke.test.ts` before production UI changes.
+- RED evidence:
+  - `npm test -- src/tests/ui-smoke.test.ts` failed because `../ui/panels` did not exist.
+- Created `src/ui/panels.ts` with inventory, smith, auction, shop, quest, and settings panel renderers.
+- Rebuilt `src/ui/app.ts` into a town-first app controller with navigation modes, dungeon entry, basic combat button handling, and pure `renderAppHtml`.
+- Reworked `src/styles.css` into a playable town/combat layout with Chinese-style forge market scene, generated character portrait layers, responsive panels, and stable controls.
+- Updated scaffold smoke test to assert the first screen includes `炉山市集`.
+- Checked UTF-8 contents for UI files; no replacement characters or literal mojibake markers found.
+- Updated `task_plan.md` with completed town UI/system panels and moved current work to full system interaction integration.
+- Verification:
+  - `npm test -- src/tests/ui-smoke.test.ts`: pass, 2 tests.
+  - `npm test`: pass, 84 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |

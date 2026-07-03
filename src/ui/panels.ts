@@ -1,5 +1,6 @@
 import { catalog } from "../data/catalog";
 import type { GameState, GearItem, OwnedGearItem } from "../game/types";
+import { evaluateEquipmentBuild } from "../systems/builds";
 import { getAdvancementPreview } from "../systems/classes";
 import { getActiveQuestText, isSystemUnlocked } from "../systems/quests";
 import { getBoxRates } from "../systems/shop";
@@ -119,13 +120,24 @@ export function renderClassPanel(state: GameState): string {
 
 export function renderInventoryPanel(state: GameState): string {
   const equippedIds = new Set(Object.values(state.player.equipment));
-  const equippedItems = state.player.inventory.filter((item) => equippedIds.has(item.instanceId));
-  const setNames = new Set(
-    equippedItems
-      .map((owned) => gearFor(owned)?.setId)
-      .filter((setId): setId is string => Boolean(setId))
-      .map((setId) => catalog.epicSets.find((set) => set.id === setId)?.displayName ?? setId)
-  );
+  const build = evaluateEquipmentBuild(state);
+  const setRows = build.sets
+    .map((set) => {
+      const active = set.activeBonuses
+        .map((bonus) => `<li>已激活 ${bonus.pieces}件 · ${bonus.displayName}</li>`)
+        .join("");
+      const inactive = set.inactiveBonuses
+        .map((bonus) => `<li>未激活 ${bonus.pieces}件 · ${bonus.displayName}</li>`)
+        .join("");
+
+      return `
+        <div class="set-summary">
+          <h4>${set.displayName} ${set.pieces}件</h4>
+          <ul class="dense-list">${active}${inactive}</ul>
+        </div>
+      `;
+    })
+    .join("");
   const inventoryRows = state.player.inventory
     .slice(0, 8)
     .map((owned) => {
@@ -166,7 +178,8 @@ export function renderInventoryPanel(state: GameState): string {
         </div>
         <div>
           <h3>套装</h3>
-          <p>${setNames.size > 0 ? [...setNames].join(" / ") : "未激活套装"}</p>
+          <p>构筑标签 ${build.buildTags.length > 0 ? build.buildTags.join(" / ") : "未激活"}</p>
+          ${setRows || "<p>未激活套装</p>"}
           <p>负重 ${state.player.inventory.length}/120</p>
         </div>
       </div>

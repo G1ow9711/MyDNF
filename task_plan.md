@@ -46,6 +46,7 @@ Phase 5 - Verification and Delivery
 - [x] Expose inventory equip, compare, sell, dismantle, and lock actions
 - [x] Implement loot, trade, enhancement, amplification, shop, costumes, and packs
 - [x] Add Trade Credits as a distinct NPC-trade currency
+- [x] Evaluate and show 2/3/5-piece set bonuses and mixed build tags
 - [x] Add sound/visual feedback where feasible
 - **Status:** complete
 

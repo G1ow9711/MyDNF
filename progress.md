@@ -499,6 +499,21 @@
   - `git diff --check`: pass; only CRLF conversion warnings.
   - Browser note: current in-app browser automation was left unreliable by a previous native confirm dialog timeout, so this change was verified through reducer/UI smoke tests and production build rather than live browser clicks.
 
+## Task 17 Equipment Set Bonuses and Mixed Builds
+- Started after acceptance audit found Epic set data existed but active 2/3/5-piece bonuses and mixed 2+3 builds were not evaluated as gameplay state.
+- Wrote regression tests first in `src/tests/builds.test.ts`.
+- RED evidence:
+  - `npm test -- src/tests/builds.test.ts` failed because `../systems/builds` did not exist.
+- Implemented:
+  - Added `evaluateEquipmentBuild(state)` to count equipped set pieces, split active/inactive bonuses, total active bonus stats, and emit build tags.
+  - Inventory panel now shows `构筑标签`, active bonuses, inactive bonuses, and mixed set summaries.
+- Verification:
+  - `npm test -- src/tests/builds.test.ts`: pass, 2 tests.
+  - `npm test`: pass, 99 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
+  - Browser note: skipped live browser check because the in-app browser automation remained unreliable after the previous native confirm dialog timeout; UI behavior is covered by `renderInventoryPanel` tests.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|

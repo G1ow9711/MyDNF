@@ -479,6 +479,26 @@
   - `git diff --check`: pass; only CRLF conversion warnings.
   - Browser automation note: attempting to click the native confirm in the in-app browser caused the browser-control runtime to time out; no code changes were made from that attempt. Confirmation behavior is covered by reducer tests and the UI button is covered by smoke tests.
 
+## Task 16 Inventory Item Actions
+- Started after acceptance audit found inventory item operations were implemented in systems but not exposed enough in the player-facing inventory UI, and item locking did not block conversion.
+- Wrote regression tests first:
+  - `src/tests/state-inventory-save.test.ts` now verifies `setItemLock()` and locked-item rejection for sale/dismantle.
+  - `src/tests/ui-smoke.test.ts` now requires the inventory panel to show `对比`, `装备`, `出售`, `分解`, and `锁定`.
+  - `src/tests/app-integration.test.ts` now exercises equip, lock, locked-sale rejection, unlock, sell, and dismantle through app actions.
+- RED evidence:
+  - `npm test -- src/tests/state-inventory-save.test.ts src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts` failed because `setItemLock` was not exported, inventory UI lacked operation controls, and `equipItem` app action did not update equipment.
+- Implemented:
+  - Added `setItemLock()` and locked-item guards to `sellItem()` / `dismantleItem()`.
+  - Inventory rows now show item comparison text, lock state, reinforce level, and action buttons for equip/sell/dismantle/lock.
+  - Added app reducer actions and DOM bindings for `equipItem`, `sellItem`, `dismantleItem`, and `toggleItemLock`.
+  - Added compact responsive styling for inventory row controls.
+- Verification:
+  - `npm test -- src/tests/state-inventory-save.test.ts src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts`: pass, 39 tests.
+  - `npm test`: pass, 97 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
+  - Browser note: current in-app browser automation was left unreliable by a previous native confirm dialog timeout, so this change was verified through reducer/UI smoke tests and production build rather than live browser clicks.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|

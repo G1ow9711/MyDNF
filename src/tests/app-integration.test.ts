@@ -177,6 +177,54 @@ describe("playable app integration actions", () => {
     expect(opened.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "box-open" }]));
   });
 
+  it("equips, locks, sells, and dismantles inventory items through app actions", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+    const core = model.state.player.inventory.find((item) => item.catalogGearId.includes("-core"));
+
+    if (!core) {
+      throw new Error("Expected starter core");
+    }
+
+    model = reduceAppAction(model, { type: "equipItem", gearId: core.instanceId });
+    expect(model.state.player.equipment.core).toBe(core.instanceId);
+    expect(model.message).toContain("装备");
+
+    model = reduceAppAction(
+      { ...model, state: withCurrency(model.state, { valorToken: 5 }) },
+      { type: "buyShopItem", sku: "liuli-gift-pack" }
+    );
+    const sellable = model.state.player.inventory.at(-1);
+
+    if (!sellable) {
+      throw new Error("Expected gift-pack gear");
+    }
+
+    model = reduceAppAction(model, { type: "toggleItemLock", gearId: sellable.instanceId });
+    expect(model.state.player.inventory.find((item) => item.instanceId === sellable.instanceId)?.locked).toBe(true);
+    expect(() => reduceAppAction(model, { type: "sellItem", gearId: sellable.instanceId })).toThrow(/locked item/i);
+
+    model = reduceAppAction(model, { type: "toggleItemLock", gearId: sellable.instanceId });
+    const beforeGold = model.state.player.currencies.gold;
+    model = reduceAppAction(model, { type: "sellItem", gearId: sellable.instanceId });
+    expect(model.state.player.inventory.some((item) => item.instanceId === sellable.instanceId)).toBe(false);
+    expect(model.state.player.currencies.gold).toBeGreaterThan(beforeGold);
+
+    const bought = reduceAppAction(
+      { ...model, state: withCurrency(model.state, { valorToken: 5 }) },
+      { type: "buyShopItem", sku: "liuli-gift-pack" }
+    );
+    const dropped = bought.state.player.inventory.at(-1);
+
+    if (!dropped) {
+      throw new Error("Expected gift-pack gear");
+    }
+
+    const beforeDust = bought.state.player.currencies.ironDust;
+    const dismantled = reduceAppAction(bought, { type: "dismantleItem", gearId: dropped.instanceId });
+    expect(dismantled.state.player.inventory.some((item) => item.instanceId === dropped.instanceId)).toBe(false);
+    expect(dismantled.state.player.currencies.ironDust).toBeGreaterThan(beforeDust);
+  });
+
   it("accepts a trade offer and resolves an auction listing through app actions", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

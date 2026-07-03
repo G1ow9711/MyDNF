@@ -77,6 +77,12 @@ function clearLoadoutRefs(state: GameState, instanceId: string): EquipmentState[
   return state.player.loadouts.map((loadout) => clearEquipmentRef(loadout, instanceId));
 }
 
+function assertUnlocked(ownedItem: OwnedGearItem): void {
+  if (ownedItem.locked) {
+    throw new Error(`Cannot convert locked item: ${ownedItem.instanceId}`);
+  }
+}
+
 export function equipItem(state: GameState, instanceId: string): GameState {
   const ownedItem = findOwnedItem(state, instanceId);
   const catalogGear = findCatalogGear(ownedItem);
@@ -123,6 +129,8 @@ export function sellItem(state: GameState, instanceId: string): GameState {
   const ownedItem = findOwnedItem(state, instanceId);
   const catalogGear = findCatalogGear(ownedItem);
 
+  assertUnlocked(ownedItem);
+
   if (isCurrentlyEquipped(state, instanceId)) {
     throw new Error(`Cannot sell equipped item: ${instanceId}`);
   }
@@ -147,6 +155,8 @@ export function dismantleItem(state: GameState, instanceId: string): GameState {
   const ironDust = dismantleIronDustValues[catalogGear.rarity] + catalogGear.level * 2;
   const arcShard = dismantleArcShardValues[catalogGear.rarity];
 
+  assertUnlocked(ownedItem);
+
   if (isCurrentlyEquipped(state, instanceId)) {
     throw new Error(`Cannot dismantle equipped item: ${instanceId}`);
   }
@@ -162,6 +172,18 @@ export function dismantleItem(state: GameState, instanceId: string): GameState {
         ironDust: state.player.currencies.ironDust + ironDust,
         arcShard: state.player.currencies.arcShard + arcShard
       }
+    }
+  };
+}
+
+export function setItemLock(state: GameState, instanceId: string, locked: boolean): GameState {
+  findOwnedItem(state, instanceId);
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      inventory: state.player.inventory.map((item) => (item.instanceId === instanceId ? { ...item, locked } : item))
     }
   };
 }

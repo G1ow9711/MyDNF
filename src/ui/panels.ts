@@ -12,6 +12,18 @@ function gearName(owned: OwnedGearItem): string {
   return gearFor(owned)?.displayName ?? owned.catalogGearId;
 }
 
+function statLine(gear: GearItem | undefined): string {
+  if (!gear) {
+    return "无属性";
+  }
+
+  const stats = Object.entries(gear.stats)
+    .filter(([, value]) => typeof value === "number")
+    .map(([key, value]) => `${key}+${value}`);
+
+  return stats.length > 0 ? stats.join(" / ") : "无属性";
+}
+
 function panel(title: string, body: string): string {
   return `
     <section class="system-panel" aria-label="${title}">
@@ -116,7 +128,31 @@ export function renderInventoryPanel(state: GameState): string {
   );
   const inventoryRows = state.player.inventory
     .slice(0, 8)
-    .map((owned) => `<li><span>${gearName(owned)}</span><b>+${owned.reinforceLevel}</b></li>`)
+    .map((owned) => {
+      const gear = gearFor(owned);
+      const equippedInSlot = gear ? state.player.equipment[gear.slot] : undefined;
+      const equipped = equippedIds.has(owned.instanceId);
+      const equippedGear = state.player.inventory.find((item) => item.instanceId === equippedInSlot);
+      const compareText = equipped
+        ? "对比：当前已装备"
+        : `对比：当前 ${equippedGear ? gearName(equippedGear) : "空位"} → ${statLine(gear)}`;
+
+      return `
+        <li class="inventory-row">
+          <div>
+            <span>${gearName(owned)}${owned.locked ? " · 已锁定" : ""}</span>
+            <small>${compareText}</small>
+          </div>
+          <b>+${owned.reinforceLevel}</b>
+          <div class="inventory-actions">
+            <button data-app-action="equip-item" data-gear-id="${owned.instanceId}" ${equipped ? "disabled" : ""}>装备</button>
+            <button data-app-action="sell-item" data-gear-id="${owned.instanceId}" ${equipped || owned.locked ? "disabled" : ""}>出售</button>
+            <button data-app-action="dismantle-item" data-gear-id="${owned.instanceId}" ${equipped || owned.locked ? "disabled" : ""}>分解</button>
+            <button data-app-action="toggle-lock" data-gear-id="${owned.instanceId}">${owned.locked ? "解锁" : "锁定"}</button>
+          </div>
+        </li>
+      `;
+    })
     .join("");
 
   return panel(

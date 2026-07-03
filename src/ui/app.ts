@@ -19,6 +19,7 @@ import {
   type AudioState
 } from "../systems/audio";
 import { advanceClass as applyClassAdvancement, selectBaseClass as applyBaseClass } from "../systems/classes";
+import { dismantleItem, equipItem, sellItem, setItemLock } from "../systems/inventory";
 import { acceptTrade, listAuction, resolveAuctions } from "../systems/market";
 import { applyQuestEvent, claimQuestReward, getActiveQuestText } from "../systems/quests";
 import { loadGame, saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
@@ -57,6 +58,10 @@ export type AppAction =
   | { type: "claimQuest"; questId: string }
   | { type: "selectBaseClass"; classId: ClassId }
   | { type: "advanceClass"; advancementId: AdvancementId }
+  | { type: "equipItem"; gearId: string }
+  | { type: "sellItem"; gearId: string }
+  | { type: "dismantleItem"; gearId: string }
+  | { type: "toggleItemLock"; gearId: string }
   | { type: "reinforce"; gearId?: string }
   | { type: "amplify"; gearId?: string }
   | { type: "buyShopItem"; sku: string }
@@ -359,6 +364,43 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         audio: playSfx(model.audio, "quest-complete")
       };
     }
+    case "equipItem":
+      return {
+        ...model,
+        state: equipItem(model.state, action.gearId),
+        mode: "inventory",
+        message: "装备已穿戴",
+        audio: playSfx(model.audio, "ui-equip")
+      };
+    case "sellItem":
+      return {
+        ...model,
+        state: sellItem(model.state, action.gearId),
+        mode: "inventory",
+        message: "装备已出售",
+        audio: playSfx(model.audio, "coin-gain")
+      };
+    case "dismantleItem":
+      return {
+        ...model,
+        state: dismantleItem(model.state, action.gearId),
+        mode: "inventory",
+        message: "装备已分解",
+        audio: playSfx(model.audio, "dismantle")
+      };
+    case "toggleItemLock": {
+      const owned = model.state.player.inventory.find((item) => item.instanceId === action.gearId);
+      const nextState = setItemLock(model.state, action.gearId, !owned?.locked);
+      const locked = nextState.player.inventory.find((item) => item.instanceId === action.gearId)?.locked;
+
+      return {
+        ...model,
+        state: nextState,
+        mode: "inventory",
+        message: locked ? "装备已锁定" : "装备已解锁",
+        audio: playSfx(model.audio, "ui-lock")
+      };
+    }
     case "reinforce": {
       const gearId = selectedGearId(model.state, action.gearId);
       const result = reinforce(model.state, gearId, model.rng);
@@ -517,6 +559,22 @@ export function mountApp(root: HTMLDivElement): void {
 
       if (appAction === "amplify") {
         dispatch({ type: "amplify", gearId });
+      }
+
+      if (gearId && appAction === "equip-item") {
+        dispatch({ type: "equipItem", gearId });
+      }
+
+      if (gearId && appAction === "sell-item") {
+        dispatch({ type: "sellItem", gearId });
+      }
+
+      if (gearId && appAction === "dismantle-item") {
+        dispatch({ type: "dismantleItem", gearId });
+      }
+
+      if (gearId && appAction === "toggle-lock") {
+        dispatch({ type: "toggleItemLock", gearId });
       }
 
       if (sku) {

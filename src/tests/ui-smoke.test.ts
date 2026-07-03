@@ -35,6 +35,11 @@ describe("town app shell", () => {
 
     expect(renderInventoryPanel(state)).toContain("套装");
     expect(renderInventoryPanel(state)).toContain("负重");
+    expect(renderInventoryPanel(state)).toContain("对比");
+    expect(renderInventoryPanel(state)).toContain("装备");
+    expect(renderInventoryPanel(state)).toContain("出售");
+    expect(renderInventoryPanel(state)).toContain("分解");
+    expect(renderInventoryPanel(state)).toContain("锁定");
     expect(renderSmithPanel(state)).toContain("保护券");
     expect(renderSmithPanel(state)).toContain("增幅");
     expect(renderAuctionPanel(state)).toContain("建议价");

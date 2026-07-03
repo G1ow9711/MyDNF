@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
 import { addOwnedGear, createInitialState, createOwnedGear, nextOwnedGearSequence } from "../game/state";
 import type { GameState, GearItem, GearSlot, OwnedGearItem } from "../game/types";
-import { applyLoadout, dismantleItem, equipItem, saveLoadout, sellItem } from "../systems/inventory";
+import { applyLoadout, dismantleItem, equipItem, saveLoadout, sellItem, setItemLock } from "../systems/inventory";
 import { loadGame, saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 
 class MemoryStorage implements SaveStorage {
@@ -253,6 +253,20 @@ describe("inventory item conversion", () => {
     expect(next.player.inventory.some((item) => item.instanceId === ownedCore.instanceId)).toBe(false);
     expect(next.player.currencies.gold - state.player.currencies.gold).toBe(expectedSellGold(ownedCoreCatalog));
     expect(() => sellItem(state, equippedWeaponId ?? "")).toThrow(/equipped item/i);
+  });
+
+  it("locks items against sale and dismantle until unlocked", () => {
+    const state = createInitialState();
+    const ownedCore = ownedBySlot(state, "core");
+    const locked = setItemLock(state, ownedCore.instanceId, true);
+
+    expect(locked.player.inventory.find((item) => item.instanceId === ownedCore.instanceId)?.locked).toBe(true);
+    expect(() => sellItem(locked, ownedCore.instanceId)).toThrow(/locked item/i);
+    expect(() => dismantleItem(locked, ownedCore.instanceId)).toThrow(/locked item/i);
+
+    const unlocked = setItemLock(locked, ownedCore.instanceId, false);
+    expect(unlocked.player.inventory.find((item) => item.instanceId === ownedCore.instanceId)?.locked).toBe(false);
+    expect(sellItem(unlocked, ownedCore.instanceId).player.inventory.some((item) => item.instanceId === ownedCore.instanceId)).toBe(false);
   });
 
   it("sells an item referenced only by a saved loadout and clears the stale loadout ref", () => {

@@ -43,6 +43,7 @@ Phase 5 - Verification and Delivery
 - [x] Implement skills and visual effects
 - [x] Implement town UI and system panels
 - [x] Expose class selection and advancement in player-facing UI
+- [x] Expose inventory equip, compare, sell, dismantle, and lock actions
 - [x] Implement loot, trade, enhancement, amplification, shop, costumes, and packs
 - [x] Add Trade Credits as a distinct NPC-trade currency
 - [x] Add sound/visual feedback where feasible

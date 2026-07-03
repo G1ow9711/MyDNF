@@ -24,6 +24,8 @@ export type StatKey =
   | "goldFind"
   | "heatGain";
 
+export type AmplifyStat = "crit" | "cooldown" | "element" | "moveSpeed";
+
 export type SkillTag = "starter" | "launcher" | "dash" | "slam" | "pull" | "burst" | "ultimate" | "combo";
 
 export type DungeonId = "cinder-kiln-alley" | "liuli-furnace";
@@ -52,6 +54,19 @@ export interface GearItem {
   setId?: string;
   stats: StatBlock;
   tags: string[];
+}
+
+export interface OwnedGearItem {
+  instanceId: string;
+  catalogGearId: string;
+  reinforceLevel: number;
+  amplifyLevel: number;
+  amplifyStat?: AmplifyStat;
+  locked: boolean;
+  bound: boolean;
+  tradable: boolean;
+  sealed: boolean;
+  equipped: boolean;
 }
 
 export interface EpicSetBonus {
@@ -106,7 +121,7 @@ export interface PlayerState {
   experience: number;
   heat: number;
   currencies: CurrencyState;
-  inventory: string[];
+  inventory: OwnedGearItem[];
   equipment: Partial<Record<GearSlot, string>>;
   loadouts: Array<Partial<Record<GearSlot, string>>>;
   quests: Record<string, QuestStatus>;

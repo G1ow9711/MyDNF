@@ -1,5 +1,41 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
+import type { GearSlot, OwnedGearItem, PlayerState } from "../game/types";
+
+const allSlots: GearSlot[] = [
+  "weapon",
+  "core",
+  "head",
+  "body",
+  "legs",
+  "belt",
+  "boots",
+  "necklace",
+  "bracelet",
+  "ring",
+  "sigil",
+  "charm"
+];
+
+const stableIdPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+const mojibakePattern = /[�]|(?:鐑|拑|鍗|鐏|獞|鐞|€|绾|嫵|嚮|橀|拌)/;
+
+function expectUniqueIds(items: Array<{ id: string }>): void {
+  expect(new Set(items.map((item) => item.id)).size).toBe(items.length);
+}
+
+function textValues(value: unknown): string[] {
+  if (typeof value === "string") {
+    return [value];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap(textValues);
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value).flatMap(textValues);
+  }
+  return [];
+}
 
 describe("catalog", () => {
   it("defines the required Chinese title, hero, dungeons, gear, and epic set bonuses", () => {
@@ -12,5 +48,91 @@ describe("catalog", () => {
     for (const epicSet of catalog.epicSets) {
       expect(epicSet.bonuses.map((bonus) => bonus.pieces)).toEqual([2, 3, 5]);
     }
+  });
+
+  it("keeps ids unique and stable across core catalog collections", () => {
+    expectUniqueIds(catalog.skills);
+    expectUniqueIds(catalog.dungeons);
+    expectUniqueIds(catalog.epicSets);
+    expectUniqueIds(catalog.gear);
+
+    for (const id of [
+      catalog.id,
+      catalog.hero.id,
+      ...catalog.skills.map((skill) => skill.id),
+      ...catalog.dungeons.map((dungeon) => dungeon.id),
+      ...catalog.epicSets.map((set) => set.id),
+      ...catalog.gear.map((item) => item.id)
+    ]) {
+      expect(id).toMatch(stableIdPattern);
+    }
+  });
+
+  it("contains readable Chinese display text without mojibake or replacement characters", () => {
+    const catalogText = textValues({
+      title: catalog.title,
+      hero: catalog.hero,
+      skills: catalog.skills,
+      dungeons: catalog.dungeons,
+      epicSets: catalog.epicSets,
+      gear: catalog.gear,
+      quests: catalog.quests
+    });
+
+    for (const text of catalogText) {
+      expect(text).not.toMatch(mojibakePattern);
+    }
+  });
+
+  it("covers all gear slots, rarity tiers, and valid set references", () => {
+    expect(new Set(catalog.gear.map((item) => item.slot))).toEqual(new Set(allSlots));
+    expect(new Set(catalog.gear.map((item) => item.rarity))).toEqual(
+      new Set(["common", "uncommon", "rare", "epic", "mythic"])
+    );
+
+    const epicSetIds = new Set(catalog.epicSets.map((set) => set.id));
+    for (const item of catalog.gear) {
+      if (item.setId) {
+        expect(epicSetIds.has(item.setId)).toBe(true);
+        expect(["epic", "mythic"]).toContain(item.rarity);
+      }
+    }
+  });
+
+  it("models owned gear separately from catalog gear ids for future save and upgrade systems", () => {
+    const ownedGear: OwnedGearItem = {
+      instanceId: "owned-ember-001",
+      catalogGearId: catalog.gear[0].id,
+      reinforceLevel: 3,
+      amplifyLevel: 1,
+      amplifyStat: "crit",
+      locked: false,
+      bound: true,
+      tradable: false,
+      sealed: false,
+      equipped: true
+    };
+
+    const player: PlayerState = {
+      heroId: catalog.hero.id,
+      level: 1,
+      experience: 0,
+      heat: 0,
+      currencies: {
+        gold: 0,
+        ironDust: 0,
+        arcShard: 0,
+        valorToken: 0,
+        protectionTicket: 0
+      },
+      inventory: [ownedGear],
+      equipment: { weapon: ownedGear.instanceId },
+      loadouts: [{ weapon: ownedGear.instanceId }, {}, {}],
+      quests: {},
+      unlockedDungeons: ["cinder-kiln-alley"]
+    };
+
+    expect(player.inventory[0].catalogGearId).toBe(catalog.gear[0].id);
+    expect(player.equipment.weapon).toBe(ownedGear.instanceId);
   });
 });

@@ -1,4 +1,4 @@
-import type { DungeonDefinition, EpicSet, GearItem, GearSlot, QuestDefinition, SkillDefinition } from "../game/types";
+import type { DungeonDefinition, EpicSet, GearItem, GearSlot, QuestDefinition, Rarity, SkillDefinition } from "../game/types";
 
 const slots: readonly GearSlot[] = [
   "weapon",
@@ -18,7 +18,7 @@ const slots: readonly GearSlot[] = [
 const slotNames: Record<GearSlot, string> = {
   weapon: "拳刃",
   core: "炉心",
-  head: "冠",
+  head: "战冠",
   body: "战衣",
   legs: "护腿",
   belt: "腰封",
@@ -146,30 +146,47 @@ export const epicSets: EpicSet[] = [
   }
 ];
 
-const baseNames = ["初燃", "回火", "赤脉", "玄纹", "流彩"];
+const rarityPlans: Array<{
+  rarity: Rarity;
+  idPrefix: string;
+  displayPrefix: string;
+  levelBase: number;
+  setItems: boolean;
+  repeats: number;
+}> = [
+  { rarity: "common", idPrefix: "ash", displayPrefix: "灰烬", levelBase: 1, setItems: false, repeats: 1 },
+  { rarity: "uncommon", idPrefix: "kiln", displayPrefix: "窑火", levelBase: 8, setItems: false, repeats: 1 },
+  { rarity: "rare", idPrefix: "red-ore", displayPrefix: "赤矿", levelBase: 16, setItems: false, repeats: 1 },
+  { rarity: "epic", idPrefix: "epic", displayPrefix: "史诗", levelBase: 28, setItems: true, repeats: 2 },
+  { rarity: "mythic", idPrefix: "mythic", displayPrefix: "神话", levelBase: 45, setItems: true, repeats: 1 }
+];
 
-export const gear: GearItem[] = Array.from({ length: 60 }, (_, index) => {
-  const slot = slots[index % slots.length];
-  const set = epicSets[Math.floor(index / slots.length)];
-  const tier = index % slots.length;
-  const level = 5 + Math.floor(index / slots.length) * 10 + Math.floor(tier / 3);
+export const gear: GearItem[] = rarityPlans.flatMap((plan) =>
+  Array.from({ length: slots.length * plan.repeats }, (_, index) => {
+    const slot = slots[index % slots.length];
+    const set = epicSets[index % epicSets.length];
+    const level = plan.levelBase + Math.floor(index / slots.length) * 5 + Math.floor((index % slots.length) / 3);
+    const setId = plan.setItems ? set.id : undefined;
+    const nameRoot = setId ? set.displayName : plan.displayPrefix;
 
-  return {
-    id: `${set.id}-${slot}`,
-    displayName: `${baseNames[Math.floor(index / slots.length)]}${set.displayName}${slotNames[slot]}`,
-    rarity: "epic",
-    slot,
-    level,
-    setId: set.id,
-    stats: {
-      attack: slot === "weapon" || slot === "core" ? 18 + level : 4 + Math.floor(level / 2),
-      defense: slot === "weapon" ? 0 : 8 + level,
-      crit: slot === "ring" || slot === "bracelet" ? 4 + Math.floor(level / 10) : undefined,
-      cooldown: slot === "sigil" || slot === "charm" ? 3 + Math.floor(level / 15) : undefined
-    },
-    tags: [set.theme, slot]
-  };
-});
+    return {
+      id: `${plan.idPrefix}-${index + 1}-${slot}`,
+      displayName: `${nameRoot}${slotNames[slot]}`,
+      rarity: plan.rarity,
+      slot,
+      level,
+      setId,
+      stats: {
+        attack: slot === "weapon" || slot === "core" ? 8 + level : 2 + Math.floor(level / 3),
+        defense: slot === "weapon" ? 0 : 5 + level,
+        crit: slot === "ring" || slot === "bracelet" ? 2 + Math.floor(level / 12) : undefined,
+        cooldown: slot === "sigil" || slot === "charm" ? 2 + Math.floor(level / 18) : undefined,
+        element: setId && (slot === "weapon" || slot === "core") ? 4 + Math.floor(level / 10) : undefined
+      },
+      tags: setId ? [set.theme, slot] : [plan.rarity, slot]
+    };
+  })
+);
 
 export const dungeons: DungeonDefinition[] = [
   {

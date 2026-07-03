@@ -247,6 +247,15 @@
   - `npm test -- src/tests/economy.test.ts`: pass, 9 tests.
   - `npm test`: pass, 57 tests.
   - `npm run build`: pass.
+- Task 5 spec compliance review passed.
+- Code-quality review was completed locally because the subagent review hit the account usage limit; fixes above addressed the concrete findings.
+- Final Task 5 verification:
+  - `npm test -- src/tests/economy.test.ts`: pass, 9 tests.
+  - `npm test`: pass, 57 tests.
+  - `npm run build`: pass.
+- Final Task 5 commits:
+  - `2794281 实现交易拍卖和商城礼包`
+  - `1859c4e 修复经济系统实例和箱子校验`
 - Task 5 files created/modified:
   - `src/systems/market.ts`
   - `src/systems/shop.ts`

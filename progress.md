@@ -323,6 +323,25 @@
   - `npm test`: pass, 76 tests.
   - `npm run build`: pass.
   - `git diff --check`: pass; only CRLF conversion warnings.
+- Committed and pushed Task 8:
+  - `489f5c9 实现核心战斗模型`
+  - Pushed `feature/vertical-slice` to GitHub.
+
+## Task 9 Rendering and Audio Hooks
+- Started Task 9 in `.worktrees/vertical-slice` on `feature/vertical-slice`.
+- Read current `task_plan.md` plus render/audio sections in the implementation plan and design spec.
+- Wrote `src/tests/render-audio.test.ts` before production code.
+- RED evidence:
+  - `npm test -- src/tests/render-audio.test.ts` failed because `../game/render` did not exist.
+- Created `src/game/render.ts` with Chinese-style scene palettes, skill VFX profiles, render command plans, no-UI-shake rule, player/enemy/hit-spark draw commands, and per-class VFX colors.
+- Created `src/systems/audio.ts` with adaptive BGM layer selection, pure audio state, volume clamping, and queued BGM/SFX commands.
+- Checked UTF-8 contents for render/audio files; no replacement characters or literal mojibake markers found.
+- Updated `task_plan.md` so skills/VFX are complete and current work moves to UI/system integration.
+- Verification:
+  - `npm test -- src/tests/render-audio.test.ts`: pass, 6 tests.
+  - `npm test`: pass, 82 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |

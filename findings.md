@@ -58,6 +58,7 @@
 | Delay scaffolding and code until approved design | Required by brainstorming skill |
 | Use TypeScript + Vite + Canvas for first playable version | Small dependency surface, easy local browser play, enough for 2.5D action prototype |
 | Use Chinese commit messages | User explicitly required all git commit messages to be Chinese |
+| Task 2 uses current exact Chinese display strings | Current task requires `烬璃纪元`, `烬拳卫`, `灰窑巷`, and `琉璃熔炉`; older plan text contains mojibake and is not source data |
 
 ## Issues Encountered
 | Issue | Resolution |

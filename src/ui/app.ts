@@ -21,7 +21,7 @@ import {
 import { advanceClass as applyClassAdvancement, selectBaseClass as applyBaseClass } from "../systems/classes";
 import { acceptTrade, listAuction, resolveAuctions } from "../systems/market";
 import { applyQuestEvent, claimQuestReward, getActiveQuestText } from "../systems/quests";
-import { loadGame, saveGame, type SaveStorage } from "../systems/save";
+import { loadGame, saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 import { buyShopItem, openRandomBox } from "../systems/shop";
 import { amplify, reinforce } from "../systems/upgrades";
 import {
@@ -65,7 +65,8 @@ export type AppAction =
   | { type: "listAuction"; gearId?: string; price: number }
   | { type: "resolveAuctions" }
   | { type: "save" }
-  | { type: "load" };
+  | { type: "load" }
+  | { type: "resetSave"; confirmed: boolean };
 
 export interface CreateAppModelOptions {
   initialState?: GameState;
@@ -443,6 +444,25 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         message: "读取存档完成",
         audio: playSfx(model.audio, "ui-load")
       };
+    case "resetSave":
+      if (!model.storage) {
+        throw new Error("未配置存档空间");
+      }
+
+      if (!action.confirmed) {
+        return { ...model, message: "已取消重置存档", audio: playSfx(model.audio, "ui-cancel") };
+      }
+
+      model.storage.removeItem(SAVE_KEY);
+
+      return {
+        ...model,
+        state: createInitialState(),
+        mode: "town",
+        combatRun: undefined,
+        message: "存档已重置",
+        audio: playSfx(playBgm(model.audio, chooseMusicLayer({ mode: "town" }).trackId), "ui-reset")
+      };
     default:
       return model;
   }
@@ -533,6 +553,12 @@ export function mountApp(root: HTMLDivElement): void {
 
       if (appAction === "save" || appAction === "load") {
         dispatch({ type: appAction });
+      }
+
+      if (appAction === "reset-save") {
+        const confirmed =
+          typeof globalThis.confirm === "function" ? globalThis.confirm("确认重置本地存档？此操作不可撤销。") : false;
+        dispatch({ type: "resetSave", confirmed });
       }
 
       render();

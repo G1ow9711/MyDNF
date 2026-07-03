@@ -218,4 +218,23 @@ describe("playable app integration actions", () => {
     expect(loaded.state).toEqual(saved.state);
     expect(loaded.message).toContain("读取");
   });
+
+  it("requires confirmation before resetting the local save", () => {
+    const storage = new MemoryStorage();
+    const model = createAppModel({ storage, rng: () => 0 });
+    const gearId = model.state.player.inventory[0].instanceId;
+    const reinforced = reduceAppAction(model, { type: "reinforce", gearId });
+    const saved = reduceAppAction(reinforced, { type: "save" });
+
+    const canceled = reduceAppAction(saved, { type: "resetSave", confirmed: false });
+    expect(storage.data.has(SAVE_KEY)).toBe(true);
+    expect(canceled.state).toEqual(saved.state);
+    expect(canceled.message).toContain("取消");
+
+    const reset = reduceAppAction(saved, { type: "resetSave", confirmed: true });
+    expect(storage.data.has(SAVE_KEY)).toBe(false);
+    expect(reset.state).toEqual(createInitialState());
+    expect(reset.mode).toBe("town");
+    expect(reset.message).toContain("重置");
+  });
 });

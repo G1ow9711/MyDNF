@@ -45,6 +45,7 @@ describe("town app shell", () => {
     expect(renderQuestPanel(state)).toContain("炉火未熄");
     expect(renderSettingsPanel()).toContain("音乐");
     expect(renderSettingsPanel()).toContain("音效");
+    expect(renderSettingsPanel()).toContain("重置存档");
   });
 
   it("renders four base classes and advancement choices in the class panel", () => {

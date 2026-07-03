@@ -461,6 +461,24 @@
   - `git diff --check`: pass; only CRLF conversion warnings.
   - Browser at `http://127.0.0.1:5173/`: backpack currency strip showed `商契 8`; auction/trade panel accepted an NPC trade and showed `交易完成`; no console errors and no horizontal overflow.
 
+## Task 15 Reset Save Confirmation
+- Started after acceptance audit found the settings panel had save/load but no reset-save action with confirmation.
+- Wrote regression tests first:
+  - `src/tests/ui-smoke.test.ts` now expects settings to render `重置存档`.
+  - `src/tests/app-integration.test.ts` now verifies unconfirmed reset keeps saved storage and confirmed reset removes `SAVE_KEY`, resets state, returns to town, and shows a reset message.
+- RED evidence:
+  - `npm test -- src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts` failed because settings did not contain `重置存档` and `resetSave` was not handled by the reducer.
+- Implemented:
+  - Added `重置存档` settings button.
+  - Added `resetSave` reducer action with explicit `confirmed` flag.
+  - Browser click path now asks `confirm("确认重置本地存档？此操作不可撤销。")` before dispatching a reset.
+- Verification:
+  - `npm test -- src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts`: pass, 13 tests.
+  - `npm test`: pass, 95 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
+  - Browser automation note: attempting to click the native confirm in the in-app browser caused the browser-control runtime to time out; no code changes were made from that attempt. Confirmation behavior is covered by reducer tests and the UI button is covered by smoke tests.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|

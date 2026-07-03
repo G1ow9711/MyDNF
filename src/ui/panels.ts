@@ -250,6 +250,7 @@ export function renderSettingsPanel(): string {
         <div class="action-row">
           <button data-app-action="save">保存</button>
           <button data-app-action="load">读取</button>
+          <button data-app-action="reset-save">重置存档</button>
         </div>
       </div>
     `

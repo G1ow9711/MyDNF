@@ -52,6 +52,7 @@ Phase 5 - Verification and Delivery
 - [x] Run lint/build/tests where available
 - [x] Start local server or provide local HTML entry
 - [x] Verify gameplay in browser with screenshots/pixel checks if web-based
+- [x] Add reset-save confirmation flow
 - [x] Update progress and findings
 - [ ] Final handoff with paths and run command
 - **Status:** in_progress

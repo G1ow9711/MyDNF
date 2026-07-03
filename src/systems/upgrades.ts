@@ -72,7 +72,13 @@ function replaceOwnedGear(state: GameState, updated: OwnedGearItem, currencyPatc
 }
 
 function chooseAmplifyStat(rng: () => number): AmplifyStat {
-  const bucket = Math.min(Math.max(Math.floor(rng() * amplifyStats.length), 0), amplifyStats.length - 1);
+  const roll = rng();
+
+  if (!Number.isFinite(roll)) {
+    return amplifyStats[0];
+  }
+
+  const bucket = Math.min(Math.max(Math.floor(roll * amplifyStats.length), 0), amplifyStats.length - 1);
 
   return amplifyStats[bucket];
 }

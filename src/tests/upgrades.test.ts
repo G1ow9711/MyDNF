@@ -69,13 +69,6 @@ function withOwnedItem(state: GameState, item: OwnedGearItem): GameState {
   return withInventory(state, [...state.player.inventory, item]);
 }
 
-function replaceOwnedItem(state: GameState, item: OwnedGearItem): GameState {
-  return withInventory(
-    state,
-    state.player.inventory.map((owned) => (owned.instanceId === item.instanceId ? item : owned))
-  );
-}
-
 function stateWithOwnedItem(item: OwnedGearItem): GameState {
   return withCurrencies(withOwnedItem(createInitialState(), item), {
     gold: 10000,
@@ -138,6 +131,42 @@ describe("reinforcement", () => {
     expect(result.state.player.currencies.gold).toBe(state.player.currencies.gold - 420);
     expect(result.state.player.currencies.ironDust).toBe(state.player.currencies.ironDust - 16);
   });
+
+  it.each([
+    { levelBefore: 6, unprotectedLevelAfter: 5, protectedLevelAfter: 6 },
+    { levelBefore: 9, unprotectedLevelAfter: 8, protectedLevelAfter: 9 },
+    { levelBefore: 10, unprotectedLevelAfter: 10, protectedLevelAfter: 10 }
+  ])(
+    "handles risky reinforcement failure boundary at +$levelBefore",
+    ({ levelBefore, unprotectedLevelAfter, protectedLevelAfter }) => {
+      const epicBody = findCatalogGear("body", (gear) => gear.rarity === "epic");
+      const ownedBody = {
+        ...createOwnedGear(epicBody.id, `boundary-${levelBefore}`),
+        reinforceLevel: levelBefore
+      };
+      const unprotected = stateWithOwnedItem(ownedBody);
+      const protectedState = withCurrencies(unprotected, { protectionTicket: 1 });
+
+      const unprotectedResult = reinforce(unprotected, ownedBody.instanceId, () => 0.99);
+      const protectedResult = reinforce(protectedState, ownedBody.instanceId, () => 0.99);
+
+      expect(unprotectedResult.success).toBe(false);
+      expect(unprotectedResult.protected).toBe(false);
+      expect(unprotectedResult.levelBefore).toBe(levelBefore);
+      expect(unprotectedResult.levelAfter).toBe(unprotectedLevelAfter);
+      expect(findOwnedGear(unprotectedResult.state, ownedBody.instanceId).reinforceLevel).toBe(
+        unprotectedLevelAfter
+      );
+      expect(unprotectedResult.state.player.currencies.protectionTicket).toBe(0);
+
+      expect(protectedResult.success).toBe(false);
+      expect(protectedResult.protected).toBe(true);
+      expect(protectedResult.levelBefore).toBe(levelBefore);
+      expect(protectedResult.levelAfter).toBe(protectedLevelAfter);
+      expect(findOwnedGear(protectedResult.state, ownedBody.instanceId).reinforceLevel).toBe(protectedLevelAfter);
+      expect(protectedResult.state.player.currencies.protectionTicket).toBe(0);
+    }
+  );
 
   it("drops one level on risky failure and uses a protection ticket when present", () => {
     const rareRing = findCatalogGear("ring", (gear) => gear.rarity === "rare");
@@ -232,6 +261,22 @@ describe("amplification", () => {
     expect(result.state.player.currencies.gold).toBe(state.player.currencies.gold - 220);
     expect(result.state.player.currencies.arcShard).toBe(state.player.currencies.arcShard - 2);
   });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY])(
+    "falls back to the first amplify stat when stat RNG is non-finite: %s",
+    (statRoll) => {
+      const epicNecklace = findCatalogGear("necklace", (gear) => gear.amplification.echoSlot);
+      const ownedNecklace = createOwnedGear(epicNecklace.id, `non-finite-${String(statRoll)}`);
+      const state = stateWithOwnedItem(ownedNecklace);
+
+      const result = amplify(state, ownedNecklace.instanceId, rngSequence([0.1, statRoll]));
+      const upgraded = findOwnedGear(result.state, ownedNecklace.instanceId);
+
+      expect(result.success).toBe(true);
+      expect(result.amplifyStat).toBe("crit");
+      expect(upgraded.amplifyStat).toBe("crit");
+    }
+  );
 
   it("throws at amplification cap +5", () => {
     const epicCharm = findCatalogGear("charm", (gear) => gear.amplification.echoSlot);

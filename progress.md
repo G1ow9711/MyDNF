@@ -208,6 +208,15 @@
   - `src/systems/upgrades.ts`
   - `src/tests/upgrades.test.ts`
   - `progress.md`
+- Task 4 quality-review fix:
+  - Added reinforcement boundary coverage for failed attempts at +6, +9, and +10 with and without protection tickets.
+  - Removed unused `replaceOwnedItem` test helper.
+  - Added non-finite amplification stat RNG fallback coverage; RED showed `NaN` returned `undefined` and `Infinity` returned `moveSpeed`.
+  - Guarded amplification stat selection so non-finite RNG output falls back to `crit`.
+- Quality-review verification:
+  - `npm test -- src/tests/upgrades.test.ts`: pass, 16 tests.
+  - `npm test`: pass, 48 tests.
+  - `npm run build`: pass.
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |

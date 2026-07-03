@@ -208,6 +208,7 @@
   - `src/systems/upgrades.ts`
   - `src/tests/upgrades.test.ts`
   - `progress.md`
+- Spec compliance review passed.
 - Task 4 quality-review fix:
   - Added reinforcement boundary coverage for failed attempts at +6, +9, and +10 with and without protection tickets.
   - Removed unused `replaceOwnedItem` test helper.
@@ -217,6 +218,10 @@
   - `npm test -- src/tests/upgrades.test.ts`: pass, 16 tests.
   - `npm test`: pass, 48 tests.
   - `npm run build`: pass.
+- Code quality re-review passed.
+- Final Task 4 commits:
+  - `79f2ecc 实现强化和增幅系统`
+  - `f8c5294 补充强化边界测试`
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |

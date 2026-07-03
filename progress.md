@@ -302,6 +302,27 @@
   - `npm test`: pass, 70 tests.
   - `npm run build`: pass.
   - `git diff --check`: pass; only CRLF conversion warnings.
+- Committed and pushed Task 7:
+  - `d8299c1 实现剧情任务和系统解锁`
+  - Pushed `feature/vertical-slice` to GitHub.
+
+## Task 8 Combat Model
+- Started Task 8 in `.worktrees/vertical-slice` on `feature/vertical-slice`.
+- Wrote `src/tests/combat.test.ts` before production code.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts` failed because `../game/combat` did not exist.
+- Created `src/game/input.ts` with keyboard-to-combat-input mapping.
+- Created `src/game/combat.ts` with dungeon run setup, belt-scroll movement, light/heavy/class skill actions, hit events, combo cancel window, boss armor hitstop reduction, room completion, and deterministic loot events.
+- Debug fix:
+  - `npm run build` initially failed because `src/tests/combat.test.ts` accessed `CombatEvent` union fields without narrowing.
+  - Added `lastHitEvent` type guard in the test; no production behavior change.
+- Checked UTF-8 contents for combat files; no replacement characters or literal mojibake markers found.
+- Updated `task_plan.md` so combat model is complete and current work moves to skills/VFX.
+- Verification:
+  - `npm test -- src/tests/combat.test.ts`: pass, 6 tests.
+  - `npm test`: pass, 76 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |
@@ -329,6 +350,7 @@
 | 2026-07-03 | `git-filter-branch: eval: syntax error near unexpected token '('` | 1 | Replaced PowerShell msg-filter with Python msg-filter |
 | 2026-07-03 | `Warning: commit message did not conform to UTF-8` | 2 | Re-ran msg-filter with binary UTF-8 stdout keyed by commit hash |
 | 2026-07-04 | `SyntaxError: unexpected character after line continuation character` from `python -c` with literal `\n` in PowerShell | 1 | Switched to semicolon/list-comprehension one-line Python checks |
+| 2026-07-04 | `npm run build` failed because combat test accessed `CombatEvent` union fields without narrowing | 1 | Added `lastHitEvent` type guard in the test file |
 
 ## 5-Question Reboot Check
 | Question | Answer |

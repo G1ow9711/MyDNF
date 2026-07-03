@@ -4,7 +4,7 @@
 Design and, after approval, implement a mature playable offline side-scrolling action RPG prototype inspired by Dungeon Fighter Online, with original assets/mechanics, flashy skills, combat feel, at least four base classes, class advancement gameplay, economy systems, enhancement/amplification, shop, costumes, gift packs, and high replay value.
 
 ## Current Phase
-Phase 4 - Task 8
+Phase 4 - Task 9
 
 ## Phases
 
@@ -38,7 +38,7 @@ Phase 4 - Task 8
 - [x] Implement Task 5 market, auction, shop, packs, and boxes
 - [x] Implement Task 6 four base classes and advancement system
 - [x] Implement story and quest system
-- [ ] Implement core movement/combat/enemy loop
+- [x] Implement core movement/combat/enemy loop
 - [ ] Implement skills and visual effects
 - [ ] Implement loot, trade, enhancement, amplification, shop, costumes, and packs
 - [ ] Add sound/visual feedback where feasible

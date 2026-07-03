@@ -108,6 +108,10 @@ function writeSave(storage: MemoryStorage, value: unknown): void {
   storage.setItem(SAVE_KEY, JSON.stringify(value));
 }
 
+function cloneSave(state: GameState): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
+}
+
 describe("initial game state", () => {
   it("creates the required starter state from the catalog", () => {
     const state = createInitialState();
@@ -354,5 +358,112 @@ describe("save system", () => {
 
     writeSave(storage, { ...state, player: { ...state.player, equipment: { weapon: "missing-owned" } } });
     expect(() => loadGame(storage)).toThrow(/equipment.*inventory/i);
+  });
+
+  it.each([
+    {
+      name: "missing player hero id",
+      mutate: (save: Record<string, unknown>) => {
+        delete (save.player as Record<string, unknown>).heroId;
+      },
+      error: /heroId/i
+    },
+    {
+      name: "wrong player hero id",
+      mutate: (save: Record<string, unknown>) => {
+        (save.player as Record<string, unknown>).heroId = "other-hero";
+      },
+      error: /heroId/i
+    },
+    {
+      name: "bad player level",
+      mutate: (save: Record<string, unknown>) => {
+        (save.player as Record<string, unknown>).level = 0;
+      },
+      error: /level/i
+    },
+    {
+      name: "bad player experience",
+      mutate: (save: Record<string, unknown>) => {
+        (save.player as Record<string, unknown>).experience = -1;
+      },
+      error: /experience/i
+    },
+    {
+      name: "bad player heat",
+      mutate: (save: Record<string, unknown>) => {
+        (save.player as Record<string, unknown>).heat = Number.NaN;
+      },
+      error: /heat/i
+    },
+    {
+      name: "inventory item missing reinforce level",
+      mutate: (save: Record<string, unknown>) => {
+        const player = save.player as Record<string, unknown>;
+        const inventory = player.inventory as Array<Record<string, unknown>>;
+        delete inventory[0].reinforceLevel;
+      },
+      error: /reinforceLevel/i
+    },
+    {
+      name: "inventory item bad boolean flag",
+      mutate: (save: Record<string, unknown>) => {
+        const player = save.player as Record<string, unknown>;
+        const inventory = player.inventory as Array<Record<string, unknown>>;
+        inventory[0].locked = "no";
+      },
+      error: /locked/i
+    },
+    {
+      name: "inventory item bad amplify stat",
+      mutate: (save: Record<string, unknown>) => {
+        const player = save.player as Record<string, unknown>;
+        const inventory = player.inventory as Array<Record<string, unknown>>;
+        inventory[0].amplifyStat = "speed";
+      },
+      error: /amplifyStat/i
+    },
+    {
+      name: "invalid current town",
+      mutate: (save: Record<string, unknown>) => {
+        save.currentTown = "unknown-town";
+      },
+      error: /currentTown/i
+    },
+    {
+      name: "unknown quest id",
+      mutate: (save: Record<string, unknown>) => {
+        const player = save.player as Record<string, unknown>;
+        const quests = player.quests as Record<string, unknown>;
+        quests["missing-quest"] = "active";
+      },
+      error: /quest/i
+    },
+    {
+      name: "unknown unlocked dungeon id",
+      mutate: (save: Record<string, unknown>) => {
+        const player = save.player as Record<string, unknown>;
+        player.unlockedDungeons = ["missing-dungeon"];
+      },
+      error: /unlockedDungeons/i
+    },
+    {
+      name: "loadout ref points to missing inventory id",
+      mutate: (save: Record<string, unknown>) => {
+        const player = save.player as Record<string, unknown>;
+        const loadouts = player.loadouts as Array<Record<string, unknown>>;
+        loadouts[0].weapon = "missing-owned";
+      },
+      error: /loadouts.*inventory/i
+    }
+  ])("rejects invalid save: $name", ({ mutate, error }) => {
+    const storage = new MemoryStorage();
+    const state = createInitialState();
+    const save = cloneSave(state);
+
+    mutate(save);
+    writeSave(storage, save);
+
+    expect(() => loadGame(storage)).toThrow(error);
   });
 });

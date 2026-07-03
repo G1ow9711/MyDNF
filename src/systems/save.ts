@@ -1,5 +1,5 @@
 import { catalog } from "../data/catalog";
-import type { CurrencyId, DungeonId, GameState, GearSlot, QuestStatus, TownId } from "../game/types";
+import type { AmplifyStat, CurrencyId, DungeonId, GameState, GearSlot, QuestStatus, TownId } from "../game/types";
 
 export interface SaveStorage {
   getItem(key: string): string | null;
@@ -28,6 +28,7 @@ const gearSlots: readonly GearSlot[] = [
   "sigil",
   "charm"
 ];
+const amplifyStats: readonly AmplifyStat[] = ["crit", "cooldown", "element", "moveSpeed"];
 const questStatuses: readonly QuestStatus[] = ["locked", "active", "ready", "completed"];
 
 const catalogGearIds = new Set(catalog.gear.map((item) => item.id));
@@ -35,6 +36,7 @@ const catalogQuestIds = new Set(catalog.quests.map((quest) => quest.id));
 const dungeonIds = new Set<DungeonId>(catalog.dungeons.map((dungeon) => dungeon.id));
 const townIds = new Set<TownId>(catalog.towns.map((town) => town.id));
 const gearSlotIds = new Set<GearSlot>(gearSlots);
+const amplifyStatIds = new Set<AmplifyStat>(amplifyStats);
 
 function parseSave(rawSave: string): unknown {
   try {
@@ -60,6 +62,28 @@ function requireArray(value: unknown, path: string): unknown[] {
   return value;
 }
 
+function requireString(value: unknown, path: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`Malformed save data: ${path} must be a non-empty string`);
+  }
+
+  return value;
+}
+
+function requireFiniteNumber(value: unknown, path: string, min: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < min) {
+    throw new Error(`Malformed save data: ${path} must be a finite number >= ${min}`);
+  }
+
+  return value;
+}
+
+function requireBoolean(value: unknown, path: string): void {
+  if (typeof value !== "boolean") {
+    throw new Error(`Malformed save data: ${path} must be a boolean`);
+  }
+}
+
 function validateCurrencies(value: unknown): void {
   const currencies = requireRecord(value, "player.currencies");
 
@@ -76,19 +100,31 @@ function validateInventory(value: unknown): Set<string> {
 
   inventory.forEach((itemValue, index) => {
     const item = requireRecord(itemValue, `player.inventory[${index}]`);
-    const instanceId = item.instanceId;
-    const catalogGearId = item.catalogGearId;
-
-    if (typeof instanceId !== "string" || instanceId.length === 0) {
-      throw new Error(`Malformed save data: player.inventory[${index}].instanceId must be a string`);
-    }
+    const itemPath = `player.inventory[${index}]`;
+    const instanceId = requireString(item.instanceId, `${itemPath}.instanceId`);
+    const catalogGearId = requireString(item.catalogGearId, `${itemPath}.catalogGearId`);
 
     if (ownedInstanceIds.has(instanceId)) {
       throw new Error(`Malformed save data: duplicate instance id ${instanceId}`);
     }
 
-    if (typeof catalogGearId !== "string" || !catalogGearIds.has(catalogGearId)) {
+    if (!catalogGearIds.has(catalogGearId)) {
       throw new Error(`Malformed save data: player.inventory[${index}].catalogGearId is not in catalog`);
+    }
+
+    requireFiniteNumber(item.reinforceLevel, `${itemPath}.reinforceLevel`, 0);
+    requireFiniteNumber(item.amplifyLevel, `${itemPath}.amplifyLevel`, 0);
+    requireBoolean(item.locked, `${itemPath}.locked`);
+    requireBoolean(item.bound, `${itemPath}.bound`);
+    requireBoolean(item.tradable, `${itemPath}.tradable`);
+    requireBoolean(item.sealed, `${itemPath}.sealed`);
+
+    if (item.amplifyStat !== undefined) {
+      const amplifyStat = requireString(item.amplifyStat, `${itemPath}.amplifyStat`);
+
+      if (!amplifyStatIds.has(amplifyStat as AmplifyStat)) {
+        throw new Error(`Malformed save data: ${itemPath}.amplifyStat is not allowed`);
+      }
     }
 
     ownedInstanceIds.add(instanceId);
@@ -105,12 +141,10 @@ function validateEquipmentRefs(value: unknown, path: string, ownedInstanceIds: S
       throw new Error(`Malformed save data: ${path}.${slot} is not a valid gear slot`);
     }
 
-    if (typeof instanceId !== "string") {
-      throw new Error(`Malformed save data: ${path}.${slot} must reference an inventory instance id`);
-    }
+    const ownedInstanceId = requireString(instanceId, `${path}.${slot}`);
 
-    if (!ownedInstanceIds.has(instanceId)) {
-      throw new Error(`Malformed save data: ${path} references inventory item that does not exist: ${instanceId}`);
+    if (!ownedInstanceIds.has(ownedInstanceId)) {
+      throw new Error(`Malformed save data: ${path} references inventory item that does not exist: ${ownedInstanceId}`);
     }
   }
 }
@@ -162,13 +196,15 @@ function validateSave(value: unknown): GameState {
     throw new Error(`Incompatible save: expected catalog ${catalog.id}`);
   }
 
-  if (typeof candidate.currentTown !== "string" || !townIds.has(candidate.currentTown as TownId)) {
+  const currentTown = requireString(candidate.currentTown, "currentTown");
+
+  if (!townIds.has(currentTown as TownId)) {
     throw new Error("Malformed save data: currentTown must be a valid catalog town id");
   }
 
   if (
     candidate.currentDungeonId !== undefined &&
-    (typeof candidate.currentDungeonId !== "string" || !dungeonIds.has(candidate.currentDungeonId as DungeonId))
+    !dungeonIds.has(requireString(candidate.currentDungeonId, "currentDungeonId") as DungeonId)
   ) {
     throw new Error("Malformed save data: currentDungeonId must be a valid catalog dungeon id");
   }
@@ -178,6 +214,15 @@ function validateSave(value: unknown): GameState {
   }
 
   const player = requireRecord(candidate.player, "player");
+  const heroId = requireString(player.heroId, "player.heroId");
+
+  if (heroId !== catalog.hero.id) {
+    throw new Error(`Malformed save data: player.heroId must be ${catalog.hero.id}`);
+  }
+
+  requireFiniteNumber(player.level, "player.level", 1);
+  requireFiniteNumber(player.experience, "player.experience", 0);
+  requireFiniteNumber(player.heat, "player.heat", 0);
   validateCurrencies(player.currencies);
   const ownedInstanceIds = validateInventory(player.inventory);
   validateEquipmentRefs(player.equipment, "player.equipment", ownedInstanceIds);

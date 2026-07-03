@@ -177,6 +177,15 @@
   - `npm test -- src/tests/state-inventory-save.test.ts`: pass, 12 tests.
   - `npm test`: pass, 20 tests.
   - `npm run build`: pass.
+- Task 3 second quality-review fix addressed incomplete save validation for `player.heroId`, player numeric fields, owned gear numeric fields, owned gear boolean flags, and optional `amplifyStat`.
+- Added table-driven invalid-save tests first for hero id, player level/experience/heat, owned gear required fields, invalid current town, unknown quest/dungeon ids, and loadout refs.
+- RED evidence:
+  - `npm test -- src/tests/state-inventory-save.test.ts` failed on 8 invalid-save cases because scalar save fields were accepted.
+- Implemented scalar validators in `src/systems/save.ts` for required id strings, finite minimum numbers, booleans, optional `amplifyStat`, and exact hero id.
+- Second quality-fix verification:
+  - `npm test -- src/tests/state-inventory-save.test.ts`: pass, 24 tests.
+  - `npm test`: pass, 32 tests.
+  - `npm run build`: pass.
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |

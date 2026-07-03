@@ -133,9 +133,14 @@
 - Implemented `OwnedGearItem` plus `AmplifyStat`; `PlayerState.inventory` now stores owned gear instances and equipment/loadouts reference owned instance ids.
 - Updated gear catalog to 72 items across Common, Uncommon, Rare, Epic, and Mythic; lower rarities have no set membership, Epic/Mythic setIds reference existing Epic sets.
 - Spec compliance fix added `炉山市集` town catalog data, requested `SkillDef`/`DungeonDef`/`QuestDef` aliases, `TownDef`, dungeon loot set validation, quest/town id checks, and exact level range 1..50.
+- Code quality fix added tests first for set 5-piece reachability, semantic gear ids, Echo Slot data, no duplicate gear display names, and `OwnedGearItem` without stale `equipped` flag.
+- RED evidence:
+  - `npm test -- src/tests/catalog.test.ts` failed because `ash-1-weapon` was index-derived and `ember-artisan` only had 4 distinct set slots.
+  - `npm run build` failed because `GearItem.amplification` did not exist and `OwnedGearItem.equipped` was still required.
+- Implemented stable semantic gear ids, full Epic slot coverage for each set, Mythic set items with distinct display names, `GearItem.amplification.echoSlot`, and removed `OwnedGearItem.equipped`.
 - Verification after fix:
-  - `npm test -- src/tests/catalog.test.ts`: pass.
-  - `npm test`: pass.
+  - `npm test -- src/tests/catalog.test.ts`: pass, 7 tests.
+  - `npm test`: pass, 8 tests.
   - `npm run build`: pass.
 - Files created/modified:
   - `package.json`

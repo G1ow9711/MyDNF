@@ -18,6 +18,7 @@ const allSlots: GearSlot[] = [
 ];
 
 const stableIdPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+const semanticGearIdPattern = /^(common|uncommon|rare)-[a-z0-9]+(?:-[a-z0-9]+)*-(weapon|core|head|body|legs|belt|boots|necklace|bracelet|ring|sigil|charm)$|^(epic|mythic)-[a-z0-9]+(?:-[a-z0-9]+)*-(weapon|core|head|body|legs|belt|boots|necklace|bracelet|ring|sigil|charm)(?:-[a-z0-9]+)*$/;
 const mojibakePattern = /[�]|(?:鐑|拑|鍗|鐏|獞|鐞|€|绾|嫵|嚮|橀|拌)/;
 
 function expectUniqueIds(items: Array<{ id: string }>): void {
@@ -71,6 +72,11 @@ describe("catalog", () => {
     ]) {
       expect(id).toMatch(stableIdPattern);
     }
+
+    for (const item of catalog.gear) {
+      expect(item.id).toMatch(semanticGearIdPattern);
+      expect(item.id).not.toMatch(/-\d+-/);
+    }
   });
 
   it("contains readable Chinese display text without mojibake or replacement characters", () => {
@@ -109,6 +115,25 @@ describe("catalog", () => {
     expect(Math.max(...levels)).toBe(50);
   });
 
+  it("provides reachable set bonuses, echo slot data, and unique gear display names", () => {
+    for (const epicSet of catalog.epicSets) {
+      const requiredPieces = Math.max(...epicSet.bonuses.map((bonus) => bonus.pieces));
+      const availableSlots = new Set(
+        catalog.gear.filter((item) => item.setId === epicSet.id).map((item) => item.slot)
+      );
+
+      expect(availableSlots.size).toBeGreaterThanOrEqual(requiredPieces);
+    }
+
+    const echoSlotItems = catalog.gear.filter((item) => item.amplification.echoSlot);
+    const commonItems = catalog.gear.filter((item) => item.rarity === "common");
+    const commonEchoSlotItems = commonItems.filter((item) => item.amplification.echoSlot);
+
+    expect(echoSlotItems.length).toBeGreaterThan(0);
+    expect(commonEchoSlotItems.length).toBeLessThan(commonItems.length);
+    expect(new Set(catalog.gear.map((item) => item.displayName)).size).toBe(catalog.gear.length);
+  });
+
   it("keeps dungeon loot tables and requested public type names aligned", () => {
     const typedSkill: SkillDef = catalog.skills[0];
     const typedDungeon: DungeonDef = catalog.dungeons[0];
@@ -139,8 +164,7 @@ describe("catalog", () => {
       locked: false,
       bound: true,
       tradable: false,
-      sealed: false,
-      equipped: true
+      sealed: false
     };
 
     const player: PlayerState = {

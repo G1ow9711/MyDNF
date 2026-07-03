@@ -54,6 +54,9 @@ export interface GearItem {
   slot: GearSlot;
   level: number;
   setId?: string;
+  amplification: {
+    echoSlot: boolean;
+  };
   stats: StatBlock;
   tags: string[];
 }
@@ -68,7 +71,6 @@ export interface OwnedGearItem {
   bound: boolean;
   tradable: boolean;
   sealed: boolean;
-  equipped: boolean;
 }
 
 export interface EpicSetBonus {

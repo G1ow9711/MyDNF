@@ -557,6 +557,41 @@
   - `npm test -- src/tests/economy.test.ts`: pass, 12 tests.
   - Final verification after review fixes: `npm test` pass, 103 tests; `npm run build` pass; `git diff --check` pass with only CRLF conversion warnings.
 
+## Task 20 Procedural Background Music Playback
+- Started after acceptance audit found audio state and music-layer choices existed, but the browser did not yet have a playback layer.
+- Confirmed current implementation:
+  - `src/systems/audio.ts` queued BGM/SFX commands and selected town/dungeon/boss tracks.
+  - `src/ui/app.ts` updated audio state through reducer actions.
+  - No real WebAudio processing existed yet.
+- Wrote regression tests first in `src/tests/render-audio.test.ts`:
+  - Procedural BGM/SFX plans must include track texture tags, note schedules, channel, loop timing, and effective volume.
+  - Audio command processor must flush command queues once and restart music after volume changes.
+  - Browser sink must safely no-op when WebAudio is unavailable.
+- RED evidence:
+  - `npm test -- src/tests/render-audio.test.ts` failed because `src/systems/audio-browser.ts` and audio plan exports did not exist.
+- Implemented:
+  - Added procedural note patterns for town, dungeon, boss, and key SFX.
+  - Added `createAudioPlaybackPlan`, `flushAudioCommands`, and `createAudioCommandProcessor`.
+  - Added `createBrowserAudioSink()` using WebAudio oscillators with looped music scheduling and no-op fallback.
+  - Mounted the audio command processor in `mountApp` after user input/click dispatches.
+- Verification so far:
+  - `npm test -- src/tests/render-audio.test.ts`: pass, 9 tests.
+  - `npm test`: pass, 106 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
+- Code review follow-up:
+  - Reviewer found stale BGM commands could double-play, BGM restart did not cancel scheduled nodes, WebAudio exceptions could escape, and SFX volume changes restarted BGM.
+  - Added RED tests for stale BGM queues, SFX-only volume changes, WebAudio restart cleanup, and AudioContext construction failure.
+  - Implemented latest-BGM queue filtering, music-only volume restart checks, scheduled-node cancellation, and guarded WebAudio sink operations.
+  - `npm test -- src/tests/render-audio.test.ts`: pass, 13 tests.
+  - Final verification after review fixes: `npm test` pass, 110 tests; `npm run build` pass; `git diff --check` pass with only CRLF conversion warnings.
+- Second review follow-up:
+  - Reviewer found ended music oscillator nodes could remain referenced until the next BGM restart.
+  - Added RED test for `onended` cleanup before restart.
+  - Browser audio sink now removes ended oscillator nodes from the active music list.
+  - `npm test -- src/tests/render-audio.test.ts`: pass, 14 tests.
+  - Final verification after second review fix: `npm test` pass, 111 tests; `npm run build` pass; `git diff --check` pass with only CRLF conversion warnings.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -585,6 +620,8 @@
 | 2026-07-04 | `SyntaxError: unexpected character after line continuation character` from `python -c` with literal `\n` in PowerShell | 1 | Switched to semicolon/list-comprehension one-line Python checks |
 | 2026-07-04 | `npm run build` failed because combat test accessed `CombatEvent` union fields without narrowing | 1 | Added `lastHitEvent` type guard in the test file |
 | 2026-07-04 | PowerShell rejected `&&` while staging and committing | 1 | Switched to separate `git add` and `git commit` commands |
+| 2026-07-04 | Tried to read missing `src/render/renderer.ts` | 1 | Used `rg --files` and read the actual `src/game/render.ts` file |
+| 2026-07-04 | `npm run build` failed because test deleted non-optional `globalThis.AudioContext` | 1 | Replaced `delete` with `Reflect.deleteProperty` in the test cleanup |
 
 ## 5-Question Reboot Check
 | Question | Answer |

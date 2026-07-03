@@ -1,9 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
 import { createCombatRun, performAction } from "../game/combat";
 import { createInitialState } from "../game/state";
 import { createRenderPlan, createSkillVfx, getScenePalette } from "../game/render";
-import { chooseMusicLayer, createAudioState, playBgm, playSfx, setVolume } from "../systems/audio";
+import {
+  chooseMusicLayer,
+  createAudioCommandProcessor,
+  createAudioPlaybackPlan,
+  createAudioState,
+  playBgm,
+  playSfx,
+  setVolume,
+  type AudioPlaybackPlan,
+  type AudioPlaybackSink
+} from "../systems/audio";
+import { createBrowserAudioSink } from "../systems/audio-browser";
 
 describe("Chinese-style scene palettes", () => {
   it("defines layered readable palettes for town and both dungeons", () => {
@@ -64,6 +75,11 @@ describe("render plan", () => {
 });
 
 describe("adaptive audio hooks", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, "AudioContext");
+    Reflect.deleteProperty(globalThis, "webkitAudioContext");
+  });
+
   it("chooses distinct music layers for town, dungeon, and boss phase pressure", () => {
     expect(chooseMusicLayer({ mode: "town", hotspot: "smith" })).toEqual({
       trackId: "town-forge-market",
@@ -95,5 +111,229 @@ describe("adaptive audio hooks", () => {
       { type: "bgm", id: "town-forge-market" },
       { type: "sfx", id: "reinforce-success" }
     ]);
+  });
+
+  it("builds procedural BGM and SFX playback plans from queued commands", () => {
+    const audio = playSfx(playBgm(createAudioState(), "town-forge-market"), "skill-impact-heavy");
+    const bgmPlan = createAudioPlaybackPlan(audio.commandQueue[0], audio.volumes);
+    const sfxPlan = createAudioPlaybackPlan(audio.commandQueue[1], audio.volumes);
+
+    expect(bgmPlan).toMatchObject({
+      commandId: "town-forge-market",
+      channel: "music",
+      loopMs: 3200,
+      textureTags: ["guqin-pentatonic", "lantern-ambience", "forge-pulse"]
+    });
+    expect(bgmPlan.notes.length).toBeGreaterThanOrEqual(10);
+    expect(bgmPlan.notes.every((note) => note.channel === "music" && note.effectiveGain <= 0.9 * 0.75)).toBe(true);
+    expect(sfxPlan).toMatchObject({
+      commandId: "skill-impact-heavy",
+      channel: "sfx",
+      loopMs: 0,
+      textureTags: ["impact", "metal-body", "spark-tail"]
+    });
+    expect(sfxPlan.notes.length).toBeGreaterThanOrEqual(3);
+    expect(sfxPlan.notes.every((note) => note.durationMs <= 320 && note.effectiveGain <= 0.9 * 0.85)).toBe(true);
+  });
+
+  it("processes audio command queues once and restarts music after volume changes", () => {
+    const calls: Array<{ kind: "music" | "sfx"; plan: AudioPlaybackPlan }> = [];
+    const sink: AudioPlaybackSink = {
+      startMusic: (plan) => calls.push({ kind: "music", plan }),
+      playSfx: (plan) => calls.push({ kind: "sfx", plan })
+    };
+    const processor = createAudioCommandProcessor(sink);
+    const audio = playSfx(playBgm(createAudioState(), "town-forge-market"), "reinforce-success");
+    const flushed = processor.sync(audio);
+
+    expect(flushed.commandQueue).toEqual([]);
+    expect(calls.map((call) => [call.kind, call.plan.commandId])).toEqual([
+      ["music", "town-forge-market"],
+      ["sfx", "reinforce-success"]
+    ]);
+
+    processor.sync(flushed);
+    expect(calls).toHaveLength(2);
+
+    const quieter = setVolume(flushed, "music", 0.3);
+    processor.sync(quieter);
+    expect(calls).toHaveLength(3);
+    expect(calls.at(-1)).toMatchObject({ kind: "music", plan: { commandId: "town-forge-market" } });
+  });
+
+  it("does not restart BGM for SFX-only volume changes", () => {
+    const calls: Array<{ kind: "music" | "sfx"; plan: AudioPlaybackPlan }> = [];
+    const sink: AudioPlaybackSink = {
+      startMusic: (plan) => calls.push({ kind: "music", plan }),
+      playSfx: (plan) => calls.push({ kind: "sfx", plan })
+    };
+    const processor = createAudioCommandProcessor(sink);
+    const audio = playBgm(createAudioState(), "town-forge-market");
+    const flushed = processor.sync(audio);
+    const sfxChanged = setVolume(flushed, "sfx", 0.12);
+
+    processor.sync(sfxChanged);
+
+    expect(calls.map((call) => call.plan.commandId)).toEqual(["town-forge-market"]);
+  });
+
+  it("plays only the latest BGM command when a queue contains stale tracks", () => {
+    const calls: Array<{ kind: "music" | "sfx"; plan: AudioPlaybackPlan }> = [];
+    const sink: AudioPlaybackSink = {
+      startMusic: (plan) => calls.push({ kind: "music", plan }),
+      playSfx: (plan) => calls.push({ kind: "sfx", plan })
+    };
+    const processor = createAudioCommandProcessor(sink);
+    const queued = playBgm(playBgm(createAudioState(), "town-forge-market"), "dungeon-cinder-kiln");
+
+    processor.sync(queued);
+
+    expect(calls.map((call) => [call.kind, call.plan.commandId])).toEqual([["music", "dungeon-cinder-kiln"]]);
+  });
+
+  it("falls back to a no-op browser sink when WebAudio is unavailable", () => {
+    const sink = createBrowserAudioSink();
+    const audio = playBgm(createAudioState(), "town-forge-market");
+    const plan = createAudioPlaybackPlan(audio.commandQueue[0], audio.volumes);
+
+    expect(() => sink.startMusic(plan)).not.toThrow();
+    expect(() => sink.playSfx(plan)).not.toThrow();
+  });
+
+  it("stops scheduled music nodes when browser BGM restarts", () => {
+    const stopped: number[] = [];
+    const intervals: number[] = [];
+    let nextInterval = 1;
+
+    class FakeAudioContext {
+      currentTime = 0;
+      state: AudioContextState = "running";
+      destination = {};
+
+      createOscillator(): OscillatorNode {
+        return {
+          type: "sine",
+          frequency: { setValueAtTime: () => undefined },
+          connect: () => undefined,
+          start: () => undefined,
+          stop: (time?: number) => stopped.push(time ?? 0)
+        } as unknown as OscillatorNode;
+      }
+
+      createGain(): GainNode {
+        return {
+          gain: {
+            setValueAtTime: () => undefined,
+            exponentialRampToValueAtTime: () => undefined
+          },
+          connect: () => undefined
+        } as unknown as GainNode;
+      }
+
+      resume(): Promise<void> {
+        return Promise.resolve();
+      }
+    }
+
+    const originalSetInterval = globalThis.setInterval;
+    const originalClearInterval = globalThis.clearInterval;
+    (globalThis as typeof globalThis & { AudioContext?: typeof AudioContext }).AudioContext =
+      FakeAudioContext as unknown as typeof AudioContext;
+    globalThis.setInterval = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+      intervals.push(timeout ?? 0);
+      void handler;
+      void args;
+      return nextInterval++ as unknown as ReturnType<typeof setInterval>;
+    }) as typeof setInterval;
+    globalThis.clearInterval = (() => undefined) as typeof clearInterval;
+
+    try {
+      const sink = createBrowserAudioSink();
+      const audio = playBgm(createAudioState(), "town-forge-market");
+      const plan = createAudioPlaybackPlan(audio.commandQueue[0], audio.volumes);
+
+      sink.startMusic(plan);
+      const scheduledStopCount = stopped.length;
+      sink.startMusic(plan);
+
+      expect(intervals).toEqual([3200, 3200]);
+      expect(scheduledStopCount).toBe(plan.notes.length);
+      expect(stopped.length).toBe(plan.notes.length * 3);
+    } finally {
+      globalThis.setInterval = originalSetInterval;
+      globalThis.clearInterval = originalClearInterval;
+    }
+  });
+
+  it("forgets ended browser music nodes before the next restart", () => {
+    const stopped: number[] = [];
+    const createdNodes: OscillatorNode[] = [];
+
+    class FakeAudioContext {
+      currentTime = 0;
+      state: AudioContextState = "running";
+      destination = {};
+
+      createOscillator(): OscillatorNode {
+        const node = {
+          type: "sine",
+          frequency: { setValueAtTime: () => undefined },
+          connect: () => undefined,
+          start: () => undefined,
+          stop: (time?: number) => stopped.push(time ?? 0),
+          onended: null
+        } as unknown as OscillatorNode;
+
+        createdNodes.push(node);
+        return node;
+      }
+
+      createGain(): GainNode {
+        return {
+          gain: {
+            setValueAtTime: () => undefined,
+            exponentialRampToValueAtTime: () => undefined
+          },
+          connect: () => undefined
+        } as unknown as GainNode;
+      }
+
+      resume(): Promise<void> {
+        return Promise.resolve();
+      }
+    }
+
+    (globalThis as typeof globalThis & { AudioContext?: typeof AudioContext }).AudioContext =
+      FakeAudioContext as unknown as typeof AudioContext;
+
+    const sink = createBrowserAudioSink();
+    const audio = playBgm(createAudioState(), "town-forge-market");
+    const plan = createAudioPlaybackPlan(audio.commandQueue[0], audio.volumes);
+
+    sink.startMusic(plan);
+    for (const node of [...createdNodes]) {
+      node.onended?.({} as Event);
+    }
+    sink.startMusic(plan);
+
+    expect(stopped.length).toBe(plan.notes.length * 2);
+  });
+
+  it("does not throw when active WebAudio construction fails", () => {
+    class FailingAudioContext {
+      constructor() {
+        throw new Error("audio locked");
+      }
+    }
+
+    (globalThis as typeof globalThis & { AudioContext?: typeof AudioContext }).AudioContext =
+      FailingAudioContext as unknown as typeof AudioContext;
+
+    const sink = createBrowserAudioSink();
+    const audio = playBgm(createAudioState(), "town-forge-market");
+    const plan = createAudioPlaybackPlan(audio.commandQueue[0], audio.volumes);
+
+    expect(() => sink.startMusic(plan)).not.toThrow();
+    expect(() => sink.playSfx(plan)).not.toThrow();
   });
 });

@@ -13,12 +13,14 @@ import type { DungeonId, GameState } from "../game/types";
 import { createRenderPlan } from "../game/render";
 import {
   chooseMusicLayer,
+  createAudioCommandProcessor,
   createAudioState,
   playBgm,
   playSfx,
   setVolume,
   type AudioState
 } from "../systems/audio";
+import { createBrowserAudioSink } from "../systems/audio-browser";
 import { advanceClass as applyClassAdvancement, selectBaseClass as applyBaseClass } from "../systems/classes";
 import { dismantleItem, equipItem, sellItem, setItemLock } from "../systems/inventory";
 import { acceptTrade, listAuction, resolveAuctions } from "../systems/market";
@@ -521,6 +523,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
 
 export function mountApp(root: HTMLDivElement): void {
   let model = createAppModel();
+  const audioProcessor = createAudioCommandProcessor(createBrowserAudioSink());
 
   function render(): void {
     root.innerHTML = renderAppHtml(model);
@@ -532,6 +535,8 @@ export function mountApp(root: HTMLDivElement): void {
     } catch (error) {
       model = { ...model, message: error instanceof Error ? error.message : String(error) };
     }
+
+    model = { ...model, audio: audioProcessor.sync(model.audio) };
   }
 
   if ("addEventListener" in root) {

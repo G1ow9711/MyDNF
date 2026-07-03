@@ -345,6 +345,89 @@ Inventory:
   - Sealed: tradable until equipped.
 - Quick actions: equip, sell, dismantle, lock, compare.
 
+## Equipment Levels, Epic Sets, and Build Diversity
+Equipment needs enough depth to support multiple builds, not just linear stat upgrades.
+
+Equipment slots:
+- Weapon.
+- Core: heat reactor or gauntlet core.
+- Armor: Head, Body, Legs, Belt, Boots.
+- Accessories: Necklace, Bracelet, Ring.
+- Special: Sigil, Charm.
+- Costume slots stay separate from combat gear.
+
+Equipment level:
+- First version item level range: 1-50.
+- Dungeon 1 drops level 1-25 gear.
+- Dungeon 2 drops level 20-50 gear.
+- Higher item level increases base stats, reinforcement cost, and dismantle yield.
+- Player level or story chapter gates high-level gear equip if needed.
+
+Rarity:
+- Common: base stat only.
+- Uncommon: one minor affix.
+- Rare: two affixes or one strong affix.
+- Epic: fixed identity, stronger affixes, and set membership.
+- Mythic: rare chase item with one unique effect; first version can include 2-3 Mythics only.
+
+Set system:
+- Epic gear can belong to a set.
+- Set bonuses activate at 2-piece, 3-piece, and 5-piece thresholds.
+- Mixed builds are supported: 2+3, 2+2+special, or full 5-piece.
+- Set bonuses should change playstyle, not only add flat attack.
+- UI must show active and inactive set bonuses clearly.
+
+First-version epic sets:
+1. `Ember Artisan` set
+   - Build: Heat burst and ultimate damage.
+   - 2-piece: Heat generation from normal attacks.
+   - 3-piece: Heat-spending skills add ember explosion.
+   - 5-piece: `Meteor Knuckle` creates a second delayed shockwave.
+
+2. `Liuli Flow` set
+   - Build: cooldown, mobility, skill cycling.
+   - 2-piece: small cooldown recovery bonus.
+   - 3-piece: dash leaves damage trail when Heat is above threshold.
+   - 5-piece: after using 3 different skills, next skill costs less Heat and gains VFX.
+
+3. `Kiln Shadow` set
+   - Build: crit, back attack, fast combo.
+   - 2-piece: crit chance after dash.
+   - 3-piece: bonus damage to launched or staggered enemies.
+   - 5-piece: successful cancel chain grants short attack-speed buff.
+
+4. `Mountain Guard` set
+   - Build: survival, armor break, boss safety.
+   - 2-piece: damage reduction after heavy hit.
+   - 3-piece: armor break damage up.
+   - 5-piece: once per room, lethal damage leaves player at 1 HP and triggers shield.
+
+5. `Market Wind` set
+   - Build: farming, gold, movement, material loop.
+   - 2-piece: gold pickup radius and move speed.
+   - 3-piece: chance for extra material on elite kill.
+   - 5-piece: first boss clear per run grants bonus Trade Credits or Valor Tokens.
+
+Supported build archetypes:
+- Heat Burst: high Heat generation, big ultimate windows.
+- Skill Cycler: cooldown reduction and low Heat cost.
+- Crit Juggle: dash-cancel, launcher, crit, fast combo.
+- Guard Breaker: elite/boss armor damage and survival.
+- Farmer/Trader: material, gold, and market reward efficiency.
+- Hybrid: 2-piece combat set plus 3-piece farming or survival set.
+
+Build UI:
+- Equipment panel shows current build tags.
+- Compare panel shows DPS/survival/utility deltas.
+- Set tracker shows 0/2/3/5 progress.
+- Loadouts: at least 3 saved equipment presets in first version.
+
+Balance guardrails:
+- No set should be mandatory for clearing first-version story.
+- Full combat set should clear faster, but mixed builds remain viable.
+- Farming set improves reward flow, not boss damage dominance.
+- Challenge scoring can normalize overpowered reinforcement/amplification above a cap.
+
 ## Trade and Auction
 Personal trade simulation:
 - Offline trade with generated NPC adventurers.
@@ -466,7 +549,9 @@ Combat:
 - Core SFX set for combat, loot, economy, shop, and UI feedback.
 
 Economy:
-- 30 gear items.
+- 60 gear items.
+- 5 first-version Epic sets with 2/3/5-piece bonuses.
+- 3 saved equipment loadouts.
 - 20 materials/consumables.
 - 8 costumes.
 - 4 gift packs.
@@ -505,6 +590,8 @@ Systems:
 - Main story quests can be completed, unlock systems in sequence, and persist after save reload.
 - Quest objectives update from combat, loot, trade, shop, reinforcement, and amplification events.
 - Gear can be equipped, compared, sold, dismantled, reinforced, and amplified.
+- Gear levels, rarity, Epic sets, set bonuses, build tags, and saved loadouts work.
+- At least 4 distinct build archetypes can clear the second dungeon.
 - Auction listing can sell to NPC market simulation after dungeon return.
 - Shop purchases deduct Valor Tokens and add correct items.
 - Costume equip changes appearance and applies allowed perk.
@@ -533,6 +620,6 @@ Approved so far:
 Needs user approval before implementation:
 - Browser TypeScript/Canvas direction.
 - Original `Ember Warden` class direction and refined 2D action illustration visual style.
-- First playable content count and economy scope.
+- First playable content count, economy scope, and expanded equipment/build system.
 
 After approval, create detailed implementation plan, then scaffold code.

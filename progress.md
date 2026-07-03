@@ -76,8 +76,13 @@
   - Started implementation-plan workflow.
   - Created implementation plan at `docs/superpowers/plans/2026-07-03-mydnf-vertical-slice-implementation.md`.
   - Self-reviewed plan for required header, banned vague planning terms, mojibake markers, and Chinese commit-message examples.
-  - Committed implementation plan: `afe5dbf 编写首个可玩版本实施计划`.
+  - Committed implementation plan: `edbc008 编写首个可玩版本实施计划`.
   - Pushed commits to GitHub `origin/main`.
+  - Rewrote earlier English commit messages into Chinese to satisfy user requirement.
+  - First rewrite attempt failed because `git filter-branch` msg-filter used PowerShell syntax inside sh.
+  - Second rewrite attempt produced mojibake for the first three Chinese messages.
+  - Third rewrite used a Python binary stdout msg-filter keyed by commit hash; all commit subjects became valid UTF-8 Chinese.
+  - Force-with-lease pushed rewritten `main` to GitHub.
 - Files created/modified:
   - `docs/superpowers/plans/2026-07-03-mydnf-vertical-slice-implementation.md`
 
@@ -88,12 +93,13 @@
 | Visual companion server | bundled Node + `server.cjs` | Local URL and content/state dirs | `http://localhost:50336` started | pass |
 | Visual board open | Codex in-app browser | Approach selection screen visible | URL opened with title `Superpowers Brainstorming` | pass |
 | Design spec created | approach B selected | Formal design doc exists | `docs/superpowers/specs/2026-07-03-dnf-inspired-hybrid-rpg-design.md` created | pass |
-| Design spec committed | git repo initialized | Commit exists | `761f9ea Add hybrid action RPG design spec` | pass |
-| Updated design spec committed | equipment/story/audio/visual updates | Commit exists | `de630dd Expand action RPG systems design` | pass |
+| Design spec committed | git repo initialized | Commit exists | `9ccabf3 添加混合动作角色扮演设计规格` | pass |
+| Updated design spec committed | equipment/story/audio/visual updates | Commit exists | `d64cfd6 扩展动作角色扮演系统设计` | pass |
 | GitHub remote configured | user provided repo URL | origin points to repo | `origin https://github.com/G1ow9711/MyDNF.git` | pass |
-| Localized naming committed | Chinese display names required | Commit exists and UTF-8 validates | `48b803c Localize design names for Chinese fantasy setting` | pass |
+| Localized naming committed | Chinese display names required | Commit exists and UTF-8 validates | `ccf3480 本地化中国风设定命名` | pass |
 | Implementation plan created | approved development | Plan exists and self-review passed | `docs/superpowers/plans/2026-07-03-mydnf-vertical-slice-implementation.md` | pass |
-| GitHub push | user allowed push | `main` pushed to `origin/main` | `afe5dbf` pushed | pass |
+| GitHub push | user allowed push | `main` pushed to `origin/main` | `4d0d1de` pushed after history rewrite | pass |
+| Chinese commit messages | user required all commit messages in Chinese | `git log` has Chinese messages and UTF-8 decode passes | all current commits are Chinese | pass |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -101,6 +107,9 @@
 | 2026-07-03 | `cannot create a new goal because this thread has an unfinished goal` | 1 | Continue under current active goal context |
 | 2026-07-03 | `fatal: not a git repository (or any of the parent directories): .git` | 1 | Logged state; avoid git-dependent workflow unless initialized |
 | 2026-07-03 | `适用于 Linux 的 Windows 子系统没有已安装的分发。` when running `bash start-server.sh` | 1 | Do not retry WSL path; launch brainstorm server with bundled Node directly |
+
+| 2026-07-03 | `git-filter-branch: eval: syntax error near unexpected token '('` | 1 | Replaced PowerShell msg-filter with Python msg-filter |
+| 2026-07-03 | `Warning: commit message did not conform to UTF-8` | 2 | Re-ran msg-filter with binary UTF-8 stdout keyed by commit hash |
 
 ## 5-Question Reboot Check
 | Question | Answer |

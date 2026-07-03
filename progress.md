@@ -168,6 +168,15 @@
   - `npm test -- src/tests/state-inventory-save.test.ts`: pass, 8 tests.
   - `npm test`: pass, 16 tests.
   - `npm run build`: pass.
+- Task 3 quality-review fix started after review found duplicate owned ids, saved-loadout sell/dismantle reservation behavior, shallow save validation, and non-exact resource tests.
+- Added regression tests first for duplicate catalog acquisitions, loadout-only conversion cleanup, exact sell/dismantle deltas, and malformed save structures.
+- RED evidence:
+  - `npm test -- src/tests/state-inventory-save.test.ts` failed because `nextOwnedGearSequence` was missing, saved-loadout refs blocked sell/dismantle, and malformed saves were accepted.
+- Implemented explicit `createOwnedGear(catalogGearId, sequence)`, `nextOwnedGearSequence`, `addOwnedGear`, current-equipment-only conversion blocking, loadout ref cleanup after conversion, and structural save validation.
+- Quality-fix verification:
+  - `npm test -- src/tests/state-inventory-save.test.ts`: pass, 12 tests.
+  - `npm test`: pass, 20 tests.
+  - `npm run build`: pass.
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |

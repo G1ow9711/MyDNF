@@ -61,15 +61,20 @@ function isEquippedIn(equipment: EquipmentState, instanceId: string): boolean {
   return Object.values(equipment).includes(instanceId);
 }
 
-function isEquippedAnywhere(state: GameState, instanceId: string): boolean {
-  return (
-    isEquippedIn(state.player.equipment, instanceId) ||
-    state.player.loadouts.some((loadout) => isEquippedIn(loadout, instanceId))
-  );
+function isCurrentlyEquipped(state: GameState, instanceId: string): boolean {
+  return isEquippedIn(state.player.equipment, instanceId);
 }
 
 function removeOwnedItem(state: GameState, instanceId: string): OwnedGearItem[] {
   return state.player.inventory.filter((item) => item.instanceId !== instanceId);
+}
+
+function clearEquipmentRef(equipment: EquipmentState, instanceId: string): EquipmentState {
+  return Object.fromEntries(Object.entries(equipment).filter(([, equippedId]) => equippedId !== instanceId));
+}
+
+function clearLoadoutRefs(state: GameState, instanceId: string): EquipmentState[] {
+  return state.player.loadouts.map((loadout) => clearEquipmentRef(loadout, instanceId));
 }
 
 export function equipItem(state: GameState, instanceId: string): GameState {
@@ -118,7 +123,7 @@ export function sellItem(state: GameState, instanceId: string): GameState {
   const ownedItem = findOwnedItem(state, instanceId);
   const catalogGear = findCatalogGear(ownedItem);
 
-  if (isEquippedAnywhere(state, instanceId)) {
+  if (isCurrentlyEquipped(state, instanceId)) {
     throw new Error(`Cannot sell equipped item: ${instanceId}`);
   }
 
@@ -127,6 +132,7 @@ export function sellItem(state: GameState, instanceId: string): GameState {
     player: {
       ...state.player,
       inventory: removeOwnedItem(state, instanceId),
+      loadouts: clearLoadoutRefs(state, instanceId),
       currencies: {
         ...state.player.currencies,
         gold: state.player.currencies.gold + sellValues[catalogGear.rarity] + catalogGear.level * 5
@@ -141,7 +147,7 @@ export function dismantleItem(state: GameState, instanceId: string): GameState {
   const ironDust = dismantleIronDustValues[catalogGear.rarity] + catalogGear.level * 2;
   const arcShard = dismantleArcShardValues[catalogGear.rarity];
 
-  if (isEquippedAnywhere(state, instanceId)) {
+  if (isCurrentlyEquipped(state, instanceId)) {
     throw new Error(`Cannot dismantle equipped item: ${instanceId}`);
   }
 
@@ -150,6 +156,7 @@ export function dismantleItem(state: GameState, instanceId: string): GameState {
     player: {
       ...state.player,
       inventory: removeOwnedItem(state, instanceId),
+      loadouts: clearLoadoutRefs(state, instanceId),
       currencies: {
         ...state.player.currencies,
         ironDust: state.player.currencies.ironDust + ironDust,

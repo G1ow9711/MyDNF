@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { createInitialState, createOwnedGear } from "../game/state";
+import { addOwnedGear, createInitialState, createOwnedGear, nextOwnedGearSequence } from "../game/state";
 import type { GameState, GearItem, GearSlot, OwnedGearItem } from "../game/types";
 import { applyLoadout, dismantleItem, equipItem, saveLoadout, sellItem } from "../systems/inventory";
 import { loadGame, saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
@@ -54,6 +54,60 @@ function withOwnedItem(state: GameState, item: OwnedGearItem): GameState {
   };
 }
 
+function withLoadoutEquipment(
+  state: GameState,
+  index: number,
+  equipment: Partial<Record<GearSlot, string>>
+): GameState {
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      loadouts: state.player.loadouts.map((loadout, loadoutIndex) =>
+        loadoutIndex === index ? { ...equipment } : { ...loadout }
+      )
+    }
+  };
+}
+
+function expectedSellGold(item: GearItem): number {
+  const rarityValues: Record<GearItem["rarity"], number> = {
+    common: 40,
+    uncommon: 80,
+    rare: 160,
+    epic: 500,
+    mythic: 1500
+  };
+
+  return rarityValues[item.rarity] + item.level * 5;
+}
+
+function expectedDismantleMaterials(item: GearItem): { ironDust: number; arcShard: number } {
+  const ironDustValues: Record<GearItem["rarity"], number> = {
+    common: 4,
+    uncommon: 10,
+    rare: 24,
+    epic: 70,
+    mythic: 180
+  };
+  const arcShardValues: Record<GearItem["rarity"], number> = {
+    common: 0,
+    uncommon: 0,
+    rare: 2,
+    epic: 8,
+    mythic: 25
+  };
+
+  return {
+    ironDust: ironDustValues[item.rarity] + item.level * 2,
+    arcShard: arcShardValues[item.rarity]
+  };
+}
+
+function writeSave(storage: MemoryStorage, value: unknown): void {
+  storage.setItem(SAVE_KEY, JSON.stringify(value));
+}
+
 describe("initial game state", () => {
   it("creates the required starter state from the catalog", () => {
     const state = createInitialState();
@@ -101,6 +155,35 @@ describe("initial game state", () => {
 });
 
 describe("inventory equipment and loadouts", () => {
+  it("allocates unique readable instance ids for duplicate catalog acquisitions", () => {
+    const state = createInitialState();
+    const commonCore = findCatalogGear("core", "common");
+
+    expect(nextOwnedGearSequence(state.player.inventory, commonCore.id)).toBe(2);
+
+    const withSecondCore = addOwnedGear(state, commonCore.id);
+    const withThirdCore = addOwnedGear(withSecondCore, commonCore.id);
+    const coreCopies = withThirdCore.player.inventory.filter((item) => item.catalogGearId === commonCore.id);
+    const coreInstanceIds = coreCopies.map((item) => item.instanceId);
+    const targetInstanceId = `owned-${commonCore.id}-002`;
+
+    expect(coreInstanceIds).toEqual([
+      `owned-${commonCore.id}-001`,
+      targetInstanceId,
+      `owned-${commonCore.id}-003`
+    ]);
+    expect(new Set(coreInstanceIds).size).toBe(coreInstanceIds.length);
+
+    const sold = sellItem(withThirdCore, targetInstanceId);
+
+    expect(sold.player.inventory.some((item) => item.instanceId === targetInstanceId)).toBe(false);
+    expect(sold.player.inventory.filter((item) => item.catalogGearId === commonCore.id).map((item) => item.instanceId)).toEqual([
+      `owned-${commonCore.id}-001`,
+      `owned-${commonCore.id}-003`
+    ]);
+    expect(sold.player.currencies.gold - withThirdCore.player.currencies.gold).toBe(expectedSellGold(commonCore));
+  });
+
   it("equips another owned item by instance id without mutating the input state", () => {
     const state = createInitialState();
     const ownedCore = ownedBySlot(state, "core");
@@ -157,27 +240,69 @@ describe("inventory item conversion", () => {
   it("sells an unequipped owned item for gold and rejects equipped items", () => {
     const state = createInitialState();
     const ownedCore = ownedBySlot(state, "core");
+    const ownedCoreCatalog = findCatalogGear("core", "common");
     const equippedWeaponId = state.player.equipment.weapon;
 
     const next = sellItem(state, ownedCore.instanceId);
 
     expect(next.player.inventory.some((item) => item.instanceId === ownedCore.instanceId)).toBe(false);
-    expect(next.player.currencies.gold).toBeGreaterThan(state.player.currencies.gold);
+    expect(next.player.currencies.gold - state.player.currencies.gold).toBe(expectedSellGold(ownedCoreCatalog));
     expect(() => sellItem(state, equippedWeaponId ?? "")).toThrow(/equipped item/i);
+  });
+
+  it("sells an item referenced only by a saved loadout and clears the stale loadout ref", () => {
+    const state = createInitialState();
+    const ownedCore = ownedBySlot(state, "core");
+    const commonCore = findCatalogGear("core", "common");
+    const loadoutOnly = withLoadoutEquipment(state, 2, { core: ownedCore.instanceId });
+
+    const next = sellItem(loadoutOnly, ownedCore.instanceId);
+
+    expect(next.player.inventory.some((item) => item.instanceId === ownedCore.instanceId)).toBe(false);
+    expect(next.player.loadouts[2].core).toBeUndefined();
+    expect(loadoutOnly.player.loadouts[2].core).toBe(ownedCore.instanceId);
+    expect(next.player.currencies.gold - loadoutOnly.player.currencies.gold).toBe(expectedSellGold(commonCore));
   });
 
   it("dismantles unequipped gear into deterministic materials and rejects equipped items", () => {
     const state = createInitialState();
-    const rareRing = createOwnedGear(findCatalogGear("ring", "rare").id, "rare-test");
+    const rareRingCatalog = findCatalogGear("ring", "rare");
+    const rareRing = createOwnedGear(rareRingCatalog.id, "rare-test");
     const stateWithRare = withOwnedItem(state, rareRing);
     const equippedWeaponId = state.player.equipment.weapon;
+    const expectedMaterials = expectedDismantleMaterials(rareRingCatalog);
 
     const next = dismantleItem(stateWithRare, rareRing.instanceId);
 
     expect(next.player.inventory.some((item) => item.instanceId === rareRing.instanceId)).toBe(false);
-    expect(next.player.currencies.ironDust).toBeGreaterThan(stateWithRare.player.currencies.ironDust);
-    expect(next.player.currencies.arcShard).toBeGreaterThan(stateWithRare.player.currencies.arcShard);
+    expect(next.player.currencies.ironDust - stateWithRare.player.currencies.ironDust).toBe(
+      expectedMaterials.ironDust
+    );
+    expect(next.player.currencies.arcShard - stateWithRare.player.currencies.arcShard).toBe(
+      expectedMaterials.arcShard
+    );
     expect(() => dismantleItem(state, equippedWeaponId ?? "")).toThrow(/equipped item/i);
+  });
+
+  it("dismantles an item referenced only by a saved loadout and clears the stale loadout ref", () => {
+    const state = createInitialState();
+    const rareRingCatalog = findCatalogGear("ring", "rare");
+    const rareRing = createOwnedGear(rareRingCatalog.id, "rare-loadout");
+    const stateWithRare = withOwnedItem(state, rareRing);
+    const loadoutOnly = withLoadoutEquipment(stateWithRare, 1, { ring: rareRing.instanceId });
+    const expectedMaterials = expectedDismantleMaterials(rareRingCatalog);
+
+    const next = dismantleItem(loadoutOnly, rareRing.instanceId);
+
+    expect(next.player.inventory.some((item) => item.instanceId === rareRing.instanceId)).toBe(false);
+    expect(next.player.loadouts[1].ring).toBeUndefined();
+    expect(loadoutOnly.player.loadouts[1].ring).toBe(rareRing.instanceId);
+    expect(next.player.currencies.ironDust - loadoutOnly.player.currencies.ironDust).toBe(
+      expectedMaterials.ironDust
+    );
+    expect(next.player.currencies.arcShard - loadoutOnly.player.currencies.arcShard).toBe(
+      expectedMaterials.arcShard
+    );
   });
 });
 
@@ -208,5 +333,26 @@ describe("save system", () => {
 
     storage.setItem(SAVE_KEY, JSON.stringify({ ...state, catalogId: "other-catalog" }));
     expect(() => loadGame(storage)).toThrow(/incompatible save/i);
+  });
+
+  it("rejects structurally invalid saves before returning state", () => {
+    const storage = new MemoryStorage();
+    const state = createInitialState();
+    const missingPlayer: Partial<GameState> = { ...state };
+    const duplicateInventory = [state.player.inventory[0], { ...state.player.inventory[0] }];
+
+    delete missingPlayer.player;
+
+    writeSave(storage, missingPlayer);
+    expect(() => loadGame(storage)).toThrow(/player/i);
+
+    writeSave(storage, { ...state, player: { ...state.player, inventory: {} } });
+    expect(() => loadGame(storage)).toThrow(/inventory/i);
+
+    writeSave(storage, { ...state, player: { ...state.player, inventory: duplicateInventory } });
+    expect(() => loadGame(storage)).toThrow(/duplicate instance/i);
+
+    writeSave(storage, { ...state, player: { ...state.player, equipment: { weapon: "missing-owned" } } });
+    expect(() => loadGame(storage)).toThrow(/equipment.*inventory/i);
   });
 });

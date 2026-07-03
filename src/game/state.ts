@@ -9,9 +9,25 @@ const starterCurrency: CurrencyState = {
   protectionTicket: 1
 };
 
-export function createOwnedGear(catalogGearId: string, suffix = "001"): OwnedGearItem {
+function formatOwnedGearSequence(sequence: number | string): string {
+  if (typeof sequence === "number") {
+    if (!Number.isInteger(sequence) || sequence < 1) {
+      throw new Error(`Owned gear sequence must be a positive integer: ${sequence}`);
+    }
+
+    return String(sequence).padStart(3, "0");
+  }
+
+  if (sequence.length === 0) {
+    throw new Error("Owned gear sequence must not be empty");
+  }
+
+  return sequence;
+}
+
+export function createOwnedGear(catalogGearId: string, sequence: number | string): OwnedGearItem {
   return {
-    instanceId: `owned-${catalogGearId}-${suffix}`,
+    instanceId: `owned-${catalogGearId}-${formatOwnedGearSequence(sequence)}`,
     catalogGearId,
     reinforceLevel: 0,
     amplifyLevel: 0,
@@ -19,6 +35,34 @@ export function createOwnedGear(catalogGearId: string, suffix = "001"): OwnedGea
     bound: true,
     tradable: false,
     sealed: false
+  };
+}
+
+export function nextOwnedGearSequence(inventory: OwnedGearItem[], catalogGearId: string): number {
+  const prefix = `owned-${catalogGearId}-`;
+  const maxSequence = inventory
+    .filter((item) => item.catalogGearId === catalogGearId && item.instanceId.startsWith(prefix))
+    .map((item) => item.instanceId.slice(prefix.length))
+    .filter((suffix) => /^\d+$/.test(suffix))
+    .reduce((max, suffix) => Math.max(max, Number(suffix)), 0);
+
+  return maxSequence + 1;
+}
+
+export function addOwnedGear(state: GameState, catalogGearId: string): GameState {
+  if (!catalog.gear.some((item) => item.id === catalogGearId)) {
+    throw new Error(`Missing catalog gear: ${catalogGearId}`);
+  }
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      inventory: [
+        ...state.player.inventory,
+        createOwnedGear(catalogGearId, nextOwnedGearSequence(state.player.inventory, catalogGearId))
+      ]
+    }
   };
 }
 
@@ -37,7 +81,7 @@ export function createInitialState(): GameState {
   const starterCore = findCommonStarterGear("core");
   const inventory = [starterWeapon, starterCore]
     .filter((item): item is GearItem => item !== undefined)
-    .map((item) => createOwnedGear(item.id));
+    .map((item) => createOwnedGear(item.id, 1));
   const ownedWeapon = starterWeapon
     ? inventory.find((item) => item.catalogGearId === starterWeapon.id)
     : undefined;

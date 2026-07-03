@@ -193,6 +193,22 @@
   - `8c70bf1 修复存档背包质量问题`
   - `360d237 完善存档结构校验`
 
+## Task 4 Upgrade Systems
+- Started Task 4 in `.worktrees/vertical-slice` on `feature/vertical-slice`.
+- Read current plan/progress plus state, catalog, inventory, and existing tests.
+- Wrote `src/tests/upgrades.test.ts` before production code.
+- RED evidence:
+  - `npm test -- src/tests/upgrades.test.ts` failed because `../systems/upgrades` did not exist.
+- Created `src/systems/upgrades.ts` with immutable reinforcement, amplification, protection-ticket, and amplified-equipped-stat helpers.
+- GREEN verification after implementation:
+  - `npm test -- src/tests/upgrades.test.ts`: pass, 11 tests.
+  - `npm test`: pass, 43 tests.
+  - `npm run build`: pass.
+- Task 4 files created/modified:
+  - `src/systems/upgrades.ts`
+  - `src/tests/upgrades.test.ts`
+  - `progress.md`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|

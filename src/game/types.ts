@@ -135,6 +135,45 @@ export type QuestDef = QuestDefinition;
 
 export type CurrencyState = Record<CurrencyId, number>;
 
+export interface TradeOffer {
+  id: string;
+  label: string;
+  cost: Partial<Record<CurrencyId, number>>;
+  reward: Partial<Record<CurrencyId, number>>;
+}
+
+export interface TradeBoard {
+  id: string;
+  seed: string;
+  offers: TradeOffer[];
+}
+
+export type AuctionStatus = "listed" | "sold" | "expired";
+
+export interface AuctionListing {
+  id: string;
+  itemId: string;
+  price: number;
+  fee: number;
+  listedAtTurn: number;
+  status: AuctionStatus;
+  ownedItem: OwnedGearItem;
+}
+
+export interface MarketState {
+  tradeBoard: TradeBoard;
+  auctions: AuctionListing[];
+  auctionSequence: number;
+  turn: number;
+}
+
+export interface ShopState {
+  ownedCosmetics: string[];
+  boxes: Record<string, number>;
+  boxPity: Record<string, number>;
+  purchasedSkus: string[];
+}
+
 export interface PlayerState {
   heroId: string;
   level: number;
@@ -155,4 +194,6 @@ export interface GameState {
   currentTown: TownId;
   currentDungeonId?: DungeonId;
   seenTutorials: string[];
+  market: MarketState;
+  shop: ShopState;
 }

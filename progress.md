@@ -223,6 +223,29 @@
   - `79f2ecc 实现强化和增幅系统`
   - `f8c5294 补充强化边界测试`
 
+## Task 5 Economy Systems
+- Started Task 5 in `.worktrees/vertical-slice` on `feature/vertical-slice`.
+- Read current task plan, findings, progress, catalog, state, inventory, save, and upgrade-system context.
+- Wrote `src/tests/economy.test.ts` before production economy modules.
+- RED evidence:
+  - `npm test -- src/tests/economy.test.ts` failed because `../systems/market` does not exist.
+- Created `src/systems/market.ts` and `src/systems/shop.ts`, added explicit `market` and `shop` state branches, and initialized them in `createInitialState()`.
+- Added economy save-validation coverage before extending `src/systems/save.ts`.
+- RED evidence:
+  - `npm test -- src/tests/economy.test.ts` failed because missing/malformed economy save branches were accepted.
+- GREEN verification after implementation:
+  - `npm test -- src/tests/economy.test.ts`: pass, 6 tests.
+  - `npm test`: pass, 54 tests.
+  - `npm run build`: pass.
+- Task 5 files created/modified:
+  - `src/systems/market.ts`
+  - `src/systems/shop.ts`
+  - `src/tests/economy.test.ts`
+  - `src/game/types.ts`
+  - `src/game/state.ts`
+  - `src/systems/save.ts`
+  - `progress.md`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|

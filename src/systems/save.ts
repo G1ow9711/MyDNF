@@ -1,5 +1,14 @@
 import { catalog } from "../data/catalog";
-import type { AmplifyStat, CurrencyId, DungeonId, GameState, GearSlot, QuestStatus, TownId } from "../game/types";
+import type {
+  AmplifyStat,
+  AuctionStatus,
+  CurrencyId,
+  DungeonId,
+  GameState,
+  GearSlot,
+  QuestStatus,
+  TownId
+} from "../game/types";
 
 export interface SaveStorage {
   getItem(key: string): string | null;
@@ -30,6 +39,7 @@ const gearSlots: readonly GearSlot[] = [
 ];
 const amplifyStats: readonly AmplifyStat[] = ["crit", "cooldown", "element", "moveSpeed"];
 const questStatuses: readonly QuestStatus[] = ["locked", "active", "ready", "completed"];
+const auctionStatuses: readonly AuctionStatus[] = ["listed", "sold", "expired"];
 
 const catalogGearIds = new Set(catalog.gear.map((item) => item.id));
 const catalogQuestIds = new Set(catalog.quests.map((quest) => quest.id));
@@ -84,6 +94,39 @@ function requireBoolean(value: unknown, path: string): void {
   }
 }
 
+function validateStringArray(value: unknown, path: string): void {
+  const items = requireArray(value, path);
+
+  if (items.some((item) => typeof item !== "string" || item.length === 0)) {
+    throw new Error(`Malformed save data: ${path} must be a string array`);
+  }
+}
+
+function validateNumberRecord(value: unknown, path: string): void {
+  const record = requireRecord(value, path);
+
+  for (const [key, amount] of Object.entries(record)) {
+    if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) {
+      throw new Error(`Malformed save data: ${path}.${key} must be a finite number >= 0`);
+    }
+  }
+}
+
+function validatePartialCurrencyRecord(value: unknown, path: string): void {
+  const record = requireRecord(value, path);
+
+  for (const [currencyId, amount] of Object.entries(record)) {
+    if (
+      !currencyIds.includes(currencyId as CurrencyId) ||
+      typeof amount !== "number" ||
+      !Number.isFinite(amount) ||
+      amount < 0
+    ) {
+      throw new Error(`Malformed save data: ${path}.${currencyId} must be a valid currency amount`);
+    }
+  }
+}
+
 function validateCurrencies(value: unknown): void {
   const currencies = requireRecord(value, "player.currencies");
 
@@ -94,37 +137,43 @@ function validateCurrencies(value: unknown): void {
   }
 }
 
+function validateOwnedGearItem(value: unknown, path: string): string {
+  const item = requireRecord(value, path);
+  const instanceId = requireString(item.instanceId, `${path}.instanceId`);
+  const catalogGearId = requireString(item.catalogGearId, `${path}.catalogGearId`);
+
+  if (!catalogGearIds.has(catalogGearId)) {
+    throw new Error(`Malformed save data: ${path}.catalogGearId is not in catalog`);
+  }
+
+  requireFiniteNumber(item.reinforceLevel, `${path}.reinforceLevel`, 0);
+  requireFiniteNumber(item.amplifyLevel, `${path}.amplifyLevel`, 0);
+  requireBoolean(item.locked, `${path}.locked`);
+  requireBoolean(item.bound, `${path}.bound`);
+  requireBoolean(item.tradable, `${path}.tradable`);
+  requireBoolean(item.sealed, `${path}.sealed`);
+
+  if (item.amplifyStat !== undefined) {
+    const amplifyStat = requireString(item.amplifyStat, `${path}.amplifyStat`);
+
+    if (!amplifyStatIds.has(amplifyStat as AmplifyStat)) {
+      throw new Error(`Malformed save data: ${path}.amplifyStat is not allowed`);
+    }
+  }
+
+  return instanceId;
+}
+
 function validateInventory(value: unknown): Set<string> {
   const inventory = requireArray(value, "player.inventory");
   const ownedInstanceIds = new Set<string>();
 
   inventory.forEach((itemValue, index) => {
-    const item = requireRecord(itemValue, `player.inventory[${index}]`);
     const itemPath = `player.inventory[${index}]`;
-    const instanceId = requireString(item.instanceId, `${itemPath}.instanceId`);
-    const catalogGearId = requireString(item.catalogGearId, `${itemPath}.catalogGearId`);
+    const instanceId = validateOwnedGearItem(itemValue, itemPath);
 
     if (ownedInstanceIds.has(instanceId)) {
       throw new Error(`Malformed save data: duplicate instance id ${instanceId}`);
-    }
-
-    if (!catalogGearIds.has(catalogGearId)) {
-      throw new Error(`Malformed save data: player.inventory[${index}].catalogGearId is not in catalog`);
-    }
-
-    requireFiniteNumber(item.reinforceLevel, `${itemPath}.reinforceLevel`, 0);
-    requireFiniteNumber(item.amplifyLevel, `${itemPath}.amplifyLevel`, 0);
-    requireBoolean(item.locked, `${itemPath}.locked`);
-    requireBoolean(item.bound, `${itemPath}.bound`);
-    requireBoolean(item.tradable, `${itemPath}.tradable`);
-    requireBoolean(item.sealed, `${itemPath}.sealed`);
-
-    if (item.amplifyStat !== undefined) {
-      const amplifyStat = requireString(item.amplifyStat, `${itemPath}.amplifyStat`);
-
-      if (!amplifyStatIds.has(amplifyStat as AmplifyStat)) {
-        throw new Error(`Malformed save data: ${itemPath}.amplifyStat is not allowed`);
-      }
     }
 
     ownedInstanceIds.add(instanceId);
@@ -183,6 +232,74 @@ function validateUnlockedDungeons(value: unknown): void {
   }
 }
 
+function validateTradeBoard(value: unknown): void {
+  const tradeBoard = requireRecord(value, "market.tradeBoard");
+  requireString(tradeBoard.id, "market.tradeBoard.id");
+  requireString(tradeBoard.seed, "market.tradeBoard.seed");
+
+  const offers = requireArray(tradeBoard.offers, "market.tradeBoard.offers");
+
+  for (const [index, offerValue] of offers.entries()) {
+    const path = `market.tradeBoard.offers[${index}]`;
+    const offer = requireRecord(offerValue, path);
+
+    requireString(offer.id, `${path}.id`);
+    requireString(offer.label, `${path}.label`);
+    validatePartialCurrencyRecord(offer.cost, `${path}.cost`);
+    validatePartialCurrencyRecord(offer.reward, `${path}.reward`);
+  }
+}
+
+function validateAuctions(value: unknown, ownedInstanceIds: Set<string>): void {
+  const auctions = requireArray(value, "market.auctions");
+  const escrowedInstanceIds = new Set<string>();
+
+  for (const [index, auctionValue] of auctions.entries()) {
+    const path = `market.auctions[${index}]`;
+    const auction = requireRecord(auctionValue, path);
+    const itemId = requireString(auction.itemId, `${path}.itemId`);
+    const status = requireString(auction.status, `${path}.status`);
+    const escrowedItemId = validateOwnedGearItem(auction.ownedItem, `${path}.ownedItem`);
+
+    requireString(auction.id, `${path}.id`);
+    requireFiniteNumber(auction.price, `${path}.price`, 1);
+    requireFiniteNumber(auction.fee, `${path}.fee`, 0);
+    requireFiniteNumber(auction.listedAtTurn, `${path}.listedAtTurn`, 0);
+
+    if (!auctionStatuses.includes(status as AuctionStatus)) {
+      throw new Error(`Malformed save data: ${path}.status is not allowed`);
+    }
+
+    if (itemId !== escrowedItemId) {
+      throw new Error(`Malformed save data: ${path}.itemId must match ${path}.ownedItem.instanceId`);
+    }
+
+    if (ownedInstanceIds.has(escrowedItemId) || escrowedInstanceIds.has(escrowedItemId)) {
+      throw new Error(`Malformed save data: auction escrow duplicates owned item ${escrowedItemId}`);
+    }
+
+    escrowedInstanceIds.add(escrowedItemId);
+  }
+}
+
+function validateMarket(value: unknown, ownedInstanceIds: Set<string>): void {
+  const market = requireRecord(value, "market");
+
+  validateTradeBoard(market.tradeBoard);
+  validateAuctions(market.auctions, ownedInstanceIds);
+  requireFiniteNumber(market.auctionSequence, "market.auctionSequence", 1);
+  requireFiniteNumber(market.turn, "market.turn", 0);
+}
+
+function validateShop(value: unknown): void {
+  const shop = requireRecord(value, "shop");
+
+  validateStringArray(shop.ownedCosmetics, "shop.ownedCosmetics");
+  validateNumberRecord(shop.boxes, "shop.boxes");
+  validateNumberRecord(shop.boxPity, "shop.boxPity");
+  validateStringArray(shop.purchasedSkus, "shop.purchasedSkus");
+}
+
 function validateSave(value: unknown): GameState {
   const candidateRecord = requireRecord(value, "save");
 
@@ -209,9 +326,7 @@ function validateSave(value: unknown): GameState {
     throw new Error("Malformed save data: currentDungeonId must be a valid catalog dungeon id");
   }
 
-  if (!Array.isArray(candidate.seenTutorials) || candidate.seenTutorials.some((item) => typeof item !== "string")) {
-    throw new Error("Malformed save data: seenTutorials must be a string array");
-  }
+  validateStringArray(candidate.seenTutorials, "seenTutorials");
 
   const player = requireRecord(candidate.player, "player");
   const heroId = requireString(player.heroId, "player.heroId");
@@ -229,6 +344,8 @@ function validateSave(value: unknown): GameState {
   validateLoadouts(player.loadouts, ownedInstanceIds);
   validateQuests(player.quests);
   validateUnlockedDungeons(player.unlockedDungeons);
+  validateMarket(candidate.market, ownedInstanceIds);
+  validateShop(candidate.shop);
 
   return candidate as GameState;
 }

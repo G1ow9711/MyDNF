@@ -1,5 +1,6 @@
 import { catalog } from "../data/catalog";
 import type { CurrencyState, GameState, GearItem, GearSlot, OwnedGearItem, QuestStatus } from "./types";
+import { createTradeBoard } from "../systems/market";
 
 const starterCurrency: CurrencyState = {
   gold: 1500,
@@ -91,6 +92,18 @@ export function createInitialState(): GameState {
     catalogId: catalog.id,
     currentTown: "forge-market",
     seenTutorials: [],
+    market: {
+      tradeBoard: createTradeBoard("initial-market"),
+      auctions: [],
+      auctionSequence: 1,
+      turn: 0
+    },
+    shop: {
+      ownedCosmetics: [],
+      boxes: {},
+      boxPity: {},
+      purchasedSkus: []
+    },
     player: {
       heroId: catalog.hero.id,
       level: 1,

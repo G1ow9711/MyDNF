@@ -111,6 +111,10 @@ function defaultStorage(): SaveStorage | undefined {
   return globalThis.localStorage;
 }
 
+function dungeonBackgroundAsset(dungeonId: DungeonId): string {
+  return dungeonId === "liuli-furnace" ? "/assets/liuli-furnace-bg.png" : "/assets/cinder-kiln-bg.png";
+}
+
 function renderTownScene(model: AppViewModel): string {
   const state = model.state;
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
@@ -120,15 +124,14 @@ function renderTownScene(model: AppViewModel): string {
   return `
     <section class="town-scene" aria-label="炉山市集">
       <div class="scene-backdrop">
+        <img class="scene-background-art" src="/assets/forge-market-bg.png" alt="" aria-hidden="true" />
         <div class="moon-gate"></div>
         <div class="forge-glow"></div>
         <div class="market-roof"></div>
         <div class="stone-lane"></div>
       </div>
       <div class="hero-portrait" aria-label="${classDef?.displayName ?? state.player.classId}">
-        <div class="hero-face"></div>
-        <div class="hero-coat"></div>
-        <div class="hero-gauntlet"></div>
+        <img class="hero-art" src="/assets/hero-ember-warden.png" alt="${classDef?.displayName ?? state.player.classId}" />
       </div>
       <div class="town-hud">
         <h1>烬璃纪元</h1>
@@ -153,6 +156,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   return `
     <section class="combat-scene" aria-label="战斗">
       <div class="combat-backdrop scene-${run.dungeonId}">
+        <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
       </div>
       <div class="combat-actions">

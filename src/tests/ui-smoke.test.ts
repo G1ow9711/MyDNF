@@ -1,4 +1,7 @@
+/// <reference types="vite/client" />
+
 import { describe, expect, it } from "vitest";
+import { createCombatRun } from "../game/combat";
 import { createAudioState, setVolume } from "../systems/audio";
 import { createInitialState } from "../game/state";
 import { renderAppHtml } from "../ui/app";
@@ -12,7 +15,55 @@ import {
   renderSmithPanel
 } from "../ui/panels";
 
+const publicAssetModules = import.meta.glob("../../public/assets/*.png", {
+  eager: true,
+  query: "?url",
+  import: "default"
+}) as Record<string, string>;
+
 describe("town app shell", () => {
+  it("uses generated bitmap assets for detailed character and realistic Chinese-style environments", () => {
+    const initialState = createInitialState();
+    const state = {
+      ...initialState,
+      player: {
+        ...initialState.player,
+        unlockedDungeons: [...initialState.player.unlockedDungeons, "liuli-furnace" as const]
+      }
+    };
+    const townHtml = renderAppHtml({ state, mode: "town" });
+    const combatHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: createCombatRun(state, "liuli-furnace")
+    });
+    const cinderCombatHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: createCombatRun(state, "cinder-kiln-alley")
+    });
+
+    expect(townHtml).toContain("/assets/forge-market-bg.png");
+    expect(townHtml).toContain("/assets/hero-ember-warden.png");
+    expect(townHtml).toContain('class="hero-art"');
+    expect(cinderCombatHtml).toContain("/assets/cinder-kiln-bg.png");
+    expect(combatHtml).toContain("/assets/liuli-furnace-bg.png");
+    expect(combatHtml).toContain('class="combat-background-art"');
+  });
+
+  it("keeps referenced bitmap assets present in the public directory", () => {
+    expect(Object.keys(publicAssetModules).sort()).toEqual([
+      "../../public/assets/cinder-kiln-bg.png",
+      "../../public/assets/forge-market-bg.png",
+      "../../public/assets/hero-ember-warden.png",
+      "../../public/assets/liuli-furnace-bg.png"
+    ]);
+
+    for (const assetUrl of Object.values(publicAssetModules)) {
+      expect(assetUrl).toMatch(/\.png$/);
+    }
+  });
+
   it("renders the playable town as the first screen instead of a landing page", () => {
     const html = renderAppHtml({ state: createInitialState(), mode: "town" });
 

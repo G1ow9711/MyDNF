@@ -592,6 +592,36 @@
   - `npm test -- src/tests/render-audio.test.ts`: pass, 14 tests.
   - Final verification after second review fix: `npm test` pass, 111 tests; `npm run build` pass; `git diff --check` pass with only CRLF conversion warnings.
 
+## Task 21 Detailed Character and Environment Bitmap Assets
+- Started after visual-quality audit found the UI still relied on CSS shapes for the hero and scene backdrops.
+- Generated original project-bound bitmap assets with the built-in `image_gen` path, then copied selected outputs into `public/assets/`:
+  - `public/assets/hero-ember-warden.png`
+  - `public/assets/forge-market-bg.png`
+  - `public/assets/cinder-kiln-bg.png`
+  - `public/assets/liuli-furnace-bg.png`
+- Wrote regression test first in `src/tests/ui-smoke.test.ts`:
+  - Town render must reference the forge market background and detailed hero art.
+  - Combat render must reference cinder kiln and liuli furnace bitmap backgrounds.
+- RED evidence:
+  - `npm test -- src/tests/ui-smoke.test.ts` failed because the rendered HTML did not reference the bitmap assets.
+- Implemented:
+  - Town scene now renders `/assets/forge-market-bg.png` plus `/assets/hero-ember-warden.png`.
+  - Combat scene now resolves dungeon-specific background art for cinder kiln and liuli furnace.
+  - CSS now treats generated bitmaps as the primary scene art, with overlays for readability and preserved HUD layering.
+- Verification:
+  - `npm test -- src/tests/ui-smoke.test.ts`: pass, 4 tests.
+  - `npm test`: pass, 112 tests.
+  - `npm run build`: pass.
+  - Asset copy check: all four files exist under `public/assets`, each ~2.4-2.7 MB.
+  - Browser note: Vite launched at `http://127.0.0.1:5174/`, but in-app browser automation timed out even on basic tab inspection after reconnect; live screenshot verification is currently blocked by browser-control session state.
+- Code review follow-up:
+  - Reviewer flagged untracked PNG assets as a commit-time blocker and noted tests did not verify referenced asset files exist.
+  - Added UI smoke coverage that checks every referenced bitmap is discoverable through Vite's asset glob under `public/assets`.
+  - `npm test -- src/tests/ui-smoke.test.ts`: pass, 5 tests.
+  - `npm run build` initially failed when the test used `node:fs` without Node type declarations; replaced it with `import.meta.glob`.
+  - Re-verification: `npm test -- src/tests/ui-smoke.test.ts` pass, 5 tests; `npm run build` pass.
+  - Final verification: `npm test` pass, 113 tests; `npm run build` pass; `git diff --check` pass with only CRLF conversion warnings.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|

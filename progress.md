@@ -651,11 +651,13 @@
 ## Final Delivery Verification
 - User allowed pushing to GitHub.
 - Pushed latest gameplay commit `0a25966 完善战斗技能热键` to `origin/feature/vertical-slice`.
-- Verified local `HEAD` matches `origin/feature/vertical-slice` at `0a25966fa301e6108cb4b323ad2682b3c800f6f9`.
+- Pushed final-record commit `1698f44 记录最终交付核验` to `origin/feature/vertical-slice`.
+- Verified local `HEAD` matches `origin/feature/vertical-slice` after the final-record push.
 - Final verification:
   - `npm test`: pass, 12 files and 116 tests.
   - `npm run build`: pass, production files emitted under `dist/`.
   - `git diff --check`: pass.
+- Dev server verification: `http://127.0.0.1:5174/` returned HTTP 200 with `lang="zh-CN"`.
 - Browser/play note: Vite dev server is available at `http://127.0.0.1:5174/` from the existing dev session. In-app browser automation remained unreliable after native-dialog/browser-control timeouts, so final confidence is based on integration tests, smoke tests, build, asset existence checks, and earlier successful browser checks.
 
 ## Test Results

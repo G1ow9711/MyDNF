@@ -1,4 +1,15 @@
-import type { DungeonDef, EpicSet, GearItem, GearSlot, QuestDef, Rarity, SkillDef, TownDef } from "../game/types";
+import type {
+  ClassDefinition,
+  ClassSkillDefinition,
+  DungeonDef,
+  EpicSet,
+  GearItem,
+  GearSlot,
+  QuestDef,
+  Rarity,
+  SkillDef,
+  TownDef
+} from "../game/types";
 
 const slots: readonly GearSlot[] = [
   "weapon",
@@ -90,6 +101,111 @@ export const skills: SkillDef[] = [
     cooldownMs: 16000,
     damageScale: 4.8,
     tags: ["ultimate", "burst"]
+  }
+];
+
+export const classSkills: ClassSkillDefinition[] = [
+  { id: "spark-combo", classId: "ember-warden", displayName: "星火连拳", key: "J", resourceCost: 0, resourceGain: 12, cooldownMs: 1200, tags: ["starter", "combo"] },
+  { id: "cinder-uppercut", classId: "ember-warden", displayName: "烬焰升龙", key: "K", resourceCost: 0, resourceGain: 10, cooldownMs: 2600, tags: ["launcher"] },
+  { id: "furnace-step", classId: "ember-warden", displayName: "炉步冲肩", key: "L", resourceCost: 15, resourceGain: 0, cooldownMs: 3600, tags: ["dash"] },
+  { id: "anvil-crash", classId: "ember-warden", displayName: "铁砧坠击", key: "U", resourceCost: 25, resourceGain: 0, cooldownMs: 5200, tags: ["slam", "burst"] },
+  { id: "heat-bloom", classId: "ember-warden", displayName: "热浪绽放", key: "I", resourceCost: 35, resourceGain: 0, cooldownMs: 8200, tags: ["pull", "burst"] },
+  { id: "meteor-knuckle", classId: "ember-warden", displayName: "陨星重拳", key: "O", resourceCost: 70, resourceGain: 0, cooldownMs: 16000, tags: ["ultimate", "burst"] },
+  { id: "furnace-heart-overdrive", classId: "ember-warden", displayName: "炉心过载", key: "Space", resourceCost: 80, resourceGain: 0, cooldownMs: 18000, tags: ["advancement", "burst"] },
+  { id: "mountain-guard-break", classId: "ember-warden", displayName: "镇山破门", key: "Space", resourceCost: 55, resourceGain: 0, cooldownMs: 15000, tags: ["advancement", "guard-break"] },
+
+  { id: "glass-cut", classId: "liuli-blademage", displayName: "璃刃斩", key: "J", resourceCost: 0, resourceGain: 10, cooldownMs: 1100, tags: ["starter", "slash"] },
+  { id: "prism-step", classId: "liuli-blademage", displayName: "流光步", key: "K", resourceCost: 0, resourceGain: 8, cooldownMs: 2500, tags: ["dash", "combo"] },
+  { id: "mirror-arc", classId: "liuli-blademage", displayName: "镜弧回斩", key: "L", resourceCost: 14, resourceGain: 0, cooldownMs: 3600, tags: ["reflect"] },
+  { id: "liuli-rain", classId: "liuli-blademage", displayName: "琉璃雨", key: "U", resourceCost: 24, resourceGain: 0, cooldownMs: 5200, tags: ["range", "burst"] },
+  { id: "glass-lotus", classId: "liuli-blademage", displayName: "晶莲绽", key: "I", resourceCost: 36, resourceGain: 0, cooldownMs: 7800, tags: ["area"] },
+  { id: "sword-prism-field", classId: "liuli-blademage", displayName: "剑镜领域", key: "O", resourceCost: 70, resourceGain: 0, cooldownMs: 15000, tags: ["ultimate"] },
+  { id: "flowing-light-chain", classId: "liuli-blademage", displayName: "流光连式", key: "Space", resourceCost: 55, resourceGain: 0, cooldownMs: 14000, tags: ["advancement", "cycler"] },
+  { id: "mirrorflame-burst", classId: "liuli-blademage", displayName: "镜火爆鸣", key: "Space", resourceCost: 75, resourceGain: 0, cooldownMs: 17000, tags: ["advancement", "element"] },
+
+  { id: "ink-shot", classId: "ink-shadow-ranger", displayName: "墨羽射", key: "J", resourceCost: 0, resourceGain: 10, cooldownMs: 1000, tags: ["starter", "range"] },
+  { id: "shadow-roll", classId: "ink-shadow-ranger", displayName: "影翻", key: "K", resourceCost: 0, resourceGain: 8, cooldownMs: 2400, tags: ["dash"] },
+  { id: "marking-bolt", classId: "ink-shadow-ranger", displayName: "契印弩", key: "L", resourceCost: 12, resourceGain: 0, cooldownMs: 3300, tags: ["mark"] },
+  { id: "ink-snare", classId: "ink-shadow-ranger", displayName: "墨缚阵", key: "U", resourceCost: 22, resourceGain: 0, cooldownMs: 5200, tags: ["trap", "control"] },
+  { id: "crow-feint", classId: "ink-shadow-ranger", displayName: "鸦影佯攻", key: "I", resourceCost: 34, resourceGain: 0, cooldownMs: 7600, tags: ["evade", "crit"] },
+  { id: "black-rain-volley", classId: "ink-shadow-ranger", displayName: "玄雨齐射", key: "O", resourceCost: 68, resourceGain: 0, cooldownMs: 15000, tags: ["ultimate"] },
+  { id: "night-mark-detonation", classId: "ink-shadow-ranger", displayName: "夜契引爆", key: "Space", resourceCost: 50, resourceGain: 0, cooldownMs: 13000, tags: ["advancement", "crit"] },
+  { id: "mechanism-shadow-net", classId: "ink-shadow-ranger", displayName: "机影罗网", key: "Space", resourceCost: 48, resourceGain: 0, cooldownMs: 13500, tags: ["advancement", "trap"] },
+
+  { id: "iron-palm", classId: "iron-forge-guardian", displayName: "玄铁掌", key: "J", resourceCost: 0, resourceGain: 12, cooldownMs: 1300, tags: ["starter", "heavy"] },
+  { id: "anvil-guard", classId: "iron-forge-guardian", displayName: "砧守", key: "K", resourceCost: 0, resourceGain: 10, cooldownMs: 2800, tags: ["guard"] },
+  { id: "furnace-taunt", classId: "iron-forge-guardian", displayName: "炉鸣挑衅", key: "L", resourceCost: 16, resourceGain: 0, cooldownMs: 4000, tags: ["control"] },
+  { id: "shield-quake", classId: "iron-forge-guardian", displayName: "盾震", key: "U", resourceCost: 28, resourceGain: 0, cooldownMs: 5600, tags: ["slam"] },
+  { id: "molten-wall", classId: "iron-forge-guardian", displayName: "熔壁", key: "I", resourceCost: 38, resourceGain: 0, cooldownMs: 9000, tags: ["shield"] },
+  { id: "earth-furnace-breaker", classId: "iron-forge-guardian", displayName: "地炉裂击", key: "O", resourceCost: 72, resourceGain: 0, cooldownMs: 17000, tags: ["ultimate", "guard-break"] },
+  { id: "black-furnace-aegis", classId: "iron-forge-guardian", displayName: "玄炉护阵", key: "Space", resourceCost: 45, resourceGain: 0, cooldownMs: 14000, tags: ["advancement", "shield"] },
+  { id: "mountain-crack-hammer", classId: "iron-forge-guardian", displayName: "裂山锻锤", key: "Space", resourceCost: 60, resourceGain: 0, cooldownMs: 15000, tags: ["advancement", "stagger"] }
+];
+
+export const classes: ClassDefinition[] = [
+  {
+    id: "ember-warden",
+    displayName: "烬拳卫",
+    internalName: "Ember Warden",
+    resource: { id: "heat", displayName: "热能", max: 100 },
+    roleTags: ["近战", "爆发", "浮空"],
+    difficulty: 2,
+    preferredWeapon: "拳刃",
+    armorStyle: "轻甲",
+    statFocus: ["attack", "heatGain", "element"],
+    baseSkillIds: ["spark-combo", "cinder-uppercut", "furnace-step", "anvil-crash", "heat-bloom", "meteor-knuckle"],
+    advancements: [
+      { id: "ember-furnace-master", classId: "ember-warden", displayName: "爆炉宗师", description: "强化热能爆发和终结技窗口。", unlockLevel: 15, roleTags: ["爆发", "终结"], passiveBonuses: { attack: 18, heatGain: 10 }, skillIds: ["furnace-heart-overdrive"], vfxPalette: { primary: "#ff6b2c", secondary: "#ffd166", accent: "#ffffff" } },
+      { id: "mountain-breaker", classId: "ember-warden", displayName: "镇山破卫", description: "强化破防、生存和重击控制。", unlockLevel: 15, roleTags: ["破防", "生存"], passiveBonuses: { defense: 18, attack: 10 }, skillIds: ["mountain-guard-break"], vfxPalette: { primary: "#f59e0b", secondary: "#475569", accent: "#f8fafc" } }
+    ]
+  },
+  {
+    id: "liuli-blademage",
+    displayName: "琉璃剑客",
+    internalName: "Liuli Blademage",
+    resource: { id: "prism", displayName: "璃息", max: 100 },
+    roleTags: ["中距", "连携", "元素"],
+    difficulty: 3,
+    preferredWeapon: "璃刃",
+    armorStyle: "布甲",
+    statFocus: ["cooldown", "element", "moveSpeed"],
+    baseSkillIds: ["glass-cut", "prism-step", "mirror-arc", "liuli-rain", "glass-lotus", "sword-prism-field"],
+    advancements: [
+      { id: "flowing-light-swordmaster", classId: "liuli-blademage", displayName: "流光剑使", description: "以低冷却和三段连携压制敌群。", unlockLevel: 15, roleTags: ["循环", "机动"], passiveBonuses: { cooldown: 12, moveSpeed: 8 }, skillIds: ["flowing-light-chain"], vfxPalette: { primary: "#67e8f9", secondary: "#a78bfa", accent: "#ffffff" } },
+      { id: "mirrorflame-arcanist", classId: "liuli-blademage", displayName: "镜火术士", description: "用镜火折射制造高额元素爆发。", unlockLevel: 15, roleTags: ["元素", "爆发"], passiveBonuses: { element: 18, crit: 6 }, skillIds: ["mirrorflame-burst"], vfxPalette: { primary: "#38bdf8", secondary: "#fb7185", accent: "#fde68a" } }
+    ]
+  },
+  {
+    id: "ink-shadow-ranger",
+    displayName: "墨影游侠",
+    internalName: "Ink Shadow Ranger",
+    resource: { id: "ink", displayName: "墨契", max: 100 },
+    roleTags: ["远程", "标记", "陷阱"],
+    difficulty: 4,
+    preferredWeapon: "机关弩",
+    armorStyle: "皮甲",
+    statFocus: ["crit", "moveSpeed", "goldFind"],
+    baseSkillIds: ["ink-shot", "shadow-roll", "marking-bolt", "ink-snare", "crow-feint", "black-rain-volley"],
+    advancements: [
+      { id: "night-contract-hunter", classId: "ink-shadow-ranger", displayName: "夜契猎手", description: "叠加契印后引爆，适合暴击游走。", unlockLevel: 15, roleTags: ["暴击", "标记"], passiveBonuses: { crit: 16, moveSpeed: 6 }, skillIds: ["night-mark-detonation"], vfxPalette: { primary: "#111827", secondary: "#8b5cf6", accent: "#e0e7ff" } },
+      { id: "mechanism-shadow-weaver", classId: "ink-shadow-ranger", displayName: "机关影师", description: "布置机关影网控制场地并提高收益。", unlockLevel: 15, roleTags: ["陷阱", "刷图"], passiveBonuses: { goldFind: 14, cooldown: 6 }, skillIds: ["mechanism-shadow-net"], vfxPalette: { primary: "#0f172a", secondary: "#22c55e", accent: "#facc15" } }
+    ]
+  },
+  {
+    id: "iron-forge-guardian",
+    displayName: "玄甲司炉",
+    internalName: "Iron Forge Guardian",
+    resource: { id: "guard", displayName: "炉甲", max: 100 },
+    roleTags: ["重甲", "防御", "破甲"],
+    difficulty: 2,
+    preferredWeapon: "炉盾",
+    armorStyle: "重甲",
+    statFocus: ["defense", "attack", "element"],
+    baseSkillIds: ["iron-palm", "anvil-guard", "furnace-taunt", "shield-quake", "molten-wall", "earth-furnace-breaker"],
+    advancements: [
+      { id: "black-furnace-vanguard", classId: "iron-forge-guardian", displayName: "玄炉守将", description: "以护盾和减伤稳定推进。", unlockLevel: 15, roleTags: ["护盾", "坦克"], passiveBonuses: { defense: 28 }, skillIds: ["black-furnace-aegis"], vfxPalette: { primary: "#334155", secondary: "#f97316", accent: "#f8fafc" } },
+      { id: "mountain-cracking-smith", classId: "iron-forge-guardian", displayName: "裂山锻师", description: "牺牲机动换取重击硬直和首领破甲。", unlockLevel: 15, roleTags: ["重击", "首领"], passiveBonuses: { attack: 20, defense: 10 }, skillIds: ["mountain-crack-hammer"], vfxPalette: { primary: "#78716c", secondary: "#ef4444", accent: "#fde68a" } }
+    ]
   }
 ];
 
@@ -276,6 +392,8 @@ export const catalog = {
   id: "ember-liuli-era",
   title: "烬璃纪元",
   hero: { id: "ember-warden", displayName: "烬拳卫" },
+  classes,
+  classSkills,
   skills,
   dungeons,
   towns,

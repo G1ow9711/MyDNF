@@ -169,6 +169,7 @@ describe("catalog", () => {
 
     const player: PlayerState = {
       heroId: catalog.hero.id,
+      classId: "ember-warden",
       level: 1,
       experience: 0,
       heat: 0,

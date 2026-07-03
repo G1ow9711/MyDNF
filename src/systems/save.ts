@@ -1,6 +1,7 @@
 import { catalog } from "../data/catalog";
 import type {
   AmplifyStat,
+  AdvancementId,
   AuctionStatus,
   CurrencyId,
   DungeonId,
@@ -9,6 +10,7 @@ import type {
   QuestStatus,
   TownId
 } from "../game/types";
+import { isKnownAdvancementId, isKnownClassId } from "./classes";
 import { isKnownBoxId } from "./shop";
 
 export interface SaveStorage {
@@ -335,9 +337,30 @@ function validateSave(value: unknown): GameState {
 
   const player = requireRecord(candidate.player, "player");
   const heroId = requireString(player.heroId, "player.heroId");
+  const classId = requireString(player.classId, "player.classId");
 
-  if (heroId !== catalog.hero.id) {
-    throw new Error(`Malformed save data: player.heroId must be ${catalog.hero.id}`);
+  if (!isKnownClassId(classId)) {
+    throw new Error(`Malformed save data: player.classId is not known: ${classId}`);
+  }
+
+  if (heroId !== classId) {
+    throw new Error("Malformed save data: player.heroId must match player.classId");
+  }
+
+  if (player.advancementId !== undefined) {
+    const advancementId = requireString(player.advancementId, "player.advancementId");
+
+    if (!isKnownAdvancementId(advancementId)) {
+      throw new Error(`Malformed save data: player.advancementId is not known: ${advancementId}`);
+    }
+
+    const advancement = catalog.classes
+      .flatMap((classDef) => classDef.advancements)
+      .find((item) => item.id === (advancementId as AdvancementId));
+
+    if (advancement?.classId !== classId) {
+      throw new Error("Malformed save data: player.advancementId does not belong to player.classId");
+    }
   }
 
   requireFiniteNumber(player.level, "player.level", 1);

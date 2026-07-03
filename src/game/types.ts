@@ -28,6 +28,18 @@ export type AmplifyStat = "crit" | "cooldown" | "element" | "moveSpeed";
 
 export type SkillTag = "starter" | "launcher" | "dash" | "slam" | "pull" | "burst" | "ultimate" | "combo";
 
+export type ClassId = "ember-warden" | "liuli-blademage" | "ink-shadow-ranger" | "iron-forge-guardian";
+
+export type AdvancementId =
+  | "ember-furnace-master"
+  | "mountain-breaker"
+  | "flowing-light-swordmaster"
+  | "mirrorflame-arcanist"
+  | "night-contract-hunter"
+  | "mechanism-shadow-weaver"
+  | "black-furnace-vanguard"
+  | "mountain-cracking-smith";
+
 export type DungeonId = "cinder-kiln-alley" | "liuli-furnace";
 
 export type TownId = "forge-market";
@@ -99,6 +111,51 @@ export interface SkillDefinition {
 }
 
 export type SkillDef = SkillDefinition;
+
+export interface ClassSkillDefinition {
+  id: string;
+  classId: ClassId;
+  displayName: string;
+  key: string;
+  resourceCost: number;
+  resourceGain: number;
+  cooldownMs: number;
+  tags: string[];
+}
+
+export interface ClassAdvancementDefinition {
+  id: AdvancementId;
+  classId: ClassId;
+  displayName: string;
+  description: string;
+  unlockLevel: number;
+  roleTags: string[];
+  passiveBonuses: Partial<Record<StatKey, number>>;
+  skillIds: string[];
+  vfxPalette: {
+    primary: string;
+    secondary: string;
+    accent: string;
+  };
+}
+
+export interface ClassDefinition {
+  id: ClassId;
+  displayName: string;
+  internalName: string;
+  resource: {
+    id: string;
+    displayName: string;
+    max: number;
+  };
+  roleTags: string[];
+  difficulty: 1 | 2 | 3 | 4 | 5;
+  preferredWeapon: string;
+  armorStyle: string;
+  statFocus: StatKey[];
+  baseSkillIds: string[];
+  advancements: [ClassAdvancementDefinition, ClassAdvancementDefinition];
+}
 
 export interface DungeonDefinition {
   id: DungeonId;
@@ -176,6 +233,8 @@ export interface ShopState {
 
 export interface PlayerState {
   heroId: string;
+  classId: ClassId;
+  advancementId?: AdvancementId;
   level: number;
   experience: number;
   heat: number;

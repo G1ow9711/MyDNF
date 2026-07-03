@@ -265,6 +265,23 @@
   - `src/systems/save.ts`
   - `progress.md`
 
+## Task 6 Class Roster and Advancement
+- User expanded the active goal: at least four base classes, class advancement gameplay, and a mature shippable version are required.
+- Researched official DFO class/advancement references and recorded the original adaptation direction in design docs.
+- Updated design spec, acceptance checklist, implementation plan, findings, and task plan to include four base classes and advancement.
+- Wrote `src/tests/classes.test.ts` before implementation.
+- RED evidence:
+  - `npm test -- src/tests/classes.test.ts` failed because `../systems/classes` did not exist.
+- Added shared class/advancement types, catalog data for four base classes and eight advancement paths, class skill data, `PlayerState.classId`, optional `advancementId`, initial state class fields, class selection/preview/advancement helpers, and save validation for class/advancement ids.
+- Fixed existing catalog test fixture to include `classId`.
+- Checked UTF-8 file contents after PowerShell rendered Chinese as mojibake; source files contain real Chinese strings and no replacement characters.
+- Updated `task_plan.md` so Task 6 is complete and current work moves to Task 7 story/quest system.
+- Verification:
+  - `npm test -- src/tests/classes.test.ts`: pass, 6 tests.
+  - `npm test`: pass, 63 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -290,6 +307,7 @@
 
 | 2026-07-03 | `git-filter-branch: eval: syntax error near unexpected token '('` | 1 | Replaced PowerShell msg-filter with Python msg-filter |
 | 2026-07-03 | `Warning: commit message did not conform to UTF-8` | 2 | Re-ran msg-filter with binary UTF-8 stdout keyed by commit hash |
+| 2026-07-04 | `SyntaxError: unexpected character after line continuation character` from `python -c` with literal `\n` in PowerShell | 1 | Switched to semicolon/list-comprehension one-line Python checks |
 
 ## 5-Question Reboot Check
 | Question | Answer |

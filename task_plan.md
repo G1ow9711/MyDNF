@@ -4,7 +4,7 @@
 Design and, after approval, implement a mature playable offline side-scrolling action RPG prototype inspired by Dungeon Fighter Online, with original assets/mechanics, flashy skills, combat feel, at least four base classes, class advancement gameplay, economy systems, enhancement/amplification, shop, costumes, gift packs, and high replay value.
 
 ## Current Phase
-Phase 4 - Task 6
+Phase 4 - Task 7
 
 ## Phases
 
@@ -36,7 +36,7 @@ Phase 4 - Task 6
 - [x] Implement Task 3 state, save, inventory, and loadouts
 - [x] Implement Task 4 reinforcement and amplification systems
 - [x] Implement Task 5 market, auction, shop, packs, and boxes
-- [ ] Implement Task 6 four base classes and advancement system
+- [x] Implement Task 6 four base classes and advancement system
 - [ ] Implement story and quest system
 - [ ] Implement core movement/combat/enemy loop
 - [ ] Implement skills and visual effects
@@ -79,7 +79,7 @@ Phase 4 - Task 6
 - Current project contains only `.codex-local`.
 - Browser/visual verification likely needed because this is a game/UI task.
 - GitHub remote configured: `https://github.com/G1ow9711/MyDNF.git`.
-- Do not push to GitHub until user confirms upload.
+- User has allowed pushing to GitHub.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

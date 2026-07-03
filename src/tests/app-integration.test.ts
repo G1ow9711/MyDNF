@@ -57,6 +57,7 @@ describe("playable app integration actions", () => {
     expect(updated?.reinforceLevel).toBe(1);
     expect(reinforced.message).toContain("强化");
     expect(reinforced.state.player.currencies.gold).toBeLessThan(model.state.player.currencies.gold);
+    expect(reinforced.audio.commandQueue.at(-1)).toEqual({ type: "sfx", id: "reinforce-success" });
   });
 
   it("claims a ready quest and unlocks the next dungeon and quests", () => {
@@ -78,6 +79,7 @@ describe("playable app integration actions", () => {
     const ironDustBefore = model.state.player.currencies.ironDust;
 
     model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    expect(model.audio.currentBgm).toBe("dungeon-cinder-kiln");
     model = reduceAppAction(model, { type: "combatAction", action: "finish" });
     model = reduceAppAction(model, { type: "combatAction", action: "finish" });
     model = reduceAppAction(model, { type: "combatAction", action: "finish" });
@@ -89,6 +91,8 @@ describe("playable app integration actions", () => {
     expect(model.state.player.inventory.length).toBeGreaterThan(createInitialState().player.inventory.length);
     expect(model.state.player.quests["prologue-ember-warden"]).toBe("ready");
     expect(model.message).toContain("通关");
+    expect(model.audio.currentBgm).toBe("town-forge-market");
+    expect(model.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "loot-drop" }]));
   });
 
   it("buys a gift pack, opens a box, and renders actionable shop controls", () => {
@@ -107,6 +111,7 @@ describe("playable app integration actions", () => {
     expect(opened.state.player.inventory.length).toBeGreaterThan(bought.state.player.inventory.length);
     expect(shopHtml).toContain("购买礼包");
     expect(shopHtml).toContain("开启箱子");
+    expect(opened.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "box-open" }]));
   });
 
   it("accepts a trade offer and resolves an auction listing through app actions", () => {

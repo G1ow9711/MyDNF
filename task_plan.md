@@ -4,7 +4,7 @@
 Design and, after approval, implement a mature playable offline side-scrolling action RPG prototype inspired by Dungeon Fighter Online, with original assets/mechanics, flashy skills, combat feel, at least four base classes, class advancement gameplay, economy systems, enhancement/amplification, shop, costumes, gift packs, and high replay value.
 
 ## Current Phase
-Phase 4 - Task 12
+Phase 5 - Verification and Delivery
 
 ## Phases
 
@@ -42,16 +42,16 @@ Phase 4 - Task 12
 - [x] Implement skills and visual effects
 - [x] Implement town UI and system panels
 - [x] Implement loot, trade, enhancement, amplification, shop, costumes, and packs
-- [ ] Add sound/visual feedback where feasible
-- **Status:** in_progress
+- [x] Add sound/visual feedback where feasible
+- **Status:** complete
 
 ### Phase 5: Verification and Delivery
-- [ ] Run lint/build/tests where available
-- [ ] Start local server or provide local HTML entry
-- [ ] Verify gameplay in browser with screenshots/pixel checks if web-based
-- [ ] Update progress and findings
+- [x] Run lint/build/tests where available
+- [x] Start local server or provide local HTML entry
+- [x] Verify gameplay in browser with screenshots/pixel checks if web-based
+- [x] Update progress and findings
 - [ ] Final handoff with paths and run command
-- **Status:** pending
+- **Status:** in_progress
 
 ## Key Questions
 1. Should first delivery be a browser-playable prototype, a desktop executable prototype, or a code-heavy foundation?

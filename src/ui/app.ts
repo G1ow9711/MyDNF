@@ -11,6 +11,13 @@ import {
 import { addOwnedGear, createInitialState } from "../game/state";
 import type { DungeonId, GameState } from "../game/types";
 import { createRenderPlan } from "../game/render";
+import {
+  chooseMusicLayer,
+  createAudioState,
+  playBgm,
+  playSfx,
+  type AudioState
+} from "../systems/audio";
 import { acceptTrade, listAuction, resolveAuctions } from "../systems/market";
 import { applyQuestEvent, claimQuestReward } from "../systems/quests";
 import { loadGame, saveGame, type SaveStorage } from "../systems/save";
@@ -37,6 +44,7 @@ export interface AppViewModel {
 export interface AppModel extends AppViewModel {
   storage?: SaveStorage;
   rng: () => number;
+  audio: AudioState;
 }
 
 export type AppAction =
@@ -228,24 +236,33 @@ function applyCombatLoot(state: GameState, loot: CombatLootEvent): GameState {
 }
 
 export function createAppModel(options: CreateAppModelOptions = {}): AppModel {
+  const townMusic = chooseMusicLayer({ mode: "town" });
+
   return {
     state: options.initialState ?? createInitialState(),
     mode: "town",
     storage: options.storage ?? defaultStorage(),
-    rng: options.rng ?? Math.random
+    rng: options.rng ?? Math.random,
+    audio: playBgm(createAudioState(), townMusic.trackId)
   };
 }
 
 export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
   switch (action.type) {
     case "setMode":
-      return { ...model, mode: action.mode, message: undefined };
+      return {
+        ...model,
+        mode: action.mode,
+        message: undefined,
+        audio: action.mode === "town" ? playBgm(model.audio, chooseMusicLayer({ mode: "town" }).trackId) : model.audio
+      };
     case "enterDungeon":
       return {
         ...model,
         mode: "combat",
         combatRun: createCombatRun(model.state, action.dungeonId),
-        message: undefined
+        message: undefined,
+        audio: playBgm(model.audio, chooseMusicLayer({ mode: "dungeon", dungeonId: action.dungeonId, danger: 0.2 }).trackId)
       };
     case "combatAction": {
       if (!model.combatRun) {
@@ -265,7 +282,8 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
             state: nextState,
             mode: "town",
             combatRun: undefined,
-            message: "副本通关，战利品已入账"
+            message: "副本通关，战利品已入账",
+            audio: playSfx(playBgm(model.audio, chooseMusicLayer({ mode: "town" }).trackId), "loot-drop")
           };
         }
 
@@ -276,7 +294,8 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
             ...finishedRun,
             state: nextState
           },
-          message: "房间结算完成"
+          message: "房间结算完成",
+          audio: playSfx(model.audio, "loot-drop")
         };
       }
 
@@ -288,13 +307,19 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
             ? performAction(readyRun, { type: "heavy" })
             : performAction(readyRun, { type: "skill", skillId: "spark-combo" });
 
-      return { ...model, combatRun, message: undefined };
+      return {
+        ...model,
+        combatRun,
+        message: undefined,
+        audio: playSfx(model.audio, action.action === "skill" ? "skill-burst" : "hit-light")
+      };
     }
     case "claimQuest":
       return {
         ...model,
         state: claimQuestReward(model.state, action.questId),
-        message: "任务奖励已领取"
+        message: "任务奖励已领取",
+        audio: playSfx(model.audio, "quest-complete")
       };
     case "reinforce": {
       const result = reinforce(model.state, selectedGearId(model.state, action.gearId), model.rng);
@@ -302,7 +327,8 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       return {
         ...model,
         state: result.state,
-        message: `强化 ${result.success ? "成功" : "失败"}：+${result.levelAfter}`
+        message: `强化 ${result.success ? "成功" : "失败"}：+${result.levelAfter}`,
+        audio: playSfx(model.audio, result.success ? "reinforce-success" : "reinforce-fail")
       };
     }
     case "amplify": {
@@ -311,14 +337,16 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       return {
         ...model,
         state: result.state,
-        message: `增幅 ${result.success ? "成功" : "失败"}：+${result.levelAfter}`
+        message: `增幅 ${result.success ? "成功" : "失败"}：+${result.levelAfter}`,
+        audio: playSfx(model.audio, result.success ? "amplify-success" : "amplify-fail")
       };
     }
     case "buyShopItem":
       return {
         ...model,
         state: buyShopItem(model.state, action.sku),
-        message: "礼包已购买"
+        message: "礼包已购买",
+        audio: playSfx(model.audio, "shop-purchase")
       };
     case "openBox": {
       const result = openRandomBox(model.state, action.boxId, model.rng);
@@ -326,26 +354,30 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       return {
         ...model,
         state: result.state,
-        message: `开启箱子：${result.award.rarity}`
+        message: `开启箱子：${result.award.rarity}`,
+        audio: playSfx(model.audio, "box-open")
       };
     }
     case "acceptTrade":
       return {
         ...model,
         state: acceptTrade(model.state, action.offerId),
-        message: "交易完成"
+        message: "交易完成",
+        audio: playSfx(model.audio, "trade-complete")
       };
     case "listAuction":
       return {
         ...model,
         state: listAuction(model.state, selectedGearId(model.state, action.gearId), action.price),
-        message: "拍卖已寄售"
+        message: "拍卖已寄售",
+        audio: playSfx(model.audio, "auction-list")
       };
     case "resolveAuctions":
       return {
         ...model,
         state: resolveAuctions(model.state, model.rng),
-        message: "拍卖结算完成"
+        message: "拍卖结算完成",
+        audio: playSfx(model.audio, "auction-sold")
       };
     case "save":
       if (!model.storage) {
@@ -354,7 +386,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
 
       saveGame(model.storage, model.state);
 
-      return { ...model, message: "保存完成" };
+      return { ...model, message: "保存完成", audio: playSfx(model.audio, "ui-save") };
     case "load":
       if (!model.storage) {
         throw new Error("未配置存档空间");
@@ -363,7 +395,8 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       return {
         ...model,
         state: loadGame(model.storage) ?? model.state,
-        message: "读取存档完成"
+        message: "读取存档完成",
+        audio: playSfx(model.audio, "ui-load")
       };
     default:
       return model;

@@ -394,6 +394,16 @@
   - `npm test`: pass, 90 tests.
   - `npm run build`: pass.
   - `git diff --check`: pass; only CRLF conversion warnings.
+- Added final sound-feedback integration before handoff:
+  - `AppModel` now carries `AudioState`.
+  - App reducer queues BGM/SFX commands for town music, dungeon music, combat hits, loot, quest claim, reinforcement, amplification, shop, boxes, trade, auction, save, and load.
+  - Verification after this change:
+    - `npm test -- src/tests/app-integration.test.ts`: pass, 6 tests.
+    - `npm test`: pass, 90 tests.
+    - `npm run build`: pass.
+    - `git diff --check`: pass; only CRLF conversion warnings.
+    - Browser reload at `http://127.0.0.1:5173/`: no console errors.
+- Updated `task_plan.md` so Phase 4 is complete and Phase 5 verification/delivery is in progress.
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |

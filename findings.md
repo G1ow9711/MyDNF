@@ -61,6 +61,8 @@
 - Audio audit found settings sliders existed as static markup; they now read/write `AudioState` through reducer actions.
 - Playback audit found audio commands were queued but not rendered; the app now creates procedural WebAudio BGM/SFX from command plans after user interaction, with no-op fallback when WebAudio is unavailable.
 - Auction audit found listing fees and sale settlement existed, but recent prices and demand state were absent; market now records sold prices by catalog gear id and derives UI-facing suggested price, fee, and cold/normal/hot demand.
+- Final delivery branch `feature/vertical-slice` is pushed to GitHub at `0a25966fa301e6108cb4b323ad2682b3c800f6f9`; local and remote refs match.
+- Final automated verification passed with `npm test` (116 tests), `npm run build`, and `git diff --check`.
 - Official DFO character reference notes broad class/advancement structure: 16 classes and 60+ advancements. This supports adding class breadth while keeping all names/mechanics original.
 - Official DFO advancement/awakening guide notes advancement grants subclass-specific skills and later awakening milestones; this project adapts the advancement concept into original offline level/story-gated class paths.
 - Spec naming was adjusted to use Chinese display names for user-facing content: `烬璃纪元`, `烬拳卫`, `灰窑巷`, `琉璃熔炉`, `炉山市集`, and Chinese Epic set names.

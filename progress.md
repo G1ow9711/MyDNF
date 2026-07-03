@@ -648,6 +648,16 @@
   - `npm test -- src/tests/app-integration.test.ts`: pass, 15 tests.
   - Final verification after review fixes: `npm test` pass, 116 tests; `npm run build` pass; `git diff --check` pass with only CRLF conversion warnings.
 
+## Final Delivery Verification
+- User allowed pushing to GitHub.
+- Pushed latest gameplay commit `0a25966 完善战斗技能热键` to `origin/feature/vertical-slice`.
+- Verified local `HEAD` matches `origin/feature/vertical-slice` at `0a25966fa301e6108cb4b323ad2682b3c800f6f9`.
+- Final verification:
+  - `npm test`: pass, 12 files and 116 tests.
+  - `npm run build`: pass, production files emitted under `dist/`.
+  - `git diff --check`: pass.
+- Browser/play note: Vite dev server is available at `http://127.0.0.1:5174/` from the existing dev session. In-app browser automation remained unreliable after native-dialog/browser-control timeouts, so final confidence is based on integration tests, smoke tests, build, asset existence checks, and earlier successful browser checks.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|

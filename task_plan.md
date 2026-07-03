@@ -57,8 +57,8 @@ Phase 5 - Verification and Delivery
 - [x] Verify gameplay in browser with screenshots/pixel checks if web-based
 - [x] Add reset-save confirmation flow
 - [x] Update progress and findings
-- [ ] Final handoff with paths and run command
-- **Status:** in_progress
+- [x] Final handoff with paths and run command
+- **Status:** complete
 
 ## Key Questions
 1. Should first delivery be a browser-playable prototype, a desktop executable prototype, or a code-heavy foundation?
@@ -88,6 +88,7 @@ Phase 5 - Verification and Delivery
 - Browser/visual verification likely needed because this is a game/UI task.
 - GitHub remote configured: `https://github.com/G1ow9711/MyDNF.git`.
 - User has allowed pushing to GitHub.
+- Latest verified delivery pushed to `origin/feature/vertical-slice` at `0a25966fa301e6108cb4b323ad2682b3c800f6f9`.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

@@ -43,7 +43,9 @@
 - Create: `vite.config.ts`
 - Create: `index.html`
 - Create: `src/main.ts`
+- Create: `src/ui/app.ts`
 - Create: `src/styles.css`
+- Test: `src/tests/smoke.test.ts`
 
 - [ ] **Step 1: Create package scripts**
 
@@ -63,7 +65,6 @@ Write `package.json`:
   },
   "dependencies": {},
   "devDependencies": {
-    "@vitejs/plugin-legacy": "^6.0.0",
     "typescript": "^5.5.0",
     "vite": "^7.0.0",
     "vitest": "^3.2.0"
@@ -136,7 +137,65 @@ import { mountApp } from "./ui/app";
 mountApp(document.querySelector<HTMLDivElement>("#app")!);
 ```
 
-Write `src/styles.css` with fixed app shell, readable Chinese UI text, and no landing page. The first viewport must show the game canvas plus town/combat controls.
+Write `src/ui/app.ts`:
+
+```ts
+export function mountApp(root: HTMLDivElement): void {
+  root.innerHTML = `
+    <main class="app-shell">
+      <section class="game-frame">
+        <h1>烬璃纪元</h1>
+        <p>炉山市集正在加载。</p>
+      </section>
+    </main>
+  `;
+}
+```
+
+Write `src/styles.css`:
+
+```css
+:root {
+  color: #f8fafc;
+  background: #050816;
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(249, 115, 22, 0.18), transparent 32%),
+    linear-gradient(180deg, #111827, #020617);
+}
+
+.game-frame {
+  width: min(1180px, calc(100vw - 32px));
+  min-height: min(720px, calc(100vh - 32px));
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  background: rgba(15, 23, 42, 0.88);
+  padding: 24px;
+}
+```
+
+Write `src/tests/smoke.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+
+describe("scaffold", () => {
+  it("runs the test suite", () => {
+    expect("烬璃纪元").toContain("烬璃");
+  });
+});
+```
 
 - [ ] **Step 4: Install dependencies with project-local cache**
 
@@ -158,12 +217,12 @@ npm test
 npm run build
 ```
 
-Expected: tests report no files or pass; build succeeds after modules from later tasks exist.
+Expected: smoke test passes and build succeeds.
 
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add package.json package-lock.json tsconfig.json vite.config.ts index.html src/main.ts src/styles.css
+git add package.json package-lock.json tsconfig.json vite.config.ts index.html src/main.ts src/ui/app.ts src/styles.css src/tests/smoke.test.ts
 git commit -m "搭建前端项目骨架"
 ```
 
@@ -586,7 +645,7 @@ git commit -m "实现国风渲染和音频钩子"
 ## Task 9: UI Panels and App Controller
 
 **Files:**
-- Create: `src/ui/app.ts`
+- Modify: `src/ui/app.ts`
 - Create: `src/ui/panels.ts`
 - Modify: `src/main.ts`
 - Modify: `src/styles.css`

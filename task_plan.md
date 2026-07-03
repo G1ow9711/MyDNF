@@ -25,7 +25,7 @@ Phase 2
 
 ### Phase 3: Implementation Plan
 - [x] Read next required planning/implementation skills
-- [ ] Break approved design into build tasks
+- [x] Break approved design into build tasks
 - [ ] Decide whether to use subagents for independent work
 - [ ] Prepare local runtime/cache paths under `.codex-local`
 - **Status:** in_progress

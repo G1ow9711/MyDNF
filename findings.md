@@ -56,6 +56,8 @@
 | Build original DNF-inspired design rather than cloning assets/names/content | Keeps project legally safer while delivering requested feel and systems |
 | Use project-local `.codex-local` for temp/cache/runtime artifacts | Matches user storage instructions |
 | Delay scaffolding and code until approved design | Required by brainstorming skill |
+| Use TypeScript + Vite + Canvas for first playable version | Small dependency surface, easy local browser play, enough for 2.5D action prototype |
+| Use Chinese commit messages | User explicitly required all git commit messages to be Chinese |
 
 ## Issues Encountered
 | Issue | Resolution |
@@ -67,6 +69,7 @@
 - Local project root: `F:\My_DNF`
 - GitHub repository: https://github.com/G1ow9711/MyDNF
 - Planning files: `F:\My_DNF\task_plan.md`, `F:\My_DNF\findings.md`, `F:\My_DNF\progress.md`
+- Implementation plan: `F:\My_DNF\docs\superpowers\plans\2026-07-03-mydnf-vertical-slice-implementation.md`
 - DFO official equipment guide: https://www.dfoneople.com/gameinfo/guide/Advanced-Game-Information/Equipment-System
 - DFO official trading and auction guide: https://www.dfoneople.com/gameinfo/guide/Advanced-Game-Information/Advanced-Game-System/Trading-and-Auction-Hall
 - DFO official avatars guide: https://www.dfoneople.com/gameinfo/guide/Advanced-Game-Information/Advanced-Game-System/Avatars

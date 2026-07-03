@@ -156,6 +156,19 @@
   - `progress.md`
   - `task_plan.md`
 
+## Task 3 State, Inventory, Save
+- Started Task 3 in `.worktrees/vertical-slice` on `feature/vertical-slice`.
+- Read current `task_plan.md`, `findings.md`, `progress.md`, `src/data/catalog.ts`, and `src/game/types.ts`.
+- Wrote `src/tests/state-inventory-save.test.ts` before production code.
+- First focused test run failed for wrong reason because the test file was accidentally patched into the parent root. Removed that accidental root file and recreated it under the worktree.
+- RED evidence:
+  - `npm test -- src/tests/state-inventory-save.test.ts` failed because `../game/state` did not exist.
+- Created `src/game/state.ts`, `src/systems/inventory.ts`, and `src/systems/save.ts`.
+- GREEN verification after implementation:
+  - `npm test -- src/tests/state-inventory-save.test.ts`: pass, 8 tests.
+  - `npm test`: pass, 16 tests.
+  - `npm run build`: pass.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|

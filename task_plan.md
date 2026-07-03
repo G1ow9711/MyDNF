@@ -31,7 +31,7 @@ Phase 2
 - **Status:** in_progress
 
 ### Phase 4: Build Playable Prototype
-- [ ] Scaffold game project
+- [x] Scaffold game project
 - [ ] Implement core movement/combat/enemy loop
 - [ ] Implement skills and visual effects
 - [ ] Implement loot, inventory, trade, enhancement, amplification, shop, costumes, and packs
@@ -76,3 +76,4 @@ Phase 2
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.
+- Active implementation branch/worktree: `feature/vertical-slice` at `.worktrees/vertical-slice`.

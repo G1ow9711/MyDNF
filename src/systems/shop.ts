@@ -143,6 +143,10 @@ function findBox(boxId: string): BoxDefinition {
   return box;
 }
 
+export function isKnownBoxId(boxId: string): boolean {
+  return boxes.some((item) => item.boxId === boxId);
+}
+
 function normalizeRoll(roll: number): number {
   if (!Number.isFinite(roll)) {
     return 0;

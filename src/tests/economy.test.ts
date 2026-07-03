@@ -174,6 +174,29 @@ describe("auction simulation", () => {
     expect(() => listAuction(state, item.instanceId, 0)).toThrow(/positive price/i);
     expect(() => listAuction(state, equippedWeaponId ?? "", 100)).toThrow(/equipped item/i);
   });
+
+  it("keeps owned instance ids unique when an auction escrow holds a matching catalog item", () => {
+    const firstPurchase = buyShopItem(
+      withCurrencies(createInitialState(), { gold: 2000, valorToken: 6 }),
+      "liuli-gift-pack"
+    );
+    const firstRing = firstPurchase.player.inventory.find((owned) => owned.catalogGearId === "epic-liuli-flow-ring");
+
+    if (!firstRing) {
+      throw new Error("Expected liuli gift pack gear");
+    }
+
+    const listed = listAuction(firstPurchase, firstRing.instanceId, 1000);
+    const secondPurchase = buyShopItem(listed, "liuli-gift-pack");
+    const returned = resolveAuctions(secondPurchase, () => 0.99);
+    const liuliRingIds = returned.player.inventory
+      .filter((owned) => owned.catalogGearId === "epic-liuli-flow-ring")
+      .map((owned) => owned.instanceId)
+      .sort();
+
+    expect(liuliRingIds).toEqual(["owned-epic-liuli-flow-ring-001", "owned-epic-liuli-flow-ring-002"]);
+    expect(new Set(liuliRingIds).size).toBe(liuliRingIds.length);
+  });
 });
 
 describe("shop packs", () => {
@@ -191,6 +214,11 @@ describe("shop packs", () => {
     expect(bought.shop.ownedCosmetics).toContain("liuli-market-coat");
     expect(bought.shop.boxes["ember-mythic-box"]).toBe(3);
     expect(state.shop.ownedCosmetics).toEqual([]);
+  });
+
+  it("rejects unknown or unaffordable shop purchases", () => {
+    expect(() => buyShopItem(createInitialState(), "missing-sku")).toThrow(/unknown shop item/i);
+    expect(() => buyShopItem(createInitialState(), "liuli-gift-pack")).toThrow(/insufficient valorToken/i);
   });
 });
 
@@ -229,6 +257,11 @@ describe("random boxes", () => {
     expect(pityResult.state.shop.boxes["ember-mythic-box"]).toBe(0);
     expect(countOwnedByRarity(pityResult.state, "mythic")).toBe(mythicsBefore + 1);
   });
+
+  it("rejects unknown random boxes and empty box inventory", () => {
+    expect(() => getBoxRates("missing-box")).toThrow(/unknown random box/i);
+    expect(() => openRandomBox(createInitialState(), "ember-mythic-box", () => 0)).toThrow(/no random boxes/i);
+  });
 });
 
 describe("economy save validation", () => {
@@ -250,6 +283,11 @@ describe("economy save validation", () => {
     (((badBoxCount.shop as Record<string, unknown>).boxes as Record<string, unknown>)["ember-mythic-box"]) = "many";
     writeSave(storage, badBoxCount);
     expect(() => loadGame(storage)).toThrow(/shop.*boxes/i);
+
+    const unknownBox = cloneSave(economyState);
+    (((unknownBox.shop as Record<string, unknown>).boxes as Record<string, unknown>)["unknown-box"]) = 1;
+    writeSave(storage, unknownBox);
+    expect(() => loadGame(storage)).toThrow(/unknown box/i);
 
     const badAuctionItem = cloneSave(economyState);
     const auctions = (badAuctionItem.market as Record<string, unknown>).auctions as Array<Record<string, unknown>>;

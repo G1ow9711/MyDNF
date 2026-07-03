@@ -39,15 +39,23 @@ export function createOwnedGear(catalogGearId: string, sequence: number | string
   };
 }
 
-export function nextOwnedGearSequence(inventory: OwnedGearItem[], catalogGearId: string): number {
+export function nextOwnedGearSequence(
+  inventory: OwnedGearItem[],
+  catalogGearId: string,
+  reservedItems: OwnedGearItem[] = []
+): number {
   const prefix = `owned-${catalogGearId}-`;
-  const maxSequence = inventory
+  const maxSequence = [...inventory, ...reservedItems]
     .filter((item) => item.catalogGearId === catalogGearId && item.instanceId.startsWith(prefix))
     .map((item) => item.instanceId.slice(prefix.length))
     .filter((suffix) => /^\d+$/.test(suffix))
     .reduce((max, suffix) => Math.max(max, Number(suffix)), 0);
 
   return maxSequence + 1;
+}
+
+function auctionEscrowItems(state: GameState): OwnedGearItem[] {
+  return state.market.auctions.map((auction) => auction.ownedItem);
 }
 
 export function addOwnedGear(state: GameState, catalogGearId: string): GameState {
@@ -61,7 +69,10 @@ export function addOwnedGear(state: GameState, catalogGearId: string): GameState
       ...state.player,
       inventory: [
         ...state.player.inventory,
-        createOwnedGear(catalogGearId, nextOwnedGearSequence(state.player.inventory, catalogGearId))
+        createOwnedGear(
+          catalogGearId,
+          nextOwnedGearSequence(state.player.inventory, catalogGearId, auctionEscrowItems(state))
+        )
       ]
     }
   };

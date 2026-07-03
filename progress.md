@@ -237,6 +237,16 @@
   - `npm test -- src/tests/economy.test.ts`: pass, 6 tests.
   - `npm test`: pass, 54 tests.
   - `npm run build`: pass.
+- Spec compliance review passed.
+- Local code-quality review found two economy-state risks: auction escrowed gear could collide with future owned instance ids, and save validation accepted unknown random-box keys.
+- Added regression tests for auction escrow plus repeated pack purchase, unknown/empty boxes, unknown/unaffordable shop purchases, and unknown box save data.
+- RED evidence:
+  - `npm test -- src/tests/economy.test.ts` failed because escrowed `epic-liuli-flow-ring` reused `owned-epic-liuli-flow-ring-001`, and unknown shop box keys were accepted by save validation.
+- Implemented owned-gear sequence allocation across inventory plus auction escrow, exported known box id checks, and tightened `shop.boxes` / `shop.boxPity` validation to known non-negative integer box counts.
+- Quality-fix verification:
+  - `npm test -- src/tests/economy.test.ts`: pass, 9 tests.
+  - `npm test`: pass, 57 tests.
+  - `npm run build`: pass.
 - Task 5 files created/modified:
   - `src/systems/market.ts`
   - `src/systems/shop.ts`

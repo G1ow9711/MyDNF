@@ -9,6 +9,7 @@ import type {
   QuestStatus,
   TownId
 } from "../game/types";
+import { isKnownBoxId } from "./shop";
 
 export interface SaveStorage {
   getItem(key: string): string | null;
@@ -102,12 +103,16 @@ function validateStringArray(value: unknown, path: string): void {
   }
 }
 
-function validateNumberRecord(value: unknown, path: string): void {
+function validateKnownBoxNumberRecord(value: unknown, path: string): void {
   const record = requireRecord(value, path);
 
-  for (const [key, amount] of Object.entries(record)) {
-    if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) {
-      throw new Error(`Malformed save data: ${path}.${key} must be a finite number >= 0`);
+  for (const [boxId, amount] of Object.entries(record)) {
+    if (!isKnownBoxId(boxId)) {
+      throw new Error(`Malformed save data: ${path} contains unknown box ${boxId}`);
+    }
+
+    if (typeof amount !== "number" || !Number.isFinite(amount) || !Number.isInteger(amount) || amount < 0) {
+      throw new Error(`Malformed save data: ${path}.${boxId} must be a non-negative integer`);
     }
   }
 }
@@ -295,8 +300,8 @@ function validateShop(value: unknown): void {
   const shop = requireRecord(value, "shop");
 
   validateStringArray(shop.ownedCosmetics, "shop.ownedCosmetics");
-  validateNumberRecord(shop.boxes, "shop.boxes");
-  validateNumberRecord(shop.boxPity, "shop.boxPity");
+  validateKnownBoxNumberRecord(shop.boxes, "shop.boxes");
+  validateKnownBoxNumberRecord(shop.boxPity, "shop.boxPity");
   validateStringArray(shop.purchasedSkus, "shop.purchasedSkus");
 }
 

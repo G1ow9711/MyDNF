@@ -178,6 +178,7 @@ describe("catalog", () => {
         ironDust: 0,
         arcShard: 0,
         valorToken: 0,
+        tradeCredit: 0,
         protectionTicket: 0
       },
       inventory: [ownedGear],

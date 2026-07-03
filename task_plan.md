@@ -44,6 +44,7 @@ Phase 5 - Verification and Delivery
 - [x] Implement town UI and system panels
 - [x] Expose class selection and advancement in player-facing UI
 - [x] Implement loot, trade, enhancement, amplification, shop, costumes, and packs
+- [x] Add Trade Credits as a distinct NPC-trade currency
 - [x] Add sound/visual feedback where feasible
 - **Status:** complete
 

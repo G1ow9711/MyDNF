@@ -32,6 +32,7 @@ function currencyLine(state: GameState): string {
       <span>铁尘 ${currencies.ironDust}</span>
       <span>弧晶 ${currencies.arcShard}</span>
       <span>勇气币 ${currencies.valorToken}</span>
+      <span>商契 ${currencies.tradeCredit}</span>
       <span>保护券 ${currencies.protectionTicket}</span>
     </div>
   `;

@@ -10,7 +10,7 @@ import type {
   TradeOffer
 } from "../game/types";
 
-const currencyIds: readonly CurrencyId[] = ["gold", "ironDust", "arcShard", "valorToken", "protectionTicket"];
+const currencyIds: readonly CurrencyId[] = ["gold", "ironDust", "arcShard", "valorToken", "tradeCredit", "protectionTicket"];
 
 const tradeTemplates: Array<{
   key: string;
@@ -18,17 +18,17 @@ const tradeTemplates: Array<{
   cost: Partial<Record<CurrencyId, number>>;
   reward: Partial<Record<CurrencyId, number>>;
 }> = [
-  { key: "dust-for-gold", label: "Dust supply contract", cost: { gold: 260 }, reward: { ironDust: 20 } },
+  { key: "dust-for-credit", label: "Dust supply contract", cost: { tradeCredit: 2 }, reward: { ironDust: 20 } },
   {
     key: "ticket-for-shards",
     label: "Protection ticket exchange",
-    cost: { gold: 120, arcShard: 3 },
+    cost: { tradeCredit: 3, arcShard: 3 },
     reward: { protectionTicket: 1 }
   },
-  { key: "token-for-gold", label: "Valor stipend", cost: { valorToken: 1 }, reward: { gold: 700 } },
-  { key: "shards-for-dust", label: "Arc shard refining", cost: { ironDust: 45 }, reward: { arcShard: 3 } },
-  { key: "gold-for-ticket", label: "Smithing guarantee", cost: { gold: 500 }, reward: { protectionTicket: 1 } },
-  { key: "gold-for-shards", label: "Furnace shard crate", cost: { gold: 420 }, reward: { arcShard: 2 } }
+  { key: "token-for-credit", label: "Valor stipend", cost: { valorToken: 1 }, reward: { tradeCredit: 5 } },
+  { key: "shards-for-credit", label: "Arc shard refining", cost: { tradeCredit: 2, ironDust: 45 }, reward: { arcShard: 3 } },
+  { key: "credit-for-ticket", label: "Smithing guarantee", cost: { tradeCredit: 5 }, reward: { protectionTicket: 1 } },
+  { key: "credit-for-shards", label: "Furnace shard crate", cost: { tradeCredit: 4 }, reward: { arcShard: 2 } }
 ];
 
 function hashText(text: string): number {

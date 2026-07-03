@@ -444,6 +444,23 @@
   - `git diff --check`: pass; only CRLF conversion warnings.
   - Browser at `http://127.0.0.1:5173/`: entered `灰窑巷`; combat scene showed `任务追踪` with `序章 - 炉火未熄：清理灰窑巷，查明异火来源。（进行中）`; no console errors and no horizontal overflow.
 
+## Task 14 Trade Credits Currency
+- Started after acceptance audit found `Trade Credits` were required but the current currency model only had Gold, Iron Dust, Arc Shards, Valor Tokens, and Protection Tickets.
+- Wrote regression tests first:
+  - `src/tests/state-inventory-save.test.ts` now expects starter `tradeCredit: 8`.
+  - `src/tests/economy.test.ts` now requires NPC trade offers to spend or grant `tradeCredit`.
+- RED evidence:
+  - `npm test -- src/tests/state-inventory-save.test.ts src/tests/economy.test.ts` failed because `tradeCredit` was missing from starter currencies and no trade offer referenced it.
+- Implemented:
+  - Added `tradeCredit` to `CurrencyId`, starter state, save validation currency list, catalog test fixture, and UI currency strip as `商契`.
+  - Reworked NPC trade templates so personal trade uses `tradeCredit` as its distinct economy currency.
+- Verification:
+  - `npm test -- src/tests/state-inventory-save.test.ts src/tests/economy.test.ts`: pass, 33 tests.
+  - `npm test`: pass, 94 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
+  - Browser at `http://127.0.0.1:5173/`: backpack currency strip showed `商契 8`; auction/trade panel accepted an NPC trade and showed `交易完成`; no console errors and no horizontal overflow.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|

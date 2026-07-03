@@ -57,7 +57,7 @@ export type QuestEventType =
 
 export type SystemId = "smith" | "trade" | "auction" | "amplification" | "costume-pavilion" | "shop";
 
-export type CurrencyId = "gold" | "ironDust" | "arcShard" | "valorToken" | "protectionTicket";
+export type CurrencyId = "gold" | "ironDust" | "arcShard" | "valorToken" | "tradeCredit" | "protectionTicket";
 
 export interface StatBlock {
   attack?: number;

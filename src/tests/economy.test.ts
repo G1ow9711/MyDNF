@@ -111,13 +111,15 @@ describe("NPC trade board", () => {
     expect(sameSeed).toEqual(beforeDungeon);
     expect(afterReturn.id).not.toBe(beforeDungeon.id);
     expect(afterReturn.offers.map((offer) => offer.id)).not.toEqual(beforeDungeon.offers.map((offer) => offer.id));
+    expect(beforeDungeon.offers.some((offer) => "tradeCredit" in offer.cost || "tradeCredit" in offer.reward)).toBe(true);
 
     const affordable = withCurrencies(withTradeBoard(createInitialState(), "cinder-kiln-run-1"), {
       gold: 5000,
       ironDust: 500,
       arcShard: 50,
       protectionTicket: 5,
-      valorToken: 5
+      valorToken: 5,
+      tradeCredit: 10
     });
     const offer = affordable.market.tradeBoard.offers[0];
     const accepted = acceptTrade(affordable, offer.id);

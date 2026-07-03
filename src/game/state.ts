@@ -7,6 +7,7 @@ const starterCurrency: CurrencyState = {
   ironDust: 30,
   arcShard: 0,
   valorToken: 0,
+  tradeCredit: 8,
   protectionTicket: 1
 };
 

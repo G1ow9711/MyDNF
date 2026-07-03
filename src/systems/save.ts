@@ -25,7 +25,7 @@ export function saveGame(storage: SaveStorage, state: GameState): void {
   storage.setItem(SAVE_KEY, JSON.stringify(state));
 }
 
-const currencyIds: readonly CurrencyId[] = ["gold", "ironDust", "arcShard", "valorToken", "protectionTicket"];
+const currencyIds: readonly CurrencyId[] = ["gold", "ironDust", "arcShard", "valorToken", "tradeCredit", "protectionTicket"];
 const gearSlots: readonly GearSlot[] = [
   "weapon",
   "core",

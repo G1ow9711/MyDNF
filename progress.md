@@ -514,6 +514,23 @@
   - `git diff --check`: pass; only CRLF conversion warnings.
   - Browser note: skipped live browser check because the in-app browser automation remained unreliable after the previous native confirm dialog timeout; UI behavior is covered by `renderInventoryPanel` tests.
 
+## Task 18 Working Volume Controls
+- Started after acceptance audit found settings rendered master/music/SFX sliders but did not wire them to `AudioState`.
+- Wrote regression tests first:
+  - `src/tests/ui-smoke.test.ts` now checks settings inputs expose `data-volume-kind` and render current audio volume percentages.
+  - `src/tests/app-integration.test.ts` now verifies `setVolume` app action updates and clamps audio volumes.
+- RED evidence:
+  - `npm test -- src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts` failed because settings inputs lacked `data-volume-kind` and reducer did not update `audio.volumes`.
+- Implemented:
+  - `renderSettingsPanel(audio)` now renders current volume values and `data-volume-kind` attributes.
+  - Added `setVolume` app action using the existing audio-system clamp helper.
+  - Added DOM `input` binding for settings sliders.
+- Verification:
+  - `npm test -- src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts`: pass, 15 tests.
+  - `npm test`: pass, 100 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|

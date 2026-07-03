@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createAudioState, setVolume } from "../systems/audio";
 import { createInitialState } from "../game/state";
 import { renderAppHtml } from "../ui/app";
 import {
@@ -48,9 +49,13 @@ describe("town app shell", () => {
     expect(renderShopPanel(state)).toContain("时装");
     expect(renderShopPanel(state)).toContain("概率");
     expect(renderQuestPanel(state)).toContain("炉火未熄");
-    expect(renderSettingsPanel()).toContain("音乐");
-    expect(renderSettingsPanel()).toContain("音效");
-    expect(renderSettingsPanel()).toContain("重置存档");
+    const audio = setVolume(createAudioState(), "music", 0.42);
+
+    expect(renderSettingsPanel(audio)).toContain("音乐");
+    expect(renderSettingsPanel(audio)).toContain("音效");
+    expect(renderSettingsPanel(audio)).toContain('data-volume-kind="music"');
+    expect(renderSettingsPanel(audio)).toContain('value="42"');
+    expect(renderSettingsPanel(audio)).toContain("重置存档");
   });
 
   it("renders four base classes and advancement choices in the class panel", () => {

@@ -267,6 +267,18 @@ describe("playable app integration actions", () => {
     expect(loaded.message).toContain("读取");
   });
 
+  it("updates audio volumes through app settings actions", () => {
+    const model = createAppModel({ storage: new MemoryStorage() });
+
+    const musicChanged = reduceAppAction(model, { type: "setVolume", kind: "music", value: 0.32 });
+    const sfxMuted = reduceAppAction(musicChanged, { type: "setVolume", kind: "sfx", value: -1 });
+
+    expect(musicChanged.audio.volumes.music).toBe(0.32);
+    expect(musicChanged.message).toContain("音量");
+    expect(sfxMuted.audio.volumes.sfx).toBe(0);
+    expect(sfxMuted.audio.volumes.music).toBe(0.32);
+  });
+
   it("requires confirmation before resetting the local save", () => {
     const storage = new MemoryStorage();
     const model = createAppModel({ storage, rng: () => 0 });

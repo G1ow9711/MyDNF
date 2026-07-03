@@ -47,6 +47,7 @@ Phase 5 - Verification and Delivery
 - [x] Implement loot, trade, enhancement, amplification, shop, costumes, and packs
 - [x] Add Trade Credits as a distinct NPC-trade currency
 - [x] Evaluate and show 2/3/5-piece set bonuses and mixed build tags
+- [x] Make master/music/SFX volume controls update audio state
 - [x] Add sound/visual feedback where feasible
 - **Status:** complete
 

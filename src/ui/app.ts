@@ -16,6 +16,7 @@ import {
   createAudioState,
   playBgm,
   playSfx,
+  setVolume,
   type AudioState
 } from "../systems/audio";
 import { advanceClass as applyClassAdvancement, selectBaseClass as applyBaseClass } from "../systems/classes";
@@ -43,6 +44,7 @@ export interface AppViewModel {
   mode: AppMode;
   combatRun?: CombatRun;
   message?: string;
+  audio?: AudioState;
 }
 
 export interface AppModel extends AppViewModel {
@@ -69,6 +71,7 @@ export type AppAction =
   | { type: "acceptTrade"; offerId: string }
   | { type: "listAuction"; gearId?: string; price: number }
   | { type: "resolveAuctions" }
+  | { type: "setVolume"; kind: keyof AudioState["volumes"]; value: number }
   | { type: "save" }
   | { type: "load" }
   | { type: "resetSave"; confirmed: boolean };
@@ -184,7 +187,7 @@ function renderActivePanel(model: AppViewModel): string {
     case "classes":
       return renderClassPanel(model.state);
     case "settings":
-      return renderSettingsPanel();
+      return renderSettingsPanel(model.audio);
     case "combat":
       return model.combatRun ? renderCombatScene(model.combatRun, model.state) : renderTownScene(model);
     case "town":
@@ -467,6 +470,12 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         audio: playSfx(model.audio, "auction-sold")
       };
     }
+    case "setVolume":
+      return {
+        ...model,
+        audio: setVolume(model.audio, action.kind, action.value),
+        message: "音量已调整"
+      };
     case "save":
       if (!model.storage) {
         throw new Error("未配置存档空间");
@@ -526,6 +535,16 @@ export function mountApp(root: HTMLDivElement): void {
   }
 
   if ("addEventListener" in root) {
+    root.addEventListener("input", (event) => {
+      const target = event.target as HTMLInputElement;
+      const volumeKind = target.dataset.volumeKind as keyof AudioState["volumes"] | undefined;
+
+      if (volumeKind) {
+        dispatch({ type: "setVolume", kind: volumeKind, value: Number(target.value) / 100 });
+        render();
+      }
+    });
+
     root.addEventListener("click", (event) => {
       const target = event.target as HTMLElement;
       const mode = target.dataset.mode as AppMode | undefined;

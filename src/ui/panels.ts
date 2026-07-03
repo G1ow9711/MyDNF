@@ -4,6 +4,7 @@ import { evaluateEquipmentBuild } from "../systems/builds";
 import { getAdvancementPreview } from "../systems/classes";
 import { getActiveQuestText, isSystemUnlocked } from "../systems/quests";
 import { getBoxRates } from "../systems/shop";
+import type { AudioState } from "../systems/audio";
 
 function gearFor(owned: OwnedGearItem): GearItem | undefined {
   return catalog.gear.find((item) => item.id === owned.catalogGearId);
@@ -288,14 +289,18 @@ export function renderQuestPanel(state: GameState): string {
   );
 }
 
-export function renderSettingsPanel(): string {
+function volumePercent(audio: AudioState | undefined, kind: keyof AudioState["volumes"], fallback: number): number {
+  return Math.round((audio?.volumes[kind] ?? fallback) * 100);
+}
+
+export function renderSettingsPanel(audio?: AudioState): string {
   return panel(
     "设置",
     `
       <div class="settings-grid">
-        <label>主音量 <input type="range" min="0" max="100" value="90" /></label>
-        <label>音乐 <input type="range" min="0" max="100" value="75" /></label>
-        <label>音效 <input type="range" min="0" max="100" value="85" /></label>
+        <label>主音量 <input data-volume-kind="master" type="range" min="0" max="100" value="${volumePercent(audio, "master", 0.9)}" /></label>
+        <label>音乐 <input data-volume-kind="music" type="range" min="0" max="100" value="${volumePercent(audio, "music", 0.75)}" /></label>
+        <label>音效 <input data-volume-kind="sfx" type="range" min="0" max="100" value="${volumePercent(audio, "sfx", 0.85)}" /></label>
         <div class="action-row">
           <button data-app-action="save">保存</button>
           <button data-app-action="load">读取</button>

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the first playable offline browser vertical slice for `烬璃纪元`, covering combat, Chinese-style town/dungeons, story quests, equipment builds, trade/auction, reinforcement, amplification, shop, costumes, gift packs, BGM/SFX hooks, and local save.
+**Goal:** Build a mature playable offline browser vertical slice for `烬璃纪元`, covering combat, at least four base classes, class advancement gameplay, Chinese-style town/dungeons, story quests, equipment builds, trade/auction, reinforcement, amplification, shop, costumes, gift packs, BGM/SFX hooks, and local save.
 
 **Architecture:** Use a small TypeScript + Canvas app with data-driven game definitions. Keep gameplay state, economy systems, and rendering separated so combat and town systems can be tested without a browser canvas. First implementation uses polished code-generated art layers and project-local generated assets where available; final asset upgrades can replace the same interfaces.
 
@@ -28,6 +28,7 @@
 - Create: `src/systems/upgrades.ts` - reinforcement, amplification, protection ticket logic.
 - Create: `src/systems/market.ts` - NPC personal trade and auction simulation.
 - Create: `src/systems/shop.ts` - shop purchases, gift packs, random boxes, pity history.
+- Create: `src/systems/classes.ts` - base class selection, advancement preview, advancement application.
 - Create: `src/systems/quests.ts` - quest progress, unlocks, rewards.
 - Create: `src/systems/save.ts` - localStorage persistence.
 - Create: `src/systems/audio.ts` - BGM/SFX manager and volume controls.
@@ -506,7 +507,75 @@ git add src/systems/market.ts src/systems/shop.ts src/tests/economy.test.ts
 git commit -m "实现交易拍卖和商城礼包"
 ```
 
-## Task 6: Story and Quest System
+## Task 6: Class Roster and Advancement System
+
+**Files:**
+- Modify: `src/game/types.ts`
+- Modify: `src/data/catalog.ts`
+- Modify: `src/game/state.ts`
+- Modify: `src/systems/save.ts`
+- Create: `src/systems/classes.ts`
+- Test: `src/tests/classes.test.ts`
+
+- [ ] **Step 1: Write tests**
+
+Cover:
+- Catalog exposes at least four base classes with Chinese display names and stable English ids.
+- Every base class has at least six base skills and at least two advancement paths.
+- Initial state starts as `烬拳卫` without advancement.
+- Class selection can change the base class before advancement and updates resource identity.
+- Advancement preview lists requirements, passive bonuses, unlocked skill ids, and VFX palette.
+- Advancement requires level/story gate and rejects invalid class/path combinations.
+- Applying advancement saves `classId`, `advancementId`, updated skill ids, and visual/VFX palette.
+- Save validation rejects unknown class or advancement ids.
+
+- [ ] **Step 2: Implement class data**
+
+Add class definitions:
+- `烬拳卫` (`ember-warden`)
+- `琉璃剑客` (`liuli-blademage`)
+- `墨影游侠` (`ink-shadow-ranger`)
+- `玄甲司炉` (`iron-forge-guardian`)
+
+Each class has:
+- role tags, difficulty, preferred weapon, armor style, resource name, stat focus.
+- six base active skill ids.
+- two advancement paths with display name, unlock level, role tags, passive bonuses, skill ids, and VFX palette.
+
+- [ ] **Step 3: Implement class system**
+
+Create:
+- `getClassDefinition(classId)`
+- `selectBaseClass(state, classId)`
+- `getAdvancementPreview(state, advancementId)`
+- `advanceClass(state, advancementId)`
+- `getAvailableSkills(state)`
+
+Rules:
+- `classId` and `advancementId` are stored in `PlayerState`.
+- `heroId` can remain for backward compatibility, but `classId` is authoritative for class systems.
+- Advancement first unlock level: 15.
+- Prologue quest must be completed or ready before advancement.
+- Changing base class is only allowed before advancement.
+
+- [ ] **Step 4: Run tests**
+
+Run:
+
+```powershell
+npm test -- src/tests/classes.test.ts
+```
+
+Expected: pass.
+
+- [ ] **Step 5: Commit**
+
+```powershell
+git add src/game/types.ts src/data/catalog.ts src/game/state.ts src/systems/save.ts src/systems/classes.ts src/tests/classes.test.ts
+git commit -m "实现职业和转职系统"
+```
+
+## Task 7: Story and Quest System
 
 **Files:**
 - Create: `src/systems/quests.ts`

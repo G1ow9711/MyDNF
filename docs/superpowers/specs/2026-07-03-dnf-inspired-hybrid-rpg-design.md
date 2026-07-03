@@ -10,15 +10,17 @@ Build a playable offline side-scrolling action RPG prototype inspired by Dungeon
 - Official trading and auction guide: personal trade, auction registration, recent-price context, mail delivery, loot auction ideas.
 - Official avatar and CERA guides: cosmetic avatar pieces, shop items, package sales, account-bound/tradable concepts.
 - DFO gameplay overview: 2D room-by-room brawler flow, hotkey skills, optional command input, cancelable skills.
+- Official DFO character and advancement references: broad base-class roster, many advancement choices, subclass-specific skills, and later awakening milestones.
 
 This design adapts system patterns only. It must not copy DFO art, names, maps, sounds, skill icons, UI, text, or data.
 
 ## Selected Approach
 Approach B: Hybrid Playable RPG.
 
-First playable target:
+Updated playable target:
 - Browser-playable local game.
-- One original class.
+- At least four original base classes.
+- Class advancement gameplay with subclass-specific skill identity and unlock requirements.
 - Two dungeons and one town hub.
 - Real-time combat with combo canceling, flashy skills, hitstop, knockback, and screen shake.
 - Loot, inventory, trading, auction simulation, reinforcement, amplification, shop, costumes, gift packs, random boxes, and local save.
@@ -35,8 +37,42 @@ User-facing names should use Chinese display names. English names can remain as 
 - Town display name: `炉山市集`; internal ID: `Forge Market`.
 - Epic set display names should use Chinese names in UI, with optional English IDs in data files.
 
+## Class Roster and Advancement
+The final deliverable must not remain a single-class prototype. It needs at least four original base classes and a playable advancement system inspired by DFO's class/advancement structure, without copying DFO class names, art, skill names, or data.
+
+Base classes for the mature first version:
+1. `烬拳卫` (`ember-warden`): close-range gauntlet fighter, Heat resource, impact bursts, launcher/slam identity.
+2. `琉璃剑客` (`liuli-blademage`): blade-and-glass caster, Prism resource, mid-range cuts, reflected trails, stance swaps.
+3. `墨影游侠` (`ink-shadow-ranger`): mobile ranged rogue, Ink resource, mark detonations, traps, evasive cancels.
+4. `玄甲司炉` (`iron-forge-guardian`): heavy forge guardian, Guard resource, armor break, shields, slow high-impact blows.
+
+Each base class needs:
+- Chinese display name and stable English internal id.
+- Combat role tags, difficulty rating, preferred weapon, armor style, resource name, and stat emphasis.
+- Six base active skills for playable combat bindings.
+- Distinct visual/VFX language so characters do not feel like palette swaps.
+- Starter gear compatibility and at least one build direction.
+
+Advancement system:
+- Each base class has at least two advancement paths in the first mature version.
+- Advancement unlocks after early story progression or level threshold; first implementation can use level 15 plus prologue completion.
+- Advancement changes title, role tags, skill list, passive bonuses, and visual/VFX palette.
+- The player can preview advancement descriptions before choosing.
+- Once chosen, advancement is saved and unlocks subclass-specific skills.
+- Future awakening tiers can be represented as later milestones, but the first required system is base-class advancement.
+
+First advancement paths:
+- `烬拳卫`: `爆炉宗师` for Heat burst/ultimate; `镇山破卫` for armor break/survival.
+- `琉璃剑客`: `流光剑使` for cooldown/skill cycling; `镜火术士` for elemental burst.
+- `墨影游侠`: `夜契猎手` for crit marks; `机关影师` for traps and farming control.
+- `玄甲司炉`: `玄炉守将` for shielding/tanking; `裂山锻师` for heavy stagger and boss armor break.
+
+Reference note:
+- DFO's official character page advertises many base classes and advancements; this project adapts only the idea of class breadth and subclass identity.
+- DFO's official advancement/awakening guide describes advancement as gaining subclass-specific skills and later awakening milestones. This project uses an original offline progression model.
+
 ## Player Fantasy
-The first class is `烬拳卫` (`Ember Warden` internal ID), an original gauntlet fighter using heat, sparks, pressure waves, and impact bursts. The class is readable, high-impact, and easy to animate with generated shapes and particle effects.
+The original first class remains `烬拳卫` (`Ember Warden` internal ID), an original gauntlet fighter using heat, sparks, pressure waves, and impact bursts. It becomes one of the four base classes rather than the only playable identity.
 
 Resource:
 - `Heat`, max 100.

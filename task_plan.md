@@ -1,7 +1,7 @@
 # Task Plan: DNF-Inspired Single-Player Action RPG Prototype
 
 ## Goal
-Design and, after approval, implement a playable offline side-scrolling action RPG prototype inspired by Dungeon Fighter Online, with original assets/mechanics, flashy skills, combat feel, economy systems, enhancement/amplification, shop, costumes, gift packs, and high replay value.
+Design and, after approval, implement a mature playable offline side-scrolling action RPG prototype inspired by Dungeon Fighter Online, with original assets/mechanics, flashy skills, combat feel, at least four base classes, class advancement gameplay, economy systems, enhancement/amplification, shop, costumes, gift packs, and high replay value.
 
 ## Current Phase
 Phase 4 - Task 6
@@ -36,7 +36,8 @@ Phase 4 - Task 6
 - [x] Implement Task 3 state, save, inventory, and loadouts
 - [x] Implement Task 4 reinforcement and amplification systems
 - [x] Implement Task 5 market, auction, shop, packs, and boxes
-- [ ] Implement Task 6 story and quest system
+- [ ] Implement Task 6 four base classes and advancement system
+- [ ] Implement story and quest system
 - [ ] Implement core movement/combat/enemy loop
 - [ ] Implement skills and visual effects
 - [ ] Implement loot, trade, enhancement, amplification, shop, costumes, and packs
@@ -66,6 +67,7 @@ Phase 4 - Task 6
 | Use Chinese display names in spec | User requested Chinese-style maps and Chinese-facing deliverables must avoid garbled or English-first naming |
 | Treat approval as required before code | `superpowers:brainstorming` requires user review/approval of written spec before implementation planning or code |
 | Use Chinese git commit messages | User explicitly required all git commit messages to be Chinese |
+| Add at least four base classes and advancement gameplay | User expanded the goal on 2026-07-04; the earlier one-class vertical slice is no longer sufficient |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

@@ -18,6 +18,11 @@ Purpose: convert the approved design into verifiable completion criteria. This i
 - Combat includes hitstop, knockback, screen shake, hit reactions, readable telegraphs, and cooldown/resource HUD.
 - Player can perform a normal combo and cancel into at least one skill.
 - `烬拳卫` has 6 active skills with visible VFX and gameplay differences.
+- At least four base classes exist with distinct resources, role tags, skills, and visual/VFX identity.
+- The four required base classes are `烬拳卫`, `琉璃剑客`, `墨影游侠`, and `玄甲司炉`.
+- Each base class has at least two advancement paths.
+- Advancement preview, requirements, selection, saved state, and subclass-specific skill unlocks work.
+- Class and advancement state persists after save reload.
 
 ## Must-Have Visuals
 - Player character is detailed, not a placeholder or block figure.

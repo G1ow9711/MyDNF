@@ -30,6 +30,8 @@ export type SkillTag = "starter" | "launcher" | "dash" | "slam" | "pull" | "burs
 
 export type DungeonId = "cinder-kiln-alley" | "liuli-furnace";
 
+export type TownId = "forge-market";
+
 export type QuestStatus = "locked" | "active" | "ready" | "completed";
 
 export type CurrencyId = "gold" | "ironDust" | "arcShard" | "valorToken" | "protectionTicket";
@@ -94,6 +96,8 @@ export interface SkillDefinition {
   tags: SkillTag[];
 }
 
+export type SkillDef = SkillDefinition;
+
 export interface DungeonDefinition {
   id: DungeonId;
   displayName: string;
@@ -104,6 +108,18 @@ export interface DungeonDefinition {
   lootSetIds: string[];
 }
 
+export type DungeonDef = DungeonDefinition;
+
+export interface TownDefinition {
+  id: TownId;
+  displayName: string;
+  description: string;
+  services: string[];
+  connectedDungeonIds: DungeonId[];
+}
+
+export type TownDef = TownDefinition;
+
 export interface QuestDefinition {
   id: string;
   displayName: string;
@@ -112,6 +128,8 @@ export interface QuestDefinition {
   rewards: Partial<Record<CurrencyId, number>>;
   unlocks: string[];
 }
+
+export type QuestDef = QuestDefinition;
 
 export type CurrencyState = Record<CurrencyId, number>;
 
@@ -132,7 +150,7 @@ export interface GameState {
   version: 1;
   catalogId: string;
   player: PlayerState;
-  currentTown: string;
+  currentTown: TownId;
   currentDungeonId?: DungeonId;
   seenTutorials: string[];
 }

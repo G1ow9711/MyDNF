@@ -1,4 +1,4 @@
-import type { DungeonDefinition, EpicSet, GearItem, GearSlot, QuestDefinition, Rarity, SkillDefinition } from "../game/types";
+import type { DungeonDef, EpicSet, GearItem, GearSlot, QuestDef, Rarity, SkillDef, TownDef } from "../game/types";
 
 const slots: readonly GearSlot[] = [
   "weapon",
@@ -30,7 +30,7 @@ const slotNames: Record<GearSlot, string> = {
   charm: "护符"
 };
 
-export const skills: SkillDefinition[] = [
+export const skills: SkillDef[] = [
   {
     id: "spark-combo",
     displayName: "星火连拳",
@@ -158,7 +158,7 @@ const rarityPlans: Array<{
   { rarity: "uncommon", idPrefix: "kiln", displayPrefix: "窑火", levelBase: 8, setItems: false, repeats: 1 },
   { rarity: "rare", idPrefix: "red-ore", displayPrefix: "赤矿", levelBase: 16, setItems: false, repeats: 1 },
   { rarity: "epic", idPrefix: "epic", displayPrefix: "史诗", levelBase: 28, setItems: true, repeats: 2 },
-  { rarity: "mythic", idPrefix: "mythic", displayPrefix: "神话", levelBase: 45, setItems: true, repeats: 1 }
+  { rarity: "mythic", idPrefix: "mythic", displayPrefix: "神话", levelBase: 47, setItems: true, repeats: 1 }
 ];
 
 export const gear: GearItem[] = rarityPlans.flatMap((plan) =>
@@ -188,7 +188,7 @@ export const gear: GearItem[] = rarityPlans.flatMap((plan) =>
   })
 );
 
-export const dungeons: DungeonDefinition[] = [
+export const dungeons: DungeonDef[] = [
   {
     id: "cinder-kiln-alley",
     displayName: "灰窑巷",
@@ -209,7 +209,17 @@ export const dungeons: DungeonDefinition[] = [
   }
 ];
 
-export const quests: QuestDefinition[] = [
+export const towns: TownDef[] = [
+  {
+    id: "forge-market",
+    displayName: "炉山市集",
+    description: "依山炉火而建的铸造市集，是烬拳卫整备、交易、接取委托的主城。",
+    services: ["smith", "auction", "shop", "quest-board", "storage"],
+    connectedDungeonIds: ["cinder-kiln-alley", "liuli-furnace"]
+  }
+];
+
+export const quests: QuestDef[] = [
   {
     id: "prologue-ember-warden",
     displayName: "炉火未熄",
@@ -234,6 +244,7 @@ export const catalog = {
   hero: { id: "ember-warden", displayName: "烬拳卫" },
   skills,
   dungeons,
+  towns,
   epicSets,
   gear,
   quests

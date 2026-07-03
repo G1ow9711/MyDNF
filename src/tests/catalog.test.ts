@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import type { GearSlot, OwnedGearItem, PlayerState } from "../game/types";
+import type { DungeonDef, GearSlot, OwnedGearItem, PlayerState, QuestDef, SkillDef, TownDef } from "../game/types";
 
 const allSlots: GearSlot[] = [
   "weapon",
@@ -41,6 +41,7 @@ describe("catalog", () => {
   it("defines the required Chinese title, hero, dungeons, gear, and epic set bonuses", () => {
     expect(catalog.title).toBe("烬璃纪元");
     expect(catalog.hero.displayName).toBe("烬拳卫");
+    expect(catalog.towns.map((town) => town.displayName)).toContain("炉山市集");
     expect(catalog.dungeons.map((dungeon) => dungeon.displayName)).toEqual(["灰窑巷", "琉璃熔炉"]);
     expect(catalog.gear.length).toBeGreaterThanOrEqual(60);
     expect(catalog.epicSets).toHaveLength(5);
@@ -55,6 +56,8 @@ describe("catalog", () => {
     expectUniqueIds(catalog.dungeons);
     expectUniqueIds(catalog.epicSets);
     expectUniqueIds(catalog.gear);
+    expectUniqueIds(catalog.quests);
+    expectUniqueIds(catalog.towns);
 
     for (const id of [
       catalog.id,
@@ -62,7 +65,9 @@ describe("catalog", () => {
       ...catalog.skills.map((skill) => skill.id),
       ...catalog.dungeons.map((dungeon) => dungeon.id),
       ...catalog.epicSets.map((set) => set.id),
-      ...catalog.gear.map((item) => item.id)
+      ...catalog.gear.map((item) => item.id),
+      ...catalog.quests.map((quest) => quest.id),
+      ...catalog.towns.map((town) => town.id)
     ]) {
       expect(id).toMatch(stableIdPattern);
     }
@@ -74,6 +79,7 @@ describe("catalog", () => {
       hero: catalog.hero,
       skills: catalog.skills,
       dungeons: catalog.dungeons,
+      towns: catalog.towns,
       epicSets: catalog.epicSets,
       gear: catalog.gear,
       quests: catalog.quests
@@ -97,6 +103,30 @@ describe("catalog", () => {
         expect(["epic", "mythic"]).toContain(item.rarity);
       }
     }
+
+    const levels = catalog.gear.map((item) => item.level);
+    expect(Math.min(...levels)).toBe(1);
+    expect(Math.max(...levels)).toBe(50);
+  });
+
+  it("keeps dungeon loot tables and requested public type names aligned", () => {
+    const typedSkill: SkillDef = catalog.skills[0];
+    const typedDungeon: DungeonDef = catalog.dungeons[0];
+    const typedQuest: QuestDef = catalog.quests[0];
+    const typedTown: TownDef = catalog.towns[0];
+    const epicSetIds = new Set(catalog.epicSets.map((set) => set.id));
+
+    for (const dungeon of catalog.dungeons) {
+      expect(dungeon.lootSetIds.length).toBeGreaterThan(0);
+      for (const setId of dungeon.lootSetIds) {
+        expect(epicSetIds.has(setId)).toBe(true);
+      }
+    }
+
+    expect(typedSkill.id).toMatch(stableIdPattern);
+    expect(typedDungeon.id).toMatch(stableIdPattern);
+    expect(typedQuest.id).toMatch(stableIdPattern);
+    expect(typedTown.displayName).toBe("炉山市集");
   });
 
   it("models owned gear separately from catalog gear ids for future save and upgrade systems", () => {

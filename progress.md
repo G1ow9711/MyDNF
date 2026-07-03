@@ -126,11 +126,13 @@
 
 ## Task 2 Review Fixes
 - Expanded `src/tests/catalog.test.ts` first for unique/stable ids, mojibake guard, all 12 gear slots, rarity coverage, valid set references, and owned gear instance typing.
+- RED history note: the controller executed the initial Task 2 RED run before production code with `npm test -- src/tests/catalog.test.ts`; the exact failure was `Cannot find module '../data/catalog'` from `src/tests/catalog.test.ts`. No separate tests-only commit was preserved. Rewriting history would be disproportionate and was not done.
 - RED evidence:
   - `npm test -- src/tests/catalog.test.ts` failed on rarity coverage because existing catalog only emitted `epic`.
   - `npm run build` failed because `OwnedGearItem` was not exported and `PlayerState.inventory` still used strings.
 - Implemented `OwnedGearItem` plus `AmplifyStat`; `PlayerState.inventory` now stores owned gear instances and equipment/loadouts reference owned instance ids.
 - Updated gear catalog to 72 items across Common, Uncommon, Rare, Epic, and Mythic; lower rarities have no set membership, Epic/Mythic setIds reference existing Epic sets.
+- Spec compliance fix added `炉山市集` town catalog data, requested `SkillDef`/`DungeonDef`/`QuestDef` aliases, `TownDef`, dungeon loot set validation, quest/town id checks, and exact level range 1..50.
 - Verification after fix:
   - `npm test -- src/tests/catalog.test.ts`: pass.
   - `npm test`: pass.

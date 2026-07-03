@@ -374,17 +374,31 @@ export const quests: QuestDef[] = [
     id: "prologue-ember-warden",
     displayName: "炉火未熄",
     chapter: "序章",
-    objective: "以烬拳卫身份调查灰窑巷的异火。",
+    objective: "清理灰窑巷，查明异火来源。",
+    objectiveTrigger: { type: "dungeonCleared", targetId: "cinder-kiln-alley" },
     rewards: { gold: 600, ironDust: 20 },
-    unlocks: ["cinder-kiln-alley"]
+    unlocks: ["liuli-furnace"],
+    nextQuestIds: ["smith-first-spark", "chapter-liuli-furnace"]
+  },
+  {
+    id: "smith-first-spark",
+    displayName: "第一缕砧火",
+    chapter: "第一章",
+    objective: "完成一次强化，熟悉炉山市集的锻造流程。",
+    objectiveTrigger: { type: "reinforced" },
+    rewards: { ironDust: 30, protectionTicket: 1 },
+    unlocks: ["smith", "trade"],
+    nextQuestIds: []
   },
   {
     id: "chapter-liuli-furnace",
     displayName: "琉璃熔声",
     chapter: "第一章",
     objective: "击败琉璃熔炉的监工并夺回炉心碎片。",
+    objectiveTrigger: { type: "dungeonCleared", targetId: "liuli-furnace" },
     rewards: { gold: 1600, arcShard: 8, valorToken: 3 },
-    unlocks: ["liuli-furnace", "auction", "amplification"]
+    unlocks: ["auction", "amplification", "costume-pavilion"],
+    nextQuestIds: []
   }
 ];
 

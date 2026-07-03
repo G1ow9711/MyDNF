@@ -218,6 +218,12 @@ function validateLoadouts(value: unknown, ownedInstanceIds: Set<string>): void {
 function validateQuests(value: unknown): void {
   const quests = requireRecord(value, "player.quests");
 
+  for (const questId of catalogQuestIds) {
+    if (quests[questId] === undefined) {
+      throw new Error(`Malformed save data: missing quest status ${questId}`);
+    }
+  }
+
   for (const [questId, status] of Object.entries(quests)) {
     if (!catalogQuestIds.has(questId)) {
       throw new Error(`Malformed save data: player.quests contains unknown quest id ${questId}`);

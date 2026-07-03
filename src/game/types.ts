@@ -46,6 +46,17 @@ export type TownId = "forge-market";
 
 export type QuestStatus = "locked" | "active" | "ready" | "completed";
 
+export type QuestEventType =
+  | "enemyDefeated"
+  | "dungeonCleared"
+  | "itemLooted"
+  | "reinforced"
+  | "amplified"
+  | "auctionSold"
+  | "shopPurchased";
+
+export type SystemId = "smith" | "trade" | "auction" | "amplification" | "costume-pavilion" | "shop";
+
 export type CurrencyId = "gold" | "ironDust" | "arcShard" | "valorToken" | "protectionTicket";
 
 export interface StatBlock {
@@ -184,8 +195,13 @@ export interface QuestDefinition {
   displayName: string;
   chapter: string;
   objective: string;
+  objectiveTrigger: {
+    type: QuestEventType;
+    targetId?: string;
+  };
   rewards: Partial<Record<CurrencyId, number>>;
   unlocks: string[];
+  nextQuestIds: string[];
 }
 
 export type QuestDef = QuestDefinition;

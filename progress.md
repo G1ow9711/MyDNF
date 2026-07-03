@@ -281,6 +281,27 @@
   - `npm test`: pass, 63 tests.
   - `npm run build`: pass.
   - `git diff --check`: pass; only CRLF conversion warnings.
+- Committed and pushed Task 6:
+  - `8a140ce 实现职业和转职系统`
+  - Pushed `feature/vertical-slice` to GitHub after user allowed push.
+
+## Task 7 Story and Quest System
+- Started Task 7 in `.worktrees/vertical-slice` on `feature/vertical-slice`.
+- Read current `task_plan.md`, implementation plan, design spec, existing catalog/state/save tests, and current quest data.
+- Wrote `src/tests/quests.test.ts` before production code.
+- RED evidence:
+  - `npm test -- src/tests/quests.test.ts` failed because `../systems/quests` did not exist.
+- Added quest trigger and system id types.
+- Expanded quest catalog with event triggers, `smith-first-spark`, next-quest activation, and system/dungeon unlock data.
+- Created `src/systems/quests.ts` with `applyQuestEvent`, `claimQuestReward`, `getActiveQuestText`, and `isSystemUnlocked`.
+- Tightened save validation so every catalog quest must have a saved status.
+- Checked UTF-8 contents for quest files after PowerShell rendered Chinese as mojibake; no replacement characters or literal mojibake markers found.
+- Updated `task_plan.md` so story/quest system is complete and current work moves to combat model.
+- Verification:
+  - `npm test -- src/tests/quests.test.ts`: pass, 7 tests.
+  - `npm test`: pass, 70 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |

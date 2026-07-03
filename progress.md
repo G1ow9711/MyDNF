@@ -405,6 +405,26 @@
     - Browser reload at `http://127.0.0.1:5173/`: no console errors.
 - Updated `task_plan.md` so Phase 4 is complete and Phase 5 verification/delivery is in progress.
 
+## Task 12 Class UI and Advancement Exposure
+- Started after completion audit found a player-facing gap: four base classes and advancement rules existed in systems/data, but the app had no visible class panel or actions.
+- Wrote regression tests before implementation:
+  - `src/tests/ui-smoke.test.ts` now requires the first screen navigation to expose `职业` and a class panel with four base classes plus advancement choices.
+  - `src/tests/app-integration.test.ts` now exercises `selectBaseClass`, `advanceClass`, and save/load round-trip for class/advancement state.
+- RED evidence:
+  - `npm test -- src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts` failed because the nav did not contain `职业`, `renderClassPanel` was not exported, and the reducer did not apply `selectBaseClass`.
+- Implemented:
+  - `renderClassPanel(state)` with current class summary, four base class cards, advancement cards, requirement text, passive bonuses, and action buttons.
+  - App mode `classes`, nav button `职业`, reducer actions `selectBaseClass` and `advanceClass`, and DOM click handling via `data-class-id` / `data-advancement-id`.
+  - CSS for class summary, class cards, advancement cards, active state, and responsive mobile layout.
+- Verification:
+  - `npm test -- src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts`: pass, 10 tests.
+  - `npm test`: pass, 92 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass; only CRLF conversion warnings.
+  - Browser desktop at `http://127.0.0.1:5173/`: `职业` nav visible; class panel shows `烬拳卫`, `琉璃剑客`, `墨影游侠`, `玄甲司炉`, `爆炉宗师`, and `镇山破卫`; no console errors.
+  - Browser class switch: selecting `琉璃剑客` updates active class, shows `流光剑使` / `镜火术士`, and toast says `职业已切换：琉璃剑客`; no console errors.
+  - Browser mobile viewport: `390x844` check showed four class cards, `职业` panel, no horizontal overflow.
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|

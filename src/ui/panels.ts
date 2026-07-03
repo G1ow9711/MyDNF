@@ -1,5 +1,6 @@
 import { catalog } from "../data/catalog";
 import type { GameState, GearItem, OwnedGearItem } from "../game/types";
+import { getAdvancementPreview } from "../systems/classes";
 import { getActiveQuestText, isSystemUnlocked } from "../systems/quests";
 import { getBoxRates } from "../systems/shop";
 
@@ -34,6 +35,73 @@ function currencyLine(state: GameState): string {
       <span>保护券 ${currencies.protectionTicket}</span>
     </div>
   `;
+}
+
+function tagLine(tags: string[]): string {
+  return tags.join(" / ");
+}
+
+function passiveLine(passives: Record<string, number | undefined>): string {
+  const entries = Object.entries(passives)
+    .filter(([, value]) => typeof value === "number")
+    .map(([key, value]) => `${key}+${value}`);
+
+  return entries.length > 0 ? entries.join(" / ") : "无";
+}
+
+export function renderClassPanel(state: GameState): string {
+  const currentClass = catalog.classes.find((classDef) => classDef.id === state.player.classId) ?? catalog.classes[0];
+  const currentAdvancement = currentClass.advancements.find((advancement) => advancement.id === state.player.advancementId);
+  const classRows = catalog.classes
+    .map((classDef) => {
+      const selected = classDef.id === state.player.classId;
+      const disabled = Boolean(state.player.advancementId);
+
+      return `
+        <article class="class-card${selected ? " is-active" : ""}">
+          <h3>${classDef.displayName}</h3>
+          <p>${tagLine(classDef.roleTags)} · 难度 ${classDef.difficulty} · ${classDef.preferredWeapon}</p>
+          <p>${classDef.resource.displayName} ${classDef.resource.max} · ${classDef.armorStyle}</p>
+          <button data-class-id="${classDef.id}" ${disabled || selected ? "disabled" : ""}>${selected ? "当前职业" : "选择职业"}</button>
+        </article>
+      `;
+    })
+    .join("");
+  const advancementRows = currentClass.advancements
+    .map((advancement) => {
+      const preview = getAdvancementPreview(state, advancement.id);
+      const selected = advancement.id === state.player.advancementId;
+      const disabled = Boolean(state.player.advancementId) || !preview.requirementsMet;
+      const gateText = selected ? "已转职" : preview.requirementsMet ? "满足转职条件" : preview.missingRequirements.join(" / ");
+
+      return `
+        <article class="advancement-card${selected ? " is-active" : ""}" style="--class-primary: ${advancement.vfxPalette.primary}; --class-secondary: ${advancement.vfxPalette.secondary};">
+          <h3>${advancement.displayName}</h3>
+          <p>${advancement.description}</p>
+          <p>流派 ${tagLine(advancement.roleTags)} · 被动 ${passiveLine(advancement.passiveBonuses)}</p>
+          <p>${gateText}</p>
+          <button data-advancement-id="${advancement.id}" ${disabled ? "disabled" : ""}>${selected ? "已转职" : "转职"}</button>
+        </article>
+      `;
+    })
+    .join("");
+
+  return panel(
+    "职业",
+    `
+      <div class="class-summary">
+        <h3>${currentClass.displayName}${currentAdvancement ? ` · ${currentAdvancement.displayName}` : ""}</h3>
+        <p>${tagLine(currentClass.roleTags)} · ${currentClass.resource.displayName}体系 · ${currentClass.internalName}</p>
+      </div>
+      <div class="class-grid">
+        ${classRows}
+      </div>
+      <div class="advancement-grid">
+        <h3>转职</h3>
+        ${advancementRows}
+      </div>
+    `
+  );
 }
 
 export function renderInventoryPanel(state: GameState): string {

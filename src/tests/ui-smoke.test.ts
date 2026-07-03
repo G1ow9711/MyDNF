@@ -3,6 +3,7 @@ import { createInitialState } from "../game/state";
 import { renderAppHtml } from "../ui/app";
 import {
   renderAuctionPanel,
+  renderClassPanel,
   renderInventoryPanel,
   renderQuestPanel,
   renderSettingsPanel,
@@ -25,6 +26,7 @@ describe("town app shell", () => {
     expect(html).toContain("拍卖");
     expect(html).toContain("商城");
     expect(html).toContain("任务");
+    expect(html).toContain("职业");
     expect(html).not.toContain("正在加载");
   });
 
@@ -43,5 +45,18 @@ describe("town app shell", () => {
     expect(renderQuestPanel(state)).toContain("炉火未熄");
     expect(renderSettingsPanel()).toContain("音乐");
     expect(renderSettingsPanel()).toContain("音效");
+  });
+
+  it("renders four base classes and advancement choices in the class panel", () => {
+    const html = renderClassPanel(createInitialState());
+
+    expect(html).toContain("职业");
+    expect(html).toContain("烬拳卫");
+    expect(html).toContain("琉璃剑客");
+    expect(html).toContain("墨影游侠");
+    expect(html).toContain("玄甲司炉");
+    expect(html).toContain("转职");
+    expect(html).toContain("爆炉宗师");
+    expect(html).toContain("镇山破卫");
   });
 });

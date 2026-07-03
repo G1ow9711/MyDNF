@@ -18,6 +18,7 @@ import {
   playSfx,
   type AudioState
 } from "../systems/audio";
+import { advanceClass as applyClassAdvancement, selectBaseClass as applyBaseClass } from "../systems/classes";
 import { acceptTrade, listAuction, resolveAuctions } from "../systems/market";
 import { applyQuestEvent, claimQuestReward } from "../systems/quests";
 import { loadGame, saveGame, type SaveStorage } from "../systems/save";
@@ -25,14 +26,16 @@ import { buyShopItem, openRandomBox } from "../systems/shop";
 import { amplify, reinforce } from "../systems/upgrades";
 import {
   renderAuctionPanel,
+  renderClassPanel,
   renderInventoryPanel,
   renderQuestPanel,
   renderSettingsPanel,
   renderShopPanel,
   renderSmithPanel
 } from "./panels";
+import type { AdvancementId, ClassId } from "../game/types";
 
-export type AppMode = "town" | "combat" | "inventory" | "smith" | "auction" | "shop" | "quests" | "settings";
+export type AppMode = "town" | "combat" | "inventory" | "smith" | "auction" | "shop" | "quests" | "classes" | "settings";
 
 export interface AppViewModel {
   state: GameState;
@@ -52,6 +55,8 @@ export type AppAction =
   | { type: "enterDungeon"; dungeonId: DungeonId }
   | { type: "combatAction"; action: "light" | "heavy" | "skill" | "finish" }
   | { type: "claimQuest"; questId: string }
+  | { type: "selectBaseClass"; classId: ClassId }
+  | { type: "advanceClass"; advancementId: AdvancementId }
   | { type: "reinforce"; gearId?: string }
   | { type: "amplify"; gearId?: string }
   | { type: "buyShopItem"; sku: string }
@@ -81,6 +86,7 @@ function renderNav(mode: AppMode): string {
       ${navButton("auction", "拍卖", mode)}
       ${navButton("shop", "商城", mode)}
       ${navButton("quests", "任务", mode)}
+      ${navButton("classes", "职业", mode)}
       ${navButton("settings", "设置", mode)}
     </nav>
   `;
@@ -164,6 +170,8 @@ function renderActivePanel(model: AppViewModel): string {
       return renderShopPanel(model.state);
     case "quests":
       return renderQuestPanel(model.state);
+    case "classes":
+      return renderClassPanel(model.state);
     case "settings":
       return renderSettingsPanel();
     case "combat":
@@ -321,6 +329,30 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         message: "任务奖励已领取",
         audio: playSfx(model.audio, "quest-complete")
       };
+    case "selectBaseClass": {
+      const nextState = applyBaseClass(model.state, action.classId);
+      const classDef = catalog.classes.find((item) => item.id === nextState.player.classId);
+
+      return {
+        ...model,
+        state: nextState,
+        mode: "classes",
+        message: `职业已切换：${classDef?.displayName ?? action.classId}`,
+        audio: playSfx(model.audio, "ui-select")
+      };
+    }
+    case "advanceClass": {
+      const nextState = applyClassAdvancement(model.state, action.advancementId);
+      const advancement = catalog.classes.flatMap((item) => item.advancements).find((item) => item.id === action.advancementId);
+
+      return {
+        ...model,
+        state: nextState,
+        mode: "classes",
+        message: `转职完成：${advancement?.displayName ?? action.advancementId}`,
+        audio: playSfx(model.audio, "quest-complete")
+      };
+    }
     case "reinforce": {
       const result = reinforce(model.state, selectedGearId(model.state, action.gearId), model.rng);
 
@@ -431,6 +463,8 @@ export function mountApp(root: HTMLDivElement): void {
       const questId = target.dataset.questId;
       const tradeOfferId = target.dataset.tradeOfferId;
       const auctionGearId = target.dataset.auctionGearId;
+      const classId = target.dataset.classId as ClassId | undefined;
+      const advancementId = target.dataset.advancementId as AdvancementId | undefined;
 
       if (mode) {
         dispatch({ type: "setMode", mode });
@@ -462,6 +496,14 @@ export function mountApp(root: HTMLDivElement): void {
 
       if (questId) {
         dispatch({ type: "claimQuest", questId });
+      }
+
+      if (classId) {
+        dispatch({ type: "selectBaseClass", classId });
+      }
+
+      if (advancementId) {
+        dispatch({ type: "advanceClass", advancementId });
       }
 
       if (tradeOfferId) {

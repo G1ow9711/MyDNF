@@ -46,6 +46,20 @@ function withCurrency(state: GameState, patch: Partial<GameState["player"]["curr
   };
 }
 
+function readyForAdvancement(state: GameState): GameState {
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      level: 15,
+      quests: {
+        ...state.player.quests,
+        "prologue-ember-warden": "completed"
+      }
+    }
+  };
+}
+
 describe("playable app integration actions", () => {
   it("reinforces selected gear through the app reducer", () => {
     const storage = new MemoryStorage();
@@ -71,6 +85,31 @@ describe("playable app integration actions", () => {
     expect(claimed.state.player.quests["prologue-ember-warden"]).toBe("completed");
     expect(claimed.state.player.quests["smith-first-spark"]).toBe("active");
     expect(claimed.state.player.unlockedDungeons).toContain("liuli-furnace");
+  });
+
+  it("selects a base class and applies advancement through app actions", () => {
+    const storage = new MemoryStorage();
+    let model = createAppModel({ storage });
+
+    model = reduceAppAction(model, { type: "selectBaseClass", classId: "liuli-blademage" });
+    expect(model.state.player.classId).toBe("liuli-blademage");
+    expect(model.state.player.heroId).toBe("liuli-blademage");
+    expect(model.message).toContain("职业");
+
+    model = {
+      ...model,
+      state: readyForAdvancement(model.state)
+    };
+    model = reduceAppAction(model, { type: "advanceClass", advancementId: "flowing-light-swordmaster" });
+
+    expect(model.state.player.advancementId).toBe("flowing-light-swordmaster");
+    expect(model.message).toContain("转职");
+
+    const saved = reduceAppAction(model, { type: "save" });
+    const loaded = reduceAppAction({ ...saved, state: createInitialState(), message: undefined }, { type: "load" });
+
+    expect(loaded.state.player.classId).toBe("liuli-blademage");
+    expect(loaded.state.player.advancementId).toBe("flowing-light-swordmaster");
   });
 
   it("grants room loot and marks the dungeon-clear quest ready after a full clear", () => {

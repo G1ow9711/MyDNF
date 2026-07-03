@@ -41,6 +41,7 @@ Phase 5 - Verification and Delivery
 - [x] Implement core movement/combat/enemy loop
 - [x] Implement skills and visual effects
 - [x] Implement town UI and system panels
+- [x] Expose class selection and advancement in player-facing UI
 - [x] Implement loot, trade, enhancement, amplification, shop, costumes, and packs
 - [x] Add sound/visual feedback where feasible
 - **Status:** complete
@@ -85,3 +86,4 @@ Phase 5 - Verification and Delivery
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.
 - Active implementation branch/worktree: `feature/vertical-slice` at `.worktrees/vertical-slice`.
+- Completion audit found the class/advancement system existed in data and reducers, but needed a visible player-facing panel before final handoff.

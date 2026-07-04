@@ -95,8 +95,8 @@ Phase 5 - Verification and Delivery
 - Current strict-DNF continuation gap after class-resource mechanics: class resources now have first-pass unique rules in combat, but skill kits still need deeper per-skill behavior, better class-specific art, and clearer long-term resource persistence.
 - Current hitbox continuation progress: player light/heavy attacks now respect facing, X range, Y lane range, nearest valid target, and miss events. Area/range skill tags now drive wider or multi-target hitboxes, and whiffed attacks still move the player model.
 - Current combo/air-state progress: hit combo counter now tracks total chain separately from light-chain `comboStep`, launcher/heavy hits create timed airborne state, airborne enemies cannot attack, and slam skills can force knockdown.
-- Current weapon-appearance progress: class weapons now have weapon types, rarity-linked tiers, role flavor, town/combat anchors, and a visible equipped weapon layer on the character in town and combat.
-- Remaining strict-DNF combat gaps: richer per-skill behavior beyond broad tag hitboxes, class-specific animation timelines, enemy hurtbox sizing, multi-target VFX per enemy, higher-fidelity weapon bitmap assets/atlases beyond CSS silhouettes, and a formal save migration from `heat` alias to class-resource storage.
+- Current weapon-appearance progress: class weapons now have weapon types, rarity-linked tiers, role flavor, town/combat anchors, 20 SVG weapon assets, and a visible equipped weapon layer on the character in town and combat.
+- Remaining strict-DNF combat gaps: richer per-skill behavior beyond broad tag hitboxes, class-specific animation timelines, enemy hurtbox sizing, multi-target VFX per enemy, weapon atlas/frame animation beyond static SVG assets, and a formal save migration from `heat` alias to class-resource storage.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

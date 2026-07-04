@@ -402,7 +402,7 @@ function weaponAnchorFor(classId: ClassDefinition["id"], tier: WeaponAppearanceT
 }
 
 const weaponAppearanceBase: Array<
-  Omit<WeaponAppearanceDefinition, "rarity" | "weaponType" | "roleFlavor" | "townAnchor" | "combatAnchor">
+  Omit<WeaponAppearanceDefinition, "rarity" | "weaponType" | "roleFlavor" | "asset" | "townAnchor" | "combatAnchor">
 > = [
   {
     id: "weapon-ember-warden-novice",
@@ -611,6 +611,13 @@ export const weaponAppearances: WeaponAppearanceDefinition[] = weaponAppearanceB
   rarity: weaponTierRarity[appearance.tier],
   weaponType: weaponTypeByClass[appearance.classId],
   roleFlavor: weaponFlavorByClass[appearance.classId],
+  asset: {
+    src: `/assets/weapons/${appearance.id}.svg`,
+    width: 160,
+    height: 160,
+    gripX: baseWeaponAnchors[appearance.classId].combat.x,
+    gripY: baseWeaponAnchors[appearance.classId].combat.y
+  },
   townAnchor: weaponAnchorFor(appearance.classId, appearance.tier, "town"),
   combatAnchor: weaponAnchorFor(appearance.classId, appearance.tier, "combat")
 }));

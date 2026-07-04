@@ -1044,3 +1044,26 @@
   - `npm test`: pass, 13 files and 175 tests.
   - `npm run build`: pass.
   - Edge headless browser check via `.codex-local/tmp/weapon-layer-check.mjs`: town layer rendered `weapon-liuli-blademage-mythic`, combat layer rendered the same equipped weapon, and light attack triggered `weapon-light-swing`.
+
+## Task 37 High-Fidelity SVG Weapon Assets
+- Started after Task 36 proved weapon layers but still used CSS silhouettes as the primary weapon art.
+- Used two read-only parallel agents:
+  - `019f2d19-260d-75e1-b569-6a150fd2569d` audited data/UI insertion points for real weapon assets.
+  - `019f2d19-a260-73d1-b0a3-01c5a15eb0a4` audited asset path conventions, Vite glob tests, and browser verification strategy.
+- Added RED coverage:
+  - `src/tests/catalog.test.ts` requires every weapon appearance to expose a 160x160 SVG asset definition with grip metadata.
+  - `src/tests/weapon-appearance.test.ts` requires `weaponAppearanceFor()` and `equippedWeaponAppearanceFor()` to return asset metadata.
+  - `src/tests/ui-smoke.test.ts` requires all 20 SVG files to exist and requires inventory, class panel, town, and combat renders to include `<img class="weapon-art">`.
+- RED evidence:
+  - Focused tests failed because `appearance.asset` was undefined, no SVG assets were present, and UI still rendered only `span.weapon-shape`.
+- Implemented:
+  - Added `WeaponAssetDefinition` and `appearance.asset` with `/assets/weapons/${appearance.id}.svg`, width/height, and grip metadata.
+  - Added 20 class/tier SVG assets under `public/assets/weapons`.
+  - Updated inventory rows, class progression chips, and town/combat weapon layers to render SVG `<img>` assets.
+  - Kept old CSS silhouette as hidden fallback and adjusted weapon image sizing so the art does not cover the character.
+- Verification:
+  - `npm test -- src/tests/catalog.test.ts src/tests/weapon-appearance.test.ts src/tests/ui-smoke.test.ts`: pass, 25 tests.
+  - `npm test`: pass, 13 files and 176 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Edge headless browser check via `.codex-local/tmp/weapon-layer-check.mjs`: town and combat weapon images loaded `/assets/weapons/weapon-liuli-blademage-mythic.svg`, `complete=true`, natural size `160x160`, and light attack still triggered `weapon-light-swing`.

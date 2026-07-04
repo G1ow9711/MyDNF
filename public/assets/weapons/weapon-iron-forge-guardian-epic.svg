@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="iron epic shield">
+  <defs>
+    <linearGradient id="shield" x1="18" y1="-2" x2="142" y2="158" gradientUnits="userSpaceOnUse"><stop stop-color="#fff7ed"/><stop offset=".36" stop-color="#292524"/><stop offset=".66" stop-color="#ef4444"/><stop offset="1" stop-color="#020617"/></linearGradient>
+    <radialGradient id="core" cx="80" cy="66" r="56" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset=".36" stop-color="#fed7aa"/><stop offset=".68" stop-color="#ef4444"/><stop offset="1" stop-color="#7f1d1d"/></radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <path d="M80-5 145 18v62c0 46-26 75-65 91-39-16-65-45-65-91V18Z" fill="url(#shield)" stroke="#fff7ed" stroke-width="4.5"/>
+  <path d="M80 22 124 38v42c0 31-18 52-44 65-26-13-44-34-44-65V38Z" fill="url(#core)" filter="url(#glow)"/>
+  <path d="M80 13v136M35 65h90" stroke="#ffffff" stroke-width="8.5" stroke-linecap="round"/>
+  <path d="M128 101 168 130" stroke="#020617" stroke-width="17" stroke-linecap="round"/>
+</svg>

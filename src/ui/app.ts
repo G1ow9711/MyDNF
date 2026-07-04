@@ -236,7 +236,7 @@ export function combatActionForKeyCode(
 function weaponLayerStyle(equipped: EquippedWeaponAppearance, layer: "town" | "combat"): string {
   const anchor = layer === "town" ? equipped.appearance.townAnchor : equipped.appearance.combatAnchor;
 
-  return `--weapon-primary: ${equipped.appearance.palette.primary}; --weapon-secondary: ${equipped.appearance.palette.secondary}; --weapon-glow: ${equipped.appearance.palette.glow}; --weapon-anchor-x: ${anchor.x}%; --weapon-anchor-y: ${anchor.y}%; --weapon-scale: ${anchor.scale}; --weapon-rotation: ${anchor.rotation}deg;`;
+  return `--weapon-primary: ${equipped.appearance.palette.primary}; --weapon-secondary: ${equipped.appearance.palette.secondary}; --weapon-glow: ${equipped.appearance.palette.glow}; --weapon-anchor-x: ${anchor.x}%; --weapon-anchor-y: ${anchor.y}%; --weapon-scale: ${anchor.scale}; --weapon-rotation: ${anchor.rotation}deg; --weapon-grip-x: ${equipped.appearance.asset.gripX}%; --weapon-grip-y: ${equipped.appearance.asset.gripY}%;`;
 }
 
 function weaponLayerMarkup(state: GameState, layer: "town" | "combat"): string {
@@ -251,7 +251,8 @@ function weaponLayerMarkup(state: GameState, layer: "town" | "combat"): string {
   const combatAttr = layer === "combat" ? ` data-combat-weapon-appearance-id="${appearance.id}"` : "";
 
   return `
-    <div class="${layerClass} weapon-layer weapon-layer-${appearance.rarity}" data-weapon-appearance-id="${appearance.id}"${combatAttr} data-equipped-weapon-id="${equipped.owned.instanceId}" data-weapon-class-id="${appearance.classId}" data-weapon-type="${appearance.weaponType}" data-weapon-tier="${appearance.tier}" data-weapon-rarity="${appearance.rarity}" data-weapon-level="${equipped.gear.level}" style="${weaponLayerStyle(equipped, layer)}" aria-label="${appearance.displayName}">
+    <div class="${layerClass} weapon-layer weapon-layer-${appearance.rarity}" data-weapon-appearance-id="${appearance.id}"${combatAttr} data-equipped-weapon-id="${equipped.owned.instanceId}" data-weapon-class-id="${appearance.classId}" data-weapon-type="${appearance.weaponType}" data-weapon-tier="${appearance.tier}" data-weapon-rarity="${appearance.rarity}" data-weapon-level="${equipped.gear.level}" data-weapon-asset-src="${appearance.asset.src}" style="${weaponLayerStyle(equipped, layer)}" aria-label="${appearance.displayName}">
+      <img class="weapon-art weapon-art-equipped" data-weapon-art-id="${appearance.id}" src="${appearance.asset.src}" width="${appearance.asset.width}" height="${appearance.asset.height}" alt="" aria-hidden="true" />
       <span class="weapon-shape weapon-shape-${appearance.silhouette}" aria-hidden="true"></span>
     </div>
   `;

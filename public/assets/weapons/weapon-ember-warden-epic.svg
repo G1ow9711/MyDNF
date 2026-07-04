@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="ember epic gauntlet">
+  <defs>
+    <linearGradient id="steel" x1="13" y1="24" x2="145" y2="135" gradientUnits="userSpaceOnUse"><stop stop-color="#fed7aa"/><stop offset=".32" stop-color="#991b1b"/><stop offset=".72" stop-color="#f59e0b"/><stop offset="1" stop-color="#020617"/></linearGradient>
+    <radialGradient id="core" cx="92" cy="74" r="56" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset=".32" stop-color="#fed7aa"/><stop offset=".66" stop-color="#ef4444"/><stop offset="1" stop-color="#7f1d1d"/></radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <path d="M20 87c8-49 47-78 93-76 20 2 38 18 40 39 3 27-16 54-42 64-42 17-82 7-91-27Z" fill="url(#steel)" stroke="#fff7ed" stroke-width="3"/>
+  <path d="M46 88c13-31 39-52 70-51 13 1 24 12 26 25 2 17-10 34-25 41-30 13-60 6-71-15Z" fill="url(#core)" filter="url(#glow)"/>
+  <path d="M101 9 160-8l-38 58Zm33 38 51-13-44 37Zm-13 40 47 13-51 17Z" fill="#fff7ed" stroke="#f59e0b" stroke-width="3"/>
+  <path d="M12 99-7 126l50 27 32-33Z" fill="#1f2937" stroke="#fbbf24" stroke-width="5"/>
+  <path d="M36 121c28 18 63 22 96 8" fill="none" stroke="#fff7ed" stroke-width="7" stroke-linecap="round"/>
+</svg>

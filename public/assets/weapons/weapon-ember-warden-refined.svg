@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="ember refined gauntlet">
+  <defs>
+    <linearGradient id="steel" x1="18" y1="30" x2="138" y2="126" gradientUnits="userSpaceOnUse"><stop stop-color="#f97316"/><stop offset=".42" stop-color="#b45309"/><stop offset="1" stop-color="#020617"/></linearGradient>
+    <radialGradient id="core" cx="92" cy="77" r="48" gradientUnits="userSpaceOnUse"><stop stop-color="#fff7ed"/><stop offset=".38" stop-color="#fb923c"/><stop offset="1" stop-color="#991b1b"/></radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <path d="M28 91c9-38 39-62 79-61 16 1 31 13 33 30 3 20-10 41-30 50-36 17-72 11-82-19Z" fill="url(#steel)" stroke="#fdba74" stroke-width="3"/>
+  <path d="M50 92c12-23 32-38 59-38 10 1 19 8 21 18 2 12-6 24-18 30-25 12-52 8-62-10Z" fill="url(#core)" filter="url(#glow)"/>
+  <path d="M101 27 141 8l-24 45Zm26 30 38-5-34 24Zm-4 32 35 11-38 9Z" fill="#facc15" stroke="#fff7ed" stroke-width="2.5"/>
+  <path d="M22 102 4 122l42 20 24-24Z" fill="#1f2937" stroke="#f97316" stroke-width="4"/>
+  <path d="M45 119c21 12 45 16 72 10" fill="none" stroke="#ffedd5" stroke-width="6" stroke-linecap="round"/>
+</svg>

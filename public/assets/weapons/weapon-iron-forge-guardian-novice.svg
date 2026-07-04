@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="iron novice shield">
+  <defs>
+    <linearGradient id="shield" x1="32" y1="12" x2="130" y2="145" gradientUnits="userSpaceOnUse"><stop stop-color="#78716c"/><stop offset=".52" stop-color="#44403c"/><stop offset="1" stop-color="#1c1917"/></linearGradient>
+    <radialGradient id="core" cx="80" cy="72" r="44" gradientUnits="userSpaceOnUse"><stop stop-color="#fed7aa"/><stop offset=".45" stop-color="#fb923c"/><stop offset="1" stop-color="#7c2d12"/></radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <path d="M80 10 130 27v52c0 35-20 58-50 70-30-12-50-35-50-70V27Z" fill="url(#shield)" stroke="#fb923c" stroke-width="4"/>
+  <path d="M80 32 111 43v33c0 22-12 38-31 47-19-9-31-25-31-47V43Z" fill="url(#core)" filter="url(#glow)" opacity=".82"/>
+  <path d="M80 25v110M46 68h68" stroke="#fdba74" stroke-width="7" stroke-linecap="round" opacity=".84"/>
+  <path d="M122 95 151 118" stroke="#1c1917" stroke-width="14" stroke-linecap="round"/>
+</svg>

@@ -125,6 +125,7 @@ describe("catalog", () => {
       weaponType?: string;
       rarity?: string;
       roleFlavor?: string;
+      asset?: { src: string; width: number; height: number; gripX: number; gripY: number };
       silhouette: string;
       materials: string[];
       palette: { primary: string; glow: string };
@@ -155,6 +156,13 @@ describe("catalog", () => {
         expect(row.id).toMatch(new RegExp(`^weapon-${classId}-`));
         expect(row.weaponType).toBe(expectedWeaponTypes[classId]);
         expect(row.roleFlavor?.length).toBeGreaterThan(3);
+        expect(row.asset).toEqual({
+          src: `/assets/weapons/${row.id}.svg`,
+          width: 160,
+          height: 160,
+          gripX: expect.any(Number),
+          gripY: expect.any(Number)
+        });
         expect(row.silhouette.length).toBeGreaterThan(0);
         expect(row.materials.length).toBeGreaterThanOrEqual(2);
         expect(row.palette.primary).toMatch(/^#/);

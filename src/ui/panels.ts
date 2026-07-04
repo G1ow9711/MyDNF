@@ -42,6 +42,7 @@ function weaponAppearanceMarkup(state: GameState, gear: GearItem | undefined): s
 
   return `
     <div class="weapon-appearance weapon-appearance-${appearance.classId} weapon-tier-${appearance.tier}" data-weapon-class-id="${appearance.classId}" data-weapon-tier="${appearance.tier}" data-weapon-appearance-id="${appearance.id}" style="--weapon-primary: ${appearance.palette.primary}; --weapon-secondary: ${appearance.palette.secondary}; --weapon-glow: ${appearance.palette.glow};">
+      <img class="weapon-art weapon-art-icon" data-weapon-art-id="${appearance.id}" src="${appearance.asset.src}" width="${appearance.asset.width}" height="${appearance.asset.height}" alt="" aria-hidden="true" />
       <span class="weapon-shape weapon-shape-${appearance.silhouette}" aria-hidden="true"></span>
       <span class="weapon-copy">
         <b>${appearance.displayName}</b>
@@ -57,6 +58,7 @@ function classWeaponProgression(classId: GameState["player"]["classId"]): string
     .map(
       (appearance) => `
         <span class="weapon-chip weapon-tier-${appearance.tier}" data-class-weapon-tier="${classId}-${appearance.tier}" style="--weapon-primary: ${appearance.palette.primary}; --weapon-secondary: ${appearance.palette.secondary}; --weapon-glow: ${appearance.palette.glow};">
+          <img class="weapon-art weapon-art-chip" data-weapon-art-id="${appearance.id}" src="${appearance.asset.src}" width="${appearance.asset.width}" height="${appearance.asset.height}" alt="" aria-hidden="true" />
           <i class="weapon-shape weapon-shape-${appearance.silhouette}" aria-hidden="true"></i>
           <span>Lv.${appearance.minLevel} ${appearance.displayName}</span>
         </span>

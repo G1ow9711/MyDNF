@@ -40,6 +40,9 @@ describe("weapon appearance system", () => {
     expect(appearance?.weaponType).toBe("mechanism-crossbow");
     expect(appearance?.rarity).toBe("rare");
     expect(appearance?.roleFlavor).toContain("机关");
+    expect(appearance?.asset.src).toBe("/assets/weapons/weapon-ink-shadow-ranger-rare.svg");
+    expect(appearance?.asset.width).toBe(160);
+    expect(appearance?.asset.height).toBe(160);
     expect(appearance?.townAnchor.scale).toBeGreaterThan(0.6);
     expect(appearance?.combatAnchor.scale).toBeGreaterThan(0.6);
   });
@@ -49,6 +52,7 @@ describe("weapon appearance system", () => {
     const equipped = equippedWeaponAppearanceFor(state);
 
     expect(equipped?.appearance.id).toBe("weapon-liuli-blademage-mythic");
+    expect(equipped?.appearance.asset.src).toBe("/assets/weapons/weapon-liuli-blademage-mythic.svg");
     expect(equipped?.gear.rarity).toBe("mythic");
     expect(equipped?.owned.instanceId).toBe("owned-mythic-liuli-flow-weapon-appearance-mythic");
   });

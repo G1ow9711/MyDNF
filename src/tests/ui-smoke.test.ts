@@ -23,6 +23,12 @@ const publicAssetModules = import.meta.glob("../../public/assets/*.png", {
   import: "default"
 }) as Record<string, string>;
 
+const publicWeaponAssetModules = import.meta.glob("../../public/assets/weapons/*.svg", {
+  eager: true,
+  query: "?url",
+  import: "default"
+}) as Record<string, string>;
+
 function withSingleReadyEnemy(run: CombatRun, enemyPatch: Partial<CombatEnemy>): CombatRun {
   return {
     ...run,
@@ -108,6 +114,17 @@ describe("town app shell", () => {
 
     for (const assetUrl of Object.values(publicAssetModules)) {
       expect(assetUrl).toMatch(/\.png$/);
+    }
+  });
+
+  it("keeps every class weapon SVG asset present and referenced by the catalog", () => {
+    const expectedKeys = catalog.weaponAppearances.map((appearance) => `../../public${appearance.asset.src}`).sort();
+
+    expect(Object.keys(publicWeaponAssetModules).sort()).toEqual(expectedKeys);
+
+    for (const appearance of catalog.weaponAppearances) {
+      expect(appearance.asset.src).toBe(`/assets/weapons/${appearance.id}.svg`);
+      expect(publicWeaponAssetModules[`../../public${appearance.asset.src}`]).toMatch(/^(data:image\/svg\+xml|.*\.svg$)/);
     }
   });
 
@@ -279,6 +296,8 @@ describe("town app shell", () => {
     expect(html).toContain('data-weapon-class-id="ink-shadow-ranger"');
     expect(html).toContain('data-weapon-tier="rare"');
     expect(html).toContain('data-weapon-appearance-id="weapon-ink-shadow-ranger-rare"');
+    expect(html).toContain('class="weapon-art weapon-art-icon"');
+    expect(html).toContain('/assets/weapons/weapon-ink-shadow-ranger-rare.svg');
     expect(html).toContain("玄墨机关弩");
     expect(html).toContain("赤矿机括");
   });
@@ -309,9 +328,12 @@ describe("town app shell", () => {
     expect(townHtml).toContain('data-weapon-appearance-id="weapon-liuli-blademage-mythic"');
     expect(townHtml).toContain('data-weapon-type="liuli-blade"');
     expect(townHtml).toContain('data-equipped-weapon-id="owned-mythic-liuli-flow-weapon-mythic-weapon"');
+    expect(townHtml).toContain('class="weapon-art weapon-art-equipped"');
+    expect(townHtml).toContain('/assets/weapons/weapon-liuli-blademage-mythic.svg');
     expect(combatHtml).toContain('class="combat-weapon weapon-layer weapon-layer-mythic"');
     expect(combatHtml).toContain('data-combat-weapon-appearance-id="weapon-liuli-blademage-mythic"');
     expect(combatHtml).toContain('data-weapon-type="liuli-blade"');
+    expect(combatHtml).toContain('class="weapon-art weapon-art-equipped"');
     expect(combatHtml).toContain('weapon-shape-heaven-mirror-sword');
   });
 
@@ -333,6 +355,7 @@ describe("town app shell", () => {
 
     for (const appearance of catalog.weaponAppearances) {
       expect(html).toContain(`data-class-weapon-tier="${appearance.classId}-${appearance.tier}"`);
+      expect(html).toContain(appearance.asset.src);
       expect(html).toContain(appearance.displayName);
     }
   });

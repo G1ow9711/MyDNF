@@ -95,6 +95,14 @@ export interface WeaponAnchor {
   rotation: number;
 }
 
+export interface WeaponAssetDefinition {
+  src: string;
+  width: number;
+  height: number;
+  gripX: number;
+  gripY: number;
+}
+
 export interface WeaponAppearanceDefinition {
   id: string;
   classId: ClassId;
@@ -104,6 +112,7 @@ export interface WeaponAppearanceDefinition {
   minLevel: number;
   displayName: string;
   roleFlavor: string;
+  asset: WeaponAssetDefinition;
   silhouette: string;
   materials: string[];
   palette: {

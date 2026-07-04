@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="ink epic crossbow">
+  <defs>
+    <linearGradient id="body" x1="6" y1="43" x2="154" y2="120" gradientUnits="userSpaceOnUse"><stop stop-color="#000000"/><stop offset=".4" stop-color="#8b5cf6"/><stop offset=".72" stop-color="#f5d0fe"/><stop offset="1" stop-color="#111827"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <path d="M8 28c59 40 112 40 159 0-14 46-14 79 0 100-51-36-104-36-159 0 20-41 20-74 0-100Z" fill="none" stroke="#f5d0fe" stroke-width="12" stroke-linecap="round"/>
+  <path d="M2 75h128l37-19-24 39 24 39-38-19H2Z" fill="url(#body)" stroke="#ffffff" stroke-width="3.5" filter="url(#glow)"/>
+  <path d="M38 61h84M38 87h84" stroke="#ffffff" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M92 115 48 160" stroke="#020617" stroke-width="15" stroke-linecap="round"/>
+  <circle cx="93" cy="87" r="11" fill="#f5d0fe" stroke="#ffffff" stroke-width="4"/>
+</svg>

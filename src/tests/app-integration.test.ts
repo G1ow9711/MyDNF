@@ -248,6 +248,31 @@ describe("playable app integration actions", () => {
     expect(model.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "loot-drop" }]));
   });
 
+  it("awards room experience so advancement can be reached through normal dungeon play", () => {
+    const baseState = withQuestReady(createInitialState(), "prologue-ember-warden");
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: {
+        ...baseState,
+        player: {
+          ...baseState.player,
+          level: 14,
+          experience: 90
+        }
+      }
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = settleClearedRoom(model);
+
+    expect(model.state.player.level).toBeGreaterThanOrEqual(15);
+    expect(model.state.player.experience).toBeLessThan(100);
+
+    const advanced = reduceAppAction(model, { type: "advanceClass", advancementId: "ember-furnace-master" });
+
+    expect(advanced.state.player.advancementId).toBe("ember-furnace-master");
+  });
+
   it("requires defeating all monsters before room settlement", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

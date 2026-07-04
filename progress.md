@@ -1095,3 +1095,29 @@
   - `npm run build`: pass.
   - Edge headless browser check via `.codex-local/tmp/skill-animation-check.mjs`: Liuli Rain rendered player animation `player-liuli-rain-cast`, weapon animation `weapon-fan-arc`, VFX spark animation `glass-rain-fall`, loaded `/assets/weapons/weapon-liuli-blademage-mythic.svg` at `160x160`, and loaded Liuli hero art at `863x1822`.
   - Browser screenshot saved at `.codex-local/tmp/skill-animation-check.png`.
+
+## Task 39 Feature Flow Closure
+- Started after the user clarified that character models can be simpler for now and the priority is getting every feature path playable.
+- Used a read-only parallel agent (`019f2d60-6625-7ca2-a748-0adafcbe6c56`) to audit the full UI/reducer flow from class selection through combat, loot, quest, equipment, upgrades, shop, auction/trade, and save.
+- Added RED coverage:
+  - `src/tests/ui-smoke.test.ts` requires the quest panel to render a core system flow checklist with combat, quest, inventory, reinforce, amplify, shop, trade, and save actions.
+  - `src/tests/ui-smoke.test.ts` requires the shop panel to expose `liuli-gift-pack`, `reinforcement-pack`, and `forge-costume-pack`.
+  - `src/tests/ui-smoke.test.ts` requires the smith panel to render per-gear reinforce/amplify buttons, including later Echo Slot gear.
+  - `src/tests/app-integration.test.ts` requires room settlement to award experience so advancement can be reached through normal dungeon play.
+- RED evidence:
+  - Focused UI test failed on missing `data-shop-sku="reinforcement-pack"`, missing `data-flow-checklist="true"`, and missing `data-smith-gear-list="true"`.
+  - Focused app integration test failed because player level stayed at 14 after room settlement.
+  - A follow-up RED assertion caught the initial trade checklist state being wrongly marked done because `hasAuctionProgress` was referenced instead of called.
+- Implemented:
+  - Added room XP to combat loot and simple 100 XP per-level progression in app loot application.
+  - Added an eight-step feature checklist to the quest panel with navigation/actions for combat, quest, inventory, reinforcement, amplification, shop, trade, and save.
+  - Reworked the smith panel to list up to 12 inventory items with explicit per-item reinforce/amplify buttons and Echo Slot state.
+  - Reworked the shop panel to show all three current SKUs plus the random box count.
+- Verification:
+  - `npm test -- src/tests/ui-smoke.test.ts`: pass, 16 tests.
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 41 tests.
+  - `npm test`: pass, 13 files and 182 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - In-app browser validation on `http://127.0.0.1:5174/`: checklist rendered 8 steps, shop rendered 3 SKUs, smith rendered the gear list and per-item upgrade buttons.
+  - Browser screenshot saved at `.codex-local/tmp/full-flow-ui-check.png`.

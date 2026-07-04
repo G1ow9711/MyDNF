@@ -135,6 +135,7 @@ export type CombatEvent = CombatHitEvent | CombatMissEvent | CombatRoomClearedEv
 export interface CombatLootEvent {
   dungeonId: DungeonId;
   roomIndex: number;
+  experience: number;
   gold: number;
   ironDust: number;
   arcShard: number;
@@ -1147,6 +1148,7 @@ function createLootEvent(run: CombatRun): CombatLootEvent {
   return {
     dungeonId: run.dungeonId,
     roomIndex: run.roomIndex,
+    experience: 110 + run.roomIndex * 20 + dungeonBonus * 60,
     gold: 120 + run.roomIndex * 30 + dungeonBonus * 80,
     ironDust: 6 + run.roomIndex * 2,
     arcShard: dungeonBonus,

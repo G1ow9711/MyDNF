@@ -174,3 +174,11 @@
 - The next implementation should keep combat math stable and look up animation metadata by `skillId`, then expose browser-stable attributes such as `data-skill-animation-preset`, `data-weapon-arc`, and `data-skill-vfx-shape`.
 - Skill-specific animation metadata now covers every class skill with preset, duration, hit frame, lunge distance, weapon arc, VFX shape, and VFX anchor. UI reads the latest hit or miss player skill event, so a missed skill still renders its class-specific VFX and weapon arc.
 - Browser validation confirmed Liuli Rain renders `player-liuli-rain-cast`, `weapon-fan-arc`, `glass-rain-fall`, a loaded mythic Liuli weapon SVG, and loaded Liuli hero art.
+
+## Feature Flow Closure Findings
+- Latest user direction lowered near-term character modeling priority: keep character/monster models simple enough for now and prioritize full playable feature flow.
+- Follow-up clarification: "simple models" only relaxes static model fidelity. It does not relax action quality; combat motion smoothness, hit feel, player/enemy action changes, skill VFX, and monster skill VFX remain strict requirements.
+- Read-only agent audit confirmed core reducers and systems exist, but the player-facing weak points were: smith panel fixed to the first inventory item, shop panel exposing only one of three SKUs, and no visible in-game checklist showing combat, quest, inventory, reinforce, amplify, shop, trade, and save progress.
+- The smith reducer already supported explicit `gearId`; the missing layer was UI selection. The new smith list now exposes per-gear reinforce/amplify actions and disables amplify on non-Echo Slot gear.
+- Advancement was not naturally reachable from play because no room experience was applied to `player.experience` or `player.level`. Room settlement now awards XP, levels use a simple 100 XP prototype threshold, and advancement can be reached after dungeon play once the prologue gate is ready/completed.
+- Browser validation on `http://127.0.0.1:5174/` confirmed the quest flow checklist renders eight steps, shop renders `liuli-gift-pack`, `reinforcement-pack`, and `forge-costume-pack`, and smith renders a gear selection list with per-item upgrade buttons.

@@ -97,6 +97,7 @@ Phase 5 - Verification and Delivery
 - Current combo/air-state progress: hit combo counter now tracks total chain separately from light-chain `comboStep`, launcher/heavy hits create timed airborne state, airborne enemies cannot attack, and slam skills can force knockdown.
 - Current weapon-appearance progress: class weapons now have weapon types, rarity-linked tiers, role flavor, town/combat anchors, 20 SVG weapon assets, and a visible equipped weapon layer on the character in town and combat.
 - Current skill-animation continuation goal: class skills need explicit animation presets, weapon arcs, and VFX shapes so player model, equipped weapon, and skill effect do not all use the same generic `actor-model-skill` / `weapon-skill-flare` presentation.
+- Current visual priority clarification: character and monster models may stay lightweight for the playable prototype, but combat motion, combo flow, hit feedback, player/enemy action changes, monster skill telegraphs, and skill VFX must remain strict acceptance criteria.
 - Remaining strict-DNF combat gaps: richer per-skill behavior beyond broad tag hitboxes, class-specific animation timelines, enemy hurtbox sizing, multi-target VFX per enemy, weapon atlas/frame animation beyond static SVG assets, and a formal save migration from `heat` alias to class-resource storage.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.

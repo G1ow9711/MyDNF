@@ -261,6 +261,9 @@ describe("town app shell", () => {
     expect(renderShopPanel(state)).toContain("礼包");
     expect(renderShopPanel(state)).toContain("时装");
     expect(renderShopPanel(state)).toContain("概率");
+    expect(renderShopPanel(state)).toContain('data-shop-sku="liuli-gift-pack"');
+    expect(renderShopPanel(state)).toContain('data-shop-sku="reinforcement-pack"');
+    expect(renderShopPanel(state)).toContain('data-shop-sku="forge-costume-pack"');
     expect(renderQuestPanel(state)).toContain("炉火未熄");
     const audio = setVolume(createAudioState(), "music", 0.42);
 
@@ -270,6 +273,43 @@ describe("town app shell", () => {
     expect(renderSettingsPanel(audio)).toContain("本地自动保存");
     expect(renderSettingsPanel(audio)).toContain('value="42"');
     expect(renderSettingsPanel(audio)).toContain("重置存档");
+  });
+
+  it("renders a core system flow checklist from the quest board", () => {
+    const html = renderQuestPanel(createInitialState());
+
+    expect(html).toContain('data-flow-checklist="true"');
+
+    for (const step of ["combat", "quest", "inventory", "reinforce", "amplify", "shop", "trade", "save"]) {
+      expect(html).toContain(`data-flow-step="${step}"`);
+      expect(html).toContain(`data-flow-action="${step}"`);
+    }
+
+    expect(html).toContain('data-mode="shop"');
+    expect(html).toContain('data-mode="smith"');
+    expect(html).toContain('data-mode="auction"');
+    expect(html).toContain('data-mode="settings"');
+    expect(html).toContain('data-flow-step="trade" data-flow-state="locked"');
+  });
+
+  it("renders per-gear smith actions so later echo-slot drops can be upgraded", () => {
+    const baseState = createInitialState();
+    const echoGear = createOwnedGear("epic-liuli-flow-ring", "echo-slot");
+    const state = {
+      ...baseState,
+      player: {
+        ...baseState.player,
+        inventory: [...baseState.player.inventory, echoGear]
+      }
+    };
+    const html = renderSmithPanel(state);
+
+    expect(html).toContain('data-smith-gear-list="true"');
+    expect(html).toContain(`data-smith-gear-id="${baseState.player.inventory[0].instanceId}"`);
+    expect(html).toContain(`data-smith-gear-id="${echoGear.instanceId}"`);
+    expect(html).toContain(`data-app-action="reinforce" data-gear-id="${echoGear.instanceId}"`);
+    expect(html).toContain(`data-app-action="amplify" data-gear-id="${echoGear.instanceId}"`);
+    expect(html).toContain('data-echo-slot="true"');
   });
 
   it("renders current-class weapon appearances by weapon level in inventory rows", () => {

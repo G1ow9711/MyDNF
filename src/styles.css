@@ -926,6 +926,77 @@ p {
   gap: 14px;
 }
 
+.flow-checklist,
+.smith-gear-list {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.42);
+}
+
+.flow-checklist h3,
+.smith-gear-list h3 {
+  margin: 0;
+  color: #f8fafc;
+}
+
+.flow-grid,
+.shop-offer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.flow-step,
+.shop-offer,
+.smith-gear-row {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 10px;
+  border: 1px solid rgba(96, 165, 250, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.66);
+}
+
+.flow-step small,
+.shop-offer small,
+.smith-gear-row small {
+  color: #bfdbfe;
+  line-height: 1.45;
+}
+
+.flow-step-state {
+  width: fit-content;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #e0f2fe;
+  background: rgba(14, 165, 233, 0.2);
+}
+
+.flow-step-done .flow-step-state {
+  color: #dcfce7;
+  background: rgba(34, 197, 94, 0.2);
+}
+
+.flow-step-locked .flow-step-state {
+  color: #e5e7eb;
+  background: rgba(107, 114, 128, 0.34);
+}
+
+.smith-gear-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.shop-offer p,
+.shop-offer h4 {
+  margin: 0;
+}
+
 .settings-grid label {
   display: grid;
   gap: 6px;

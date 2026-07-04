@@ -117,6 +117,164 @@ function auctionDemandLabel(demandState: string): string {
   return "冷门";
 }
 
+type FlowStepState = "done" | "ready" | "locked";
+
+interface FlowStepView {
+  id: string;
+  label: string;
+  state: FlowStepState;
+  summary: string;
+  actionLabel: string;
+  mode?: string;
+  dungeonId?: string;
+}
+
+function flowStateLabel(state: FlowStepState): string {
+  if (state === "done") {
+    return "已打通";
+  }
+
+  if (state === "ready") {
+    return "可进行";
+  }
+
+  return "待解锁";
+}
+
+function questStatuses(state: GameState): string[] {
+  return Object.values(state.player.quests);
+}
+
+function hasEchoSlotGear(state: GameState): boolean {
+  return state.player.inventory.some((owned) => gearFor(owned)?.amplification.echoSlot);
+}
+
+function hasAuctionProgress(state: GameState): boolean {
+  return (
+    state.market.auctions.length > 0 ||
+    state.market.turn > 0 ||
+    Object.values(state.market.priceHistory).some((records) => records.length > 0)
+  );
+}
+
+function systemFlowSteps(state: GameState): FlowStepView[] {
+  const statuses = questStatuses(state);
+  const firstDungeonId = state.player.unlockedDungeons[0];
+  const hasReinforced = state.player.inventory.some((owned) => owned.reinforceLevel > 0);
+  const hasAmplified = state.player.inventory.some((owned) => owned.amplifyLevel > 0);
+  const hasShopProgress =
+    state.shop.purchasedSkus.length > 0 ||
+    state.shop.ownedCosmetics.length > 0 ||
+    Object.values(state.shop.boxes).some((count) => count > 0);
+
+  return [
+    {
+      id: "combat",
+      label: "地下城战斗",
+      state: statuses.includes("ready") || statuses.includes("completed") ? "done" : "ready",
+      summary: "进房间、击败怪物、结算掉落",
+      actionLabel: "进图",
+      dungeonId: firstDungeonId
+    },
+    {
+      id: "quest",
+      label: "剧情任务",
+      state: statuses.includes("completed") ? "done" : statuses.includes("ready") || statuses.includes("active") ? "ready" : "locked",
+      summary: "跟随主线领取系统解锁",
+      actionLabel: "查看",
+      mode: "town"
+    },
+    {
+      id: "inventory",
+      label: "装备背包",
+      state: Object.keys(state.player.equipment).length > 0 ? "done" : "ready",
+      summary: "装备、出售、分解、锁定",
+      actionLabel: "整理",
+      mode: "inventory"
+    },
+    {
+      id: "reinforce",
+      label: "装备强化",
+      state: hasReinforced ? "done" : isSystemUnlocked(state, "smith") ? "ready" : "locked",
+      summary: "指定任意装备强化等级",
+      actionLabel: "强化",
+      mode: "smith"
+    },
+    {
+      id: "amplify",
+      label: "装备增幅",
+      state: hasAmplified ? "done" : isSystemUnlocked(state, "amplification") || hasEchoSlotGear(state) ? "ready" : "locked",
+      summary: "异响槽装备获得额外流派属性",
+      actionLabel: "增幅",
+      mode: "smith"
+    },
+    {
+      id: "shop",
+      label: "商城礼包",
+      state: hasShopProgress ? "done" : isSystemUnlocked(state, "shop") ? "ready" : "ready",
+      summary: "礼包、材料包、时装包、随机箱",
+      actionLabel: "商城",
+      mode: "shop"
+    },
+    {
+      id: "trade",
+      label: "交易拍卖",
+      state: hasAuctionProgress(state)
+        ? "done"
+        : isSystemUnlocked(state, "auction") || isSystemUnlocked(state, "trade")
+          ? "ready"
+          : "locked",
+      summary: "NPC 交易、寄售、结算成交",
+      actionLabel: "交易",
+      mode: "auction"
+    },
+    {
+      id: "save",
+      label: "单机存档",
+      state: "ready",
+      summary: "自动保存，也可手动保存读取",
+      actionLabel: "存档",
+      mode: "settings"
+    }
+  ];
+}
+
+function flowActionAttributes(step: FlowStepView): string {
+  if (step.dungeonId) {
+    return `data-flow-action="${step.id}" data-enter-dungeon="${step.dungeonId}"`;
+  }
+
+  if (step.mode) {
+    return `data-flow-action="${step.id}" data-mode="${step.mode}"`;
+  }
+
+  return `data-flow-action="${step.id}"`;
+}
+
+function renderSystemFlowChecklist(state: GameState): string {
+  const rows = systemFlowSteps(state)
+    .map(
+      (step) => `
+        <article class="flow-step flow-step-${step.state}" data-flow-step="${step.id}" data-flow-state="${step.state}">
+          <span class="flow-step-state">${flowStateLabel(step.state)}</span>
+          <strong>${step.label}</strong>
+          <small>${step.summary}</small>
+          <button ${flowActionAttributes(step)} ${step.state === "locked" ? "disabled" : ""}>${step.actionLabel}</button>
+        </article>
+      `
+    )
+    .join("");
+
+  return `
+    <div class="flow-checklist" data-flow-checklist="true">
+      <h3>功能闭环</h3>
+      <div class="flow-grid">
+        ${rows}
+      </div>
+    </div>
+  `;
+}
+
 export function renderClassPanel(state: GameState): string {
   const currentClass = catalog.classes.find((classDef) => classDef.id === state.player.classId) ?? catalog.classes[0];
   const currentAdvancement = currentClass.advancements.find((advancement) => advancement.id === state.player.advancementId);
@@ -250,6 +408,27 @@ export function renderSmithPanel(state: GameState): string {
   const selected = state.player.inventory[0];
   const selectedName = selected ? gearName(selected) : "无装备";
   const gearAttribute = selected ? `data-gear-id="${selected.instanceId}"` : "";
+  const gearRows = state.player.inventory
+    .slice(0, 12)
+    .map((owned) => {
+      const gear = gearFor(owned);
+      const echoSlot = Boolean(gear?.amplification.echoSlot);
+      const rarityText = gear ? `${gear.rarity} · Lv.${gear.level}` : "未知装备";
+
+      return `
+        <li class="smith-gear-row" data-smith-gear-id="${owned.instanceId}" data-echo-slot="${echoSlot}">
+          <div>
+            <span>${gearName(owned)}</span>
+            <small>${rarityText} · 强化 +${owned.reinforceLevel} · 增幅 +${owned.amplifyLevel}${echoSlot ? "" : " · 无异响槽"}</small>
+          </div>
+          <div class="inventory-actions">
+            <button data-app-action="reinforce" data-gear-id="${owned.instanceId}">强化</button>
+            <button data-app-action="amplify" data-gear-id="${owned.instanceId}" ${echoSlot ? "" : "disabled"}>增幅</button>
+          </div>
+        </li>
+      `;
+    })
+    .join("");
 
   return panel(
     "强化 / 增幅",
@@ -263,6 +442,10 @@ export function renderSmithPanel(state: GameState): string {
           <button data-app-action="amplify" ${gearAttribute} aria-label="增幅">增幅</button>
         </div>
         <p>保护券 ${state.player.currencies.protectionTicket}</p>
+      </div>
+      <div class="smith-gear-list" data-smith-gear-list="true">
+        <h3>选择装备</h3>
+        <ul class="dense-list">${gearRows || "<li>背包为空</li>"}</ul>
       </div>
     `
   );
@@ -310,6 +493,45 @@ export function renderAuctionPanel(state: GameState): string {
 export function renderShopPanel(state: GameState): string {
   const rates = getBoxRates("ember-mythic-box");
   const rateText = rates.entries.map((entry) => `${entry.rarity} ${(entry.rate * 100).toFixed(0)}%`).join(" / ");
+  const boxCount = state.shop.boxes["ember-mythic-box"] ?? 0;
+  const shopOffers = [
+    {
+      sku: "liuli-gift-pack",
+      label: "琉璃市集礼包",
+      detail: "时装、史诗戒指、弧晶、保护券、随机箱",
+      cost: "勇气币 3",
+      buttonLabel: "购买礼包",
+      disabled: state.player.currencies.valorToken < 3
+    },
+    {
+      sku: "reinforcement-pack",
+      label: "强化支援礼包",
+      detail: "金币、铁尘、保护券，适合先冲强化等级",
+      cost: "勇气币 1",
+      buttonLabel: "购买",
+      disabled: state.player.currencies.valorToken < 1
+    },
+    {
+      sku: "forge-costume-pack",
+      label: "锻炉时装礼包",
+      detail: "外观时装和随机箱，优先补角色外观收藏",
+      cost: "勇气币 2",
+      buttonLabel: "购买",
+      disabled: state.player.currencies.valorToken < 2
+    }
+  ];
+  const shopRows = shopOffers
+    .map(
+      (offer) => `
+        <article class="shop-offer" data-shop-offer="${offer.sku}">
+          <h4>${offer.label}</h4>
+          <p>${offer.detail}</p>
+          <small>${offer.cost}</small>
+          <button data-shop-sku="${offer.sku}" ${offer.disabled ? "disabled" : ""}>${offer.buttonLabel}</button>
+        </article>
+      `
+    )
+    .join("");
 
   return panel(
     "商城",
@@ -318,11 +540,12 @@ export function renderShopPanel(state: GameState): string {
       <div class="panel-grid">
         <div>
           <h3>礼包</h3>
-          <p>琉璃市集礼包 · 强化支援礼包 · 锻炉时装礼包</p>
+          <div class="shop-offer-grid">
+            ${shopRows}
+          </div>
           <p>时装 ${state.shop.ownedCosmetics.length} 件</p>
           <div class="action-row">
-            <button data-shop-sku="liuli-gift-pack">购买礼包</button>
-            <button data-box-id="ember-mythic-box">开启箱子</button>
+            <button data-box-id="ember-mythic-box" ${boxCount > 0 ? "" : "disabled"}>开启箱子 ${boxCount}</button>
           </div>
         </div>
         <div>
@@ -348,6 +571,7 @@ export function renderQuestPanel(state: GameState): string {
         } · 增幅 ${isSystemUnlocked(state, "amplification") ? "已解锁" : "未解锁"}</p>
         <button data-quest-id="${readyQuest?.[0] ?? ""}" ${readyQuest ? "" : "disabled"}>领取奖励</button>
       </div>
+      ${renderSystemFlowChecklist(state)}
     `
   );
 }

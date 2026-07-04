@@ -784,16 +784,40 @@ function selectedGearId(state: GameState, explicitGearId?: string): string {
   return gearId;
 }
 
+const maxPlayerLevel = 50;
+const experiencePerLevel = 100;
+
+function applyExperience(player: GameState["player"], gainedExperience: number): GameState["player"] {
+  let level = player.level;
+  let experience = player.experience + Math.max(0, Math.floor(gainedExperience));
+
+  while (experience >= experiencePerLevel && level < maxPlayerLevel) {
+    experience -= experiencePerLevel;
+    level += 1;
+  }
+
+  if (level >= maxPlayerLevel) {
+    experience = Math.min(experience, experiencePerLevel - 1);
+  }
+
+  return {
+    ...player,
+    level,
+    experience
+  };
+}
+
 function applyCombatLoot(state: GameState, loot: CombatLootEvent): GameState {
+  const playerWithExperience = applyExperience(state.player, loot.experience);
   let next: GameState = {
     ...state,
     player: {
-      ...state.player,
+      ...playerWithExperience,
       currencies: {
-        ...state.player.currencies,
-        gold: state.player.currencies.gold + loot.gold,
-        ironDust: state.player.currencies.ironDust + loot.ironDust,
-        arcShard: state.player.currencies.arcShard + loot.arcShard
+        ...playerWithExperience.currencies,
+        gold: playerWithExperience.currencies.gold + loot.gold,
+        ironDust: playerWithExperience.currencies.ironDust + loot.ironDust,
+        arcShard: playerWithExperience.currencies.arcShard + loot.arcShard
       }
     }
   };

@@ -215,6 +215,18 @@ describe("town app shell", () => {
     expect(renderAppHtml({ state, mode: "combat", combatRun: activeBossRun })).toContain(
       'data-enemy-skill-vfx="taotie-flame-breath"'
     );
+    expect(renderAppHtml({ state, mode: "combat", combatRun: activeBossRun })).toContain(
+      'data-enemy-attack-hit-index="1"'
+    );
+    expect(renderAppHtml({ state, mode: "combat", combatRun: activeBossRun })).toContain(
+      'data-enemy-attack-total-hits="3"'
+    );
+    expect(renderAppHtml({ state, mode: "combat", combatRun: activeBossRun })).toContain(
+      'data-enemy-vfx-cue="taotie-flame-breath-sustain"'
+    );
+    expect(renderAppHtml({ state, mode: "combat", combatRun: activeBossRun })).toContain(
+      'actor-enemy-skill-taotie-flame-breath'
+    );
     expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain(
       'data-telegraph-phase="windup"'
     );

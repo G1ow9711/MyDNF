@@ -233,3 +233,9 @@
 - RED evidence: focused combat/app/UI tests failed because enemies placed between the dash start and landing point produced 0 `prism-step` hit events.
 - Implementation now selects targets along the start-to-end dash path, keeps the player landing movement, hits up to two path targets, adds `pierce` hit phase and `prism-pierce` VFX cue, and applies a short stagger to the pierced enemies.
 - UI/CSS now has dedicated `liuli-step` player dash, `prism-dash` weapon motion, `prism-afterimage` cast VFX, and target-bound `prism-afterimage` pierce bursts.
+
+## Monster Skill Pattern Findings
+- User clarified the acceptance split again: lightweight character/monster model detail is acceptable for now, but combat animation smoothness, hit feel, player/enemy action changes, skill VFX, and monster skill VFX remain strict.
+- Current monster attacks already have windup/active/miss phases and player HP damage, but trash, elite, and boss attacks are still mostly single-impact patterns with a shared `actor-model-attack` lunge.
+- Read-only UI audit found the largest visible gap is result feedback: active/miss monster skill VFX is anchored on the enemy, player hit/dodge motion changes, but there is no target-side combat feedback node for enemy skill hit or miss.
+- Next slice should add testable enemy-skill metadata and DOM hooks: boss `taotie-flame-breath` as a sustained multi-hit breath, plus generic target-side feedback for monster skill hit/miss.

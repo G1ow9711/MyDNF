@@ -1298,3 +1298,39 @@
   - Browser validation on `http://127.0.0.1:5174/.codex-local/tmp/prism-step-vfx-check.html`: confirmed player landed at 35.83% scene X, 2 `prism-step` impact bursts, 2 hit sparks, 2 damage numbers, 2 target ids, phases `pierce/pierce`, cues `prism-pierce/prism-pierce`, hitstop active, skill shake, player animation `player-liuli-step-dash`, weapon animation `weapon-prism-dash`, cast animation `prism-afterimage-core`, and impact animation `prism-pierce-core`.
   - Browser console error log: empty.
   - Browser screenshot saved at `.codex-local/tmp/prism-step-vfx-check.png`.
+
+## Task 47 Monster Skill Pattern and Feedback
+- Started after user clarified that simpler character/monster model detail is acceptable only for model fidelity; combat action smoothness, hit feel, skill VFX, monster skill VFX, and action-state changes stay strict.
+- Used two read-only parallel agents:
+  - `019f2e8f-d2c0-7552-b6f9-433365c12ecf` audited monster combat logic and recommended scheduled impact-time enemy skill feedback cues.
+  - `019f2e8f-ffab-76d0-99f0-46cc0df585b2` audited UI/CSS and recommended target-side hit/miss feedback nodes plus skill-specific enemy attack motion.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires monster damage and player hurt locks to resolve on the scheduled `impactAtMs`, with enemy skill VFX metadata and player feedback cues.
+  - `src/tests/combat.test.ts` requires boss `taotie-flame-breath` to become a three-pulse sustained attack instead of a single impact.
+  - `src/tests/app-integration.test.ts` requires target-side hit and miss feedback nodes for monster skills.
+  - `src/tests/ui-smoke.test.ts` requires boss flame-breath DOM metadata for pulse index, total hits, VFX cue, and boss-specific attack model class.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts` failed because monster impact events used current tick time `440` instead of scheduled time `360`, boss fire breath emitted only one active event, and UI had no `data-combat-feedback` or boss pulse metadata.
+- Implemented:
+  - Added enemy skill VFX cues, player feedback cues, pulse indexes, total hit counts, and VFX windows to monster attack/player-hit events.
+  - Monster impacts now resolve at the scheduled impact time instead of the later combat tick time, so hitstop, hurt lock, invulnerability, and VFX timing line up with the skill frame.
+  - `taotie-flame-breath` is now a three-pulse sustained boss attack with shorter per-pulse invulnerability and boss-specific model motion/VFX.
+  - UI now renders target-side `combat-feedback` nodes for monster skill hit and miss results, plus monster-skill metadata on active VFX and actor nodes.
+  - CSS now has skill-specific monster attack animations for ash spit, zheng stomp, and taotie breath, plus hit/miss feedback animations and wider sustained flame-breath VFX.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 110 tests.
+  - `npm test`: pass, 13 files and 206 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Browser DOM validation on `http://127.0.0.1:5174/.codex-local/tmp/monster-skill-vfx-check.html`: confirmed boss skill `taotie-flame-breath`, cue `taotie-flame-breath-sustain`, hit index `1`, total hits `3`, boss model marker `actor-enemy-skill-taotie-flame-breath`, hit feedback `enemy-skill-hit`, miss feedback `enemy-skill-miss`, and miss phase `miss`.
+  - Browser screenshot saved at `.codex-local/tmp/monster-skill-vfx-check.png`.
+- Code review follow-up:
+  - Read-only review found that active enemy skill events could show HIT feedback without a matching `player-hit` event when invulnerability absorbed the attack, and that interrupted boss pulses could leave `attackResolvedHits` in DOM state.
+  - Added RED regression coverage for invulnerability-absorbed monster skills and interrupted boss pulse cleanup.
+  - UI hit feedback now requires a matching recent `player-hit` event; miss feedback still follows actual enemy `miss` events.
+  - Attack interruption and airborne/downed cleanup now also clear `attackResolvedHits`.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts`: pass, 92 tests.
+  - Final `npm test`: pass, 13 files and 208 tests.
+  - Final `npm run build`: pass.
+  - Final `git diff --check`: pass with Windows line-ending warnings only.
+  - Final browser DOM check reconfirmed boss `taotie-flame-breath` three-hit metadata and both `enemy-skill-hit` / `enemy-skill-miss` feedback nodes.

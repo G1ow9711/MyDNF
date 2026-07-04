@@ -13,8 +13,10 @@ import {
   performAction,
   roomGateForRun,
   stepCombat,
+  type CombatEnemyAttackEvent,
   type CombatEnemy,
   type CombatHitEvent,
+  type CombatPlayerHitEvent,
   type CombatRun
 } from "../game/combat";
 import { mapKeyboardToCombatInput } from "../game/input";
@@ -888,6 +890,102 @@ describe("enemy attacks and player defeat", () => {
         })
       ])
     );
+  });
+
+  it("resolves monster skill damage on the scheduled impact frame with feedback cues", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const telegraph = stepCombat(run, {}, 80);
+    const windup = telegraph.events.find(
+      (event) => event.kind === "enemy-attack" && event.skillId === "ash-ember-spit" && event.phase === "windup"
+    );
+    const impacted = stepCombat(telegraph, {}, 360);
+    const active = impacted.events.find(
+      (event) => event.kind === "enemy-attack" && event.skillId === "ash-ember-spit" && event.phase === "active"
+    );
+    const playerHit = impacted.events.find(
+      (event) => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(windup).toMatchObject({ impactAtMs: 360 });
+    expect(active).toMatchObject({
+      occurredAtMs: 360,
+      impactAtMs: 360,
+      hitIndex: 1,
+      totalHits: 1,
+      vfxCue: "ash-ember-spit-impact",
+      vfxWindowMs: 360
+    });
+    expect(playerHit).toMatchObject({
+      damage: 28,
+      occurredAtMs: 360,
+      hitstopMs: 36,
+      hitIndex: 1,
+      totalHits: 1,
+      feedbackCue: "player-hurt-light"
+    });
+    expect(impacted.player.hitstopUntilMs).toBe(396);
+    expect(impacted.player.hurtLockUntilMs).toBe(780);
+    expect(impacted.player.invulnerableUntilMs).toBe(920);
+  });
+
+  it("makes taotie flame breath a sustained multi-hit boss skill", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      kind: "boss",
+      hp: 520,
+      maxHp: 520,
+      armor: 80,
+      nextAttackAtMs: 1
+    });
+    const telegraph = stepCombat(run, {}, 80);
+    const firstPulse = stepCombat(telegraph, {}, 430);
+    const secondPulse = stepCombat(firstPulse, {}, 180);
+    const thirdPulse = stepCombat(secondPulse, {}, 180);
+    const attackPulses = thirdPulse.events.filter(
+      (event): event is CombatEnemyAttackEvent =>
+        event.kind === "enemy-attack" && event.skillId === "taotie-flame-breath" && event.phase === "active"
+    );
+    const playerHits = thirdPulse.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-flame-breath"
+    );
+
+    expect(attackPulses).toHaveLength(3);
+    expect(attackPulses.map((event) => event.occurredAtMs)).toEqual([500, 680, 860]);
+    expect(attackPulses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ hitIndex: 1, totalHits: 3, vfxCue: "taotie-flame-breath-sustain" }),
+        expect.objectContaining({ hitIndex: 2, totalHits: 3, vfxCue: "taotie-flame-breath-sustain" }),
+        expect.objectContaining({ hitIndex: 3, totalHits: 3, vfxCue: "taotie-flame-breath-sustain" })
+      ])
+    );
+    expect(playerHits).toHaveLength(3);
+    expect(playerHits.map((event) => event.occurredAtMs)).toEqual([500, 680, 860]);
+    expect(thirdPulse.enemies[0].attackHitResolved).toBe(true);
+  });
+
+  it("clears boss skill pulse state when a status hit interrupts the attack", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      kind: "boss",
+      hp: 520,
+      maxHp: 520,
+      armor: 80,
+      nextAttackAtMs: 1
+    });
+    const telegraph = stepCombat(run, {}, 80);
+    const firstPulse = stepCombat(telegraph, {}, 430);
+    const interrupted = applyHit(firstPulse, {
+      id: "test-stagger-taotie-breath",
+      targetId: firstPulse.enemies[0].id,
+      damage: 1,
+      hitstopMs: 40,
+      knockback: 0,
+      juggle: false,
+      statusTags: ["stagger"]
+    });
+
+    expect(firstPulse.enemies[0].attackResolvedHits).toBe(1);
+    expect(interrupted.enemies[0].attackSkillId).toBeUndefined();
+    expect(interrupted.enemies[0].attackHitResolved).toBeUndefined();
+    expect(interrupted.enemies[0].attackResolvedHits).toBeUndefined();
   });
 
   it("builds iron guard resource when the guardian is hit", () => {

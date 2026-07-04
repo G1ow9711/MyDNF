@@ -378,11 +378,37 @@ function latestPlayerHitEvent(run: CombatRun): CombatPlayerHitEvent | undefined 
     );
 }
 
+function matchingPlayerHitEvent(run: CombatRun, attackEvent: CombatEnemyAttackEvent): CombatPlayerHitEvent | undefined {
+  return [...run.events].reverse().find((event): event is CombatPlayerHitEvent => {
+    if (event.kind !== "player-hit") {
+      return false;
+    }
+
+    const age = eventAge(run, event.occurredAtMs);
+
+    return (
+      age >= 0 &&
+      age <= (event.vfxWindowMs ?? recentHitWindowMs) &&
+      event.enemyId === attackEvent.enemyId &&
+      event.skillId === attackEvent.skillId &&
+      event.occurredAtMs === attackEvent.occurredAtMs &&
+      (attackEvent.hitIndex === undefined || event.hitIndex === attackEvent.hitIndex)
+    );
+  });
+}
+
 function recentEnemyAttackEvents(run: CombatRun): CombatEnemyAttackEvent[] {
   const latestByEnemy = new Map<string, CombatEnemyAttackEvent>();
 
   for (const event of run.events) {
-    if (event.kind === "enemy-attack" && run.elapsedMs - event.occurredAtMs <= recentEnemyAttackWindowMs) {
+    if (event.kind !== "enemy-attack") {
+      continue;
+    }
+
+    const age = run.elapsedMs - event.occurredAtMs;
+    const windowMs = event.vfxWindowMs ?? recentEnemyAttackWindowMs;
+
+    if (age >= 0 && age <= windowMs) {
       latestByEnemy.set(event.enemyId, event);
     }
   }
@@ -691,10 +717,19 @@ function renderCombatVfx(run: CombatRun): string {
       const skillVfx =
         event.phase !== "windup"
           ? `
-            <div class="enemy-skill-vfx enemy-skill-${effect.id}" data-enemy-id="${enemy.id}" data-enemy-skill-vfx="${effect.id}" data-enemy-attack-phase="${event.phase}" aria-label="${effect.label}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+            <div class="enemy-skill-vfx enemy-skill-${effect.id}" data-enemy-id="${enemy.id}" data-enemy-skill-vfx="${effect.id}" data-enemy-attack-phase="${event.phase}" data-enemy-attack-hit-index="${event.hitIndex ?? ""}" data-enemy-attack-total-hits="${event.totalHits ?? ""}" data-enemy-vfx-cue="${event.vfxCue ?? ""}" aria-label="${effect.label}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
               <span class="enemy-cast-ring"></span>
               <span class="enemy-cast-core"></span>
               <span class="enemy-cast-trail"></span>
+            </div>
+          `
+          : "";
+      const feedbackResult = matchingPlayerHitEvent(run, event) ? "hit" : event.phase === "miss" ? "miss" : "";
+      const feedback =
+        feedbackResult !== ""
+          ? `
+            <div class="combat-feedback combat-feedback-${feedbackResult}" data-combat-feedback="enemy-skill-${feedbackResult}" data-feedback-skill-id="${effect.id}" data-feedback-result="${feedbackResult}" data-enemy-id="${enemy.id}" data-enemy-attack-hit-index="${event.hitIndex ?? ""}" data-enemy-attack-total-hits="${event.totalHits ?? ""}" data-enemy-vfx-cue="${event.vfxCue ?? ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+              <span class="combat-feedback-text">${feedbackResult === "miss" ? "MISS" : "HIT"}</span>
             </div>
           `
           : "";
@@ -702,6 +737,7 @@ function renderCombatVfx(run: CombatRun): string {
       return `
         ${telegraph}
         ${skillVfx}
+        ${feedback}
       `;
     })
     .join("");
@@ -727,16 +763,17 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const enemyState = enemy.hp > 0 ? "alive" : "defeated";
       const hpPercent = enemyHpPercent(enemy);
       const motion = enemyMotion(enemy, hitTargetIds.has(enemy.id) ? enemy.id : undefined, run.elapsedMs);
+      const enemySkillMotionClass = enemy.attackSkillId ? `actor-enemy-skill-${enemy.attackSkillId}` : "";
       const hitRecent = hitTargetIds.has(enemy.id);
       const controlState = enemyControlState(enemy, run.elapsedMs);
       const airborneState = enemyAirborneState(enemy);
       const armorState = enemyArmorState(enemy, run.elapsedMs);
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
-            <img class="enemy-art actor-model actor-model-${motion}" style="${enemyModelMotionStyle(run, enemy)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
+            <img class="enemy-art actor-model actor-model-${motion}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
           </div>
           <div class="enemy-health" aria-label="${enemy.displayName} HP ${enemy.hp}/${enemy.maxHp}">
             <span class="enemy-health-fill" style="--hp: ${hpPercent}%;"></span>

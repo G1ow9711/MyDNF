@@ -1347,7 +1347,79 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('class="combat-player-art actor-model actor-model-hit"');
     expect(hitHtml).toContain('data-enemy-attack-phase="active"');
     expect(hitHtml).toContain('data-enemy-skill-vfx="ash-ember-spit"');
+    expect(hitHtml).toContain('data-combat-feedback="enemy-skill-hit"');
+    expect(hitHtml).toContain('data-feedback-skill-id="ash-ember-spit"');
+    expect(hitHtml).toContain('data-feedback-result="hit"');
+    expect(hitHtml).toContain('class="combat-feedback combat-feedback-hit"');
     expect(hitHtml).not.toContain('data-enemy-telegraph="ash-ember-spit"');
+  });
+
+  it("renders target-side feedback when the player dodges a monster skill", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = readyFirstEnemyAttack(model);
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: {
+          ...model.combatRun.player,
+          y: model.combatRun.arena.maxY
+        }
+      }
+    };
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const missHtml = renderAppHtml(model);
+
+    expect(missHtml).toContain('data-enemy-skill-vfx="ash-ember-spit"');
+    expect(missHtml).toContain('data-enemy-attack-phase="miss"');
+    expect(missHtml).not.toContain('data-enemy-telegraph="ash-ember-spit"');
+    expect(missHtml).toContain('data-combat-feedback="enemy-skill-miss"');
+    expect(missHtml).toContain('data-feedback-skill-id="ash-ember-spit"');
+    expect(missHtml).toContain('data-feedback-result="miss"');
+    expect(missHtml).toContain('class="combat-feedback combat-feedback-miss"');
+  });
+
+  it("does not render hit feedback when invulnerability absorbs an active monster skill", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = readyFirstEnemyAttack(model);
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: {
+          ...model.combatRun.player,
+          invulnerableUntilMs: model.combatRun.elapsedMs + 1000
+        }
+      }
+    };
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const absorbedHtml = renderAppHtml(model);
+    const playerHitEvents = model.combatRun?.events.filter((event) => event.kind === "player-hit") ?? [];
+
+    expect(absorbedHtml).toContain('data-enemy-skill-vfx="ash-ember-spit"');
+    expect(absorbedHtml).toContain('data-enemy-attack-phase="active"');
+    expect(playerHitEvents).toHaveLength(0);
+    expect(absorbedHtml).not.toContain('data-combat-feedback="enemy-skill-hit"');
   });
 
   it("stops monster attack model motion after the attack recovery ends", () => {

@@ -9,6 +9,11 @@ export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "t
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
 export type CombatHitPhase = "fall" | "impact" | "rain" | "pierce";
 export type CombatVfxCue = "meteor-fall" | "meteor-impact" | "glass-rain-fall" | "prism-pierce";
+export type CombatEnemyVfxCue =
+  | "ash-ember-spit-impact"
+  | "zheng-shockwave-impact"
+  | "taotie-flame-breath-sustain";
+export type CombatPlayerFeedbackCue = "player-hurt-light" | "player-hurt-heavy" | "player-hurt-boss-breath";
 
 export interface CombatVector {
   x: number;
@@ -34,6 +39,7 @@ export interface CombatEnemy {
   attackRecoverUntilMs?: number;
   attackSkillId?: string;
   attackHitResolved?: boolean;
+  attackResolvedHits?: number;
   controlledUntilMs?: number;
   armorBrokenUntilMs?: number;
   statusSourceSkillId?: string;
@@ -134,6 +140,10 @@ export interface CombatEnemyAttackEvent {
   phase: "windup" | "active" | "miss";
   occurredAtMs: number;
   impactAtMs: number;
+  hitIndex?: number;
+  totalHits?: number;
+  vfxCue?: CombatEnemyVfxCue;
+  vfxWindowMs?: number;
 }
 
 export interface CombatPlayerHitEvent {
@@ -144,6 +154,10 @@ export interface CombatPlayerHitEvent {
   damage: number;
   occurredAtMs: number;
   hitstopMs: number;
+  hitIndex?: number;
+  totalHits?: number;
+  feedbackCue?: CombatPlayerFeedbackCue;
+  vfxWindowMs?: number;
 }
 
 export type CombatEvent = CombatHitEvent | CombatMissEvent | CombatRoomClearedEvent | CombatEnemyAttackEvent | CombatPlayerHitEvent;
@@ -207,6 +221,13 @@ interface EnemyAttackDefinition {
   cooldownMs: number;
   hitstopMs: number;
   knockback: number;
+  hitCount: number;
+  hitIntervalMs: number;
+  vfxCue: CombatEnemyVfxCue;
+  vfxWindowMs: number;
+  feedbackCue: CombatPlayerFeedbackCue;
+  invulnerabilityMs: number;
+  hurtLockMs: number;
 }
 
 interface PlayerHitboxDefinition {
@@ -270,14 +291,21 @@ function enemyAttackDefinition(kind: EnemyKind): EnemyAttackDefinition {
   if (kind === "boss") {
     return {
       skillId: "taotie-flame-breath",
-      damage: 88,
-      rangeX: 310,
+      damage: 44,
+      rangeX: 330,
       laneRange: 86,
       windupMs: 420,
       recoveryMs: 360,
       cooldownMs: 2200,
       hitstopMs: 60,
-      knockback: 84
+      knockback: 42,
+      hitCount: 3,
+      hitIntervalMs: 180,
+      vfxCue: "taotie-flame-breath-sustain",
+      vfxWindowMs: 520,
+      feedbackCue: "player-hurt-boss-breath",
+      invulnerabilityMs: 120,
+      hurtLockMs: 260
     };
   }
 
@@ -291,7 +319,14 @@ function enemyAttackDefinition(kind: EnemyKind): EnemyAttackDefinition {
       recoveryMs: 300,
       cooldownMs: 1800,
       hitstopMs: 48,
-      knockback: 64
+      knockback: 64,
+      hitCount: 1,
+      hitIntervalMs: 0,
+      vfxCue: "zheng-shockwave-impact",
+      vfxWindowMs: 420,
+      feedbackCue: "player-hurt-heavy",
+      invulnerabilityMs: 560,
+      hurtLockMs: 420
     };
   }
 
@@ -304,7 +339,14 @@ function enemyAttackDefinition(kind: EnemyKind): EnemyAttackDefinition {
     recoveryMs: 240,
     cooldownMs: 1500,
     hitstopMs: 36,
-    knockback: 42
+    knockback: 42,
+    hitCount: 1,
+    hitIntervalMs: 0,
+    vfxCue: "ash-ember-spit-impact",
+    vfxWindowMs: 360,
+    feedbackCue: "player-hurt-light",
+    invulnerabilityMs: 560,
+    hurtLockMs: 420
   };
 }
 
@@ -936,7 +978,8 @@ function updateEnemyAirStates(run: CombatRun): CombatRun {
           attackImpactAtMs: undefined,
           attackRecoverUntilMs: undefined,
           attackSkillId: undefined,
-          attackHitResolved: undefined
+          attackHitResolved: undefined,
+          attackResolvedHits: undefined
         };
       }
 
@@ -1050,7 +1093,8 @@ function clearRecoveredAttack(enemy: CombatEnemy, elapsedMs: number): CombatEnem
       attackImpactAtMs: undefined,
       attackRecoverUntilMs: undefined,
       attackSkillId: undefined,
-      attackHitResolved: undefined
+      attackHitResolved: undefined,
+      attackResolvedHits: undefined
     };
   }
 
@@ -1073,15 +1117,17 @@ function beginEnemyAttack(enemy: CombatEnemy, elapsedMs: number): { enemy: Comba
 
   const attack = enemyAttackDefinition(recovered.kind);
   const impactAtMs = elapsedMs + attack.windupMs;
+  const finalImpactAtMs = impactAtMs + (attack.hitCount - 1) * attack.hitIntervalMs;
 
   return {
     enemy: {
       ...recovered,
       attackStartedAtMs: elapsedMs,
       attackImpactAtMs: impactAtMs,
-      attackRecoverUntilMs: impactAtMs + attack.recoveryMs,
+      attackRecoverUntilMs: finalImpactAtMs + attack.recoveryMs,
       attackSkillId: attack.skillId,
       attackHitResolved: false,
+      attackResolvedHits: 0,
       nextAttackAtMs: elapsedMs + attack.cooldownMs
     },
     event: {
@@ -1091,7 +1137,8 @@ function beginEnemyAttack(enemy: CombatEnemy, elapsedMs: number): { enemy: Comba
       skillId: attack.skillId,
       phase: "windup",
       occurredAtMs: elapsedMs,
-      impactAtMs
+      impactAtMs,
+      totalHits: attack.hitCount
     }
   };
 }
@@ -1113,97 +1160,129 @@ function applyEnemyImpact(
     enemy.hp <= 0 ||
     !enemy.attackSkillId ||
     enemy.attackImpactAtMs === undefined ||
-    enemy.attackHitResolved ||
     elapsedMs < enemy.attackImpactAtMs
   ) {
     return { enemy, player, events: [], failed: player.defeated };
   }
 
   const attack = enemyAttackDefinition(enemy.kind);
-  const inRange = playerInEnemyAttackRange(enemy, player, attack);
-  const evaded = inRange && elapsedMs < player.evadeUntilMs;
-  const phase = inRange && !evaded ? "active" : "miss";
-  const attackEvent: CombatEnemyAttackEvent = {
-    kind: "enemy-attack",
-    id: `enemy-attack-${elapsedMs}-${enemy.id}-${phase}`,
-    enemyId: enemy.id,
-    skillId: attack.skillId,
-    phase,
-    occurredAtMs: elapsedMs,
-    impactAtMs: enemy.attackImpactAtMs
-  };
-  const resolvedEnemy = {
-    ...enemy,
-    attackHitResolved: true
-  };
+  let resolvedHits = enemy.attackResolvedHits ?? (enemy.attackHitResolved ? attack.hitCount : 0);
+  let nextEnemy: CombatEnemy = enemy;
+  let nextPlayer: CombatPlayer = player;
+  let failed = player.defeated;
+  const events: CombatEvent[] = [];
 
-  if (phase === "miss" || player.defeated || elapsedMs < player.invulnerableUntilMs) {
-    return { enemy: resolvedEnemy, player, events: [attackEvent], failed: player.defeated };
-  }
+  while (resolvedHits < attack.hitCount) {
+    const hitTime = enemy.attackImpactAtMs + resolvedHits * attack.hitIntervalMs;
 
-  if (elapsedMs < player.reflectUntilMs) {
-    const reflectDamage = Math.max(1, Math.round(attack.damage * 0.65));
-    const armorDamage = Math.min(resolvedEnemy.armor, reflectDamage);
-    const hpDamage = reflectDamage - armorDamage;
-    const reflectedEnemy: CombatEnemy = {
-      ...resolvedEnemy,
-      hp: Math.max(0, resolvedEnemy.hp - hpDamage),
-      armor: Math.max(0, resolvedEnemy.armor - armorDamage)
+    if (elapsedMs < hitTime) {
+      break;
+    }
+
+    const hitIndex = resolvedHits + 1;
+    const inRange = playerInEnemyAttackRange(nextEnemy, nextPlayer, attack);
+    const evaded = inRange && hitTime < nextPlayer.evadeUntilMs;
+    const phase = inRange && !evaded ? "active" : "miss";
+    const attackEvent: CombatEnemyAttackEvent = {
+      kind: "enemy-attack",
+      id: `enemy-attack-${hitTime}-${enemy.id}-${phase}-${hitIndex}`,
+      enemyId: enemy.id,
+      skillId: attack.skillId,
+      phase,
+      occurredAtMs: hitTime,
+      impactAtMs: hitTime,
+      hitIndex,
+      totalHits: attack.hitCount,
+      vfxCue: attack.vfxCue,
+      vfxWindowMs: attack.vfxWindowMs
     };
-    const reflectEvent: CombatHitEvent = {
-      kind: "hit",
-      id: `hit-${elapsedMs}-mirror-reflect-${enemy.id}`,
-      action: "skill",
-      skillId: "mirror-reflect",
-      targetId: enemy.id,
-      damage: reflectDamage,
-      occurredAtMs: elapsedMs,
-      inputToHitMs: 0,
+
+    resolvedHits = hitIndex;
+    nextEnemy = {
+      ...nextEnemy,
+      attackResolvedHits: resolvedHits,
+      attackHitResolved: resolvedHits >= attack.hitCount
+    };
+    events.push(attackEvent);
+
+    if (phase === "miss" || nextPlayer.defeated || hitTime < nextPlayer.invulnerableUntilMs) {
+      failed = failed || nextPlayer.defeated;
+      continue;
+    }
+
+    if (hitTime < nextPlayer.reflectUntilMs) {
+      const reflectDamage = Math.max(1, Math.round(attack.damage * 0.65));
+      const armorDamage = Math.min(nextEnemy.armor, reflectDamage);
+      const hpDamage = reflectDamage - armorDamage;
+      const reflectedEnemy: CombatEnemy = {
+        ...nextEnemy,
+        hp: Math.max(0, nextEnemy.hp - hpDamage),
+        armor: Math.max(0, nextEnemy.armor - armorDamage)
+      };
+      const reflectEvent: CombatHitEvent = {
+        kind: "hit",
+        id: `hit-${hitTime}-mirror-reflect-${enemy.id}-${hitIndex}`,
+        action: "skill",
+        skillId: "mirror-reflect",
+        targetId: enemy.id,
+        damage: reflectDamage,
+        occurredAtMs: hitTime,
+        inputToHitMs: 0,
+        hitstopMs: attack.hitstopMs,
+        canceledFromCombo: false,
+        statusTags: ["reflect"]
+      };
+
+      nextEnemy = reflectedEnemy;
+      nextPlayer = {
+        ...nextPlayer,
+        reflectUntilMs: hitTime
+      };
+      events.push(reflectEvent);
+      continue;
+    }
+
+    const shieldActive = hitTime < nextPlayer.shieldUntilMs;
+    const mitigation = shieldActive ? clamp(nextPlayer.shieldReduction, 0, 0.85) : 0;
+    const damage = Math.max(1, Math.round(attack.damage * combatProfile.damageTakenMultiplier * (1 - mitigation)));
+    const nextHp = Math.max(0, nextPlayer.hp - damage);
+    const nextFacing: 1 | -1 = nextEnemy.position.x >= nextPlayer.x ? 1 : -1;
+    const hitEvent: CombatPlayerHitEvent = {
+      kind: "player-hit",
+      id: `player-hit-${hitTime}-${enemy.id}-${hitIndex}`,
+      enemyId: enemy.id,
+      skillId: attack.skillId,
+      damage,
+      occurredAtMs: hitTime,
       hitstopMs: attack.hitstopMs,
-      canceledFromCombo: false,
-      statusTags: ["reflect"]
+      hitIndex,
+      totalHits: attack.hitCount,
+      feedbackCue: attack.feedbackCue,
+      vfxWindowMs: attack.vfxWindowMs
+    };
+    const damagedPlayer: CombatPlayer = {
+      ...nextPlayer,
+      hp: nextHp,
+      x: clamp(nextPlayer.x - nextFacing * attack.knockback, 0, arena.width),
+      facing: nextFacing,
+      hitstopUntilMs: Math.max(nextPlayer.hitstopUntilMs, hitTime + attack.hitstopMs),
+      invulnerableUntilMs: hitTime + attack.invulnerabilityMs,
+      hurtLockUntilMs: hitTime + Math.max(attack.hitstopMs, attack.hurtLockMs),
+      shieldUntilMs: shieldActive ? hitTime : nextPlayer.shieldUntilMs,
+      shieldReduction: shieldActive ? 0 : nextPlayer.shieldReduction,
+      defeated: nextHp <= 0
     };
 
-    return {
-      enemy: reflectedEnemy,
-      player: {
-        ...player,
-        reflectUntilMs: elapsedMs
-      },
-      events: [attackEvent, reflectEvent],
-      failed: player.defeated
-    };
+    nextPlayer = damagedPlayer.resource.id === "guard" ? gainFlatPlayerResource(damagedPlayer, 12) : damagedPlayer;
+    failed = failed || nextHp <= 0;
+    events.push(hitEvent);
+
+    if (nextHp <= 0) {
+      break;
+    }
   }
 
-  const shieldActive = elapsedMs < player.shieldUntilMs;
-  const mitigation = shieldActive ? clamp(player.shieldReduction, 0, 0.85) : 0;
-  const damage = Math.max(1, Math.round(attack.damage * combatProfile.damageTakenMultiplier * (1 - mitigation)));
-  const nextHp = Math.max(0, player.hp - damage);
-  const nextFacing: 1 | -1 = enemy.position.x >= player.x ? 1 : -1;
-  const hitEvent: CombatPlayerHitEvent = {
-    kind: "player-hit",
-    id: `player-hit-${elapsedMs}-${enemy.id}`,
-    enemyId: enemy.id,
-    skillId: attack.skillId,
-    damage,
-    occurredAtMs: elapsedMs,
-    hitstopMs: attack.hitstopMs
-  };
-  const damagedPlayer: CombatPlayer = {
-    ...player,
-    hp: nextHp,
-    x: clamp(player.x - nextFacing * attack.knockback, 0, arena.width),
-    facing: nextFacing,
-    hitstopUntilMs: Math.max(player.hitstopUntilMs, elapsedMs + attack.hitstopMs),
-    invulnerableUntilMs: elapsedMs + 560,
-    hurtLockUntilMs: elapsedMs + Math.max(attack.hitstopMs, 420),
-    shieldUntilMs: shieldActive ? elapsedMs : player.shieldUntilMs,
-    shieldReduction: shieldActive ? 0 : player.shieldReduction,
-    defeated: nextHp <= 0
-  };
-  const nextPlayer = damagedPlayer.resource.id === "guard" ? gainFlatPlayerResource(damagedPlayer, 12) : damagedPlayer;
-
-  return { enemy: resolvedEnemy, player: nextPlayer, events: [attackEvent, hitEvent], failed: nextHp <= 0 };
+  return { enemy: nextEnemy, player: nextPlayer, events, failed };
 }
 
 function advanceEnemyAttacks(run: CombatRun): CombatRun {
@@ -1306,6 +1385,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
       attackRecoverUntilMs: statusInterruptsAttack ? undefined : enemy.attackRecoverUntilMs,
       attackSkillId: statusInterruptsAttack ? undefined : enemy.attackSkillId,
       attackHitResolved: statusInterruptsAttack ? undefined : enemy.attackHitResolved,
+      attackResolvedHits: statusInterruptsAttack ? undefined : enemy.attackResolvedHits,
       position: nextPosition,
       airborne,
       downed,

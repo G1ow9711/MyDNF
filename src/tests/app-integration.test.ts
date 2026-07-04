@@ -1761,7 +1761,7 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('data-combat-feedback="enemy-skill-hit"');
     expect(hitHtml).toContain('data-feedback-skill-id="ash-ember-spit"');
     expect(hitHtml).toContain('data-feedback-result="hit"');
-    expect(hitHtml).toContain('class="combat-feedback combat-feedback-hit"');
+    expect(hitHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-ash-ember-spit"');
     expect(hitHtml).not.toContain('data-enemy-telegraph="ash-ember-spit"');
   });
 
@@ -1797,7 +1797,57 @@ describe("playable app integration actions", () => {
     expect(missHtml).toContain('data-combat-feedback="enemy-skill-miss"');
     expect(missHtml).toContain('data-feedback-skill-id="ash-ember-spit"');
     expect(missHtml).toContain('data-feedback-result="miss"');
-    expect(missHtml).toContain('class="combat-feedback combat-feedback-miss"');
+    expect(missHtml).toContain('class="combat-feedback combat-feedback-miss combat-feedback-skill-ash-ember-spit"');
+  });
+
+  it("renders skill-specific target feedback for each sustained boss breath tick", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+    model = readyFirstEnemyAttack(model);
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const windupHtml = renderAppHtml(model);
+
+    expect(model.combatRun?.roomIndex).toBe(2);
+    expect(windupHtml).toContain('data-enemy-telegraph="taotie-flame-breath"');
+    expect(windupHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
+
+    for (const hitIndex of [1, 2, 3]) {
+      let guard = 0;
+
+      while (
+        model.combatRun &&
+        !model.combatRun.events.some(
+          (event) =>
+            event.kind === "enemy-attack" &&
+            event.skillId === "taotie-flame-breath" &&
+            event.phase === "active" &&
+            event.hitIndex === hitIndex
+        ) &&
+        guard < 8
+      ) {
+        model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+        guard += 1;
+      }
+
+      const hitHtml = renderAppHtml(model);
+
+      expect(hitHtml).toContain('data-player-motion="hit"');
+      expect(hitHtml).toContain('class="combat-player-art actor-model actor-model-hit"');
+      expect(hitHtml).toContain('data-enemy-skill-vfx="taotie-flame-breath"');
+      expect(hitHtml).toContain(`data-enemy-attack-hit-index="${hitIndex}"`);
+      expect(hitHtml).toContain('data-enemy-attack-total-hits="3"');
+      expect(hitHtml).toContain('data-enemy-vfx-cue="taotie-flame-breath-sustain"');
+      expect(hitHtml).toContain('data-combat-feedback="enemy-skill-hit"');
+      expect(hitHtml).toContain('data-feedback-skill-id="taotie-flame-breath"');
+      expect(hitHtml).toContain(
+        'class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-flame-breath"'
+      );
+    }
   });
 
   it("does not render hit feedback when invulnerability absorbs an active monster skill", () => {

@@ -1524,3 +1524,23 @@
   - `npm test -- src/tests/combat.test.ts`: pass, 57 tests.
   - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 141 tests.
   - Follow-up review agent confirmed no blocking issue after the fix. Remaining non-blocking note: event arrays are not globally sorted by `occurredAtMs`, so future UI logic should keep filtering by event timestamps rather than using `events.at(-1)` as a time-order proxy.
+
+## Task 55 Monster Skill Feedback VFX
+- Started after user clarified that character/monster modeling can be simpler for now, but combat action smoothness, skill effects, hit feedback, and monster skill effects remain strict.
+- Used two read-only parallel agents:
+  - `019f2f33-62b2-7b43-9faa-e38f8227696f` audited monster combat events and recommended deeper monster attack patterns after the feedback layer is stable.
+  - `019f2f33-9a41-7d41-b922-ec943673376e` audited UI/CSS and found enemy skill VFX existed, but target-side feedback was still generic across trash, elite, and boss skills.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` requires every tick of sustained boss `taotie-flame-breath` to render player hit motion, boss skill VFX metadata, total hit count, VFX cue, and skill-specific target feedback.
+  - `src/tests/ui-smoke.test.ts` requires trash, elite, and boss monster skill feedback to carry `combat-feedback-skill-*` classes and verifies dedicated CSS selectors/keyframes.
+- RED evidence:
+  - Focused tests initially failed because feedback rendered as `combat-feedback combat-feedback-hit|miss` without a skill-specific class, and CSS lacked dedicated ash/zheng/taotie feedback hooks.
+- Implemented:
+  - Enemy target-side feedback now includes `combat-feedback-skill-${skillId}` and `data-player-feedback-cue`, preserving the real combat event source.
+  - Added `ash-ember-spit` projectile trail styling, `zheng-shockwave` impact-ring expansion, and separate `ash-ember`, `zheng-shock`, and `taotie-breath` hit-feedback animations.
+  - Code review follow-up found trash/elite feedback initially differed only by color while inheriting the generic hit animation. Added RED smoke coverage for `ash-ember-hit-feedback` and `zheng-shock-hit-feedback`, then implemented both animations.
+- Verification so far:
+  - `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 85 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/monster-feedback-check.html`: confirmed 3 combat panels, 3 feedback nodes, `ash-ember-spit-trail`, `ash-ember-hit-feedback`, `zheng-shockwave-expand`, `zheng-shock-hit-feedback`, `taotie-breath-flow`, `taotie-breath-hit-feedback`, boss total hits `3`, cue `taotie-flame-breath-sustain`, and player hit animation `player-hurt-react`.
+  - Browser console error log: empty.
+  - Browser screenshot saved at `.codex-local/tmp/monster-feedback-check.png`.

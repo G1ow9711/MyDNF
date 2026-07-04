@@ -771,11 +771,12 @@ function renderCombatVfx(run: CombatRun): string {
             </div>
           `
           : "";
-      const feedbackResult = matchingPlayerHitEvent(run, event) ? "hit" : event.phase === "miss" ? "miss" : "";
+      const playerHit = matchingPlayerHitEvent(run, event);
+      const feedbackResult = playerHit ? "hit" : event.phase === "miss" ? "miss" : "";
       const feedback =
         feedbackResult !== ""
           ? `
-            <div class="combat-feedback combat-feedback-${feedbackResult}" data-combat-feedback="enemy-skill-${feedbackResult}" data-feedback-skill-id="${effect.id}" data-feedback-result="${feedbackResult}" data-enemy-id="${enemy.id}" data-enemy-attack-hit-index="${event.hitIndex ?? ""}" data-enemy-attack-total-hits="${event.totalHits ?? ""}" data-enemy-vfx-cue="${event.vfxCue ?? ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+            <div class="combat-feedback combat-feedback-${feedbackResult} combat-feedback-skill-${effect.id}" data-combat-feedback="enemy-skill-${feedbackResult}" data-feedback-skill-id="${effect.id}" data-feedback-result="${feedbackResult}" data-player-feedback-cue="${playerHit?.feedbackCue ?? ""}" data-enemy-id="${enemy.id}" data-enemy-attack-hit-index="${event.hitIndex ?? ""}" data-enemy-attack-total-hits="${event.totalHits ?? ""}" data-enemy-vfx-cue="${event.vfxCue ?? ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
               <span class="combat-feedback-text">${feedbackResult === "miss" ? "MISS" : "HIT"}</span>
             </div>
           `

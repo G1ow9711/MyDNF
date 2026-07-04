@@ -241,6 +241,9 @@ describe("town app shell", () => {
     const activeTrashRun = stepCombat(trashRun, {}, 500);
     const activeEliteRun = stepCombat(eliteRun, {}, 500);
     const activeBossRun = stepCombat(bossRun, {}, 500);
+    const activeTrashHtml = renderAppHtml({ state, mode: "combat", combatRun: activeTrashRun });
+    const activeEliteHtml = renderAppHtml({ state, mode: "combat", combatRun: activeEliteRun });
+    const activeBossHtml = renderAppHtml({ state, mode: "combat", combatRun: activeBossRun });
 
     expect(quietHtml).not.toContain("data-enemy-skill-vfx");
 
@@ -253,30 +256,31 @@ describe("town app shell", () => {
     expect(renderAppHtml({ state, mode: "combat", combatRun: bossRun })).toContain(
       'data-enemy-telegraph="taotie-flame-breath"'
     );
-    expect(renderAppHtml({ state, mode: "combat", combatRun: activeTrashRun })).toContain(
-      'data-enemy-skill-vfx="ash-ember-spit"'
-    );
-    expect(renderAppHtml({ state, mode: "combat", combatRun: activeEliteRun })).toContain(
-      'data-enemy-skill-vfx="zheng-shockwave"'
-    );
-    expect(renderAppHtml({ state, mode: "combat", combatRun: activeBossRun })).toContain(
-      'data-enemy-skill-vfx="taotie-flame-breath"'
-    );
-    expect(renderAppHtml({ state, mode: "combat", combatRun: activeBossRun })).toContain(
-      'data-enemy-attack-hit-index="1"'
-    );
-    expect(renderAppHtml({ state, mode: "combat", combatRun: activeBossRun })).toContain(
-      'data-enemy-attack-total-hits="3"'
-    );
-    expect(renderAppHtml({ state, mode: "combat", combatRun: activeBossRun })).toContain(
-      'data-enemy-vfx-cue="taotie-flame-breath-sustain"'
-    );
-    expect(renderAppHtml({ state, mode: "combat", combatRun: activeBossRun })).toContain(
-      'actor-enemy-skill-taotie-flame-breath'
+    expect(activeTrashHtml).toContain('data-enemy-skill-vfx="ash-ember-spit"');
+    expect(activeTrashHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-ash-ember-spit"');
+    expect(activeEliteHtml).toContain('data-enemy-skill-vfx="zheng-shockwave"');
+    expect(activeEliteHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-zheng-shockwave"');
+    expect(activeBossHtml).toContain('data-enemy-skill-vfx="taotie-flame-breath"');
+    expect(activeBossHtml).toContain('data-enemy-attack-hit-index="1"');
+    expect(activeBossHtml).toContain('data-enemy-attack-total-hits="3"');
+    expect(activeBossHtml).toContain('data-enemy-vfx-cue="taotie-flame-breath-sustain"');
+    expect(activeBossHtml).toContain('actor-enemy-skill-taotie-flame-breath');
+    expect(activeBossHtml).toContain(
+      'class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-flame-breath"'
     );
     expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain(
       'data-telegraph-phase="windup"'
     );
+    expect(stylesCss).toContain(".enemy-skill-ash-ember-spit .enemy-cast-trail");
+    expect(stylesCss).toContain('.enemy-skill-zheng-shockwave[data-enemy-vfx-cue="zheng-shockwave-impact"]');
+    expect(stylesCss).toContain(".combat-feedback-skill-ash-ember-spit");
+    expect(stylesCss).toContain(".combat-feedback-skill-zheng-shockwave");
+    expect(stylesCss).toContain(".combat-feedback-skill-taotie-flame-breath");
+    expect(stylesCss).toContain("@keyframes ash-ember-spit-trail");
+    expect(stylesCss).toContain("@keyframes ash-ember-hit-feedback");
+    expect(stylesCss).toContain("@keyframes zheng-shockwave-expand");
+    expect(stylesCss).toContain("@keyframes zheng-shock-hit-feedback");
+    expect(stylesCss).toContain("@keyframes taotie-breath-hit-feedback");
   });
 
   it("renders target-bound skill impact bursts for multi-hit player skills", () => {

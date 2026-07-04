@@ -239,6 +239,9 @@
 - Current monster attacks already have windup/active/miss phases and player HP damage, but trash, elite, and boss attacks are still mostly single-impact patterns with a shared `actor-model-attack` lunge.
 - Read-only UI audit found the largest visible gap is result feedback: active/miss monster skill VFX is anchored on the enemy, player hit/dodge motion changes, but there is no target-side combat feedback node for enemy skill hit or miss.
 - Next slice should add testable enemy-skill metadata and DOM hooks: boss `taotie-flame-breath` as a sustained multi-hit breath, plus generic target-side feedback for monster skill hit/miss.
+- Implementation note: enemy-skill target feedback now carries `combat-feedback-skill-*` classes and `data-player-feedback-cue`, so hit/miss feedback is tied to the actual monster skill event rather than a generic HIT/MISS skin.
+- Presentation note: `ash-ember-spit`, `zheng-shockwave`, and `taotie-flame-breath` now have separately verifiable VFX/feedback animation hooks. Browser computed styles confirmed `ash-ember-spit-trail`, `ash-ember-hit-feedback`, `zheng-shockwave-expand`, `zheng-shock-hit-feedback`, `taotie-breath-flow`, `taotie-breath-hit-feedback`, and player `player-hurt-react`.
+- Remaining pattern gap: attack variety is still limited by `kind -> one monster skill`. A good next combat slice is adding a second trash/elite archetype such as a close-range rush/explode monster, after this feedback/VFX layer is stable.
 
 ## Input Buffer Findings
 - Current DNF-like combat gap: keyboard actions during `actionLockUntilMs` are discarded unless they are a hit-confirm skill cancel. This makes repeated attacks and late skill chaining feel less like a brawler.

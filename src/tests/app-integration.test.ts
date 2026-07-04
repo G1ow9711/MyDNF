@@ -833,11 +833,74 @@ describe("playable app integration actions", () => {
     const html = renderAppHtml(model);
 
     expect(html).toContain('class="combat-vfx-layer"');
-    expect(html).toContain('class="combat-player-art actor-model actor-model-skill"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-skill actor-skill-ember-anvil"');
     expect(html).toContain('class="enemy-art actor-model actor-model-hit"');
     expect(html).toContain('data-player-skill-vfx="anvil-crash"');
     expect(html).toContain('data-vfx-action="skill"');
     expect(html).toContain('data-damage-number="true"');
+  });
+
+  it("renders skill-specific actor, weapon, and VFX metadata after casting a class skill", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "liuli-rain" });
+
+    const html = renderAppHtml(model);
+
+    expect(html).toContain('data-active-skill-id="liuli-rain"');
+    expect(html).toContain('data-skill-animation-preset="liuli-rain"');
+    expect(html).toContain('data-skill-weapon-arc="fan"');
+    expect(html).toContain('data-skill-vfx-shape="glass-rain"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-skill actor-skill-liuli-rain"');
+    expect(html).toContain('class="combat-weapon weapon-layer weapon-layer-');
+    expect(html).toContain('data-weapon-arc="fan"');
+    expect(html).toContain('class="player-skill-vfx skill-vfx-liuli-rain skill-vfx-shape-glass-rain"');
+    expect(html).toContain('data-player-skill-vfx="liuli-rain"');
+    expect(html).toContain('data-vfx-anchor="front"');
+  });
+
+  it("keeps skill-specific VFX metadata when a class skill misses", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            player: {
+              ...model.combatRun.player,
+              x: 120,
+              y: 340,
+              facing: 1 as const,
+              actionLockUntilMs: 0,
+              hurtLockUntilMs: 0
+            },
+            enemies: model.combatRun.enemies.map((enemy) => ({
+              ...enemy,
+              position: { x: 900, y: 420 },
+              nextAttackAtMs: 9999
+            }))
+          }
+        : undefined
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "liuli-rain" });
+
+    const html = renderAppHtml(model);
+
+    expect(model.combatRun?.events.at(-1)).toMatchObject({ kind: "miss", action: "skill", skillId: "liuli-rain" });
+    expect(html).toContain('data-active-skill-id="liuli-rain"');
+    expect(html).toContain('data-skill-animation-preset="liuli-rain"');
+    expect(html).toContain('data-player-skill-vfx="liuli-rain"');
+    expect(html).toContain('data-skill-vfx-shape="glass-rain"');
   });
 
   it("renders monster attack motion and player hurt motion from real enemy skills", () => {

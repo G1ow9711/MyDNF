@@ -7,6 +7,7 @@ import type {
   GearSlot,
   QuestDef,
   Rarity,
+  SkillAnimationDefinition,
   SkillDef,
   TownDef,
   WeaponAppearanceDefinition,
@@ -108,7 +109,7 @@ export const skills: SkillDef[] = [
   }
 ];
 
-export const classSkills: ClassSkillDefinition[] = [
+const classSkillBase: Array<Omit<ClassSkillDefinition, "animation">> = [
   { id: "spark-combo", classId: "ember-warden", displayName: "星火连拳", key: "J", resourceCost: 0, resourceGain: 12, cooldownMs: 1200, tags: ["starter", "combo"] },
   { id: "cinder-uppercut", classId: "ember-warden", displayName: "烬焰升龙", key: "K", resourceCost: 0, resourceGain: 10, cooldownMs: 2600, tags: ["launcher"] },
   { id: "furnace-step", classId: "ember-warden", displayName: "炉步冲肩", key: "L", resourceCost: 15, resourceGain: 0, cooldownMs: 3600, tags: ["dash"] },
@@ -145,6 +146,312 @@ export const classSkills: ClassSkillDefinition[] = [
   { id: "black-furnace-aegis", classId: "iron-forge-guardian", displayName: "玄炉护阵", key: "Space", resourceCost: 45, resourceGain: 0, cooldownMs: 14000, tags: ["advancement", "shield"] },
   { id: "mountain-crack-hammer", classId: "iron-forge-guardian", displayName: "裂山锻锤", key: "Space", resourceCost: 60, resourceGain: 0, cooldownMs: 15000, tags: ["advancement", "stagger"] }
 ];
+
+const skillAnimationById: Record<string, SkillAnimationDefinition> = {
+  "spark-combo": {
+    preset: "ember-combo",
+    durationMs: 420,
+    hitFrameMs: 120,
+    lungePx: 26,
+    weaponArc: "jab-chain",
+    vfxShape: "ember-sparks",
+    vfxAnchor: "front"
+  },
+  "cinder-uppercut": {
+    preset: "ember-uppercut",
+    durationMs: 520,
+    hitFrameMs: 180,
+    lungePx: 24,
+    weaponArc: "uppercut",
+    vfxShape: "flame-column",
+    vfxAnchor: "target"
+  },
+  "furnace-step": {
+    preset: "ember-shoulder",
+    durationMs: 500,
+    hitFrameMs: 170,
+    lungePx: 46,
+    weaponArc: "dash-burst",
+    vfxShape: "furnace-trail",
+    vfxAnchor: "front"
+  },
+  "anvil-crash": {
+    preset: "ember-anvil",
+    durationMs: 620,
+    hitFrameMs: 260,
+    lungePx: 34,
+    weaponArc: "hammer-drop",
+    vfxShape: "anvil-sparks",
+    vfxAnchor: "target"
+  },
+  "heat-bloom": {
+    preset: "ember-bloom",
+    durationMs: 700,
+    hitFrameMs: 310,
+    lungePx: 18,
+    weaponArc: "pull-bloom",
+    vfxShape: "heat-bloom",
+    vfxAnchor: "area"
+  },
+  "meteor-knuckle": {
+    preset: "ember-meteor",
+    durationMs: 860,
+    hitFrameMs: 420,
+    lungePx: 38,
+    weaponArc: "meteor-smash",
+    vfxShape: "meteor-impact",
+    vfxAnchor: "area"
+  },
+  "furnace-heart-overdrive": {
+    preset: "ember-overdrive",
+    durationMs: 820,
+    hitFrameMs: 360,
+    lungePx: 42,
+    weaponArc: "core-overdrive",
+    vfxShape: "overdrive-core",
+    vfxAnchor: "self"
+  },
+  "mountain-guard-break": {
+    preset: "ember-mountain-break",
+    durationMs: 760,
+    hitFrameMs: 330,
+    lungePx: 32,
+    weaponArc: "guard-break",
+    vfxShape: "mountain-crack",
+    vfxAnchor: "target"
+  },
+  "glass-cut": {
+    preset: "liuli-cut",
+    durationMs: 390,
+    hitFrameMs: 115,
+    lungePx: 28,
+    weaponArc: "glass-slash",
+    vfxShape: "glass-slash",
+    vfxAnchor: "front"
+  },
+  "prism-step": {
+    preset: "liuli-step",
+    durationMs: 470,
+    hitFrameMs: 165,
+    lungePx: 48,
+    weaponArc: "prism-dash",
+    vfxShape: "prism-afterimage",
+    vfxAnchor: "front"
+  },
+  "mirror-arc": {
+    preset: "liuli-mirror",
+    durationMs: 540,
+    hitFrameMs: 210,
+    lungePx: 22,
+    weaponArc: "mirror-parry",
+    vfxShape: "mirror-arc",
+    vfxAnchor: "self"
+  },
+  "liuli-rain": {
+    preset: "liuli-rain",
+    durationMs: 680,
+    hitFrameMs: 260,
+    lungePx: 18,
+    weaponArc: "fan",
+    vfxShape: "glass-rain",
+    vfxAnchor: "front"
+  },
+  "glass-lotus": {
+    preset: "liuli-lotus",
+    durationMs: 740,
+    hitFrameMs: 320,
+    lungePx: 14,
+    weaponArc: "lotus-bloom",
+    vfxShape: "glass-lotus",
+    vfxAnchor: "area"
+  },
+  "sword-prism-field": {
+    preset: "liuli-prism-field",
+    durationMs: 860,
+    hitFrameMs: 390,
+    lungePx: 20,
+    weaponArc: "prism-field",
+    vfxShape: "sword-prism-field",
+    vfxAnchor: "area"
+  },
+  "flowing-light-chain": {
+    preset: "liuli-light-chain",
+    durationMs: 760,
+    hitFrameMs: 270,
+    lungePx: 44,
+    weaponArc: "chain-cut",
+    vfxShape: "flowing-chain",
+    vfxAnchor: "front"
+  },
+  "mirrorflame-burst": {
+    preset: "liuli-mirrorflame",
+    durationMs: 820,
+    hitFrameMs: 350,
+    lungePx: 24,
+    weaponArc: "mirrorflame-fan",
+    vfxShape: "mirrorflame-burst",
+    vfxAnchor: "area"
+  },
+  "ink-shot": {
+    preset: "ink-shot",
+    durationMs: 380,
+    hitFrameMs: 120,
+    lungePx: 12,
+    weaponArc: "crossbow-shot",
+    vfxShape: "ink-bolt",
+    vfxAnchor: "front"
+  },
+  "shadow-roll": {
+    preset: "ink-roll",
+    durationMs: 470,
+    hitFrameMs: 160,
+    lungePx: 42,
+    weaponArc: "roll-shot",
+    vfxShape: "shadow-smoke",
+    vfxAnchor: "self"
+  },
+  "marking-bolt": {
+    preset: "ink-mark",
+    durationMs: 500,
+    hitFrameMs: 180,
+    lungePx: 14,
+    weaponArc: "mark-bolt",
+    vfxShape: "contract-mark",
+    vfxAnchor: "target"
+  },
+  "ink-snare": {
+    preset: "ink-snare",
+    durationMs: 640,
+    hitFrameMs: 250,
+    lungePx: 8,
+    weaponArc: "trap-cast",
+    vfxShape: "ink-snare",
+    vfxAnchor: "target"
+  },
+  "crow-feint": {
+    preset: "ink-feint",
+    durationMs: 560,
+    hitFrameMs: 190,
+    lungePx: 36,
+    weaponArc: "feint-shot",
+    vfxShape: "crow-feint",
+    vfxAnchor: "self"
+  },
+  "black-rain-volley": {
+    preset: "ink-volley",
+    durationMs: 820,
+    hitFrameMs: 340,
+    lungePx: 10,
+    weaponArc: "rain-volley",
+    vfxShape: "black-rain",
+    vfxAnchor: "area"
+  },
+  "night-mark-detonation": {
+    preset: "ink-detonation",
+    durationMs: 740,
+    hitFrameMs: 310,
+    lungePx: 16,
+    weaponArc: "detonate-mark",
+    vfxShape: "night-detonation",
+    vfxAnchor: "target"
+  },
+  "mechanism-shadow-net": {
+    preset: "ink-shadow-net",
+    durationMs: 720,
+    hitFrameMs: 290,
+    lungePx: 12,
+    weaponArc: "net-cast",
+    vfxShape: "mechanism-net",
+    vfxAnchor: "area"
+  },
+  "iron-palm": {
+    preset: "iron-palm",
+    durationMs: 440,
+    hitFrameMs: 150,
+    lungePx: 24,
+    weaponArc: "shield-jab",
+    vfxShape: "iron-spark",
+    vfxAnchor: "front"
+  },
+  "anvil-guard": {
+    preset: "iron-guard",
+    durationMs: 520,
+    hitFrameMs: 180,
+    lungePx: 10,
+    weaponArc: "guard-raise",
+    vfxShape: "guard-rune",
+    vfxAnchor: "self"
+  },
+  "furnace-taunt": {
+    preset: "iron-taunt",
+    durationMs: 600,
+    hitFrameMs: 230,
+    lungePx: 12,
+    weaponArc: "taunt-ring",
+    vfxShape: "furnace-roar",
+    vfxAnchor: "area"
+  },
+  "shield-quake": {
+    preset: "iron-quake",
+    durationMs: 650,
+    hitFrameMs: 280,
+    lungePx: 28,
+    weaponArc: "shield-slam",
+    vfxShape: "shield-quake",
+    vfxAnchor: "area"
+  },
+  "molten-wall": {
+    preset: "iron-wall",
+    durationMs: 760,
+    hitFrameMs: 260,
+    lungePx: 6,
+    weaponArc: "wall-guard",
+    vfxShape: "molten-wall",
+    vfxAnchor: "self"
+  },
+  "earth-furnace-breaker": {
+    preset: "iron-breaker",
+    durationMs: 880,
+    hitFrameMs: 410,
+    lungePx: 32,
+    weaponArc: "shield-slam",
+    vfxShape: "forge-quake",
+    vfxAnchor: "area"
+  },
+  "black-furnace-aegis": {
+    preset: "iron-aegis",
+    durationMs: 780,
+    hitFrameMs: 280,
+    lungePx: 8,
+    weaponArc: "aegis-raise",
+    vfxShape: "black-aegis",
+    vfxAnchor: "self"
+  },
+  "mountain-crack-hammer": {
+    preset: "iron-mountain-crack",
+    durationMs: 840,
+    hitFrameMs: 380,
+    lungePx: 30,
+    weaponArc: "mountain-hammer",
+    vfxShape: "mountain-crack",
+    vfxAnchor: "target"
+  }
+};
+
+function animationForClassSkill(skill: Omit<ClassSkillDefinition, "animation">): SkillAnimationDefinition {
+  const animation = skillAnimationById[skill.id];
+
+  if (!animation) {
+    throw new Error(`Missing class skill animation metadata for ${skill.id}`);
+  }
+
+  return animation;
+}
+
+export const classSkills: ClassSkillDefinition[] = classSkillBase.map((skill) => ({
+  ...skill,
+  animation: animationForClassSkill(skill)
+}));
 
 export const classes: ClassDefinition[] = [
   {

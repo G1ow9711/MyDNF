@@ -163,6 +163,18 @@ export interface SkillDefinition {
 
 export type SkillDef = SkillDefinition;
 
+export type SkillVfxAnchor = "self" | "front" | "target" | "area";
+
+export interface SkillAnimationDefinition {
+  preset: string;
+  durationMs: number;
+  hitFrameMs: number;
+  lungePx: number;
+  weaponArc: string;
+  vfxShape: string;
+  vfxAnchor: SkillVfxAnchor;
+}
+
 export interface ClassSkillDefinition {
   id: string;
   classId: ClassId;
@@ -172,6 +184,7 @@ export interface ClassSkillDefinition {
   resourceGain: number;
   cooldownMs: number;
   tags: string[];
+  animation: SkillAnimationDefinition;
 }
 
 export interface ClassAdvancementDefinition {

@@ -1067,3 +1067,31 @@
   - `npm run build`: pass.
   - `git diff --check`: pass with Windows line-ending warnings only.
   - Edge headless browser check via `.codex-local/tmp/weapon-layer-check.mjs`: town and combat weapon images loaded `/assets/weapons/weapon-liuli-blademage-mythic.svg`, `complete=true`, natural size `160x160`, and light attack still triggered `weapon-light-swing`.
+
+## Task 38 Skill-Specific Animation Metadata and VFX Shapes
+- Started after the user reiterated that character and weapon attacks must follow their class/skill identity instead of remaining static or generic.
+- Read current planning files, `ClassSkillDefinition`, `classSkills`, combat event types, `renderCombatActors()`, `renderCombatVfx()`, `weaponLayerMarkup()`, current app integration tests, and CSS actor/weapon/VFX rules.
+- Used two read-only parallel agents:
+  - `019f2d39-5508-7e01-a055-1a4cd63fc676` audited type/catalog/combat insertion points.
+  - `019f2d39-bdb7-7353-8d8b-1ce744e8986f` is auditing UI/CSS/browser verification paths.
+- Discovery: combat events already carry `skillId`, `statusTags`, and `actionTags`; the next safe slice can keep combat formulas unchanged and drive presentation from catalog metadata.
+- Added RED coverage:
+  - `src/tests/catalog.test.ts` requires every class skill to define animation preset, duration, hit frame, lunge distance, weapon arc, VFX shape, and VFX anchor.
+  - `src/tests/app-integration.test.ts` requires Liuli Rain to expose active skill id, animation preset, weapon arc, VFX shape, actor class, weapon arc data, and VFX anchor in combat HTML.
+  - `src/tests/app-integration.test.ts` requires a missed Liuli Rain cast to still render skill-specific VFX metadata.
+- RED evidence:
+  - Focused tests first failed because `skill.animation` was undefined and the combat DOM lacked `data-active-skill-id`.
+  - The miss-VFX test then failed because `renderCombatVfx()` only rendered player skill VFX from latest hit events.
+- Implemented:
+  - Added `SkillAnimationDefinition` and `SkillVfxAnchor` types.
+  - Converted `classSkills` to attach animation metadata for every class skill.
+  - Added active skill presentation lookup in `renderCombatActors()` and `renderCombatVfx()`.
+  - Combat player, player image, equipped weapon layer, and player VFX now expose skill preset, weapon arc, VFX shape, and duration data.
+  - Player model lunge and weapon motion variables now use skill animation metadata.
+  - Added CSS for representative class-specific actor motion, weapon arcs, and VFX shapes: Ember uppercut/anvil crash, Liuli Rain, Ink Snare, and Iron Breaker.
+- Verification:
+  - `npm test -- src/tests/catalog.test.ts src/tests/app-integration.test.ts`: pass, 49 tests.
+  - `npm test`: pass, 13 files and 179 tests.
+  - `npm run build`: pass.
+  - Edge headless browser check via `.codex-local/tmp/skill-animation-check.mjs`: Liuli Rain rendered player animation `player-liuli-rain-cast`, weapon animation `weapon-fan-arc`, VFX spark animation `glass-rain-fall`, loaded `/assets/weapons/weapon-liuli-blademage-mythic.svg` at `160x160`, and loaded Liuli hero art at `863x1822`.
+  - Browser screenshot saved at `.codex-local/tmp/skill-animation-check.png`.

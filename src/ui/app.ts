@@ -14,7 +14,7 @@ import {
   type CombatRun
 } from "../game/combat";
 import { addOwnedGear, createInitialState } from "../game/state";
-import type { AdvancementId, ClassId, ClassSkillDefinition, DungeonId, GameState } from "../game/types";
+import type { AdvancementId, ClassId, ClassSkillDefinition, DungeonId, GameState, SkillAnimationDefinition } from "../game/types";
 import { createRenderPlan } from "../game/render";
 import {
   chooseMusicLayer,
@@ -233,13 +233,19 @@ export function combatActionForKeyCode(
   return { type: "combatAction", action: "skill", skillId: skill.id };
 }
 
-function weaponLayerStyle(equipped: EquippedWeaponAppearance, layer: "town" | "combat"): string {
+function weaponLayerStyle(
+  equipped: EquippedWeaponAppearance,
+  layer: "town" | "combat",
+  animation?: SkillAnimationDefinition
+): string {
   const anchor = layer === "town" ? equipped.appearance.townAnchor : equipped.appearance.combatAnchor;
+  const skillLunge = animation?.lungePx ?? 30;
+  const skillLift = Math.max(8, Math.round((animation?.durationMs ?? 520) / 48));
 
-  return `--weapon-primary: ${equipped.appearance.palette.primary}; --weapon-secondary: ${equipped.appearance.palette.secondary}; --weapon-glow: ${equipped.appearance.palette.glow}; --weapon-anchor-x: ${anchor.x}%; --weapon-anchor-y: ${anchor.y}%; --weapon-scale: ${anchor.scale}; --weapon-rotation: ${anchor.rotation}deg; --weapon-grip-x: ${equipped.appearance.asset.gripX}%; --weapon-grip-y: ${equipped.appearance.asset.gripY}%;`;
+  return `--weapon-primary: ${equipped.appearance.palette.primary}; --weapon-secondary: ${equipped.appearance.palette.secondary}; --weapon-glow: ${equipped.appearance.palette.glow}; --weapon-anchor-x: ${anchor.x}%; --weapon-anchor-y: ${anchor.y}%; --weapon-scale: ${anchor.scale}; --weapon-rotation: ${anchor.rotation}deg; --weapon-grip-x: ${equipped.appearance.asset.gripX}%; --weapon-grip-y: ${equipped.appearance.asset.gripY}%; --weapon-skill-lunge: ${skillLunge}px; --weapon-skill-lift: -${skillLift}px;`;
 }
 
-function weaponLayerMarkup(state: GameState, layer: "town" | "combat"): string {
+function weaponLayerMarkup(state: GameState, layer: "town" | "combat", animation?: SkillAnimationDefinition): string {
   const equipped = equippedWeaponAppearanceFor(state);
 
   if (!equipped) {
@@ -248,10 +254,13 @@ function weaponLayerMarkup(state: GameState, layer: "town" | "combat"): string {
 
   const appearance = equipped.appearance;
   const layerClass = layer === "town" ? "town-weapon" : "combat-weapon";
-  const combatAttr = layer === "combat" ? ` data-combat-weapon-appearance-id="${appearance.id}"` : "";
+  const combatAttr =
+    layer === "combat"
+      ? ` data-combat-weapon-appearance-id="${appearance.id}" data-weapon-arc="${animation?.weaponArc ?? ""}" data-weapon-skill-preset="${animation?.preset ?? ""}"`
+      : "";
 
   return `
-    <div class="${layerClass} weapon-layer weapon-layer-${appearance.rarity}" data-weapon-appearance-id="${appearance.id}"${combatAttr} data-equipped-weapon-id="${equipped.owned.instanceId}" data-weapon-class-id="${appearance.classId}" data-weapon-type="${appearance.weaponType}" data-weapon-tier="${appearance.tier}" data-weapon-rarity="${appearance.rarity}" data-weapon-level="${equipped.gear.level}" data-weapon-asset-src="${appearance.asset.src}" style="${weaponLayerStyle(equipped, layer)}" aria-label="${appearance.displayName}">
+    <div class="${layerClass} weapon-layer weapon-layer-${appearance.rarity}" data-weapon-appearance-id="${appearance.id}"${combatAttr} data-equipped-weapon-id="${equipped.owned.instanceId}" data-weapon-class-id="${appearance.classId}" data-weapon-type="${appearance.weaponType}" data-weapon-tier="${appearance.tier}" data-weapon-rarity="${appearance.rarity}" data-weapon-level="${equipped.gear.level}" data-weapon-asset-src="${appearance.asset.src}" style="${weaponLayerStyle(equipped, layer, animation)}" aria-label="${appearance.displayName}">
       <img class="weapon-art weapon-art-equipped" data-weapon-art-id="${appearance.id}" src="${appearance.asset.src}" width="${appearance.asset.width}" height="${appearance.asset.height}" alt="" aria-hidden="true" />
       <span class="weapon-shape weapon-shape-${appearance.silhouette}" aria-hidden="true"></span>
     </div>
@@ -298,10 +307,11 @@ function combatActorStyle(run: CombatRun, x: number, y: number): string {
   return `--actor-x: ${xPercent}%; --actor-y: ${yPercent}%;`;
 }
 
-function playerModelMotionStyle(run: CombatRun): string {
+function playerModelMotionStyle(run: CombatRun, animation?: SkillAnimationDefinition): string {
   const facing = run.player.facing;
+  const skillLunge = animation?.lungePx ?? 30;
 
-  return `--model-scale-x: ${facing}; --light-lunge-x: ${24 * facing}px; --heavy-lunge-x: ${34 * facing}px; --skill-lunge-x: ${30 * facing}px; --hit-react-x: ${-18 * facing}px;`;
+  return `--model-scale-x: ${facing}; --light-lunge-x: ${24 * facing}px; --heavy-lunge-x: ${34 * facing}px; --skill-lunge-x: ${skillLunge * facing}px; --hit-react-x: ${-18 * facing}px;`;
 }
 
 function enemyModelMotionStyle(run: CombatRun, enemy: CombatEnemy): string {
@@ -381,6 +391,24 @@ function latestPlayerActionEvent(run: CombatRun): CombatHitEvent | CombatMissEve
   }
 
   return hit ?? miss;
+}
+
+function classSkillById(skillId: string | undefined): ClassSkillDefinition | undefined {
+  return skillId ? catalog.classSkills.find((skill) => skill.id === skillId) : undefined;
+}
+
+function latestPlayerSkillAnimation(
+  run: CombatRun
+): { skillId: string; animation: SkillAnimationDefinition } | undefined {
+  const action = latestPlayerActionEvent(run);
+
+  if (action?.action !== "skill" || !action.skillId) {
+    return undefined;
+  }
+
+  const skill = classSkillById(action.skillId);
+
+  return skill ? { skillId: skill.id, animation: skill.animation } : undefined;
 }
 
 function playerShieldActive(run: CombatRun): boolean {
@@ -517,9 +545,36 @@ function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { 
   return { id: "ash-ember-spit", label: "灰烬喷吐" };
 }
 
+function playerSkillVfxStyle(
+  run: CombatRun,
+  animation: SkillAnimationDefinition | undefined,
+  target: CombatEnemy | undefined
+): string {
+  if (animation?.vfxAnchor === "self") {
+    return combatActorStyle(run, run.player.x, run.player.y);
+  }
+
+  if (animation?.vfxAnchor === "target" && target) {
+    return combatActorStyle(run, target.position.x, target.position.y);
+  }
+
+  if (animation?.vfxAnchor === "area" && target) {
+    return combatActorStyle(run, (run.player.x + target.position.x) / 2, (run.player.y + target.position.y) / 2);
+  }
+
+  return combatActorStyle(run, run.player.x + 128 * run.player.facing, run.player.y);
+}
+
 function renderCombatVfx(run: CombatRun): string {
   const hit = latestHitEvent(run);
+  const playerAction = latestPlayerActionEvent(run);
   const target = hit ? run.enemies.find((enemy) => enemy.id === hit.targetId) : undefined;
+  const skillTarget =
+    playerAction?.kind === "hit" ? run.enemies.find((enemy) => enemy.id === playerAction.targetId) : undefined;
+  const skillAnimation =
+    playerAction?.action === "skill" && playerAction.skillId
+      ? classSkillById(playerAction.skillId)?.animation
+      : undefined;
   const hitVfx =
     hit && target
       ? `
@@ -531,9 +586,9 @@ function renderCombatVfx(run: CombatRun): string {
       `
       : "";
   const skillVfx =
-    hit?.action === "skill"
+    playerAction?.action === "skill"
       ? `
-        <div class="player-skill-vfx skill-vfx-${hit.skillId ?? "unknown"}" data-player-skill-vfx="${hit.skillId ?? "unknown"}" data-vfx-action="skill" style="${combatActorStyle(run, run.player.x + 128 * run.player.facing, run.player.y)}">
+        <div class="player-skill-vfx skill-vfx-${playerAction.skillId ?? "unknown"} skill-vfx-shape-${skillAnimation?.vfxShape ?? "generic"}" data-player-skill-vfx="${playerAction.skillId ?? "unknown"}" data-skill-vfx-shape="${skillAnimation?.vfxShape ?? ""}" data-vfx-anchor="${skillAnimation?.vfxAnchor ?? "front"}" data-weapon-arc="${skillAnimation?.weaponArc ?? ""}" data-vfx-action="skill" style="${playerSkillVfxStyle(run, skillAnimation, skillTarget)}">
           <span class="skill-core"></span>
           <span class="skill-wave"></span>
           <span class="skill-sparks"></span>
@@ -573,6 +628,9 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
   const lastHit = latestHitEvent(run);
   const playerMotionName = playerMotion(run);
+  const activeSkill = latestPlayerSkillAnimation(run);
+  const skillMotionClass =
+    playerMotionName === "skill" && activeSkill ? ` actor-skill-${activeSkill.animation.preset}` : "";
   const enemyActors = run.enemies
     .map((enemy) => {
       const enemyState = enemy.hp > 0 ? "alive" : "defeated";
@@ -599,9 +657,9 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   return `
     <div class="combat-actors" data-last-hit-target="${lastHit?.targetId ?? ""}">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
-        <img class="combat-player-art actor-model actor-model-${playerMotionName}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
-        ${weaponLayerMarkup(state, "combat")}
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+        <img class="combat-player-art actor-model actor-model-${playerMotionName}${skillMotionClass}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run, activeSkill?.animation)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
+        ${weaponLayerMarkup(state, "combat", activeSkill?.animation)}
         <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>
       </div>
       ${enemyActors}

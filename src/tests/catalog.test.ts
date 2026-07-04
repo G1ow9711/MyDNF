@@ -183,6 +183,62 @@ describe("catalog", () => {
     }
   });
 
+  it("defines per-skill animation presets, weapon arcs, and VFX shapes for class skills", () => {
+    const classSkills = catalog.classSkills as Array<{
+      id: string;
+      animation?: {
+        preset: string;
+        durationMs: number;
+        hitFrameMs: number;
+        lungePx: number;
+        weaponArc: string;
+        vfxShape: string;
+        vfxAnchor: string;
+      };
+    }>;
+    const byId = Object.fromEntries(classSkills.map((skill) => [skill.id, skill]));
+    const uniqueVisualSignatures = new Set(
+      classSkills.map((skill) => `${skill.animation?.preset}:${skill.animation?.weaponArc}:${skill.animation?.vfxShape}`)
+    );
+
+    for (const skill of classSkills) {
+      expect(skill.animation?.preset).toMatch(stableIdPattern);
+      expect(skill.animation?.durationMs).toBeGreaterThanOrEqual(360);
+      expect(skill.animation?.hitFrameMs).toBeGreaterThan(0);
+      expect(skill.animation?.hitFrameMs).toBeLessThanOrEqual(skill.animation?.durationMs ?? 0);
+      expect(skill.animation?.lungePx).toBeGreaterThanOrEqual(0);
+      expect(skill.animation?.weaponArc).toMatch(stableIdPattern);
+      expect(skill.animation?.vfxShape).toMatch(stableIdPattern);
+      expect(["self", "front", "target", "area"]).toContain(skill.animation?.vfxAnchor);
+    }
+
+    expect(uniqueVisualSignatures.size).toBeGreaterThan(12);
+    expect(byId["cinder-uppercut"].animation).toMatchObject({
+      preset: "ember-uppercut",
+      weaponArc: "uppercut",
+      vfxShape: "flame-column",
+      vfxAnchor: "target"
+    });
+    expect(byId["liuli-rain"].animation).toMatchObject({
+      preset: "liuli-rain",
+      weaponArc: "fan",
+      vfxShape: "glass-rain",
+      vfxAnchor: "front"
+    });
+    expect(byId["ink-snare"].animation).toMatchObject({
+      preset: "ink-snare",
+      weaponArc: "trap-cast",
+      vfxShape: "ink-snare",
+      vfxAnchor: "target"
+    });
+    expect(byId["earth-furnace-breaker"].animation).toMatchObject({
+      preset: "iron-breaker",
+      weaponArc: "shield-slam",
+      vfxShape: "forge-quake",
+      vfxAnchor: "area"
+    });
+  });
+
   it("provides reachable set bonuses, echo slot data, and unique gear display names", () => {
     for (const epicSet of catalog.epicSets) {
       const requiredPieces = Math.max(...epicSet.bonuses.map((bonus) => bonus.pieces));

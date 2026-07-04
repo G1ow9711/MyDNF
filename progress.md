@@ -1274,3 +1274,27 @@
   - Browser validation on `http://127.0.0.1:5174/.codex-local/tmp/liuli-rain-vfx-check.html`: confirmed 6 `liuli-rain` impact bursts, 6 hit sparks, 6 damage numbers, 2 target ids, all phases `rain`, all cues `glass-rain-fall`, hitstop active, skill shake, player `liuli-rain` motion, weapon arc `fan`, and CSS animations `glass-rain-target-core/ring/shatter`.
   - Browser console error log: empty.
   - Browser screenshot saved at `.codex-local/tmp/liuli-rain-vfx-check.png`.
+
+## Task 46 Prism Step Path Pierce Combat Feel
+- Started while continuing the full DNF-like offline action RPG goal. This slice keeps character/monster model detail lightweight but tightens combat motion, hit feel, and skill effects.
+- Used two read-only parallel agents:
+  - `019f2e82-d610-7271-8ab4-6125c5bb9e62` audited `prism-step` combat logic and found it moved the player 104px but then used generic landing-point target selection.
+  - `019f2e82-ea22-7410-be56-a2044f6d9c91` was closed after the main thread already had enough UI/CSS evidence to proceed.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `prism-step` to hit two enemies along the dash path with `pierce` phase and `prism-pierce` cue.
+  - `src/tests/app-integration.test.ts` requires the app render `liuli-step`, `prism-dash`, `prism-afterimage`, skill trail, and two target-bound `prism-step` impact bursts.
+  - `src/tests/ui-smoke.test.ts` requires static render coverage for two `prism-step` impact nodes with `prism-afterimage` shape.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts` initially failed because `prism-step` emitted 0 hits for enemies placed inside the dash path.
+- Implemented:
+  - Added `pierce` hit phase and `prism-pierce` VFX cue support.
+  - Added a dedicated `prism-step` script that selects up to two living enemies inside the start-to-end dash path, then applies staggered pierce hits after the dash.
+  - Added dedicated CSS for `liuli-step` player dash, `prism-dash` weapon motion, `prism-afterimage` cast VFX, and `skill-impact-shape-prism-afterimage` target bursts.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 107 tests.
+  - `npm test`: pass, 13 files and 203 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Browser validation on `http://127.0.0.1:5174/.codex-local/tmp/prism-step-vfx-check.html`: confirmed player landed at 35.83% scene X, 2 `prism-step` impact bursts, 2 hit sparks, 2 damage numbers, 2 target ids, phases `pierce/pierce`, cues `prism-pierce/prism-pierce`, hitstop active, skill shake, player animation `player-liuli-step-dash`, weapon animation `weapon-prism-dash`, cast animation `prism-afterimage-core`, and impact animation `prism-pierce-core`.
+  - Browser console error log: empty.
+  - Browser screenshot saved at `.codex-local/tmp/prism-step-vfx-check.png`.

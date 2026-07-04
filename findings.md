@@ -226,3 +226,10 @@
 - Read-only UI/CSS audit found the actor-side Liuli cast animation and `glass-rain` player VFX already existed; the missing piece was target-bound `glass-rain` impact styling plus event-level phase/cue metadata.
 - RED evidence: focused combat/app/UI tests failed because `liuli-rain` emitted 2 hit events instead of 6 staggered rain-wave hits across two locked targets.
 - Implementation now locks targets once, emits three rain waves per target, adds `rain` hit phase and `glass-rain-fall` VFX cue, gives the final wave a stagger status, and uses a short event VFX window so the multi-wave target sparks do not linger after the catalog skill animation ends.
+
+## Prism Step Path Pierce Findings
+- Current user goal still prioritizes DNF-like combat feel over high-detail model mesh work; `prism-step` is a strong next slice because it should feel like a controlled dash-through attack rather than a generic point skill.
+- Read-only combat audit found `prism-step` already had catalog animation metadata (`liuli-step`, `prism-dash`, `prism-afterimage`) and a 104px startup dash, but the generic skill path selected targets only after landing and capped dash skills at one target.
+- RED evidence: focused combat/app/UI tests failed because enemies placed between the dash start and landing point produced 0 `prism-step` hit events.
+- Implementation now selects targets along the start-to-end dash path, keeps the player landing movement, hits up to two path targets, adds `pierce` hit phase and `prism-pierce` VFX cue, and applies a short stagger to the pierced enemies.
+- UI/CSS now has dedicated `liuli-step` player dash, `prism-dash` weapon motion, `prism-afterimage` cast VFX, and target-bound `prism-afterimage` pierce bursts.

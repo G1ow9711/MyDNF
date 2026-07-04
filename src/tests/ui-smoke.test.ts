@@ -300,6 +300,46 @@ describe("town app shell", () => {
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-glass-rain"');
   });
 
+  it("renders prism-step as a prism-afterimage path pierce impact", () => {
+    const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
+    const state = {
+      ...liuliState,
+      player: {
+        ...liuliState.player,
+        heat: 40
+      }
+    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          position: { x: player.x + 52 + index * 40, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "prism-step" }
+    );
+    const stepHits = castRun.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "prism-step");
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: {
+        ...castRun,
+        elapsedMs: stepHits.length > 0 ? Math.max(...stepHits.map((event) => event.occurredAtMs)) : castRun.elapsedMs
+      }
+    });
+
+    expect(stepHits).toHaveLength(2);
+    expect(countOccurrences(html, 'data-skill-impact-vfx="prism-step"')).toBe(2);
+    expect(html).toContain('data-impact-vfx-shape="prism-afterimage"');
+    expect(html).toContain('data-vfx-cue="prism-pierce"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-prism-afterimage"');
+  });
+
   it("renders meteor-knuckle with ultimate impact VFX instead of generic skill feedback", () => {
     const state = {
       ...createInitialState(),

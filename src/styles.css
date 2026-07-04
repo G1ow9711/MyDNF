@@ -920,6 +920,10 @@ p {
   animation: weapon-fan-arc var(--skill-duration, 680ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
 
+.combat-player[data-player-motion="skill"][data-skill-weapon-arc="prism-dash"] .combat-weapon {
+  animation: weapon-prism-dash var(--skill-duration, 470ms) cubic-bezier(0.12, 0.86, 0.16, 1) both;
+}
+
 .combat-player[data-player-motion="skill"][data-skill-weapon-arc="trap-cast"] .combat-weapon {
   animation: weapon-trap-cast var(--skill-duration, 640ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
@@ -1226,6 +1230,10 @@ p {
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="liuli-rain"] .combat-player-art {
   animation: player-liuli-rain-cast var(--skill-duration, 680ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
+}
+
+.combat-player[data-player-motion="skill"][data-skill-animation-preset="liuli-step"] .combat-player-art {
+  animation: player-liuli-step-dash var(--skill-duration, 470ms) cubic-bezier(0.12, 0.86, 0.16, 1) both;
 }
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="ink-snare"] .combat-player-art {
@@ -1642,6 +1650,41 @@ p {
   animation: glass-rain-target-shatter 640ms ease-out both;
 }
 
+.skill-impact-shape-prism-afterimage {
+  width: 164px;
+  height: 118px;
+  margin-top: -22px;
+}
+
+.skill-impact-shape-prism-afterimage .skill-impact-core {
+  width: 96px;
+  height: 20px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, transparent, rgba(240, 249, 255, 0.98) 38%, rgba(103, 232, 249, 0.88) 58%, transparent),
+    radial-gradient(circle at 56% 50%, rgba(255, 255, 255, 0.92), rgba(56, 189, 248, 0.52), transparent 66%);
+  filter: drop-shadow(0 0 18px rgba(103, 232, 249, 0.9));
+  animation: prism-pierce-core 420ms ease-out both;
+}
+
+.skill-impact-shape-prism-afterimage .skill-impact-ring {
+  width: 128px;
+  height: 34px;
+  border-color: rgba(125, 211, 252, 0.78);
+  box-shadow: 0 0 24px rgba(14, 165, 233, 0.52), inset 0 0 18px rgba(192, 132, 252, 0.28);
+  animation: prism-pierce-ring 520ms ease-out both;
+}
+
+.skill-impact-shape-prism-afterimage .skill-impact-shards {
+  background:
+    linear-gradient(96deg, transparent 12%, rgba(240, 249, 255, 0.94) 13% 16%, transparent 17%),
+    linear-gradient(102deg, transparent 42%, rgba(103, 232, 249, 0.84) 43% 47%, transparent 48%),
+    linear-gradient(74deg, transparent 64%, rgba(196, 181, 253, 0.86) 65% 68%, transparent 69%),
+    radial-gradient(circle at 27% 68%, rgba(186, 230, 253, 0.92) 0 3px, transparent 4px),
+    radial-gradient(circle at 74% 38%, rgba(255, 255, 255, 0.88) 0 3px, transparent 4px);
+  animation: prism-pierce-shards 540ms ease-out both;
+}
+
 .skill-impact-shape-meteor-impact {
   width: 230px;
   height: 158px;
@@ -1843,6 +1886,37 @@ p {
     linear-gradient(78deg, transparent 60%, rgba(196, 181, 253, 0.86) 61% 64%, transparent 65%),
     radial-gradient(circle at 72% 32%, rgba(255, 255, 255, 0.92) 0 4px, transparent 5px);
   animation: glass-rain-fall var(--skill-duration, 780ms) ease-out both;
+}
+
+.skill-vfx-shape-prism-afterimage {
+  width: 280px;
+  height: 140px;
+  margin-top: -34px;
+}
+
+.skill-vfx-shape-prism-afterimage .skill-core {
+  inset: 42% 6% 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(240, 249, 255, 0.96), rgba(103, 232, 249, 0.82), transparent);
+  filter: drop-shadow(0 0 24px rgba(125, 211, 252, 0.82));
+  animation: prism-afterimage-core var(--skill-duration, 470ms) ease-out both;
+}
+
+.skill-vfx-shape-prism-afterimage .skill-wave {
+  inset: 28% 4% 26%;
+  border-color: rgba(125, 211, 252, 0.72);
+  border-radius: 999px 42% 999px 42%;
+  box-shadow: 0 0 30px rgba(56, 189, 248, 0.54), inset 0 0 22px rgba(167, 139, 250, 0.32);
+  animation: prism-afterimage-wave var(--skill-duration, 470ms) ease-out both;
+}
+
+.skill-vfx-shape-prism-afterimage .skill-sparks {
+  background:
+    linear-gradient(92deg, transparent 8%, rgba(240, 249, 255, 0.92) 9% 12%, transparent 13%),
+    linear-gradient(96deg, transparent 36%, rgba(103, 232, 249, 0.82) 37% 40%, transparent 41%),
+    linear-gradient(84deg, transparent 66%, rgba(196, 181, 253, 0.78) 67% 71%, transparent 72%),
+    radial-gradient(circle at 68% 44%, rgba(255, 255, 255, 0.9) 0 4px, transparent 5px);
+  animation: prism-afterimage-sparks var(--skill-duration, 470ms) ease-out both;
 }
 
 .skill-vfx-shape-ink-snare {
@@ -2291,6 +2365,13 @@ p {
   100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
 }
 
+@keyframes player-liuli-step-dash {
+  0% { transform: translateX(calc(var(--skill-lunge-x, 48px) * -0.42)) translateY(0) skewX(-4deg) scale(0.96) scaleX(var(--model-scale-x, 1)); opacity: 0.9; filter: brightness(1); }
+  28% { transform: translateX(calc(var(--skill-lunge-x, 48px) * 0.74)) translateY(-4px) skewX(-10deg) scale(1.05) scaleX(var(--model-scale-x, 1)); opacity: 0.68; filter: brightness(1.78) saturate(1.28); }
+  56% { transform: translateX(calc(var(--skill-lunge-x, 48px) * 1.42)) translateY(1px) skewX(-7deg) scale(1.08) scaleX(var(--model-scale-x, 1)); opacity: 0.92; filter: brightness(2) saturate(1.34); }
+  100% { transform: translateX(0) translateY(0) skewX(0deg) scale(1) scaleX(var(--model-scale-x, 1)); opacity: 1; filter: brightness(1.08); }
+}
+
 @keyframes player-ink-snare-cast {
   0% { transform: translateX(calc(var(--skill-lunge-x, 8px) * -0.55)) translateY(0) scale(0.98) scaleX(var(--model-scale-x, 1)); opacity: 0.96; }
   38% { transform: translateX(var(--skill-lunge-x, 8px)) translateY(-5px) rotate(-3deg) scale(1.04) scaleX(var(--model-scale-x, 1)); opacity: 0.86; filter: brightness(1.52) saturate(0.82); }
@@ -2382,6 +2463,13 @@ p {
   0% { transform: translate(-58%, -52%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 32deg)) scale(var(--weapon-scale, 1)); opacity: 0.88; }
   34% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 18px) * 0.35), calc(-50% + var(--weapon-skill-lift, -14px))) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 18deg)) scale(calc(var(--weapon-scale, 1) * 1.08)); opacity: 1; }
   70% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 18px)), calc(-50% + var(--weapon-skill-lift, -14px) + 8px)) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 48deg)) scale(calc(var(--weapon-scale, 1) * 1.04)); filter: drop-shadow(0 0 34px color-mix(in srgb, var(--weapon-glow, #93c5fd) 92%, transparent)) brightness(1.36); }
+  100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 1; }
+}
+
+@keyframes weapon-prism-dash {
+  0% { transform: translate(calc(-50% - var(--weapon-skill-lunge, 48px) * 0.44), -54%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 24deg)) scale(var(--weapon-scale, 1)); opacity: 0.76; }
+  38% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 48px) * 0.78), calc(-50% + var(--weapon-skill-lift, -14px))) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 20deg)) scale(calc(var(--weapon-scale, 1) * 1.12)); opacity: 0.95; filter: drop-shadow(0 0 36px color-mix(in srgb, var(--weapon-glow, #67e8f9) 94%, transparent)) brightness(1.42); }
+  68% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 48px) * 1.28), -42%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 36deg)) scale(calc(var(--weapon-scale, 1) * 1.18)); opacity: 0.7; filter: drop-shadow(0 0 42px color-mix(in srgb, var(--weapon-glow, #67e8f9) 96%, transparent)) brightness(1.56); }
   100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 1; }
 }
 
@@ -2536,6 +2624,24 @@ p {
   100% { opacity: 0; transform: translateY(34px) skewX(-3deg) scale(1.2); }
 }
 
+@keyframes prism-pierce-core {
+  0% { opacity: 0; transform: translate(-86%, -50%) scaleX(0.2) skewX(-12deg); }
+  24% { opacity: 1; transform: translate(-50%, -50%) scaleX(1.08) skewX(-10deg); }
+  100% { opacity: 0; transform: translate(8%, -50%) scaleX(1.38) skewX(-6deg); }
+}
+
+@keyframes prism-pierce-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-8deg) scaleX(0.35) scaleY(0.62); }
+  30% { opacity: 0.9; transform: translate(-50%, -50%) rotate(-8deg) scaleX(1) scaleY(0.86); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(-8deg) scaleX(1.5) scaleY(1.05); }
+}
+
+@keyframes prism-pierce-shards {
+  0% { opacity: 0; transform: translateX(-28px) skewX(-8deg) scale(0.62); }
+  24% { opacity: 1; transform: translateX(-4px) skewX(-6deg) scale(1); }
+  100% { opacity: 0; transform: translateX(36px) skewX(-3deg) scale(1.18); }
+}
+
 @keyframes meteor-fall-core {
   0% { opacity: 0; transform: translate(-50%, -140%) scale(0.48); }
   28% { opacity: 1; transform: translate(-50%, -64%) scale(0.86); }
@@ -2582,6 +2688,24 @@ p {
   0% { opacity: 0; transform: translateY(-34px) skewX(-10deg) scale(0.72); }
   22% { opacity: 1; transform: translateY(-12px) skewX(-8deg) scale(1); }
   100% { opacity: 0; transform: translateY(44px) skewX(-6deg) scale(1.08); }
+}
+
+@keyframes prism-afterimage-core {
+  0% { opacity: 0; transform: translateX(-84px) scaleX(0.24) skewX(-12deg); }
+  20% { opacity: 1; transform: translateX(-24px) scaleX(0.82) skewX(-10deg); }
+  100% { opacity: 0; transform: translateX(98px) scaleX(1.28) skewX(-6deg); }
+}
+
+@keyframes prism-afterimage-wave {
+  0% { opacity: 0; transform: translateX(-46px) scaleX(0.42) rotate(-3deg); }
+  30% { opacity: 0.82; transform: translateX(0) scaleX(1) rotate(-3deg); }
+  100% { opacity: 0; transform: translateX(84px) scaleX(1.22) rotate(2deg); }
+}
+
+@keyframes prism-afterimage-sparks {
+  0% { opacity: 0; transform: translateX(-36px) skewX(-8deg) scale(0.55); }
+  24% { opacity: 1; transform: translateX(0) skewX(-6deg) scale(0.9); }
+  100% { opacity: 0; transform: translateX(72px) skewX(-4deg) scale(1.18); }
 }
 
 @keyframes meteor-fall {

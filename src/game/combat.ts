@@ -7,8 +7,8 @@ export type EnemyKind = "trash" | "elite" | "boss";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
-export type CombatHitPhase = "fall" | "impact" | "rain";
-export type CombatVfxCue = "meteor-fall" | "meteor-impact" | "glass-rain-fall";
+export type CombatHitPhase = "fall" | "impact" | "rain" | "pierce";
+export type CombatVfxCue = "meteor-fall" | "meteor-impact" | "glass-rain-fall" | "prism-pierce";
 
 export interface CombatVector {
   x: number;
@@ -736,6 +736,68 @@ function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFro
   }, scriptedRun);
 }
 
+function selectPrismStepTargets(run: CombatRun, scriptedRun: CombatRun, skill: ClassSkillDefinition): CombatEnemy[] {
+  const startX = run.player.x;
+  const endX = scriptedRun.player.x;
+  const minX = Math.min(startX, endX) - 22;
+  const maxX = Math.max(startX, endX) + 22;
+  const laneRange = skillLaneRange(skill.tags);
+
+  return run.enemies
+    .filter((enemy) => {
+      if (enemy.hp <= 0) {
+        return false;
+      }
+
+      return enemy.position.x >= minX && enemy.position.x <= maxX && Math.abs(enemy.position.y - run.player.y) <= laneRange;
+    })
+    .sort((left, right) => (left.position.x - right.position.x) * run.player.facing)
+    .slice(0, 2);
+}
+
+function applyPrismStep(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const scriptedRun = applySkillStartupMovement(run, skill);
+  const targetingHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: skillRangeX(skill.tags),
+    laneRange: skillLaneRange(skill.tags),
+    targetCap: 2,
+    frontOnly: false,
+    damage: skillDamage(run, skill),
+    hitstopMs: 56,
+    knockback: 24,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    statusTags: ["stagger"]
+  };
+  const targets = selectPrismStepTargets(run, scriptedRun, skill);
+
+  if (targets.length === 0) {
+    return applyMiss(scriptedRun, targetingHitbox);
+  }
+
+  return targets.reduce((nextRun, target, targetIndex) => {
+    return applyHit(nextRun, {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-pierce-${targetIndex}-${target.id}`,
+      targetId: target.id,
+      damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.88)),
+      hitstopMs: 56,
+      knockback: 24,
+      juggle: false,
+      action: "skill",
+      skillId: skill.id,
+      inputToHitMs: skill.animation.hitFrameMs + targetIndex * 28,
+      canceledFromCombo,
+      statusTags: ["stagger"],
+      hitPhase: "pierce",
+      vfxCue: "prism-pierce",
+      vfxWindowMs: 340
+    });
+  }, scriptedRun);
+}
+
 function classResource(state: GameState): Omit<CombatResource, "current"> {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
   const resource = classDef?.resource ?? { id: "heat", displayName: "热能", max: 100 };
@@ -1404,6 +1466,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "liuli-rain") {
     return completeSkillAction(run, applyLiuliRain(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "prism-step") {
+    return completeSkillAction(run, applyPrismStep(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   const scriptedRun = applySkillStartupMovement(run, skill);

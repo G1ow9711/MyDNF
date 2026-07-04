@@ -1002,6 +1002,68 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-vfx-anchor="front"');
   });
 
+  it("renders prism-step as a path-piercing dash with target impact bursts", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          position: { x: player.x + 52 + index * 40, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "prism-step" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after prism-step");
+    }
+
+    const stepHits = model.combatRun.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "prism-step"
+    );
+    const hitFrameMs = stepHits.length > 0 ? Math.max(...stepHits.map((event) => event.occurredAtMs)) : model.combatRun.elapsedMs;
+    const hitFrameHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs: hitFrameMs
+      }
+    });
+
+    expect(model.combatRun.player.x).toBeGreaterThanOrEqual(344);
+    expect(stepHits).toHaveLength(2);
+    expect(hitFrameHtml).toContain('data-active-skill-id="prism-step"');
+    expect(hitFrameHtml).toContain('data-skill-animation-preset="liuli-step"');
+    expect(hitFrameHtml).toContain('data-skill-weapon-arc="prism-dash"');
+    expect(hitFrameHtml).toContain('data-skill-vfx-shape="prism-afterimage"');
+    expect(hitFrameHtml).toContain('data-player-trail="skill"');
+    expect(hitFrameHtml).toContain('data-vfx-cue="prism-pierce"');
+    expect(hitFrameHtml).toContain('class="skill-impact-burst skill-impact-shape-prism-afterimage"');
+    expect(countOccurrences(hitFrameHtml, 'data-skill-impact-vfx="prism-step"')).toBe(2);
+  });
+
   it("renders per-target impact sparks, hitstop shake, and player motion trails for multi-target skills", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

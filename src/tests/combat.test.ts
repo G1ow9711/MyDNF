@@ -783,6 +783,31 @@ describe("combat actions and impact feel", () => {
     expect(rain.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
   });
 
+  it("prism-step pierces enemies along the dash path instead of only checking the landing point", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 292, y: 340 },
+        { x: 332, y: 348 }
+      ]
+    );
+
+    const step = performAction(run, { type: "skill", skillId: "prism-step" });
+    const stepHits = step.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "prism-step");
+    const targetIds = [...new Set(stepHits.map((event) => event.targetId))];
+
+    expect(step.player.x).toBeGreaterThanOrEqual(344);
+    expect(stepHits).toHaveLength(2);
+    expect(targetIds).toHaveLength(2);
+    expect(stepHits.every((event) => (event.hitPhase as string | undefined) === "pierce")).toBe(true);
+    expect(stepHits.every((event) => (event.vfxCue as string | undefined) === "prism-pierce")).toBe(true);
+    expect(stepHits.every((event) => event.statusTags?.includes("stagger"))).toBe(true);
+    expect(step.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(step.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
   it("meteor-knuckle resolves as staged fall and impact hits with forced knockdown", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),

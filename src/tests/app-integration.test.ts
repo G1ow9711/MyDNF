@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
-import { SAVE_KEY, type SaveStorage } from "../systems/save";
+import { saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 import { combatActionForKeyCode, createAppModel, mountApp, reduceAppAction, renderAppHtml } from "../ui/app";
 
 class MemoryStorage implements SaveStorage {
@@ -68,6 +68,22 @@ function readyForAdvancement(state: GameState): GameState {
       }
     }
   };
+}
+
+function defeatCurrentRoom(model: ReturnType<typeof createAppModel>): ReturnType<typeof createAppModel> {
+  let next = model;
+
+  for (let attempt = 0; attempt < 40 && next.combatRun?.enemies.some((enemy) => enemy.hp > 0); attempt += 1) {
+    next = reduceAppAction(next, { type: "combatAction", action: "heavy" });
+  }
+
+  expect(next.combatRun?.enemies.some((enemy) => enemy.hp > 0)).toBe(false);
+
+  return next;
+}
+
+function settleClearedRoom(model: ReturnType<typeof createAppModel>): ReturnType<typeof createAppModel> {
+  return reduceAppAction(defeatCurrentRoom(model), { type: "combatAction", action: "finish" });
 }
 
 describe("playable app integration actions", () => {
@@ -143,9 +159,9 @@ describe("playable app integration actions", () => {
 
     model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
     expect(model.audio.currentBgm).toBe("dungeon-cinder-kiln");
-    model = reduceAppAction(model, { type: "combatAction", action: "finish" });
-    model = reduceAppAction(model, { type: "combatAction", action: "finish" });
-    model = reduceAppAction(model, { type: "combatAction", action: "finish" });
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
 
     expect(model.mode).toBe("town");
     expect(model.combatRun).toBeUndefined();
@@ -156,6 +172,36 @@ describe("playable app integration actions", () => {
     expect(model.message).toContain("通关");
     expect(model.audio.currentBgm).toBe("town-forge-market");
     expect(model.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "loot-drop" }]));
+  });
+
+  it("requires defeating all monsters before room settlement", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    const refused = reduceAppAction(model, { type: "combatAction", action: "finish" });
+
+    expect(refused.mode).toBe("combat");
+    expect(refused.combatRun?.enemies.some((enemy) => enemy.hp > 0)).toBe(true);
+    expect(refused.message).toContain("击败所有怪物");
+  });
+
+  it("maps PC movement keys to combat movement actions", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    const beforeX = model.combatRun?.player.x ?? 0;
+    const action = combatActionForKeyCode(model.state, "ArrowRight", model.combatRun?.player.heat);
+
+    expect(action).toEqual({ type: "combatMove", moveX: 1, moveY: 0, dash: false });
+
+    if (!action) {
+      throw new Error("Expected ArrowRight to map to movement");
+    }
+
+    const moved = reduceAppAction(model, action);
+
+    expect(moved.combatRun?.player.x).toBeGreaterThan(beforeX);
+    expect(renderAppHtml(moved)).toContain('data-player-facing="1"');
   });
 
   it("renders the active objective tracker while inside a dungeon", () => {
@@ -192,6 +238,59 @@ describe("playable app integration actions", () => {
     expect(next.combatRun).toEqual(model.combatRun);
   });
 
+  it("renders player attack motion and monster hit reaction after striking", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    const idleHtml = renderAppHtml(model);
+    expect(idleHtml).toContain('data-player-motion="idle"');
+    expect(idleHtml).toContain('data-enemy-motion="idle"');
+
+    model = reduceAppAction(model, { type: "combatAction", action: "light" });
+
+    const hitHtml = renderAppHtml(model);
+    const targetId = model.combatRun?.events.find((event) => event.kind === "hit")?.targetId;
+
+    expect(targetId).toBeTruthy();
+    expect(hitHtml).toContain('data-player-motion="light"');
+    expect(hitHtml).toContain('class="combat-player-art actor-model actor-model-light"');
+    expect(hitHtml).toContain(`data-last-hit-target="${targetId}"`);
+    expect(hitHtml).toContain('data-hit-recent="true"');
+    expect(hitHtml).toContain('data-enemy-motion="hit"');
+    expect(hitHtml).toContain('class="enemy-art actor-model actor-model-hit"');
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: false });
+
+    const recoveredHtml = renderAppHtml(model);
+    expect(recoveredHtml).toContain('data-player-motion="idle"');
+    expect(recoveredHtml).toContain('data-enemy-motion="idle"');
+    expect(recoveredHtml).toContain('class="combat-player-art actor-model actor-model-idle"');
+    expect(recoveredHtml).not.toContain('class="hit-impact');
+  });
+
+  it("does not carry old hit VFX into the next combat room", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = defeatCurrentRoom(model);
+
+    const clearedHtml = renderAppHtml(model);
+    expect(clearedHtml).toContain('data-player-motion="heavy"');
+
+    model = reduceAppAction(model, { type: "combatAction", action: "finish" });
+
+    const nextRoomHtml = renderAppHtml(model);
+    expect(model.combatRun?.roomIndex).toBe(1);
+    expect(nextRoomHtml).toContain('data-player-motion="idle"');
+    expect(nextRoomHtml).toContain('data-enemy-motion="idle"');
+    expect(nextRoomHtml).not.toContain('class="hit-impact');
+    expect(nextRoomHtml).not.toContain('data-damage-number="true"');
+  });
+
   it("renders concrete combat skill slots and maps hotkeys to those skills", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),
@@ -205,6 +304,8 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-hotkey="U"');
     expect(html).toContain('data-skill-cost="25"');
     expect(combatActionForKeyCode(model.state, "KeyJ")).toEqual({ type: "combatAction", action: "light" });
+    expect(combatActionForKeyCode(model.state, "KeyX")).toEqual({ type: "combatAction", action: "light" });
+    expect(combatActionForKeyCode(model.state, "KeyZ")).toEqual({ type: "combatAction", action: "heavy" });
     expect(combatActionForKeyCode(model.state, "KeyU")).toEqual({
       type: "combatAction",
       action: "skill",
@@ -223,6 +324,25 @@ describe("playable app integration actions", () => {
     expect(lastEvent).toMatchObject({ kind: "hit", action: "skill", skillId: "anvil-crash" });
     expect(cast.combatRun?.player.heat).toBeLessThan(model.combatRun?.player.heat ?? 0);
     expect(cast.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "skill-burst" }]));
+  });
+
+  it("renders player skill burst VFX after casting a combat skill", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 80)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "anvil-crash" });
+
+    const html = renderAppHtml(model);
+
+    expect(html).toContain('class="combat-vfx-layer"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-skill"');
+    expect(html).toContain('class="enemy-art actor-model actor-model-hit"');
+    expect(html).toContain('data-player-skill-vfx="anvil-crash"');
+    expect(html).toContain('data-vfx-action="skill"');
+    expect(html).toContain('data-damage-number="true"');
   });
 
   it("does not map unaffordable combat skill hotkeys", () => {
@@ -303,7 +423,8 @@ describe("playable app integration actions", () => {
 
       clickHandler?.({ target: nestedSpan } as unknown as Event);
 
-      expect(root.innerHTML).toContain("火花 5");
+      expect(root.innerHTML).toContain('class="combat-vfx-layer"');
+      expect(root.innerHTML).toContain('data-player-skill-vfx="anvil-crash"');
       expect(root.innerHTML).toContain("热能 7");
       expect(listeners.has("keydown")).toBe(true);
 
@@ -432,6 +553,113 @@ describe("playable app integration actions", () => {
     expect(storage.data.has(SAVE_KEY)).toBe(true);
     expect(loaded.state).toEqual(saved.state);
     expect(loaded.message).toContain("读取");
+  });
+
+  it("loads the local single-player save when the app starts", () => {
+    const storage = new MemoryStorage();
+    const savedState = withCurrency(createInitialState(), { gold: 7777, tradeCredit: 88 });
+
+    saveGame(storage, savedState);
+
+    const loaded = createAppModel({ storage });
+    const explicitNewGame = createAppModel({
+      storage,
+      initialState: withCurrency(createInitialState(), { gold: 1234, tradeCredit: 12 })
+    });
+
+    expect(loaded.state.player.currencies.gold).toBe(7777);
+    expect(loaded.state.player.currencies.tradeCredit).toBe(88);
+    expect(loaded.message).toContain("读取本地存档");
+    expect(explicitNewGame.state.player.currencies.gold).toBe(1234);
+  });
+
+  it("does not auto overwrite a malformed local save after fallback startup", () => {
+    const previousLocalStorage = globalThis.localStorage;
+    const storage = new MemoryStorage();
+    let clickHandler: ((event: Event) => void) | undefined;
+    const root = {
+      innerHTML: "",
+      addEventListener(type: string, handler: EventListener): void {
+        if (type === "click") {
+          clickHandler = handler as (event: Event) => void;
+        }
+      }
+    } as unknown as HTMLDivElement;
+
+    storage.setItem(SAVE_KEY, "{bad json");
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: storage
+    });
+
+    try {
+      const cleanup = mountApp(root);
+      const gearId = createInitialState().player.inventory[0].instanceId;
+      const reinforceButton = {
+        dataset: { appAction: "reinforce", gearId },
+        closest: () => reinforceButton
+      };
+
+      clickHandler?.({ target: reinforceButton } as unknown as Event);
+
+      expect(storage.getItem(SAVE_KEY)).toBe("{bad json");
+
+      cleanup();
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: previousLocalStorage
+      });
+    }
+  });
+
+  it("auto saves mounted persistent actions to the local single-player save", () => {
+    const previousLocalStorage = globalThis.localStorage;
+    const storage = new MemoryStorage();
+    let clickHandler: ((event: Event) => void) | undefined;
+    const root = {
+      innerHTML: "",
+      addEventListener(type: string, handler: EventListener): void {
+        if (type === "click") {
+          clickHandler = handler as (event: Event) => void;
+        }
+      }
+    } as unknown as HTMLDivElement;
+
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: storage
+    });
+
+    try {
+      const cleanup = mountApp(root);
+      const gearId = createInitialState().player.inventory[0].instanceId;
+      const reinforceButton = {
+        dataset: { appAction: "reinforce", gearId },
+        closest: () => reinforceButton
+      };
+
+      clickHandler?.({ target: reinforceButton } as unknown as Event);
+
+      const rawSave = storage.getItem(SAVE_KEY);
+
+      if (!rawSave) {
+        throw new Error("Expected mounted app action to write local save");
+      }
+
+      const saved = JSON.parse(rawSave) as GameState;
+      const reinforced = saved.player.inventory.find((item) => item.instanceId === gearId);
+
+      expect(reinforced?.reinforceLevel).toBe(1);
+      expect(root.innerHTML).toContain("+1");
+
+      cleanup();
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: previousLocalStorage
+      });
+    }
   });
 
   it("updates audio volumes through app settings actions", () => {

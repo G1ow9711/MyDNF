@@ -48,6 +48,7 @@ export interface CombatHitEvent {
   skillId?: string;
   targetId: string;
   damage: number;
+  occurredAtMs: number;
   inputToHitMs: number;
   hitstopMs: number;
   canceledFromCombo: boolean;
@@ -266,6 +267,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     skillId: hit.skillId,
     targetId: hit.targetId,
     damage: hit.damage,
+    occurredAtMs: run.elapsedMs,
     inputToHitMs: hit.inputToHitMs ?? 0,
     hitstopMs,
     canceledFromCombo: hit.canceledFromCombo ?? false
@@ -412,7 +414,7 @@ export function finishRoom(run: CombatRun): CombatRun {
     ...run,
     roomIndex: completed ? run.roomIndex : nextRoomIndex,
     enemies: completed ? [] : createRoomEnemies(run.dungeonId, nextRoomIndex),
-    events: [...run.events, clearedEvent],
+    events: [clearedEvent],
     lootEvents: [...run.lootEvents, lootEvent],
     completed
   };

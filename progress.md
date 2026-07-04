@@ -723,3 +723,69 @@
   - `npm run build`: pass.
   - `git diff --check`: pass with only Windows line-ending warnings.
   - Read-only review agent found no blocking issues; noted residual risk is only that automated tests are DOM/logic based, which is covered by the manual browser screenshot check.
+
+## Task 24 DNF-Style Keyboard Control and Room Settlement Gate
+- Started after stricter continuation goal: follow DNF gameplay more closely and verify controls on the local computer.
+- Gap found:
+  - `finish` action still used `defeatAll()` in the UI reducer, allowing the player to skip combat and settle a room with live enemies.
+  - Keyboard handling mapped attack/skill keys only; Arrow/WASD movement did not drive `stepCombat()` in the live app.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` now verifies live enemies block room settlement with a Chinese prompt.
+  - `src/tests/app-integration.test.ts` now verifies ArrowRight maps to a combat movement action and changes player position.
+  - Existing dungeon-clear integration test now defeats each room with attacks before settling.
+- Implemented:
+  - Added `combatMove` app action and movement mapping for Arrow keys and WASD.
+  - Added X/J light attack and Z/K heavy attack keyboard aliases.
+  - Live keydown handler passes movement keys and Shift dash into combat movement.
+  - Removed UI-level auto-kill settlement; rooms can only settle after all enemies are defeated.
+  - Added an in-combat keyboard hint: `方向键/WASD 移动 · Shift 冲刺 · X/J 轻击 · Z/K 重击`.
+- Verification:
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 18 tests.
+  - `npm test`: pass, 12 files and 121 tests.
+  - `npm run build`: pass.
+  - Browser check at `http://127.0.0.1:5174/`: after entering `灰窑巷`, ArrowRight moved the player actor from left 96 to 131; clicking settlement with 2 live enemies showed `请先击败所有怪物，再结算房间`; pressing X changed first enemy HP from 80/80 to 56/80, heat from 0 to 8, combo to 1, and hit-spark count to 1.
+
+## Task 25 Single-Player Save Flow and Shan Hai Jing Monster Upgrade
+- Started after the user requested that the single-player game consider save functionality, while the earlier monster-modeling request remains open.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` verifies startup reads an existing local save and explicit `initialState` still overrides it for tests/new-game flows.
+  - `src/tests/app-integration.test.ts` verifies mounted persistent UI actions auto-save to `SAVE_KEY`.
+  - `src/tests/ui-smoke.test.ts` requires the settings panel to explain local auto-save behavior.
+- Implemented:
+  - `createAppModel()` now auto-loads `SAVE_KEY` when storage is available and no explicit initial state is provided.
+  - `mountApp()` now saves after dispatched actions that actually change `GameState`, excluding load and reset-save.
+  - Settings panel now describes local single-player auto-save and manual save/load/reset controls.
+- Verification:
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 20 tests.
+  - `npm test -- src/tests/ui-smoke.test.ts`: pass, 7 tests.
+- Continued after the user required non-static combat actors and visible skill effects for both player and monsters.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` verifies idle combat actors expose motion state, a strike changes the player to attack motion, and the hit target changes to monster hit reaction.
+  - `src/tests/app-integration.test.ts` verifies a cast skill renders a combat VFX layer, skill burst, VFX action marker, and damage number.
+  - `src/tests/ui-smoke.test.ts` verifies trash, elite, and boss monsters render tier-specific monster skill VFX ids.
+- Implemented:
+  - `renderCombatActors()` now derives player motion and monster hit reaction from the latest hit event.
+  - `renderCombatVfx()` now draws monster skill telegraphs, hit impacts, damage numbers, and player skill burst effects.
+  - CSS animations now cover player light/heavy/skill movement, monster idle breathing, monster hit reaction, impact rings, slash cuts, skill bursts, damage float, and enemy cast telegraphs.
+- Verification:
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 22 tests.
+  - `npm test -- src/tests/ui-smoke.test.ts`: pass, 9 tests.
+- Parallel review:
+  - Spawned review agent `019f2bb2-28ba-7ff0-94a8-a3d90605fabe`.
+  - Review found no blocking issues, but flagged stale hit/VFX state and malformed-save auto-overwrite as medium risks.
+  - Added regressions for hit/VFX expiry, next-room VFX isolation, and malformed-save fallback auto-save protection.
+  - Implemented timestamped hit events, recent-hit filtering, room event reset, and malformed-save auto-save disablement until explicit save/reset.
+  - Added `AGENTS.md` with the project rule that independent work should use multiple agents in parallel when feasible.
+  - Added Vite watch ignore for `.codex-local` after Edge headless verification profiles caused Windows `EBUSY` watcher failure.
+- Final verification in progress:
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 24 tests.
+  - `npm test`: pass, 12 files and 129 tests.
+  - `npm run build`: pass after adding explicit render hit type narrowing.
+  - Edge headless browser check on `http://127.0.0.1:5174/`: enemy PNG assets loaded with natural width 1619, monster skill VFX present, player attack motion `light`, one hit enemy, one impact, one damage number, player skill VFX `furnace-step`, auto-save wrote +1 reinforcement, reload read local save, and settings showed local auto-save note.
+  - Browser screenshot saved at `.codex-local/tmp/monster-browser-check.png`.
+- Follow-up after user clarified that character and monster models themselves must move with attacks:
+  - Added regression assertions that player and enemy image nodes include `actor-model-*` motion classes.
+  - Player and monster bitmap `<img>` nodes now receive `actor-model-idle/light/heavy/skill/hit/defeated` classes derived from combat state.
+  - CSS animation selectors now target those model classes directly, so the bitmap models themselves translate, rotate, compress, and recover during attacks and hit reactions.
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 24 tests.
+  - Browser check confirmed model classes at runtime: player `combat-player-art actor-model actor-model-light`, hit monster `enemy-art actor-model actor-model-hit`.

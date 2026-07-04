@@ -1,6 +1,6 @@
 import { catalog } from "../data/catalog";
 import type { ClassId, DungeonId, TownId } from "./types";
-import type { CombatRun } from "./combat";
+import type { CombatHitEvent, CombatRun } from "./combat";
 
 export type SceneId = TownId | DungeonId;
 
@@ -214,7 +214,9 @@ export function createRenderPlan(run: CombatRun, sceneId: SceneId): RenderPlan {
     detailLevel: enemy.kind === "boss" ? "detailed-generated" : "silhouette"
   }));
   const hitSparkCommands: RenderCommand[] = run.events
-    .filter((event) => event.kind === "hit")
+    .filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && run.elapsedMs - event.occurredAtMs <= 520
+    )
     .map((event) => ({
       kind: "hit-spark",
       id: event.id,

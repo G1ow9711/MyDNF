@@ -89,6 +89,8 @@ Phase 5 - Verification and Delivery
 - GitHub remote configured: `https://github.com/G1ow9711/MyDNF.git`.
 - User has allowed pushing to GitHub.
 - Latest verified delivery is pushed to `origin/feature/vertical-slice`; local and remote refs were checked after the final-record commit.
+- Current stricter continuation goal: move closer to DNF-style keyboard-controlled room combat; do not treat the current prototype as final until keyboard movement, combat gating, room flow, enemy behavior, and player-side acceptance are verified.
+- Current visual-combat continuation goal: combat actors must not be static; player strikes, player skills, monster hit reactions, and monster skill telegraphs need visible motion/effect states.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

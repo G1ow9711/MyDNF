@@ -1,11 +1,11 @@
 import { catalog } from "../data/catalog";
 import {
-  applyHit,
   createCombatRun,
   finishRoom,
   performAction,
   stepCombat,
   type CombatEnemy,
+  type CombatHitEvent,
   type CombatLootEvent,
   type CombatRun
 } from "../game/combat";
@@ -53,11 +53,13 @@ export interface AppModel extends AppViewModel {
   storage?: SaveStorage;
   rng: () => number;
   audio: AudioState;
+  autoSaveDisabled?: boolean;
 }
 
 export type AppAction =
   | { type: "setMode"; mode: AppMode }
   | { type: "enterDungeon"; dungeonId: DungeonId }
+  | { type: "combatMove"; moveX: number; moveY: number; dash: boolean }
   | { type: "combatAction"; action: "light" | "heavy" | "finish" }
   | { type: "combatAction"; action: "skill"; skillId: string }
   | { type: "claimQuest"; questId: string }
@@ -83,6 +85,12 @@ export interface CreateAppModelOptions {
   initialState?: GameState;
   storage?: SaveStorage;
   rng?: () => number;
+}
+
+interface InitialStateResult {
+  state: GameState;
+  message?: string;
+  autoSaveDisabled?: boolean;
 }
 
 function navButton(mode: AppMode, label: string, activeMode: AppMode): string {
@@ -112,6 +120,28 @@ function defaultStorage(): SaveStorage | undefined {
   return globalThis.localStorage;
 }
 
+function resolveInitialState(options: CreateAppModelOptions, storage: SaveStorage | undefined): InitialStateResult {
+  if (options.initialState) {
+    return { state: options.initialState };
+  }
+
+  if (!storage) {
+    return { state: createInitialState() };
+  }
+
+  try {
+    const loaded = loadGame(storage);
+
+    if (loaded) {
+      return { state: loaded, message: "已读取本地存档" };
+    }
+  } catch {
+    return { state: createInitialState(), message: "存档读取失败，已启动新游戏", autoSaveDisabled: true };
+  }
+
+  return { state: createInitialState() };
+}
+
 function dungeonBackgroundAsset(dungeonId: DungeonId): string {
   return dungeonId === "liuli-furnace" ? "/assets/liuli-furnace-bg.png" : "/assets/cinder-kiln-bg.png";
 }
@@ -139,12 +169,28 @@ function combatSkillsForState(state: GameState): ClassSkillDefinition[] {
   );
 }
 
-export function combatActionForKeyCode(state: GameState, code: string, heat?: number): AppAction | undefined {
-  if (code === "KeyJ") {
+export function combatActionForKeyCode(state: GameState, code: string, heat?: number, dash = false): AppAction | undefined {
+  const movementByCode: Record<string, Pick<Extract<AppAction, { type: "combatMove" }>, "moveX" | "moveY">> = {
+    ArrowLeft: { moveX: -1, moveY: 0 },
+    KeyA: { moveX: -1, moveY: 0 },
+    ArrowRight: { moveX: 1, moveY: 0 },
+    KeyD: { moveX: 1, moveY: 0 },
+    ArrowUp: { moveX: 0, moveY: -1 },
+    KeyW: { moveX: 0, moveY: -1 },
+    ArrowDown: { moveX: 0, moveY: 1 },
+    KeyS: { moveX: 0, moveY: 1 }
+  };
+  const movement = movementByCode[code];
+
+  if (movement) {
+    return { type: "combatMove", ...movement, dash };
+  }
+
+  if (code === "KeyJ" || code === "KeyX") {
     return { type: "combatAction", action: "light" };
   }
 
-  if (code === "KeyK") {
+  if (code === "KeyK" || code === "KeyZ") {
     return { type: "combatAction", action: "heavy" };
   }
 
@@ -217,17 +263,118 @@ function enemyHpPercent(enemy: CombatEnemy): number {
   return Math.round(Math.min(1, Math.max(0, enemy.hp / enemy.maxHp)) * 100);
 }
 
+function enemyAsset(enemy: CombatEnemy): string {
+  if (enemy.kind === "boss") {
+    return "/assets/monster-taotie-overseer.png";
+  }
+
+  if (enemy.kind === "elite") {
+    return "/assets/monster-zheng-guard.png";
+  }
+
+  return "/assets/monster-ash-rat.png";
+}
+
+const recentHitWindowMs = 520;
+
+function latestHitEvent(run: CombatRun): CombatHitEvent | undefined {
+  return [...run.events]
+    .reverse()
+    .find(
+      (event): event is CombatHitEvent =>
+        event.kind === "hit" && run.elapsedMs - event.occurredAtMs <= recentHitWindowMs
+    );
+}
+
+function playerMotion(run: CombatRun): string {
+  const hit = latestHitEvent(run);
+
+  return hit?.action === "skill" ? "skill" : hit?.action ?? "idle";
+}
+
+function enemyMotion(enemy: CombatEnemy, lastHitTargetId: string | undefined): string {
+  if (enemy.hp <= 0) {
+    return "defeated";
+  }
+
+  return enemy.id === lastHitTargetId ? "hit" : "idle";
+}
+
+function enemySkillEffect(enemy: CombatEnemy): { id: string; label: string } {
+  if (enemy.kind === "boss") {
+    return { id: "taotie-flame-breath", label: "饕餮炉火" };
+  }
+
+  if (enemy.kind === "elite") {
+    return { id: "zheng-shockwave", label: "狰卫震地" };
+  }
+
+  return { id: "ash-ember-spit", label: "灰烬喷吐" };
+}
+
+function renderCombatVfx(run: CombatRun): string {
+  const hit = latestHitEvent(run);
+  const target = hit ? run.enemies.find((enemy) => enemy.id === hit.targetId) : undefined;
+  const hitVfx =
+    hit && target
+      ? `
+        <div class="hit-impact hit-impact-${hit.action ?? "test"}" data-vfx-action="${hit.action ?? "test"}" style="${combatActorStyle(run, target.position.x, target.position.y)}">
+          <span class="hit-ring"></span>
+          <span class="hit-slash"></span>
+        </div>
+        <div class="damage-number" data-damage-number="true" style="${combatActorStyle(run, target.position.x, target.position.y)}">-${hit.damage}</div>
+      `
+      : "";
+  const skillVfx =
+    hit?.action === "skill"
+      ? `
+        <div class="player-skill-vfx skill-vfx-${hit.skillId ?? "unknown"}" data-player-skill-vfx="${hit.skillId ?? "unknown"}" data-vfx-action="skill" style="${combatActorStyle(run, run.player.x + 128 * run.player.facing, run.player.y)}">
+          <span class="skill-core"></span>
+          <span class="skill-wave"></span>
+          <span class="skill-sparks"></span>
+        </div>
+      `
+      : "";
+  const enemyVfx = run.enemies
+    .filter((enemy) => enemy.hp > 0)
+    .map((enemy) => {
+      const effect = enemySkillEffect(enemy);
+
+      return `
+        <div class="enemy-skill-vfx enemy-skill-${effect.id}" data-enemy-id="${enemy.id}" data-enemy-skill-vfx="${effect.id}" aria-label="${effect.label}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+          <span class="enemy-cast-ring"></span>
+          <span class="enemy-cast-core"></span>
+          <span class="enemy-cast-trail"></span>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="combat-vfx-layer">
+      ${enemyVfx}
+      ${hitVfx}
+      ${skillVfx}
+    </div>
+  `;
+}
+
 function renderCombatActors(run: CombatRun, state: GameState): string {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
+  const lastHit = latestHitEvent(run);
   const enemyActors = run.enemies
     .map((enemy) => {
       const enemyState = enemy.hp > 0 ? "alive" : "defeated";
       const hpPercent = enemyHpPercent(enemy);
+      const motion = enemyMotion(enemy, lastHit?.targetId);
+      const hitRecent = enemy.id === lastHit?.targetId;
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-hit-recent="${hitRecent ? "true" : "false"}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
-          <div class="enemy-sprite" aria-hidden="true"><span class="enemy-core"></span></div>
+          <div class="enemy-model-frame">
+            <img class="enemy-art actor-model actor-model-${motion}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
+          </div>
           <div class="enemy-health" aria-label="${enemy.displayName} HP ${enemy.hp}/${enemy.maxHp}">
             <span class="enemy-health-fill" style="--hp: ${hpPercent}%;"></span>
           </div>
@@ -237,9 +384,9 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
     .join("");
 
   return `
-    <div class="combat-actors">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
-        <img class="combat-player-art" src="/assets/hero-ember-warden.png" alt="${classDef?.displayName ?? state.player.classId}" />
+    <div class="combat-actors" data-last-hit-target="${lastHit?.targetId ?? ""}">
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotion(run)}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+        <img class="combat-player-art actor-model actor-model-${playerMotion(run)}" src="/assets/hero-ember-warden.png" alt="${classDef?.displayName ?? state.player.classId}" />
         <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>
       </div>
       ${enemyActors}
@@ -270,14 +417,16 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
       </div>
       ${renderCombatActors(run, state)}
+      ${renderCombatVfx(run)}
       ${
         roomCleared
           ? `<div class="room-clear-banner"><strong>房间已清理</strong><span>点击“结算房间”进入下一段战斗</span></div>`
           : ""
       }
       <div class="combat-actions">
-        <button data-combat-action="light" data-hotkey="J" ${roomCleared ? "disabled" : ""}>轻击<span>J</span></button>
-        <button data-combat-action="heavy" data-hotkey="K" ${roomCleared ? "disabled" : ""}>重击<span>K</span></button>
+        <div class="combat-control-hint">方向键/WASD 移动 · Shift 冲刺 · X/J 轻击 · Z/K 重击</div>
+        <button data-combat-action="light" data-hotkey="J" ${roomCleared ? "disabled" : ""}>轻击<span>X/J</span></button>
+        <button data-combat-action="heavy" data-hotkey="K" ${roomCleared ? "disabled" : ""}>重击<span>Z/K</span></button>
         ${skillButtons}
         <button class="settle-button${roomCleared ? " is-ready" : ""}" data-combat-action="finish">结算房间</button>
         <button data-mode="town">返回</button>
@@ -343,21 +492,6 @@ function selectedGearId(state: GameState, explicitGearId?: string): string {
   return gearId;
 }
 
-function defeatAll(run: CombatRun): CombatRun {
-  return run.enemies.reduce(
-    (next, enemy) =>
-      applyHit(next, {
-        id: `ui-finish-${enemy.id}`,
-        targetId: enemy.id,
-        damage: 9999,
-        hitstopMs: 70,
-        knockback: 10,
-        juggle: false
-      }),
-    run
-  );
-}
-
 function applyCombatLoot(state: GameState, loot: CombatLootEvent): GameState {
   let next: GameState = {
     ...state,
@@ -381,13 +515,17 @@ function applyCombatLoot(state: GameState, loot: CombatLootEvent): GameState {
 
 export function createAppModel(options: CreateAppModelOptions = {}): AppModel {
   const townMusic = chooseMusicLayer({ mode: "town" });
+  const storage = options.storage ?? defaultStorage();
+  const initial = resolveInitialState(options, storage);
 
   return {
-    state: options.initialState ?? createInitialState(),
+    state: initial.state,
     mode: "town",
-    storage: options.storage ?? defaultStorage(),
+    storage,
     rng: options.rng ?? Math.random,
-    audio: playBgm(createAudioState(), townMusic.trackId)
+    audio: playBgm(createAudioState(), townMusic.trackId),
+    message: initial.message,
+    autoSaveDisabled: initial.autoSaveDisabled
   };
 }
 
@@ -408,13 +546,39 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         message: undefined,
         audio: playBgm(model.audio, chooseMusicLayer({ mode: "dungeon", dungeonId: action.dungeonId, danger: 0.2 }).trackId)
       };
+    case "combatMove":
+      if (!model.combatRun) {
+        return model;
+      }
+
+      return {
+        ...model,
+        combatRun: stepCombat(
+          model.combatRun,
+          {
+            moveX: action.moveX,
+            moveY: action.moveY,
+            dash: action.dash
+          },
+          160
+        ),
+        message: undefined
+      };
     case "combatAction": {
       if (!model.combatRun) {
         return model;
       }
 
       if (action.action === "finish") {
-        const finishedRun = finishRoom(defeatAll(model.combatRun));
+        if (model.combatRun.enemies.some((enemy) => enemy.hp > 0)) {
+          return {
+            ...model,
+            message: "请先击败所有怪物，再结算房间",
+            audio: playSfx(model.audio, "ui-select")
+          };
+        }
+
+        const finishedRun = finishRoom(model.combatRun);
         const latestLoot = finishedRun.lootEvents[finishedRun.lootEvents.length - 1];
         let nextState = latestLoot ? applyCombatLoot(model.state, latestLoot) : model.state;
 
@@ -618,7 +782,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
 
       saveGame(model.storage, model.state);
 
-      return { ...model, message: "保存完成", audio: playSfx(model.audio, "ui-save") };
+      return { ...model, autoSaveDisabled: false, message: "保存完成", audio: playSfx(model.audio, "ui-save") };
     case "load":
       if (!model.storage) {
         throw new Error("未配置存档空间");
@@ -626,6 +790,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
 
       return {
         ...model,
+        autoSaveDisabled: false,
         state: loadGame(model.storage) ?? model.state,
         message: "读取存档完成",
         audio: playSfx(model.audio, "ui-load")
@@ -643,6 +808,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
 
       return {
         ...model,
+        autoSaveDisabled: false,
         state: createInitialState(),
         mode: "town",
         combatRun: undefined,
@@ -654,6 +820,10 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
   }
 }
 
+function shouldAutoSave(model: AppModel, action: AppAction, previousState: GameState, nextState: GameState): boolean {
+  return !model.autoSaveDisabled && action.type !== "load" && action.type !== "resetSave" && previousState !== nextState;
+}
+
 export function mountApp(root: HTMLDivElement): () => void {
   let model = createAppModel();
   const audioProcessor = createAudioCommandProcessor(createBrowserAudioSink());
@@ -663,8 +833,14 @@ export function mountApp(root: HTMLDivElement): () => void {
   }
 
   function dispatch(action: AppAction): void {
+    const previousState = model.state;
+
     try {
       model = reduceAppAction(model, action);
+
+      if (model.storage && shouldAutoSave(model, action, previousState, model.state)) {
+        saveGame(model.storage, model.state);
+      }
     } catch (error) {
       model = { ...model, message: error instanceof Error ? error.message : String(error) };
     }
@@ -802,7 +978,7 @@ export function mountApp(root: HTMLDivElement): () => void {
         return;
       }
 
-      const action = combatActionForKeyCode(model.state, event.code, model.combatRun?.player.heat);
+      const action = combatActionForKeyCode(model.state, event.code, model.combatRun?.player.heat, event.shiftKey);
 
       if (!action) {
         return;

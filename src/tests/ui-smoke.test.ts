@@ -56,7 +56,10 @@ describe("town app shell", () => {
       "../../public/assets/cinder-kiln-bg.png",
       "../../public/assets/forge-market-bg.png",
       "../../public/assets/hero-ember-warden.png",
-      "../../public/assets/liuli-furnace-bg.png"
+      "../../public/assets/liuli-furnace-bg.png",
+      "../../public/assets/monster-ash-rat.png",
+      "../../public/assets/monster-taotie-overseer.png",
+      "../../public/assets/monster-zheng-guard.png"
     ]);
 
     for (const assetUrl of Object.values(publicAssetModules)) {
@@ -76,6 +79,77 @@ describe("town app shell", () => {
     expect(html).toContain('data-enemy-state="alive"');
     expect(html).toContain('class="quest-tracker quest-tracker-prominent"');
     expect(html).toContain('data-combat-objective="active"');
+  });
+
+  it("renders Shan Hai Jing inspired bitmap monster models by enemy tier", () => {
+    const state = createInitialState();
+    const trashRun = createCombatRun(state, "cinder-kiln-alley");
+    const eliteRun = {
+      ...trashRun,
+      enemies: [
+        {
+          ...trashRun.enemies[0],
+          kind: "elite" as const,
+          displayName: "窑狰卫",
+          hp: 180,
+          maxHp: 180,
+          armor: 30
+        }
+      ]
+    };
+    const bossRun = {
+      ...trashRun,
+      enemies: [
+        {
+          ...trashRun.enemies[0],
+          kind: "boss" as const,
+          displayName: "饕餮监工",
+          hp: 520,
+          maxHp: 520,
+          armor: 80
+        }
+      ]
+    };
+
+    expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain("/assets/monster-ash-rat.png");
+    expect(renderAppHtml({ state, mode: "combat", combatRun: eliteRun })).toContain("/assets/monster-zheng-guard.png");
+    expect(renderAppHtml({ state, mode: "combat", combatRun: bossRun })).toContain("/assets/monster-taotie-overseer.png");
+    expect(renderAppHtml({ state, mode: "combat", combatRun: bossRun })).toContain(
+      'class="enemy-art actor-model actor-model-idle"'
+    );
+  });
+
+  it("renders monster skill effects for trash, elite, and boss enemies", () => {
+    const state = createInitialState();
+    const trashRun = createCombatRun(state, "cinder-kiln-alley");
+    const eliteRun = {
+      ...trashRun,
+      enemies: [
+        {
+          ...trashRun.enemies[0],
+          kind: "elite" as const
+        }
+      ]
+    };
+    const bossRun = {
+      ...trashRun,
+      enemies: [
+        {
+          ...trashRun.enemies[0],
+          kind: "boss" as const
+        }
+      ]
+    };
+
+    expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain(
+      'data-enemy-skill-vfx="ash-ember-spit"'
+    );
+    expect(renderAppHtml({ state, mode: "combat", combatRun: eliteRun })).toContain(
+      'data-enemy-skill-vfx="zheng-shockwave"'
+    );
+    expect(renderAppHtml({ state, mode: "combat", combatRun: bossRun })).toContain(
+      'data-enemy-skill-vfx="taotie-flame-breath"'
+    );
   });
 
   it("makes cleared combat rooms obvious before settlement", () => {
@@ -141,6 +215,7 @@ describe("town app shell", () => {
     expect(renderSettingsPanel(audio)).toContain("音乐");
     expect(renderSettingsPanel(audio)).toContain("音效");
     expect(renderSettingsPanel(audio)).toContain('data-volume-kind="music"');
+    expect(renderSettingsPanel(audio)).toContain("本地自动保存");
     expect(renderSettingsPanel(audio)).toContain('value="42"');
     expect(renderSettingsPanel(audio)).toContain("重置存档");
   });

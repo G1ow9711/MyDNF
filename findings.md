@@ -124,3 +124,21 @@
 - Combat visibility bug root cause: battle data existed, but the live combat DOM lacked visible actor sprites, so the background could hide the play state. The fix renders player and enemy actors directly in `renderCombatScene()`.
 - Cleared combat rooms need explicit UI state because users can keep trying attacks after enemies reach 0 HP. The fix shows a clear banner, disables attack controls, highlights settlement, and keeps reducer behavior in Chinese.
 - Browser verification on `http://127.0.0.1:5174/` confirmed visible player actor, enemy actors, prominent task tracker, defeated enemy state, and cleared-room settlement prompt.
+
+## DNF-Style Control Findings
+- Strict gameplay audit found the previous room settlement button was effectively a skip/auto-kill button because UI code called `defeatAll()` before `finishRoom()`. This contradicted room-clear combat flow and has been removed.
+- Live keyboard audit found attack/skill keys worked, but movement keys were not wired to the app reducer. Arrow keys and WASD now dispatch movement through `stepCombat()`, with Shift passed as dash.
+- Browser acceptance confirmed PC controls on the local app: ArrowRight moved the actor, X performed a basic attack and reduced enemy HP, and settlement is blocked while enemies are alive.
+
+## Single-Player Save Findings
+- Save validation and manual save/load already existed in `src/systems/save.ts`, but `createAppModel()` previously ignored `SAVE_KEY` during startup, so refreshing the browser always created a new state.
+- Mounted UI actions previously changed reducer state without persisting it. The app now auto-saves when a dispatched action changes `GameState`, while manual load and reset-save remain explicit exceptions.
+- Settings now explains the local single-player save behavior so players can see that role, equipment, quest, currency, and shop progress are stored locally.
+
+## Combat VFX and Motion Findings
+- Open-source game-engine patterns worth borrowing are structural, not asset-level: keep VFX as a separate render layer, drive actor animation from state/events, and define reusable effect ids instead of hardcoding every frame.
+- The current combat model already emits hit events with action, target id, damage, and hitstop. That is enough to drive player attack motion, target hit reaction, skill burst effects, and floating damage without adding a full animation engine yet.
+- Monster skill effects now exist as visual telegraphs by enemy tier: ash ember spit for trash enemies, zheng shockwave for elites, and taotie flame breath for bosses. A later AI pass can attach these telegraphs to real monster attacks and player damage windows.
+- Review found old hit events could otherwise leak motion/VFX into movement or the next room. Hit events now carry timestamps, UI/render filters old hits to the recent impact window, and room settlement resets old hit events.
+- Review also found malformed saves could be overwritten by auto-save after fallback startup. The app now disables auto-save for a malformed-save fallback until the player explicitly saves or resets.
+- Vite must ignore `.codex-local` because Edge headless browser profiles create locked cache files under that project-local temp path; otherwise dev-server file watching can crash on Windows with `EBUSY`.

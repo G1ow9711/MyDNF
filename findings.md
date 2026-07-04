@@ -182,3 +182,11 @@
 - The smith reducer already supported explicit `gearId`; the missing layer was UI selection. The new smith list now exposes per-gear reinforce/amplify actions and disables amplify on non-Echo Slot gear.
 - Advancement was not naturally reachable from play because no room experience was applied to `player.experience` or `player.level`. Room settlement now awards XP, levels use a simple 100 XP prototype threshold, and advancement can be reached after dungeon play once the prologue gate is ready/completed.
 - Browser validation on `http://127.0.0.1:5174/` confirmed the quest flow checklist renders eight steps, shop renders `liuli-gift-pack`, `reinforcement-pack`, and `forge-costume-pack`, and smith renders a gear selection list with per-item upgrade buttons.
+
+## Strict Combat Presentation Findings
+- User clarified the acceptance split: character and monster model fidelity may stay lightweight for the first complete playable loop, but combat motion smoothness, hit feel, skill VFX, monster telegraphs, monster skill effects, and action-state changes are strict.
+- Read-only review caught that `hitFrameMs` was previously metadata only: damage events, hit sparks, and hitstop still happened at input time. Combat hit events now occur at `elapsedMs + inputToHitMs`, and UI only treats hit events as active after their true hit frame.
+- Player action presentation now starts from input time, while hit reaction, damage numbers, hit sparks, and screen shake start from the hit frame. This keeps anticipation/cast motion separate from impact feedback.
+- Monster skill rendering is phase separated: windup events render telegraph zones only, while active/miss events render the actual monster skill VFX. This prevents the old mixed state where a monster could show warning and impact effect as the same phase.
+- Skill animation duration now flows into DOM/CSS through `--skill-duration`, so player model skill casts, weapon arcs, and skill VFX child animations consume catalog animation timing instead of only preserving HTML metadata.
+- Browser validation on `http://127.0.0.1:5174/` confirmed monster `ash-ember-spit` windup telegraph and later active/miss skill VFX on the live page. Screenshot saved at `.codex-local/tmp/combat-vfx-phase-check.png`.

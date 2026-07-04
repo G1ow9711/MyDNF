@@ -241,8 +241,9 @@ function weaponLayerStyle(
   const anchor = layer === "town" ? equipped.appearance.townAnchor : equipped.appearance.combatAnchor;
   const skillLunge = animation?.lungePx ?? 30;
   const skillLift = Math.max(8, Math.round((animation?.durationMs ?? 520) / 48));
+  const skillDuration = animation?.durationMs ?? 520;
 
-  return `--weapon-primary: ${equipped.appearance.palette.primary}; --weapon-secondary: ${equipped.appearance.palette.secondary}; --weapon-glow: ${equipped.appearance.palette.glow}; --weapon-anchor-x: ${anchor.x}%; --weapon-anchor-y: ${anchor.y}%; --weapon-scale: ${anchor.scale}; --weapon-rotation: ${anchor.rotation}deg; --weapon-grip-x: ${equipped.appearance.asset.gripX}%; --weapon-grip-y: ${equipped.appearance.asset.gripY}%; --weapon-skill-lunge: ${skillLunge}px; --weapon-skill-lift: -${skillLift}px;`;
+  return `--weapon-primary: ${equipped.appearance.palette.primary}; --weapon-secondary: ${equipped.appearance.palette.secondary}; --weapon-glow: ${equipped.appearance.palette.glow}; --weapon-anchor-x: ${anchor.x}%; --weapon-anchor-y: ${anchor.y}%; --weapon-scale: ${anchor.scale}; --weapon-rotation: ${anchor.rotation}deg; --weapon-grip-x: ${equipped.appearance.asset.gripX}%; --weapon-grip-y: ${equipped.appearance.asset.gripY}%; --weapon-skill-lunge: ${skillLunge}px; --weapon-skill-lift: -${skillLift}px; --skill-duration: ${skillDuration}ms;`;
 }
 
 function weaponLayerMarkup(state: GameState, layer: "town" | "combat", animation?: SkillAnimationDefinition): string {
@@ -310,8 +311,9 @@ function combatActorStyle(run: CombatRun, x: number, y: number): string {
 function playerModelMotionStyle(run: CombatRun, animation?: SkillAnimationDefinition): string {
   const facing = run.player.facing;
   const skillLunge = animation?.lungePx ?? 30;
+  const skillDuration = animation?.durationMs ?? 520;
 
-  return `--model-scale-x: ${facing}; --light-lunge-x: ${24 * facing}px; --heavy-lunge-x: ${34 * facing}px; --skill-lunge-x: ${skillLunge * facing}px; --hit-react-x: ${-18 * facing}px;`;
+  return `--model-scale-x: ${facing}; --light-lunge-x: ${24 * facing}px; --heavy-lunge-x: ${34 * facing}px; --skill-lunge-x: ${skillLunge * facing}px; --hit-react-x: ${-18 * facing}px; --skill-duration: ${skillDuration}ms;`;
 }
 
 function enemyModelMotionStyle(run: CombatRun, enemy: CombatEnemy): string {
@@ -343,22 +345,26 @@ function enemyAsset(enemy: CombatEnemy): string {
 const recentHitWindowMs = 520;
 const recentEnemyAttackWindowMs = 760;
 
-function latestHitEvent(run: CombatRun): CombatHitEvent | undefined {
-  return [...run.events]
-    .reverse()
-    .find(
-      (event): event is CombatHitEvent =>
-        event.kind === "hit" && run.elapsedMs - event.occurredAtMs <= recentHitWindowMs
-    );
+function eventAge(run: CombatRun, occurredAtMs: number): number {
+  return run.elapsedMs - occurredAtMs;
 }
 
-function latestMissEvent(run: CombatRun): CombatMissEvent | undefined {
-  return [...run.events]
-    .reverse()
-    .find(
-      (event): event is CombatMissEvent =>
-        event.kind === "miss" && run.elapsedMs - event.occurredAtMs <= recentHitWindowMs
-    );
+function isActiveHitEvent(run: CombatRun, event: CombatHitEvent): boolean {
+  const age = eventAge(run, event.occurredAtMs);
+
+  return age >= 0 && age <= recentHitWindowMs;
+}
+
+function actionStartedAtMs(event: CombatHitEvent | CombatMissEvent): number {
+  return event.occurredAtMs - event.inputToHitMs;
+}
+
+function latestHitEvent(run: CombatRun): CombatHitEvent | undefined {
+  return [...run.events].reverse().find((event): event is CombatHitEvent => event.kind === "hit" && isActiveHitEvent(run, event));
+}
+
+function recentHitEvents(run: CombatRun): CombatHitEvent[] {
+  return run.events.filter((event): event is CombatHitEvent => event.kind === "hit" && isActiveHitEvent(run, event));
 }
 
 function latestPlayerHitEvent(run: CombatRun): CombatPlayerHitEvent | undefined {
@@ -366,7 +372,7 @@ function latestPlayerHitEvent(run: CombatRun): CombatPlayerHitEvent | undefined 
     .reverse()
     .find(
       (event): event is CombatPlayerHitEvent =>
-        event.kind === "player-hit" && run.elapsedMs - event.occurredAtMs <= recentHitWindowMs
+        event.kind === "player-hit" && eventAge(run, event.occurredAtMs) >= 0 && eventAge(run, event.occurredAtMs) <= recentHitWindowMs
     );
 }
 
@@ -383,18 +389,27 @@ function recentEnemyAttackEvents(run: CombatRun): CombatEnemyAttackEvent[] {
 }
 
 function latestPlayerActionEvent(run: CombatRun): CombatHitEvent | CombatMissEvent | undefined {
-  const hit = latestHitEvent(run);
-  const miss = latestMissEvent(run);
+  return [...run.events].reverse().find((event): event is CombatHitEvent | CombatMissEvent => {
+    if (event.kind !== "hit" && event.kind !== "miss") {
+      return false;
+    }
 
-  if (hit && miss) {
-    return hit.occurredAtMs >= miss.occurredAtMs ? hit : miss;
-  }
+    const actionAge = run.elapsedMs - actionStartedAtMs(event);
 
-  return hit ?? miss;
+    return actionAge >= 0 && actionAge <= playerActionWindowMs(event);
+  });
 }
 
 function classSkillById(skillId: string | undefined): ClassSkillDefinition | undefined {
   return skillId ? catalog.classSkills.find((skill) => skill.id === skillId) : undefined;
+}
+
+function playerActionWindowMs(event: CombatHitEvent | CombatMissEvent): number {
+  if (event.action === "skill") {
+    return classSkillById(event.skillId)?.animation.durationMs ?? recentHitWindowMs;
+  }
+
+  return recentHitWindowMs;
 }
 
 function latestPlayerSkillAnimation(
@@ -545,46 +560,87 @@ function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { 
   return { id: "ash-ember-spit", label: "灰烬喷吐" };
 }
 
+function enemyTelegraphShape(effectId: string): "cone" | "line" | "circle" {
+  if (effectId === "taotie-flame-breath") {
+    return "line";
+  }
+
+  if (effectId === "zheng-shockwave") {
+    return "circle";
+  }
+
+  return "cone";
+}
+
+function playerTrailMarkup(
+  run: CombatRun,
+  motion: string,
+  activeSkill?: { skillId: string; animation: SkillAnimationDefinition }
+): string {
+  if (!["light", "heavy", "skill", "dodge", "counter"].includes(motion)) {
+    return "";
+  }
+
+  return `
+    <div class="player-motion-trail player-motion-trail-${motion}" data-player-trail="${motion}" data-trail-skill-preset="${activeSkill?.animation.preset ?? ""}" data-trail-facing="${run.player.facing}" style="--model-scale-x: ${run.player.facing};" aria-hidden="true">
+      <span class="trail-ghost trail-ghost-a"></span>
+      <span class="trail-ghost trail-ghost-b"></span>
+    </div>
+  `;
+}
+
 function playerSkillVfxStyle(
   run: CombatRun,
   animation: SkillAnimationDefinition | undefined,
   target: CombatEnemy | undefined
 ): string {
+  const durationStyle = ` --skill-duration: ${animation?.durationMs ?? 520}ms;`;
+
   if (animation?.vfxAnchor === "self") {
-    return combatActorStyle(run, run.player.x, run.player.y);
+    return `${combatActorStyle(run, run.player.x, run.player.y)}${durationStyle}`;
   }
 
   if (animation?.vfxAnchor === "target" && target) {
-    return combatActorStyle(run, target.position.x, target.position.y);
+    return `${combatActorStyle(run, target.position.x, target.position.y)}${durationStyle}`;
   }
 
   if (animation?.vfxAnchor === "area" && target) {
-    return combatActorStyle(run, (run.player.x + target.position.x) / 2, (run.player.y + target.position.y) / 2);
+    return `${combatActorStyle(run, (run.player.x + target.position.x) / 2, (run.player.y + target.position.y) / 2)}${durationStyle}`;
   }
 
-  return combatActorStyle(run, run.player.x + 128 * run.player.facing, run.player.y);
+  return `${combatActorStyle(run, run.player.x + 128 * run.player.facing, run.player.y)}${durationStyle}`;
 }
 
 function renderCombatVfx(run: CombatRun): string {
   const hit = latestHitEvent(run);
+  const hits = recentHitEvents(run);
+  const playerHit = latestPlayerHitEvent(run);
   const playerAction = latestPlayerActionEvent(run);
-  const target = hit ? run.enemies.find((enemy) => enemy.id === hit.targetId) : undefined;
   const skillTarget =
     playerAction?.kind === "hit" ? run.enemies.find((enemy) => enemy.id === playerAction.targetId) : undefined;
   const skillAnimation =
     playerAction?.action === "skill" && playerAction.skillId
       ? classSkillById(playerAction.skillId)?.animation
       : undefined;
-  const hitVfx =
-    hit && target
-      ? `
-        <div class="hit-impact hit-impact-${hit.action ?? "test"}" data-vfx-action="${hit.action ?? "test"}" style="${combatActorStyle(run, target.position.x, target.position.y)}">
+  const hitstopActive = Boolean(hit && run.elapsedMs < hit.occurredAtMs + hit.hitstopMs) || Boolean(playerHit && run.elapsedMs < run.player.hitstopUntilMs);
+  const screenShake = hit ? hit.action ?? "test" : playerHit ? "enemy" : "none";
+  const hitVfx = hits
+    .map((hitEvent) => {
+      const target = run.enemies.find((enemy) => enemy.id === hitEvent.targetId);
+
+      if (!target) {
+        return "";
+      }
+
+      return `
+        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}" data-impact-spark="true" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, target.position.x, target.position.y)}">
           <span class="hit-ring"></span>
           <span class="hit-slash"></span>
         </div>
-        <div class="damage-number" data-damage-number="true" style="${combatActorStyle(run, target.position.x, target.position.y)}">-${hit.damage}</div>
-      `
-      : "";
+        <div class="damage-number" data-damage-number="true" data-hit-event-id="${hitEvent.id}" style="${combatActorStyle(run, target.position.x, target.position.y)}">-${hitEvent.damage}</div>
+      `;
+    })
+    .join("");
   const skillVfx =
     playerAction?.action === "skill"
       ? `
@@ -604,19 +660,36 @@ function renderCombatVfx(run: CombatRun): string {
       }
 
       const effect = enemySkillEffect(enemy, event.skillId);
+      const telegraphShape = enemyTelegraphShape(effect.id);
+      const telegraph =
+        event.phase === "windup"
+          ? `
+            <div class="enemy-telegraph enemy-telegraph-${telegraphShape} enemy-telegraph-${effect.id}" data-enemy-id="${enemy.id}" data-enemy-telegraph="${effect.id}" data-telegraph-phase="${event.phase}" data-telegraph-shape="${telegraphShape}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+              <span class="enemy-telegraph-zone"></span>
+              <span class="enemy-telegraph-edge"></span>
+            </div>
+          `
+          : "";
+      const skillVfx =
+        event.phase !== "windup"
+          ? `
+            <div class="enemy-skill-vfx enemy-skill-${effect.id}" data-enemy-id="${enemy.id}" data-enemy-skill-vfx="${effect.id}" data-enemy-attack-phase="${event.phase}" aria-label="${effect.label}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+              <span class="enemy-cast-ring"></span>
+              <span class="enemy-cast-core"></span>
+              <span class="enemy-cast-trail"></span>
+            </div>
+          `
+          : "";
 
       return `
-        <div class="enemy-skill-vfx enemy-skill-${effect.id}" data-enemy-id="${enemy.id}" data-enemy-skill-vfx="${effect.id}" data-enemy-attack-phase="${event.phase}" aria-label="${effect.label}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
-          <span class="enemy-cast-ring"></span>
-          <span class="enemy-cast-core"></span>
-          <span class="enemy-cast-trail"></span>
-        </div>
+        ${telegraph}
+        ${skillVfx}
       `;
     })
     .join("");
 
   return `
-    <div class="combat-vfx-layer">
+    <div class="combat-vfx-layer" data-hitstop-active="${hitstopActive ? "true" : "false"}" data-screen-shake="${screenShake}">
       ${enemyVfx}
       ${hitVfx}
       ${skillVfx}
@@ -626,7 +699,7 @@ function renderCombatVfx(run: CombatRun): string {
 
 function renderCombatActors(run: CombatRun, state: GameState): string {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
-  const lastHit = latestHitEvent(run);
+  const hitTargetIds = new Set(recentHitEvents(run).map((event) => event.targetId));
   const playerMotionName = playerMotion(run);
   const activeSkill = latestPlayerSkillAnimation(run);
   const skillMotionClass =
@@ -635,8 +708,8 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
     .map((enemy) => {
       const enemyState = enemy.hp > 0 ? "alive" : "defeated";
       const hpPercent = enemyHpPercent(enemy);
-      const motion = enemyMotion(enemy, lastHit?.targetId, run.elapsedMs);
-      const hitRecent = enemy.id === lastHit?.targetId;
+      const motion = enemyMotion(enemy, hitTargetIds.has(enemy.id) ? enemy.id : undefined, run.elapsedMs);
+      const hitRecent = hitTargetIds.has(enemy.id);
       const controlState = enemyControlState(enemy, run.elapsedMs);
       const airborneState = enemyAirborneState(enemy);
       const armorState = enemyArmorState(enemy, run.elapsedMs);
@@ -656,8 +729,9 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
     .join("");
 
   return `
-    <div class="combat-actors" data-last-hit-target="${lastHit?.targetId ?? ""}">
+    <div class="combat-actors" data-last-hit-target="${[...hitTargetIds].at(-1) ?? ""}">
       <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+        ${playerTrailMarkup(run, playerMotionName, activeSkill)}
         <img class="combat-player-art actor-model actor-model-${playerMotionName}${skillMotionClass}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run, activeSkill?.animation)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
         ${weaponLayerMarkup(state, "combat", activeSkill?.animation)}
         <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>

@@ -187,20 +187,32 @@ describe("town app shell", () => {
     const trashRun = stepCombat(withSingleReadyEnemy(baseRun, { kind: "trash" }), {}, 80);
     const eliteRun = stepCombat(withSingleReadyEnemy(baseRun, { kind: "elite" }), {}, 80);
     const bossRun = stepCombat(withSingleReadyEnemy(baseRun, { kind: "boss" }), {}, 80);
+    const activeTrashRun = stepCombat(trashRun, {}, 500);
+    const activeEliteRun = stepCombat(eliteRun, {}, 500);
+    const activeBossRun = stepCombat(bossRun, {}, 500);
 
     expect(quietHtml).not.toContain("data-enemy-skill-vfx");
 
     expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain(
-      'data-enemy-skill-vfx="ash-ember-spit"'
+      'data-enemy-telegraph="ash-ember-spit"'
     );
     expect(renderAppHtml({ state, mode: "combat", combatRun: eliteRun })).toContain(
-      'data-enemy-skill-vfx="zheng-shockwave"'
+      'data-enemy-telegraph="zheng-shockwave"'
     );
     expect(renderAppHtml({ state, mode: "combat", combatRun: bossRun })).toContain(
+      'data-enemy-telegraph="taotie-flame-breath"'
+    );
+    expect(renderAppHtml({ state, mode: "combat", combatRun: activeTrashRun })).toContain(
+      'data-enemy-skill-vfx="ash-ember-spit"'
+    );
+    expect(renderAppHtml({ state, mode: "combat", combatRun: activeEliteRun })).toContain(
+      'data-enemy-skill-vfx="zheng-shockwave"'
+    );
+    expect(renderAppHtml({ state, mode: "combat", combatRun: activeBossRun })).toContain(
       'data-enemy-skill-vfx="taotie-flame-breath"'
     );
     expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain(
-      'data-enemy-attack-phase="windup"'
+      'data-telegraph-phase="windup"'
     );
   });
 

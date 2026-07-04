@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
+import type { CombatHitEvent } from "../game/combat";
 import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
 import { selectBaseClass } from "../systems/classes";
@@ -56,6 +57,22 @@ function withHeat(state: GameState, heat: number): GameState {
       heat
     }
   };
+}
+
+function countOccurrences(text: string, pattern: string): number {
+  return text.split(pattern).length - 1;
+}
+
+function firstHitEvent(model: { combatRun?: { events: Array<unknown> } }): CombatHitEvent {
+  const hit = model.combatRun?.events.find((event): event is CombatHitEvent => {
+    return typeof event === "object" && event !== null && "kind" in event && event.kind === "hit";
+  });
+
+  if (!hit) {
+    throw new Error("Expected combat hit event");
+  }
+
+  return hit;
 }
 
 function readyForAdvancement(state: GameState): GameState {
@@ -361,10 +378,22 @@ describe("playable app integration actions", () => {
     model = placeAliveEnemiesInFront(model);
     model = reduceAppAction(model, { type: "combatAction", action: "light" });
 
-    const hitHtml = renderAppHtml(model);
-    const targetId = model.combatRun?.events.find((event) => event.kind === "hit")?.targetId;
+    const inputHtml = renderAppHtml(model);
+    const hitEvent = firstHitEvent(model);
+    const hitHtml = renderAppHtml({
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            elapsedMs: hitEvent.occurredAtMs
+          }
+        : undefined
+    });
+    const targetId = hitEvent.targetId;
 
     expect(targetId).toBeTruthy();
+    expect(inputHtml).toContain('data-player-motion="light"');
+    expect(inputHtml).not.toContain('data-enemy-motion="hit"');
     expect(hitHtml).toContain('data-player-motion="light"');
     expect(hitHtml).toContain('class="combat-player-art actor-model actor-model-light"');
     expect(hitHtml).toContain(`data-last-hit-target="${targetId}"`);
@@ -377,7 +406,15 @@ describe("playable app integration actions", () => {
     model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: false });
     model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: false });
 
-    const recoveredHtml = renderAppHtml(model);
+    const recoveredHtml = renderAppHtml({
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            elapsedMs: hitEvent.occurredAtMs + 521
+          }
+        : undefined
+    });
     expect(recoveredHtml).toContain('data-player-motion="idle"');
     expect(recoveredHtml).toContain('data-enemy-motion="idle"');
     expect(recoveredHtml).toContain('class="combat-player-art actor-model actor-model-idle"');
@@ -478,7 +515,16 @@ describe("playable app integration actions", () => {
 
     model = reduceAppAction(model, { type: "combatAction", action: "light" });
 
-    const html = renderAppHtml(model);
+    const hitEvent = firstHitEvent(model);
+    const html = renderAppHtml({
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            elapsedMs: hitEvent.occurredAtMs
+          }
+        : undefined
+    });
 
     expect(html).toContain('data-player-facing="-1"');
     expect(html).toMatch(
@@ -855,10 +901,22 @@ describe("playable app integration actions", () => {
     model = placeAliveEnemiesInFront(model);
     model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "anvil-crash" });
 
-    const html = renderAppHtml(model);
+    const castHtml = renderAppHtml(model);
+    const hitEvent = firstHitEvent(model);
+    const html = renderAppHtml({
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            elapsedMs: hitEvent.occurredAtMs
+          }
+        : undefined
+    });
 
-    expect(html).toContain('class="combat-vfx-layer"');
-    expect(html).toContain('class="combat-player-art actor-model actor-model-skill actor-skill-ember-anvil"');
+    expect(castHtml).toContain('class="combat-vfx-layer"');
+    expect(castHtml).toContain('class="combat-player-art actor-model actor-model-skill actor-skill-ember-anvil"');
+    expect(castHtml).toContain('data-player-skill-vfx="anvil-crash"');
+    expect(castHtml).not.toContain('data-damage-number="true"');
     expect(html).toContain('class="enemy-art actor-model actor-model-hit"');
     expect(html).toContain('data-player-skill-vfx="anvil-crash"');
     expect(html).toContain('data-vfx-action="skill"');
@@ -887,6 +945,51 @@ describe("playable app integration actions", () => {
     expect(html).toContain('class="player-skill-vfx skill-vfx-liuli-rain skill-vfx-shape-glass-rain"');
     expect(html).toContain('data-player-skill-vfx="liuli-rain"');
     expect(html).toContain('data-vfx-anchor="front"');
+  });
+
+  it("renders per-target impact sparks, hitstop shake, and player motion trails for multi-target skills", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "liuli-rain" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const hitEvent = model.combatRun.events.find(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "liuli-rain"
+    );
+
+    if (!hitEvent) {
+      throw new Error("Expected liuli-rain hit event");
+    }
+
+    const preHitHtml = renderAppHtml(model);
+    const hitFrameHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs: hitEvent.occurredAtMs
+      }
+    });
+
+    expect(model.combatRun?.events.filter((event) => event.kind === "hit")).toHaveLength(2);
+    expect(preHitHtml).toContain('data-hitstop-active="false"');
+    expect(preHitHtml).toContain('data-screen-shake="none"');
+    expect(preHitHtml).toContain('data-player-trail="skill"');
+    expect(preHitHtml).toContain('data-trail-skill-preset="liuli-rain"');
+    expect(preHitHtml).toContain('data-player-skill-vfx="liuli-rain"');
+    expect(preHitHtml).toContain("--skill-duration: 680ms;");
+    expect(preHitHtml).not.toContain('data-impact-spark="true"');
+    expect(hitFrameHtml).toContain('data-hitstop-active="true"');
+    expect(hitFrameHtml).toContain('data-screen-shake="skill"');
+    expect(countOccurrences(hitFrameHtml, 'data-impact-spark="true"')).toBe(2);
+    expect(countOccurrences(hitFrameHtml, 'data-damage-number="true"')).toBe(2);
   });
 
   it("keeps skill-specific VFX metadata when a class skill misses", () => {
@@ -928,6 +1031,55 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-skill-vfx-shape="glass-rain"');
   });
 
+  it("keeps skill VFX alive for the full catalog animation duration and clears it afterward", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90)
+    });
+    const skill = catalog.classSkills.find((item) => item.id === "liuli-rain");
+
+    if (!skill) {
+      throw new Error("Expected liuli-rain skill");
+    }
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: skill.id });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const hitEvent = model.combatRun.events.find(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === skill.id
+    );
+
+    if (!hitEvent) {
+      throw new Error("Expected liuli-rain hit event");
+    }
+
+    const actionStartedAtMs = hitEvent.occurredAtMs - hitEvent.inputToHitMs;
+    const duringHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs: actionStartedAtMs + skill.animation.durationMs - 1
+      }
+    });
+    const expiredHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs: Math.max(actionStartedAtMs + skill.animation.durationMs + 1, hitEvent.occurredAtMs + 521)
+      }
+    });
+
+    expect(duringHtml).toContain('data-active-skill-id="liuli-rain"');
+    expect(duringHtml).toContain('data-player-skill-vfx="liuli-rain"');
+    expect(expiredHtml).not.toContain('data-player-skill-vfx="liuli-rain"');
+    expect(expiredHtml).not.toContain('data-impact-spark="true"');
+  });
+
   it("renders monster attack motion and player hurt motion from real enemy skills", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 
@@ -939,8 +1091,10 @@ describe("playable app integration actions", () => {
 
     expect(windupHtml).toContain('data-enemy-motion="attack"');
     expect(windupHtml).toContain('class="enemy-art actor-model actor-model-attack"');
-    expect(windupHtml).toContain('data-enemy-skill-vfx="ash-ember-spit"');
-    expect(windupHtml).toContain('data-enemy-attack-phase="windup"');
+    expect(windupHtml).toContain('data-enemy-telegraph="ash-ember-spit"');
+    expect(windupHtml).toContain('data-telegraph-phase="windup"');
+    expect(windupHtml).toContain('data-telegraph-shape="cone"');
+    expect(windupHtml).not.toContain('data-enemy-skill-vfx="ash-ember-spit"');
 
     const hpBeforeImpact = model.combatRun?.player.hp ?? 0;
 
@@ -954,6 +1108,8 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('data-player-state="hit"');
     expect(hitHtml).toContain('class="combat-player-art actor-model actor-model-hit"');
     expect(hitHtml).toContain('data-enemy-attack-phase="active"');
+    expect(hitHtml).toContain('data-enemy-skill-vfx="ash-ember-spit"');
+    expect(hitHtml).not.toContain('data-enemy-telegraph="ash-ember-spit"');
   });
 
   it("stops monster attack model motion after the attack recovery ends", () => {
@@ -1164,6 +1320,13 @@ describe("playable app integration actions", () => {
 
       expect(tickMs).toBeLessThanOrEqual(160);
       expect(root.innerHTML).toContain('data-enemy-motion="attack"');
+      expect(root.innerHTML).toContain('data-enemy-telegraph="ash-ember-spit"');
+      expect(root.innerHTML).not.toContain('data-enemy-skill-vfx="ash-ember-spit"');
+
+      for (let i = 0; i < 3; i += 1) {
+        tickHandler?.();
+      }
+
       expect(root.innerHTML).toContain('data-enemy-skill-vfx="ash-ember-spit"');
 
       cleanup();

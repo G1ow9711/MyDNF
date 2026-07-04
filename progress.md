@@ -1121,3 +1121,27 @@
   - `git diff --check`: pass with Windows line-ending warnings only.
   - In-app browser validation on `http://127.0.0.1:5174/`: checklist rendered 8 steps, shop rendered 3 SKUs, smith rendered the gear list and per-item upgrade buttons.
   - Browser screenshot saved at `.codex-local/tmp/full-flow-ui-check.png`.
+
+## Task 40 Strict Combat Presentation Timing
+- Started after user clarified that model fidelity can be simpler, but combat motion smoothness, hit feel, player/enemy action changes, skill VFX, monster telegraphs, and monster skill effects must be strict.
+- Used read-only parallel review (`019f2d8a-9e9b-7352-83d4-0b9b8359d6f8`) to audit the uncommitted combat presentation patch.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires skill hit events to occur at `elapsedMs + catalog.animation.hitFrameMs`, and hitstop to begin from the real hit event time.
+  - `src/tests/app-integration.test.ts` requires multi-target skill input frames to show player motion/trail without impact sparks, then hit frames to show per-target sparks, damage numbers, hitstop, and screen shake.
+  - `src/tests/app-integration.test.ts` requires skill VFX to stay alive for catalog duration from input start and clear after both cast duration and impact window expire.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require monster windup telegraphs to be separate from active/miss monster skill VFX.
+- RED evidence:
+  - Focused tests failed because `hit.occurredAtMs - run.elapsedMs` was `0` instead of `260`, pre-hit HTML already showed hitstop/sparks, and monster windup rendered `data-enemy-skill-vfx`.
+- Implemented:
+  - Combat hit events now occur at true impact time using `inputToHitMs`; hitstop, combo expiry, airborne/downed, armor-break, and control timing now start from impact time.
+  - UI active-hit filtering ignores future hit events for sparks, damage numbers, hit reactions, and screen shake.
+  - Player action lookup now uses `occurredAtMs - inputToHitMs`, so cast motion and skill VFX start immediately even when impact is delayed.
+  - Monster windup renders telegraph only; active/miss events render monster skill VFX only.
+  - Skill duration is exposed as `--skill-duration` and consumed by player skill casts, weapon arcs, and player skill VFX animations.
+- Verification:
+  - `npm test -- src/tests/app-integration.test.ts src/tests/combat.test.ts`: pass, 73 tests.
+  - `npm test`: pass, 13 files and 185 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - In-app browser validation on `http://127.0.0.1:5174/`: live samples confirmed `ash-ember-spit` windup has telegraph without skill VFX, and later active/miss has skill VFX without telegraph.
+  - Browser screenshot saved at `.codex-local/tmp/combat-vfx-phase-check.png`.

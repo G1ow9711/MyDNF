@@ -316,6 +316,25 @@ describe("combat actions and impact feel", () => {
     expect(recast.player.skillCooldowns["anvil-crash"]).toBe(ready.elapsedMs + 5200);
   });
 
+  it("uses catalog animation timing for skill hit frames and action locks", () => {
+    const run = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"), {
+      nextAttackAtMs: 9999
+    });
+    const skill = catalog.classSkills.find((item) => item.id === "anvil-crash");
+
+    if (!skill) {
+      throw new Error("Expected anvil-crash skill");
+    }
+
+    const cast = performAction(run, { type: "skill", skillId: skill.id });
+    const hit = latestHitForSkill(cast, skill.id);
+
+    expect(hit.inputToHitMs).toBe(skill.animation.hitFrameMs);
+    expect(hit.occurredAtMs - run.elapsedMs).toBe(skill.animation.hitFrameMs);
+    expect(cast.player.hitstopUntilMs).toBe(hit.occurredAtMs + hit.hitstopMs);
+    expect(cast.player.actionLockUntilMs - run.elapsedMs).toBe(skill.animation.durationMs);
+  });
+
   it("uses equipped attack stats and cooldown stats in combat formulas", () => {
     const plainRun = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       nextAttackAtMs: 9999

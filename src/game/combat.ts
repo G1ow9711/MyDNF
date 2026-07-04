@@ -924,8 +924,9 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
   const statusTags = hit.statusTags ?? [];
   const actionTags = hit.actionTags ?? [];
   const hitstopMs = eventHitstop(target, hit.hitstopMs);
+  const impactAtMs = run.elapsedMs + (hit.inputToHitMs ?? 0);
   const comboCount = run.comboCount > 0 && run.elapsedMs <= run.comboExpiresAtMs ? run.comboCount + 1 : 1;
-  const comboExpiresAtMs = run.elapsedMs + 1200;
+  const comboExpiresAtMs = impactAtMs + 1200;
   const nextEnemies = run.enemies.map((enemy) => {
     if (enemy.id !== hit.targetId) {
       return enemy;
@@ -934,18 +935,18 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     const armorDamage = Math.min(enemy.armor, effectiveDamage);
     const hpDamage = effectiveDamage - armorDamage;
     const nextMarks = hit.consumeMarks ? 0 : clamp(enemy.marks + (hit.marksApplied ?? 0), 0, 9);
-    const controlUntil = hasStatus(statusTags, "trap") || hasStatus(statusTags, "control") ? run.elapsedMs + 1100 : undefined;
-    const staggerUntil = hasStatus(statusTags, "stagger") ? run.elapsedMs + 780 : undefined;
+    const controlUntil = hasStatus(statusTags, "trap") || hasStatus(statusTags, "control") ? impactAtMs + 1100 : undefined;
+    const staggerUntil = hasStatus(statusTags, "stagger") ? impactAtMs + 780 : undefined;
     const controlledUntilMs = Math.max(enemy.controlledUntilMs ?? 0, controlUntil ?? 0, staggerUntil ?? 0) || undefined;
     const armorBrokenUntilMs = hasStatus(statusTags, "guard-break")
-      ? Math.max(enemy.armorBrokenUntilMs ?? 0, run.elapsedMs + 1800)
+      ? Math.max(enemy.armorBrokenUntilMs ?? 0, impactAtMs + 1800)
       : enemy.armorBrokenUntilMs;
     const slamDown = actionTags.includes("slam") && enemy.airborne;
     const lethalDown = !hit.juggle && enemy.hp - hpDamage <= 0;
     const airborne = hit.juggle && !slamDown;
     const downed = slamDown || lethalDown;
-    const airborneUntilMs = airborne ? Math.max(enemy.airborneUntilMs ?? 0, run.elapsedMs + 1000) : undefined;
-    const downedUntilMs = downed ? Math.max(enemy.downedUntilMs ?? 0, run.elapsedMs + 760) : airborne ? undefined : enemy.downedUntilMs;
+    const airborneUntilMs = airborne ? Math.max(enemy.airborneUntilMs ?? 0, impactAtMs + 1000) : undefined;
+    const downedUntilMs = downed ? Math.max(enemy.downedUntilMs ?? 0, impactAtMs + 760) : airborne ? undefined : enemy.downedUntilMs;
     const airControlUntil = Math.max(airborneUntilMs ?? 0, downedUntilMs ?? 0) || undefined;
     const statusInterruptsAttack =
       Boolean(controlledUntilMs && controlledUntilMs > run.elapsedMs) ||
@@ -955,7 +956,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
       enemy.nextAttackAtMs,
       controlledUntilMs ?? 0,
       airControlUntil ?? 0,
-      hasStatus(statusTags, "guard-break") ? run.elapsedMs + 680 : 0
+      hasStatus(statusTags, "guard-break") ? impactAtMs + 680 : 0
     );
 
     return {
@@ -989,7 +990,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     skillId: hit.skillId,
     targetId: hit.targetId,
     damage: effectiveDamage,
-    occurredAtMs: run.elapsedMs,
+    occurredAtMs: impactAtMs,
     inputToHitMs: hit.inputToHitMs ?? 0,
     hitstopMs,
     canceledFromCombo: hit.canceledFromCombo ?? false,
@@ -1006,7 +1007,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     events: [...run.events, event],
     player: {
       ...run.player,
-      hitstopUntilMs: Math.max(run.player.hitstopUntilMs, run.elapsedMs + hitstopMs)
+      hitstopUntilMs: Math.max(run.player.hitstopUntilMs, impactAtMs + hitstopMs)
     }
   };
 }
@@ -1112,7 +1113,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     marksApplied: markCountForSkill(skill),
     consumeMarks: consumesMarksForSkill(skill),
     bonusDamagePerMark: bonusDamagePerMarkForSkill(skill),
-    inputToHitMs: 70,
+    inputToHitMs: skill.animation.hitFrameMs,
     canceledFromCombo,
     statusTags,
     actionTags
@@ -1126,7 +1127,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     player: {
       ...statusPlayer,
       comboStep: 0,
-      actionLockUntilMs: run.elapsedMs + 420,
+      actionLockUntilMs: run.elapsedMs + skill.animation.durationMs,
       cancelWindowUntilMs: 0,
       lastSkillId: skill.id,
       prismChain: nextPrismChain(run, skill.id),

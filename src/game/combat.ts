@@ -64,6 +64,9 @@ export interface CombatPlayer {
   evadeUntilMs: number;
   reflectUntilMs: number;
   reflectSkillId?: string;
+  bufferedAction?: CombatActionInput;
+  bufferedActionQueuedAtMs?: number;
+  bufferedActionExecuteAtMs?: number;
   defeated: boolean;
   skillCooldowns: Record<string, number>;
   lastSkillId?: string;
@@ -266,9 +269,19 @@ const roomGateX = 900;
 const roomGateY = 345;
 const roomGateEnterRangeX = 34;
 const roomGateEnterRangeY = 76;
+export const actionBufferWindowMs = 180;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function clearBufferedAction(player: CombatPlayer): CombatPlayer {
+  return {
+    ...player,
+    bufferedAction: undefined,
+    bufferedActionQueuedAtMs: undefined,
+    bufferedActionExecuteAtMs: undefined
+  };
 }
 
 function getDungeon(dungeonId: string) {
@@ -1050,6 +1063,17 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
 
 export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): CombatRun {
   const elapsedMs = run.elapsedMs + dtMs;
+  const buffer = run.player.bufferedAction;
+  const bufferExecuteAtMs = run.player.bufferedActionExecuteAtMs;
+  const shouldReleaseBuffer =
+    buffer !== undefined &&
+    bufferExecuteAtMs !== undefined &&
+    run.elapsedMs < bufferExecuteAtMs &&
+    elapsedMs >= bufferExecuteAtMs &&
+    run.player.hurtLockUntilMs <= bufferExecuteAtMs &&
+    !run.completed &&
+    !run.failed &&
+    !run.player.defeated;
   const moveX = input.moveX ?? 0;
   const moveY = input.moveY ?? 0;
   const speed = input.dash ? 0.42 : 0.24;
@@ -1068,6 +1092,51 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
       facing
     }
   };
+
+  if (shouldReleaseBuffer) {
+    const releaseDtMs = bufferExecuteAtMs - run.elapsedMs;
+    const releaseX = clamp(run.player.x + moveX * speed * releaseDtMs, 0, run.arena.width);
+    const releaseY = clamp(run.player.y + moveY * speed * releaseDtMs, run.arena.minY, run.arena.maxY);
+    const releaseFacing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
+    const releaseBase: CombatRun = {
+      ...movedRun,
+      elapsedMs: bufferExecuteAtMs,
+      player: {
+        ...clearBufferedAction(movedRun.player),
+        x: releaseX,
+        y: releaseY,
+        facing: releaseFacing,
+        actionLockUntilMs: bufferExecuteAtMs
+      }
+    };
+    const released = performAction(releaseBase, buffer);
+
+    return advanceEnemyAttacks(
+      updateEnemyAirStates({
+        ...released,
+        elapsedMs,
+        player: {
+          ...released.player,
+          x: nextX,
+          y: nextY,
+          facing
+        }
+      })
+    );
+  }
+
+  if (buffer !== undefined && bufferExecuteAtMs !== undefined && elapsedMs >= bufferExecuteAtMs) {
+    const expiredRun: CombatRun = {
+      ...movedRun,
+      player: clearBufferedAction(movedRun.player)
+    };
+
+    if (run.completed || run.failed) {
+      return expiredRun;
+    }
+
+    return advanceEnemyAttacks(updateEnemyAirStates(expiredRun));
+  }
 
   if (run.completed || run.failed) {
     return movedRun;
@@ -1270,6 +1339,9 @@ function applyEnemyImpact(
       hurtLockUntilMs: hitTime + Math.max(attack.hitstopMs, attack.hurtLockMs),
       shieldUntilMs: shieldActive ? hitTime : nextPlayer.shieldUntilMs,
       shieldReduction: shieldActive ? 0 : nextPlayer.shieldReduction,
+      bufferedAction: undefined,
+      bufferedActionQueuedAtMs: undefined,
+      bufferedActionExecuteAtMs: undefined,
       defeated: nextHp <= 0
     };
 
@@ -1444,10 +1516,43 @@ function completeSkillAction(
       cancelWindowUntilMs: 0,
       lastSkillId: skill.id,
       prismChain: nextPrismChain(run, skill.id),
+      bufferedAction: undefined,
+      bufferedActionQueuedAtMs: undefined,
+      bufferedActionExecuteAtMs: undefined,
       skillCooldowns: {
         ...hitRun.player.skillCooldowns,
         [skill.id]: run.elapsedMs + prismCooldownMs(run, skill.id, skill.cooldownMs)
       }
+    }
+  };
+}
+
+function canBufferAction(run: CombatRun, action: CombatActionInput, remainingLockMs: number): boolean {
+  if (remainingLockMs <= 0 || remainingLockMs > actionBufferWindowMs) {
+    return false;
+  }
+
+  if (action.type !== "skill") {
+    return true;
+  }
+
+  const skill = catalog.classSkills.find((item) => item.id === action.skillId && item.classId === run.state.player.classId);
+
+  if (!skill || run.player.resource.current < skill.resourceCost) {
+    return false;
+  }
+
+  return skillCooldownRemaining(run, action.skillId) <= remainingLockMs;
+}
+
+function bufferAction(run: CombatRun, action: CombatActionInput): CombatRun {
+  return {
+    ...run,
+    player: {
+      ...run.player,
+      bufferedAction: action,
+      bufferedActionQueuedAtMs: run.elapsedMs,
+      bufferedActionExecuteAtMs: run.player.actionLockUntilMs
     }
   };
 }
@@ -1465,7 +1570,9 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   const canceledFromCombo = action.type === "skill" && run.elapsedMs <= run.player.cancelWindowUntilMs && run.player.comboStep > 0;
 
   if (locked && !canceledFromCombo) {
-    return run;
+    const remainingLockMs = run.player.actionLockUntilMs - run.elapsedMs;
+
+    return canBufferAction(run, action, remainingLockMs) ? bufferAction(run, action) : run;
   }
 
   if (action.type === "light") {
@@ -1490,7 +1597,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         ...(hitConnected ? gainPlayerResource(hitRun.player, run, 8) : hitRun.player),
         comboStep: hitConnected ? (run.player.comboStep % 3) + 1 : 0,
         actionLockUntilMs: run.elapsedMs + 180,
-        cancelWindowUntilMs: hitConnected ? run.elapsedMs + 180 : 0
+        cancelWindowUntilMs: hitConnected ? run.elapsedMs + 180 : 0,
+        bufferedAction: undefined,
+        bufferedActionQueuedAtMs: undefined,
+        bufferedActionExecuteAtMs: undefined
       }
     };
   }
@@ -1518,7 +1628,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         ...(hitConnected ? gainPlayerResource(hitRun.player, run, 4) : hitRun.player),
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + 260,
-        cancelWindowUntilMs: 0
+        cancelWindowUntilMs: 0,
+        bufferedAction: undefined,
+        bufferedActionQueuedAtMs: undefined,
+        bufferedActionExecuteAtMs: undefined
       }
     };
   }

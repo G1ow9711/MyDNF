@@ -1,5 +1,6 @@
 import { catalog } from "../data/catalog";
 import {
+  actionBufferWindowMs,
   canEnterRoomGate,
   createCombatRun,
   enterRoomGate,
@@ -8,6 +9,7 @@ import {
   roomGateForRun,
   skillCooldownRemaining,
   stepCombat,
+  type CombatActionInput,
   type CombatEnemy,
   type CombatEnemyAttackEvent,
   type CombatHitEvent,
@@ -232,6 +234,34 @@ export function combatActionForKeyCode(
   }
 
   return { type: "combatAction", action: "skill", skillId: skill.id };
+}
+
+function toCombatActionInput(action: Extract<AppAction, { type: "combatAction" }>): CombatActionInput | undefined {
+  if (action.action === "light") {
+    return { type: "light" };
+  }
+
+  if (action.action === "heavy") {
+    return { type: "heavy" };
+  }
+
+  if (action.action === "skill") {
+    return { type: "skill", skillId: action.skillId };
+  }
+
+  return undefined;
+}
+
+function bufferedActionName(action: CombatActionInput | undefined): string {
+  if (!action) {
+    return "";
+  }
+
+  return action.type;
+}
+
+function bufferedSkillId(action: CombatActionInput | undefined): string {
+  return action?.type === "skill" ? action.skillId : "";
 }
 
 function weaponLayerStyle(
@@ -845,9 +875,13 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const sceneScreenShake = sceneHit?.vfxCue === "meteor-impact" ? "ultimate" : sceneHit ? sceneHit.action ?? "test" : scenePlayerHit ? "enemy" : "none";
   const sceneScreenFlash = sceneHit?.vfxCue === "meteor-impact" ? "meteor" : "none";
   const sceneImpactSkillId = sceneHit?.skillId ?? "";
+  const bufferedAction = run.player.bufferedAction;
+  const bufferState = bufferedAction ? "queued" : "empty";
+  const bufferExecuteAtMs = run.player.bufferedActionExecuteAtMs;
+  const bufferRemainingMs = bufferedAction && bufferExecuteAtMs !== undefined ? Math.max(0, bufferExecuteAtMs - run.elapsedMs) : 0;
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-impact-skill-id="${sceneImpactSkillId}">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
@@ -1154,7 +1188,31 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         };
       }
 
-      const readyRun = stepCombat(model.combatRun, {}, 220);
+      const directInput = toCombatActionInput(action);
+
+      if (directInput && model.combatRun.elapsedMs < model.combatRun.player.actionLockUntilMs) {
+        try {
+          const queuedRun = performAction(model.combatRun, directInput);
+          const queued = queuedRun.player.bufferedAction !== undefined;
+
+          return {
+            ...model,
+            combatRun: queuedRun,
+            message: queued ? "输入已缓冲" : "动作硬直中",
+            audio: playSfx(model.audio, "ui-select")
+          };
+        } catch (error) {
+          const message = error instanceof Error && /cooldown/i.test(error.message) ? "鎶€鑳藉喎鍗翠腑" : error instanceof Error ? error.message : String(error);
+
+          return {
+            ...model,
+            message,
+            audio: playSfx(model.audio, "ui-select")
+          };
+        }
+      }
+
+      const readyRun = model.combatRun;
       let combatRun: CombatRun;
 
       if (readyRun.failed || readyRun.player.defeated) {

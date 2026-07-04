@@ -1334,3 +1334,27 @@
   - Final `npm run build`: pass.
   - Final `git diff --check`: pass with Windows line-ending warnings only.
   - Final browser DOM check reconfirmed boss `taotie-flame-breath` three-hit metadata and both `enemy-skill-hit` / `enemy-skill-miss` feedback nodes.
+
+## Task 48 Action Input Buffer
+- Started after user clarified that lightweight character/monster modeling is acceptable only for model fidelity; combat flow, model action changes, smoothness, hit feel, and skill effects remain strict.
+- Used two read-only parallel agents:
+  - `019f2ea4-e918-7b73-bf6d-3f3a0f899081` audited combat input/action-lock flow and found locked non-cancel actions were discarded while the app reducer papered over it with a 220 ms pre-step.
+  - `019f2ea5-40e4-7a52-97c1-c0accb58e3de` audited UI hooks and recommended combat-scene buffer data attributes for browser verification.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires a heavy action pressed during the 180 ms buffer window to queue during light attack lock and release on the unlock frame.
+  - `src/tests/app-integration.test.ts` requires app actions to queue input instead of skipping the lock, render buffer DOM metadata, and show a buffer message.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts` initially failed because `bufferedAction` was undefined.
+- Implemented:
+  - Added `bufferedAction`, queued time, execute time, and a 180 ms action-buffer window to `CombatPlayer`.
+  - `performAction()` now queues valid locked inputs near unlock instead of discarding them.
+  - `stepCombat()` releases queued input at the scheduled unlock frame, with interpolated player position/facing.
+  - Buffered actions are canceled when hurt lock interrupts the release frame or when monster damage lands.
+  - App reducer no longer advances combat actions by 220 ms before executing; it preserves the pressed input as an explicit queued action.
+  - Combat scene exposes buffer state data attributes for tests and browser checks.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts`: pass, 95 tests.
+  - `npm test`: pass, 13 files and 211 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Browser DOM validation on `http://127.0.0.1:5174/.codex-local/tmp/input-buffer-check.html`: confirmed queued action `heavy`, scene state `queued`, execute frame `180`, released buffer cleared, heavy hit frame `265`, next action lock `440`, and message `输入已缓冲`.

@@ -676,6 +676,30 @@ describe("playable app integration actions", () => {
     expect(cast.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "skill-burst" }]));
   });
 
+  it("queues combat input during the action buffer window instead of skipping past the lock", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 80)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    const light = reduceAppAction(model, { type: "combatAction", action: "light" });
+    const queued = reduceAppAction(light, { type: "combatAction", action: "heavy" });
+    const queuedPlayer = queued.combatRun?.player as NonNullable<typeof queued.combatRun>["player"] & {
+      bufferedAction?: { type: string };
+      bufferedActionExecuteAtMs?: number;
+    };
+    const queuedHtml = renderAppHtml(queued);
+
+    expect(queuedPlayer.bufferedAction).toEqual({ type: "heavy" });
+    expect(queuedPlayer.bufferedActionExecuteAtMs).toBe(light.combatRun?.player.actionLockUntilMs);
+    expect(queuedHtml).toContain('data-action-buffer-state="queued"');
+    expect(queuedHtml).toContain('data-buffered-action="heavy"');
+    expect(queuedHtml).toContain('data-buffered-execute-at-ms="');
+    expect(queued.message).toContain("缓冲");
+  });
+
   it("renders selected class resource identity in combat HUD and skill buttons", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40);
     const resource = catalog.classes.find((item) => item.id === "liuli-blademage")?.resource;

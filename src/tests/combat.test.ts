@@ -289,6 +289,59 @@ describe("combat actions and impact feel", () => {
     expect(canceled.enemies[0].hp).toBeLessThan(light.enemies[0].hp);
   });
 
+  it("buffers a queued action near the end of an action lock and releases it on the unlock frame", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 220,
+      maxHp: 220,
+      nextAttackAtMs: 9999
+    });
+    const light = performAction(run, { type: "light" });
+    const locked = stepCombat(light, {}, 40);
+    const queued = performAction(locked, { type: "heavy" });
+    const queuedPlayer = queued.player as typeof queued.player & {
+      bufferedAction?: { type: string };
+      bufferedActionExecuteAtMs?: number;
+    };
+    const resolved = stepCombat(queued, {}, queuedPlayer.bufferedActionExecuteAtMs ?? 0);
+    const heavyHit = [...resolved.events].reverse().find(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.action === "heavy"
+    );
+
+    expect(queued.events.filter((event) => event.kind === "hit" && event.action === "heavy")).toHaveLength(0);
+    expect(queuedPlayer.bufferedAction).toEqual({ type: "heavy" });
+    expect(queuedPlayer.bufferedActionExecuteAtMs).toBe(light.player.actionLockUntilMs);
+    expect(heavyHit).toMatchObject({
+      action: "heavy",
+      occurredAtMs: light.player.actionLockUntilMs + 85
+    });
+    expect((resolved.player as typeof resolved.player & { bufferedAction?: unknown }).bufferedAction).toBeUndefined();
+    expect(resolved.player.actionLockUntilMs).toBe(light.player.actionLockUntilMs + 260);
+  });
+
+  it("clears a buffered action when the player is interrupted before the release frame", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 220,
+      maxHp: 220,
+      nextAttackAtMs: 9999
+    });
+    const light = performAction(run, { type: "light" });
+    const locked = stepCombat(light, {}, 40);
+    const queued = performAction(locked, { type: "heavy" });
+    const queuedPlayer = queued.player as typeof queued.player & { bufferedActionExecuteAtMs?: number };
+    const interrupted = {
+      ...queued,
+      player: {
+        ...queued.player,
+        hurtLockUntilMs: (queuedPlayer.bufferedActionExecuteAtMs ?? 0) + 120
+      }
+    };
+    const resolved = stepCombat(interrupted, {}, 200);
+
+    expect(resolved.events.filter((event) => event.kind === "hit" && event.action === "heavy")).toHaveLength(0);
+    expect((resolved.player as typeof resolved.player & { bufferedAction?: unknown }).bufferedAction).toBeUndefined();
+    expect(resolved.player.actionLockUntilMs).toBe(light.player.actionLockUntilMs);
+  });
+
   it("tracks per-skill cooldowns and blocks recasting until the timer expires", () => {
     const run = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"), {
       nextAttackAtMs: 9999

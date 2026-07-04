@@ -239,3 +239,11 @@
 - Current monster attacks already have windup/active/miss phases and player HP damage, but trash, elite, and boss attacks are still mostly single-impact patterns with a shared `actor-model-attack` lunge.
 - Read-only UI audit found the largest visible gap is result feedback: active/miss monster skill VFX is anchored on the enemy, player hit/dodge motion changes, but there is no target-side combat feedback node for enemy skill hit or miss.
 - Next slice should add testable enemy-skill metadata and DOM hooks: boss `taotie-flame-breath` as a sustained multi-hit breath, plus generic target-side feedback for monster skill hit/miss.
+
+## Input Buffer Findings
+- Current DNF-like combat gap: keyboard actions during `actionLockUntilMs` are discarded unless they are a hit-confirm skill cancel. This makes repeated attacks and late skill chaining feel less like a brawler.
+- App reducer currently advances `combatAction` by 220 ms before attempting the action. That can skip past the lock window instead of preserving the player's early key press as an intentional buffered input.
+- Minimal implementation path: store a short-lived buffered combat action on `CombatPlayer`, execute it from `stepCombat()` when the lock reaches its scheduled release frame, and expose buffer state through combat scene DOM for browser verification.
+- Implementation note: the first playable buffer window is 180 ms. Locked light/heavy/skill inputs can queue only near the end of `actionLockUntilMs`; `stepCombat()` releases the queued input exactly at the unlock frame while preserving movement interpolation.
+- Interruption note: queued actions are canceled when the player is still in hurt lock at the release frame or when monster damage lands, preventing stale buffered attacks after a real hit-stun interruption.
+- UI verification note: `.combat-scene` now exposes `data-action-buffer-state`, `data-buffered-action`, `data-buffered-skill-id`, `data-buffered-execute-at-ms`, `data-buffer-ms-remaining`, and `data-buffer-window-ms` so browser checks can prove real buffered input instead of reducer time-skipping.

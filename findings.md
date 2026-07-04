@@ -119,3 +119,8 @@
 
 ---
 *Update this file after every 2 view/browser/search operations.*
+
+## Combat Visibility Fix Findings
+- Combat visibility bug root cause: battle data existed, but the live combat DOM lacked visible actor sprites, so the background could hide the play state. The fix renders player and enemy actors directly in `renderCombatScene()`.
+- Cleared combat rooms need explicit UI state because users can keep trying attacks after enemies reach 0 HP. The fix shows a clear banner, disables attack controls, highlights settlement, and keeps reducer behavior in Chinese.
+- Browser verification on `http://127.0.0.1:5174/` confirmed visible player actor, enemy actors, prominent task tracker, defeated enemy state, and cleared-room settlement prompt.

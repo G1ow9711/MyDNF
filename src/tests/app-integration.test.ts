@@ -168,6 +168,30 @@ describe("playable app integration actions", () => {
     expect(html).toContain("清理灰窑巷");
   });
 
+  it("prompts settlement instead of attacking an already cleared combat room", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            enemies: model.combatRun.enemies.map((enemy) => ({
+              ...enemy,
+              hp: 0,
+              downed: true
+            }))
+          }
+        : undefined
+    };
+
+    const next = reduceAppAction(model, { type: "combatAction", action: "light" });
+
+    expect(next.message).toContain("结算房间");
+    expect(next.combatRun).toEqual(model.combatRun);
+  });
+
   it("renders concrete combat skill slots and maps hotkeys to those skills", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

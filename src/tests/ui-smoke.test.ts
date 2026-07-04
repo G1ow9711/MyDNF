@@ -64,6 +64,38 @@ describe("town app shell", () => {
     }
   });
 
+  it("renders visible combat actors and a prominent objective tracker", () => {
+    const state = createInitialState();
+    const combatRun = createCombatRun(state, "cinder-kiln-alley");
+    const html = renderAppHtml({ state, mode: "combat", combatRun });
+
+    expect(html).toContain('class="combat-actors"');
+    expect(html).toContain('class="combat-actor combat-player"');
+    expect(html).toContain("/assets/hero-ember-warden.png");
+    expect(html).toContain('class="combat-actor combat-enemy combat-enemy-trash"');
+    expect(html).toContain('data-enemy-state="alive"');
+    expect(html).toContain('class="quest-tracker quest-tracker-prominent"');
+    expect(html).toContain('data-combat-objective="active"');
+  });
+
+  it("makes cleared combat rooms obvious before settlement", () => {
+    const state = createInitialState();
+    const combatRun = createCombatRun(state, "cinder-kiln-alley");
+    const clearedRun = {
+      ...combatRun,
+      enemies: combatRun.enemies.map((enemy) => ({
+        ...enemy,
+        hp: 0,
+        downed: true
+      }))
+    };
+    const html = renderAppHtml({ state, mode: "combat", combatRun: clearedRun });
+
+    expect(html).toContain('data-combat-objective="cleared"');
+    expect(html).toContain('class="room-clear-banner"');
+    expect(html).toContain('data-enemy-state="defeated"');
+  });
+
   it("renders the playable town as the first screen instead of a landing page", () => {
     const html = renderAppHtml({ state: createInitialState(), mode: "town" });
 

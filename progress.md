@@ -703,3 +703,23 @@
 
 ---
 *Update after completing each phase or encountering errors.*
+
+## Task 23 Combat Visibility Fix
+- Started after the user screenshot showed tasks and monsters were hard to see in combat.
+- Root cause: `CombatRun` already stored player/enemy positions and render commands, but `renderCombatScene()` only rendered the bitmap background plus text lists. It did not render visible actor sprites. The quest tracker existed but had weak visual priority, and a cleared room did not make the settlement step obvious.
+- Added RED coverage:
+  - `src/tests/ui-smoke.test.ts` now requires visible combat actor layers, player art, enemy sprites, alive/defeated enemy states, a prominent quest tracker, and a cleared-room banner.
+  - `src/tests/app-integration.test.ts` now verifies attacking an already-cleared room prompts settlement instead of throwing `No alive enemy target`.
+- Implemented:
+  - Combat scene now renders a player actor using the detailed hero bitmap, visible enemy actors with health bars, defeated enemy bodies, and position-aware actor placement.
+  - Quest tracker now uses a prominent overlay in combat.
+  - Cleared rooms now show a `房间已清理` banner, disable attack buttons, and highlight the settlement button.
+  - Reducer now handles post-clear attack inputs with a Chinese settlement prompt instead of surfacing the English combat exception.
+- Verification:
+  - `npm test -- src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts`: pass, 23 tests.
+  - Browser check at `http://127.0.0.1:5174/`: after entering `灰窑巷`, DOM showed 1 player actor, 2 alive enemy actors, and 1 prominent quest tracker. After repeated heavy attacks, DOM showed 0 alive enemies, 2 defeated enemies, a cleared-room banner, disabled attack button, and highlighted settlement button.
+  - Browser screenshot confirmed the player, defeated enemies, task tracker, and cleared-room prompt are visible over the dungeon background.
+  - `npm test`: pass, 12 files and 119 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with only Windows line-ending warnings.
+  - Read-only review agent found no blocking issues; noted residual risk is only that automated tests are DOM/logic based, which is covered by the manual browser screenshot check.

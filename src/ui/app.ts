@@ -5,6 +5,7 @@ import {
   finishRoom,
   performAction,
   stepCombat,
+  type CombatEnemy,
   type CombatLootEvent,
   type CombatRun
 } from "../game/combat";
@@ -199,11 +200,59 @@ function renderTownScene(model: AppViewModel): string {
   `;
 }
 
+function combatActorStyle(run: CombatRun, x: number, y: number): string {
+  const xPercent = (Math.min(1, Math.max(0, x / run.arena.width)) * 100).toFixed(2);
+  const laneRange = Math.max(1, run.arena.maxY - run.arena.minY);
+  const laneProgress = Math.min(1, Math.max(0, (y - run.arena.minY) / laneRange));
+  const yPercent = (54 + laneProgress * 24).toFixed(2);
+
+  return `--actor-x: ${xPercent}%; --actor-y: ${yPercent}%;`;
+}
+
+function enemyHpPercent(enemy: CombatEnemy): number {
+  if (enemy.maxHp <= 0) {
+    return 0;
+  }
+
+  return Math.round(Math.min(1, Math.max(0, enemy.hp / enemy.maxHp)) * 100);
+}
+
+function renderCombatActors(run: CombatRun, state: GameState): string {
+  const classDef = catalog.classes.find((item) => item.id === state.player.classId);
+  const enemyActors = run.enemies
+    .map((enemy) => {
+      const enemyState = enemy.hp > 0 ? "alive" : "defeated";
+      const hpPercent = enemyHpPercent(enemy);
+
+      return `
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+          <div class="enemy-nameplate">${enemy.displayName}</div>
+          <div class="enemy-sprite" aria-hidden="true"><span class="enemy-core"></span></div>
+          <div class="enemy-health" aria-label="${enemy.displayName} HP ${enemy.hp}/${enemy.maxHp}">
+            <span class="enemy-health-fill" style="--hp: ${hpPercent}%;"></span>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="combat-actors">
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+        <img class="combat-player-art" src="/assets/hero-ember-warden.png" alt="${classDef?.displayName ?? state.player.classId}" />
+        <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>
+      </div>
+      ${enemyActors}
+    </div>
+  `;
+}
+
 function renderCombatScene(run: CombatRun, state: GameState): string {
   const plan = createRenderPlan(run, run.dungeonId);
+  const roomCleared = run.enemies.length === 0 || run.enemies.every((enemy) => enemy.hp <= 0);
   const skillButtons = combatSkillsForState(state)
     .map((skill) => {
-      const disabled = run.player.heat < skill.resourceCost;
+      const disabled = roomCleared || run.player.heat < skill.resourceCost;
 
       return `<button data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-skill-cost="${skill.resourceCost}" ${disabled ? "disabled" : ""}>${skill.displayName}<span>${skill.key} · ${skill.resourceCost}</span></button>`;
     })
@@ -215,23 +264,29 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const activeQuest = getActiveQuestText(state);
 
   return `
-    <section class="combat-scene" aria-label="战斗">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${roomCleared ? "cleared" : "active"}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
       </div>
+      ${renderCombatActors(run, state)}
+      ${
+        roomCleared
+          ? `<div class="room-clear-banner"><strong>房间已清理</strong><span>点击“结算房间”进入下一段战斗</span></div>`
+          : ""
+      }
       <div class="combat-actions">
-        <button data-combat-action="light" data-hotkey="J">轻击<span>J</span></button>
-        <button data-combat-action="heavy" data-hotkey="K">重击<span>K</span></button>
+        <button data-combat-action="light" data-hotkey="J" ${roomCleared ? "disabled" : ""}>轻击<span>J</span></button>
+        <button data-combat-action="heavy" data-hotkey="K" ${roomCleared ? "disabled" : ""}>重击<span>K</span></button>
         ${skillButtons}
-        <button data-combat-action="finish">结算房间</button>
+        <button class="settle-button${roomCleared ? " is-ready" : ""}" data-combat-action="finish">结算房间</button>
         <button data-mode="town">返回</button>
       </div>
       <div class="combat-status">
         <p>房间 ${run.roomIndex + 1} · 热能 ${run.player.heat} · 连段 ${run.player.comboStep}</p>
         <ul>${enemies}</ul>
       </div>
-      <aside class="quest-tracker" aria-label="任务追踪">
+      <aside class="quest-tracker quest-tracker-prominent" aria-label="任务追踪">
         <h3>任务追踪</h3>
         <p>${activeQuest}</p>
       </aside>
@@ -385,6 +440,14 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           },
           message: "房间结算完成",
           audio: playSfx(model.audio, "loot-drop")
+        };
+      }
+
+      if (model.combatRun.enemies.every((enemy) => enemy.hp <= 0)) {
+        return {
+          ...model,
+          message: "房间已清理，请点击结算房间",
+          audio: playSfx(model.audio, "ui-select")
         };
       }
 

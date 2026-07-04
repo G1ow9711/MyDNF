@@ -284,6 +284,64 @@ function clearBufferedAction(player: CombatPlayer): CombatPlayer {
   };
 }
 
+interface LightComboStepDefinition {
+  baseDamage: number;
+  rangeX: number;
+  laneRange: number;
+  hitstopMs: number;
+  knockback: number;
+  juggle: boolean;
+  inputToHitMs: number;
+  actionLockMs: number;
+  actionTags?: CombatActionTag[];
+}
+
+const lightComboSteps: LightComboStepDefinition[] = [
+  {
+    baseDamage: 24,
+    rangeX: 132,
+    laneRange: 50,
+    hitstopMs: 42,
+    knockback: 22,
+    juggle: false,
+    inputToHitMs: 55,
+    actionLockMs: 180
+  },
+  {
+    baseDamage: 30,
+    rangeX: 150,
+    laneRange: 54,
+    hitstopMs: 48,
+    knockback: 28,
+    juggle: false,
+    inputToHitMs: 65,
+    actionLockMs: 200
+  },
+  {
+    baseDamage: 38,
+    rangeX: 176,
+    laneRange: 58,
+    hitstopMs: 60,
+    knockback: 42,
+    juggle: true,
+    inputToHitMs: 78,
+    actionLockMs: 240,
+    actionTags: ["launcher"]
+  }
+];
+
+function comboStillActive(run: CombatRun, elapsedMs = run.elapsedMs): boolean {
+  return run.comboCount > 0 && elapsedMs <= run.comboExpiresAtMs;
+}
+
+function activeLightComboStep(run: CombatRun): number {
+  return comboStillActive(run) ? run.player.comboStep : 0;
+}
+
+function nextLightComboStep(run: CombatRun): number {
+  return (activeLightComboStep(run) % lightComboSteps.length) + 1;
+}
+
 function getDungeon(dungeonId: string) {
   return catalog.dungeons.find((dungeon) => dungeon.id === dungeonId);
 }
@@ -1080,16 +1138,18 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
   const nextX = clamp(run.player.x + moveX * speed * dtMs, 0, run.arena.width);
   const nextY = clamp(run.player.y + moveY * speed * dtMs, run.arena.minY, run.arena.maxY);
   const facing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
+  const comboActiveAtElapsed = comboStillActive(run, elapsedMs);
   const movedRun: CombatRun = {
     ...run,
     elapsedMs,
-    comboCount: run.comboCount > 0 && elapsedMs <= run.comboExpiresAtMs ? run.comboCount : 0,
-    comboExpiresAtMs: run.comboCount > 0 && elapsedMs <= run.comboExpiresAtMs ? run.comboExpiresAtMs : 0,
+    comboCount: comboActiveAtElapsed ? run.comboCount : 0,
+    comboExpiresAtMs: comboActiveAtElapsed ? run.comboExpiresAtMs : 0,
     player: {
       ...run.player,
       x: nextX,
       y: nextY,
-      facing
+      facing,
+      comboStep: comboActiveAtElapsed ? run.player.comboStep : 0
     }
   };
 
@@ -1098,14 +1158,18 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
     const releaseX = clamp(run.player.x + moveX * speed * releaseDtMs, 0, run.arena.width);
     const releaseY = clamp(run.player.y + moveY * speed * releaseDtMs, run.arena.minY, run.arena.maxY);
     const releaseFacing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
+    const comboActiveAtRelease = comboStillActive(run, bufferExecuteAtMs);
     const releaseBase: CombatRun = {
       ...movedRun,
       elapsedMs: bufferExecuteAtMs,
+      comboCount: comboActiveAtRelease ? run.comboCount : 0,
+      comboExpiresAtMs: comboActiveAtRelease ? run.comboExpiresAtMs : 0,
       player: {
         ...clearBufferedAction(movedRun.player),
         x: releaseX,
         y: releaseY,
         facing: releaseFacing,
+        comboStep: comboActiveAtRelease ? run.player.comboStep : 0,
         actionLockUntilMs: bufferExecuteAtMs
       }
     };
@@ -1576,18 +1640,21 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   }
 
   if (action.type === "light") {
+    const comboStep = nextLightComboStep(run);
+    const combo = lightComboSteps[comboStep - 1];
     const hitRun = applyPlayerHitbox(run, {
       action: "light",
-      rangeX: 132,
-      laneRange: 50,
+      rangeX: combo.rangeX,
+      laneRange: combo.laneRange,
       targetCap: 1,
       frontOnly: true,
-      damage: playerDamage(run, 24),
-      hitstopMs: 42,
-      knockback: 22,
-      juggle: false,
-      inputToHitMs: 55,
-      canceledFromCombo
+      damage: playerDamage(run, combo.baseDamage),
+      hitstopMs: combo.hitstopMs,
+      knockback: combo.knockback,
+      juggle: combo.juggle,
+      inputToHitMs: combo.inputToHitMs,
+      canceledFromCombo,
+      actionTags: combo.actionTags
     });
     const hitConnected = hitRun.events.at(-1)?.kind === "hit";
 
@@ -1595,9 +1662,9 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       ...hitRun,
       player: {
         ...(hitConnected ? gainPlayerResource(hitRun.player, run, 8) : hitRun.player),
-        comboStep: hitConnected ? (run.player.comboStep % 3) + 1 : 0,
-        actionLockUntilMs: run.elapsedMs + 180,
-        cancelWindowUntilMs: hitConnected ? run.elapsedMs + 180 : 0,
+        comboStep: hitConnected ? comboStep : 0,
+        actionLockUntilMs: run.elapsedMs + combo.actionLockMs,
+        cancelWindowUntilMs: hitConnected ? run.elapsedMs + combo.actionLockMs : 0,
         bufferedAction: undefined,
         bufferedActionQueuedAtMs: undefined,
         bufferedActionExecuteAtMs: undefined

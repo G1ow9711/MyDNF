@@ -232,6 +232,46 @@ describe("combat actions and impact feel", () => {
     expect(expired.comboExpiresAtMs).toBe(0);
   });
 
+  it("turns repeated light attacks into a three-step normal combo with a finisher launch", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 320,
+      maxHp: 320,
+      nextAttackAtMs: 9999
+    });
+    const first = performAction(run, { type: "light" });
+    const secondReady = stepCombat(first, {}, first.player.actionLockUntilMs - first.elapsedMs);
+    const second = performAction(secondReady, { type: "light" });
+    const thirdReady = stepCombat(second, {}, second.player.actionLockUntilMs - second.elapsedMs);
+    const third = performAction(thirdReady, { type: "light" });
+    const lightHits = third.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.action === "light");
+
+    expect(lightHits.map((event) => event.damage)).toEqual([26, 33, 41]);
+    expect(lightHits.map((event) => event.inputToHitMs)).toEqual([55, 65, 78]);
+    expect(lightHits[2].actionTags).toEqual(expect.arrayContaining(["launcher"]));
+    expect(lightHits.map((event) => event.comboCount)).toEqual([1, 2, 3]);
+    expect(third.player.comboStep).toBe(3);
+    expect(third.player.actionLockUntilMs).toBe(third.elapsedMs + 240);
+    expect(third.enemies[0].airborne).toBe(true);
+  });
+
+  it("restarts the normal combo from step one after the hit chain expires", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 320,
+      maxHp: 320,
+      nextAttackAtMs: 9999
+    });
+    const first = performAction(run, { type: "light" });
+    const expired = stepCombat(first, {}, 1300);
+    const restarted = performAction(expired, { type: "light" });
+    const restartHit = lastHitEvent(restarted);
+
+    expect(expired.player.comboStep).toBe(0);
+    expect(restarted.player.comboStep).toBe(1);
+    expect(restartHit.damage).toBe(26);
+    expect(restartHit.inputToHitMs).toBe(55);
+    expect(restartHit.comboCount).toBe(1);
+  });
+
   it("keeps launched enemies airborne, blocks their attacks, and then drops them into knockdown", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       hp: 200,
@@ -289,6 +329,28 @@ describe("combat actions and impact feel", () => {
     expect(canceled.enemies[0].hp).toBeLessThan(light.enemies[0].hp);
   });
 
+  it("allows a class skill cancel after the third normal combo step", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const run = withEnemyInRange(baseRun, {
+      hp: 420,
+      maxHp: 420,
+      position: {
+        x: baseRun.player.x + 50,
+        y: baseRun.player.y
+      },
+      nextAttackAtMs: 9999
+    });
+    const first = performAction(run, { type: "light" });
+    const second = performAction(stepCombat(first, {}, first.player.actionLockUntilMs - first.elapsedMs), { type: "light" });
+    const third = performAction(stepCombat(second, {}, second.player.actionLockUntilMs - second.elapsedMs), { type: "light" });
+    const canceled = performAction(third, { type: "skill", skillId: "spark-combo" });
+    const skillHit = latestHitForSkill(canceled, "spark-combo");
+
+    expect(third.player.comboStep).toBe(3);
+    expect(skillHit.canceledFromCombo).toBe(true);
+    expect(canceled.player.actionLockUntilMs).toBeGreaterThan(third.player.actionLockUntilMs);
+  });
+
   it("buffers a queued action near the end of an action lock and releases it on the unlock frame", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       hp: 220,
@@ -316,6 +378,26 @@ describe("combat actions and impact feel", () => {
     });
     expect((resolved.player as typeof resolved.player & { bufferedAction?: unknown }).bufferedAction).toBeUndefined();
     expect(resolved.player.actionLockUntilMs).toBe(light.player.actionLockUntilMs + 260);
+  });
+
+  it("releases a buffered light attack as the next normal combo step", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 320,
+      maxHp: 320,
+      nextAttackAtMs: 9999
+    });
+    const first = performAction(run, { type: "light" });
+    const locked = stepCombat(first, {}, 40);
+    const queued = performAction(locked, { type: "light" });
+    const queuedPlayer = queued.player as typeof queued.player & { bufferedActionExecuteAtMs?: number };
+    const resolved = stepCombat(queued, {}, queuedPlayer.bufferedActionExecuteAtMs ?? 0);
+    const lightHits = resolved.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.action === "light");
+
+    expect(queued.player.bufferedAction).toEqual({ type: "light" });
+    expect(lightHits.map((event) => event.inputToHitMs)).toEqual([55, 65]);
+    expect(lightHits.map((event) => event.comboCount)).toEqual([1, 2]);
+    expect(resolved.player.comboStep).toBe(2);
+    expect(resolved.player.actionLockUntilMs).toBe(first.player.actionLockUntilMs + 200);
   });
 
   it("clears a buffered action when the player is interrupted before the release frame", () => {

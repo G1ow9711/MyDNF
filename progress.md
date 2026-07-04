@@ -1358,3 +1358,37 @@
   - `npm run build`: pass.
   - `git diff --check`: pass with Windows line-ending warnings only.
   - Browser DOM validation on `http://127.0.0.1:5174/.codex-local/tmp/input-buffer-check.html`: confirmed queued action `heavy`, scene state `queued`, execute frame `180`, released buffer cleared, heavy hit frame `265`, next action lock `440`, and message `输入已缓冲`.
+
+## Task 49 Three-Step Normal Attack Combo
+- Started while continuing the strict DNF-like keyboard-combat goal. This slice targets the most common player action path: repeated J/X normal attacks.
+- Used two read-only parallel agents:
+  - `019f2ebb-bbf3-7312-9bbe-06a30322c822` audited combat state and recommended making `comboStep` drive light attack step definitions plus resetting stale `comboStep` on chain expiry.
+  - `019f2ebb-f249-7dc3-adaa-87cf728c69f7` audited UI/CSS and recommended machine-verifiable DOM hooks plus `actor-model-light-1/2/3` classes.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires three repeated light attacks to produce different damage, hit frames, combo counts, and a third-step launcher.
+  - `src/tests/combat.test.ts` requires expired hit chains to clear `player.comboStep` and restart from step 1.
+  - `src/tests/app-integration.test.ts` requires the third normal attack to render `data-player-combo-step="3"`, `data-player-normal-combo-step="3"`, and `actor-model-light-3`.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts` initially failed because light attack still emitted repeated `[26, 26]` damage, stale `comboStep` survived chain expiry, and DOM had no combo-step attributes.
+- Implemented:
+  - Added three light-combo step definitions with distinct damage, hit frames, hitstop, range, knockback, action locks, and third-step launcher tags.
+  - `performAction(light)` now chooses the next step from active combo state and uses the step definition for hitbox/timing.
+  - `stepCombat()` now clears stale `comboStep` when combo count expires, and preserves active combo state correctly at buffered release frames.
+  - Combat UI now exposes `data-player-combo-step`, `data-player-combo-count`, and `data-player-normal-combo-step`.
+  - Player and weapon CSS now render distinct second-step cross strike and third-step launch animations.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts`: pass, 98 tests.
+  - `npm test`: pass, 13 files and 216 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Browser DOM validation on `http://127.0.0.1:5174/.codex-local/tmp/normal-combo-check.html`: confirmed damage `[26,33,41]`, hit frames `[55,65,78]`, combo counts `[1,2,3]`, third-step `launcher`, enemy airborne, `data-player-combo-step="3"`, `data-player-normal-combo-step="3"`, `actor-model-light-3`, and scene combo count `3`.
+- Code review follow-up:
+  - Read-only review caught that `weapon-light-cross` and `weapon-light-launch` dropped the equipped weapon anchor transform, scale, rotation, and facing variables.
+  - Fixed both keyframes to preserve `translate(-50%, -50%)`, `scaleX(var(--weapon-facing))`, `var(--weapon-rotation)`, and `var(--weapon-scale)`.
+  - Added regression coverage for buffered light input releasing as the next normal combo step and for skill cancel after the third normal combo step.
+  - `npm test -- src/tests/combat.test.ts`: pass, 48 tests.
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 52 tests.
+  - Final `npm test`: pass, 13 files and 216 tests.
+  - Final `npm run build`: pass.
+  - Final `git diff --check`: pass with Windows line-ending warnings only.
+  - Final browser DOM check reconfirmed `[26,33,41]` normal combo damage, `[55,65,78]` hit frames, third-step launcher, enemy airborne, and `actor-model-light-3`.

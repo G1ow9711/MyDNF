@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import type { CombatHitEvent } from "../game/combat";
+import { performAction, stepCombat, type CombatHitEvent } from "../game/combat";
 import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
 import { selectBaseClass } from "../systems/classes";
@@ -435,7 +435,7 @@ describe("playable app integration actions", () => {
     expect(inputHtml).toContain('data-player-motion="light"');
     expect(inputHtml).not.toContain('data-enemy-motion="hit"');
     expect(hitHtml).toContain('data-player-motion="light"');
-    expect(hitHtml).toContain('class="combat-player-art actor-model actor-model-light"');
+    expect(hitHtml).toContain('class="combat-player-art actor-model actor-model-light actor-model-light-1"');
     expect(hitHtml).toContain(`data-last-hit-target="${targetId}"`);
     expect(hitHtml).toContain('data-hit-recent="true"');
     expect(hitHtml).toContain('data-enemy-motion="hit"');
@@ -459,6 +459,33 @@ describe("playable app integration actions", () => {
     expect(recoveredHtml).toContain('data-enemy-motion="idle"');
     expect(recoveredHtml).toContain('class="combat-player-art actor-model actor-model-idle"');
     expect(recoveredHtml).not.toContain('class="hit-impact');
+  });
+
+  it("renders distinct third normal-attack combo motion on the player model", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const first = performAction(model.combatRun, { type: "light" });
+    const secondReady = stepCombat(first, {}, first.player.actionLockUntilMs - first.elapsedMs);
+    const second = performAction(secondReady, { type: "light" });
+    const thirdReady = stepCombat(second, {}, second.player.actionLockUntilMs - second.elapsedMs);
+    const third = performAction(thirdReady, { type: "light" });
+    const html = renderAppHtml({
+      ...model,
+      combatRun: third
+    });
+
+    expect(html).toContain('data-player-motion="light"');
+    expect(html).toContain('data-player-combo-step="3"');
+    expect(html).toContain('data-player-normal-combo-step="3"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-light actor-model-light-3"');
+    expect(html).toContain('data-combo-count="3"');
   });
 
   it("renders combo HUD plus enemy airborne and knockdown model states", () => {
@@ -568,7 +595,7 @@ describe("playable app integration actions", () => {
 
     expect(html).toContain('data-player-facing="-1"');
     expect(html).toMatch(
-      /class="combat-player-art actor-model actor-model-light"[^>]+style="[^"]*--model-scale-x: -1;[^"]*--light-lunge-x: -24px;[^"]*--hit-react-x: 18px;/
+      /class="combat-player-art actor-model actor-model-light actor-model-light-1"[^>]+style="[^"]*--model-scale-x: -1;[^"]*--light-lunge-x: -24px;[^"]*--hit-react-x: 18px;/
     );
     expect(html).toMatch(
       /class="enemy-art actor-model actor-model-hit"[^>]+style="[^"]*--hit-react-x: -18px;/

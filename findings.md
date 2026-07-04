@@ -247,3 +247,10 @@
 - Implementation note: the first playable buffer window is 180 ms. Locked light/heavy/skill inputs can queue only near the end of `actionLockUntilMs`; `stepCombat()` releases the queued input exactly at the unlock frame while preserving movement interpolation.
 - Interruption note: queued actions are canceled when the player is still in hurt lock at the release frame or when monster damage lands, preventing stale buffered attacks after a real hit-stun interruption.
 - UI verification note: `.combat-scene` now exposes `data-action-buffer-state`, `data-buffered-action`, `data-buffered-skill-id`, `data-buffered-execute-at-ms`, `data-buffer-ms-remaining`, and `data-buffer-window-ms` so browser checks can prove real buffered input instead of reducer time-skipping.
+
+## Normal Combo Findings
+- Current DNF-like combat gap after input buffering: light attack repeated the same hitbox/timing instead of a normal three-step brawler combo, so the most common J/X attack path still felt flat.
+- Combat audit found `comboStep` already existed but was only used as a counter and skill-cancel gate; it did not change light attack damage, hit frame, hitstop, action lock, knockback, or launch state.
+- UI audit found player motion already came from hit/miss events, but combat DOM exposed only `data-player-motion="light"` and HUD text. Browser verification needed stable `data-player-combo-step`, `data-player-normal-combo-step`, and `actor-model-light-N` hooks.
+- Implementation note: light attacks now use three normal-combo step definitions. Step 1 is quick, step 2 has later impact and stronger stagger, and step 3 has the longest startup/lock plus `launcher` feedback and airborne target state.
+- Expiration note: when the hit chain expires, `stepCombat()` now clears `player.comboStep` along with `comboCount`, so stale UI state cannot show a later normal attack step after a pause.

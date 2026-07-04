@@ -1092,6 +1092,66 @@ describe("playable app integration actions", () => {
     expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[1]}"`);
   });
 
+  it("renders meteor-knuckle as a staged ultimate with screen flash and ground impact", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 100)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            enemies: model.combatRun.enemies.map((enemy) => ({
+              ...enemy,
+              hp: 220,
+              maxHp: 220,
+              armor: 32
+            }))
+          }
+        : undefined
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "meteor-knuckle" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const meteorHits = model.combatRun.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "meteor-knuckle"
+    );
+    const impactAtMs = Math.max(...meteorHits.map((event) => event.occurredAtMs));
+    const castHtml = renderAppHtml(model);
+    const impactHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs: impactAtMs
+      }
+    });
+
+    expect(meteorHits).toHaveLength(4);
+    expect(castHtml).toContain('data-active-skill-id="meteor-knuckle"');
+    expect(castHtml).toContain('data-skill-animation-preset="ember-meteor"');
+    expect(castHtml).toContain('data-skill-weapon-arc="meteor-smash"');
+    expect(castHtml).toContain('data-skill-vfx-shape="meteor-impact"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-meteor-knuckle skill-vfx-shape-meteor-impact"');
+    expect(castHtml).not.toContain('data-impact-spark="true"');
+    expect(impactHtml).toContain('data-hitstop-active="true"');
+    expect(impactHtml).toContain('data-screen-shake="ultimate"');
+    expect(impactHtml).toContain('data-screen-flash="meteor"');
+    expect(impactHtml).toContain('data-impact-skill-id="meteor-knuckle"');
+    expect(impactHtml).toContain('data-skill-impact-vfx="meteor-knuckle"');
+    expect(impactHtml).toContain('data-impact-vfx-shape="meteor-impact"');
+    expect(impactHtml).toContain('class="skill-impact-burst skill-impact-shape-meteor-impact"');
+    expect(impactHtml).toContain('data-enemy-knockdown="true"');
+    expect(impactHtml).toContain('data-airborne-state="downed"');
+    expect(impactHtml).toContain('data-enemy-motion="knockdown"');
+  });
+
   it("keeps skill-specific VFX metadata when a class skill misses", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

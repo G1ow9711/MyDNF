@@ -1223,3 +1223,29 @@
   - Browser console error log: empty.
   - Browser screenshot saved at `.codex-local/tmp/target-vfx-check.png`.
   - The browser was restored to `http://127.0.0.1:5174/` after validation.
+
+## Task 44 Meteor Ultimate Combat Feel
+- Started after user clarified that character modeling can stay simpler for now, but action smoothness, hit feel, skill effects, and monster/player state changes must be strict.
+- Used two read-only parallel agents:
+  - `019f2ded-3925-7602-984e-43a4fe2bcad4` audited combat scripting and recommended a dedicated `meteor-knuckle` staged script instead of generic repeat hits.
+  - `019f2ded-6b74-79a1-a862-02dd854b0cfe` audited UI/CSS and recommended meteor-specific scene shake, screen flash, cast VFX, and impact burst styling.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `meteor-knuckle` to emit fall+impact hit phases per target, with stronger final hitstop, guard-break, forced knockdown, and armor-break state.
+  - `src/tests/app-integration.test.ts` requires cast-frame meteor metadata and final-frame ultimate shake, meteor flash, and meteor ground impact DOM.
+  - `src/tests/ui-smoke.test.ts` requires static render coverage so meteor does not regress to generic skill feedback.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts` failed because `meteor-knuckle` emitted 2 hit events instead of 4.
+- Implemented:
+  - Added `CombatHitPhase` and `CombatVfxCue` to hit events so staged skills can drive UI without guessing from ids.
+  - Added a dedicated `meteor-knuckle` script: locked targets once, emitted fall and impact phases per target, gave the impact phase stronger damage/hitstop, guard-break, stagger, and forced knockdown.
+  - Added `knockdown` action tags and changed enemy visual priority so overlapping control/armor-break does not hide a forced knockdown model reaction.
+  - Added scene and VFX-layer attributes for ultimate shake, meteor screen flash, and impact skill id.
+  - Added meteor-specific CSS for player crash motion, weapon meteor-smash arc, falling meteor cast VFX, ground crack impact VFX, screen flash, and ultimate shake.
+- Verification:
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 47 tests after fixing motion priority.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 102 tests.
+  - `npm test`: pass, 13 files and 198 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Browser validation on `http://127.0.0.1:5174/.codex-local/tmp/meteor-vfx-check.html`: confirmed `activeSkill=meteor-knuckle`, 4 impact bursts, 2 targets, `fall/fall/impact/impact`, `meteor-fall/meteor-impact`, hitstop active, ultimate shake, meteor flash, player `player-ember-meteor-crash`, weapon `weapon-meteor-smash`, and both enemies `data-enemy-motion="knockdown"`.
+  - Browser screenshot saved at `.codex-local/tmp/meteor-vfx-check.png`.

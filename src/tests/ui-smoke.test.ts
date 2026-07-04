@@ -260,6 +260,52 @@ describe("town app shell", () => {
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-black-rain"');
   });
 
+  it("renders meteor-knuckle with ultimate impact VFX instead of generic skill feedback", () => {
+    const state = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        heat: 100
+      }
+    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 220,
+          maxHp: 220,
+          armor: 32,
+          position: { x: player.x + 90 + index * 58, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "meteor-knuckle" }
+    );
+    const meteorHits = castRun.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "meteor-knuckle"
+    );
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: {
+        ...castRun,
+        elapsedMs: Math.max(...meteorHits.map((event) => event.occurredAtMs))
+      }
+    });
+
+    expect(meteorHits).toHaveLength(4);
+    expect(html).toContain('class="player-skill-vfx skill-vfx-meteor-knuckle skill-vfx-shape-meteor-impact"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-meteor-impact"');
+    expect(html).toContain('data-weapon-arc="meteor-smash"');
+    expect(html).toContain('data-screen-shake="ultimate"');
+    expect(html).toContain('data-screen-flash="meteor"');
+    expect(html).not.toContain('data-screen-shake="skill"');
+  });
+
   it("makes cleared combat rooms obvious before settlement", () => {
     const state = createInitialState();
     const combatRun = createCombatRun(state, "cinder-kiln-alley");

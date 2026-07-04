@@ -211,3 +211,11 @@
 - The gap is most obvious on multi-hit skills such as `black-rain-volley`: combat already emits six staggered hit events across two targets, but the UI previously had no `data-skill-impact-vfx` nodes to prove every target and every wave received a skill-shaped impact.
 - The next reusable VFX layer should separate cast VFX from target-bound impact VFX. Cast VFX shows the skill being released, while impact VFX attaches to the target position and inherits the catalog `vfxShape`.
 - `meteor-knuckle` remains a high-value next combat-script slice: it should become a staged ultimate with stronger hitstop/knockdown/ground-crack VFX instead of another generic ultimate hitbox.
+
+## Meteor Ultimate Script Findings
+- User clarified that lightweight character/monster modeling is acceptable only for mesh/detail fidelity; combat motion smoothness, hit timing, hitstop, player/enemy action changes, skill VFX, and monster skill VFX remain strict.
+- Read-only combat audit found `meteor-knuckle` should not be implemented through generic `repeatHits`, because it needs two named phases, different hitstop/damage, forced knockdown, and armor-break on the final impact.
+- Read-only UI audit found existing actor/weapon DOM is sufficient for `meteor-knuckle`; the missing pieces are ultimate-level scene shake, screen flash data, meteor-specific cast CSS, and meteor-specific target impact CSS.
+- RED evidence: focused combat/app/UI tests failed because `meteor-knuckle` still emitted two single-stage hit events instead of four staged fall/impact hit events across two targets.
+- Browser validation confirmed the staged ultimate DOM on `http://127.0.0.1:5174/.codex-local/tmp/meteor-vfx-check.html`: four meteor impacts across two targets, `fall/fall/impact/impact`, `meteor-fall/meteor-impact` cues, `data-screen-shake="ultimate"`, `data-screen-flash="meteor"`, `player-ember-meteor-crash`, `weapon-meteor-smash`, and enemy `data-enemy-motion="knockdown"`.
+- UI motion priority matters for action credibility: meteor originally set enemy knockdown state but rendered `controlled` because control/armor-break took priority. Enemy visual motion now prioritizes airborne/knockdown over control/guard-break when those states overlap.

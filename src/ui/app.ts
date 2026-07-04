@@ -490,20 +490,20 @@ function enemyMotion(
     return "defeated";
   }
 
-  if (elapsedMs < (enemy.controlledUntilMs ?? 0)) {
-    return "controlled";
-  }
-
-  if (elapsedMs < (enemy.armorBrokenUntilMs ?? 0)) {
-    return "guard-break";
-  }
-
   if (enemy.airborne) {
     return "airborne";
   }
 
   if (enemy.downed) {
     return "knockdown";
+  }
+
+  if (elapsedMs < (enemy.controlledUntilMs ?? 0)) {
+    return "controlled";
+  }
+
+  if (elapsedMs < (enemy.armorBrokenUntilMs ?? 0)) {
+    return "guard-break";
   }
 
   if (enemy.id === lastHitTargetId) {
@@ -624,7 +624,9 @@ function renderCombatVfx(run: CombatRun): string {
       ? classSkillById(playerAction.skillId)?.animation
       : undefined;
   const hitstopActive = Boolean(hit && run.elapsedMs < hit.occurredAtMs + hit.hitstopMs) || Boolean(playerHit && run.elapsedMs < run.player.hitstopUntilMs);
-  const screenShake = hit ? hit.action ?? "test" : playerHit ? "enemy" : "none";
+  const screenShake = hit?.vfxCue === "meteor-impact" ? "ultimate" : hit ? hit.action ?? "test" : playerHit ? "enemy" : "none";
+  const screenFlash = hit?.vfxCue === "meteor-impact" ? "meteor" : "none";
+  const impactSkillId = hit?.skillId ?? "";
   const hitVfx = hits
     .map((hitEvent, hitIndex) => {
       const target = run.enemies.find((enemy) => enemy.id === hitEvent.targetId);
@@ -638,7 +640,7 @@ function renderCombatVfx(run: CombatRun): string {
       const skillImpactVfx =
         hitEvent.action === "skill" && hitEvent.skillId && skillImpactAnimation
           ? `
-        <div class="skill-impact-burst skill-impact-shape-${skillImpactAnimation.vfxShape}" data-skill-impact-vfx="${hitEvent.skillId}" data-impact-vfx-shape="${skillImpactAnimation.vfxShape}" data-impact-target-id="${target.id}" data-hit-event-id="${hitEvent.id}" data-impact-hit-index="${hitIndex}" style="${combatActorStyle(run, target.position.x, target.position.y)} --skill-duration: ${skillImpactAnimation.durationMs}ms; --impact-hit-index: ${hitIndex};">
+        <div class="skill-impact-burst skill-impact-shape-${skillImpactAnimation.vfxShape}" data-skill-impact-vfx="${hitEvent.skillId}" data-impact-vfx-shape="${skillImpactAnimation.vfxShape}" data-impact-target-id="${target.id}" data-hit-event-id="${hitEvent.id}" data-impact-hit-index="${hitIndex}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" style="${combatActorStyle(run, target.position.x, target.position.y)} --skill-duration: ${skillImpactAnimation.durationMs}ms; --impact-hit-index: ${hitIndex};">
           <span class="skill-impact-core"></span>
           <span class="skill-impact-ring"></span>
           <span class="skill-impact-shards"></span>
@@ -704,7 +706,7 @@ function renderCombatVfx(run: CombatRun): string {
     .join("");
 
   return `
-    <div class="combat-vfx-layer" data-hitstop-active="${hitstopActive ? "true" : "false"}" data-screen-shake="${screenShake}">
+    <div class="combat-vfx-layer" data-hitstop-active="${hitstopActive ? "true" : "false"}" data-screen-shake="${screenShake}" data-screen-flash="${screenFlash}" data-impact-skill-id="${impactSkillId}">
       ${enemyVfx}
       ${hitVfx}
       ${skillVfx}
@@ -800,9 +802,14 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const comboMeter = comboActive
     ? `<div class="combo-meter" data-combo-active="true" data-combo-count="${run.comboCount}"><strong>${run.comboCount}</strong><span>CHAIN</span></div>`
     : `<div class="combo-meter is-idle" data-combo-active="false" data-combo-count="0"><strong>0</strong><span>CHAIN</span></div>`;
+  const sceneHit = latestHitEvent(run);
+  const scenePlayerHit = latestPlayerHitEvent(run);
+  const sceneScreenShake = sceneHit?.vfxCue === "meteor-impact" ? "ultimate" : sceneHit ? sceneHit.action ?? "test" : scenePlayerHit ? "enemy" : "none";
+  const sceneScreenFlash = sceneHit?.vfxCue === "meteor-impact" ? "meteor" : "none";
+  const sceneImpactSkillId = sceneHit?.skillId ?? "";
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-impact-skill-id="${sceneImpactSkillId}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>

@@ -6,7 +6,9 @@ import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
 export type EnemyKind = "trash" | "elite" | "boss";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
-export type CombatActionTag = "launcher" | "slam" | "pull";
+export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
+export type CombatHitPhase = "fall" | "impact";
+export type CombatVfxCue = "meteor-fall" | "meteor-impact";
 
 export interface CombatVector {
   x: number;
@@ -101,6 +103,8 @@ export interface CombatHitEvent {
   comboCount?: number;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
+  hitPhase?: CombatHitPhase;
+  vfxCue?: CombatVfxCue;
 }
 
 export interface CombatMissEvent {
@@ -187,6 +191,8 @@ export interface HitDefinition {
   pullCenter?: CombatVector;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
+  hitPhase?: CombatHitPhase;
+  vfxCue?: CombatVfxCue;
 }
 
 interface EnemyAttackDefinition {
@@ -573,6 +579,86 @@ function skillRepeatHits(skill: ClassSkillDefinition): Partial<Pick<PlayerHitbox
   return {};
 }
 
+function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const scriptedRun = applySkillStartupMovement(run, skill);
+  const targetingHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: skillRangeX(skill.tags),
+    laneRange: skillLaneRange(skill.tags),
+    targetCap: skillTargetCap(skill.tags),
+    frontOnly: skillIsFrontOnly(skill.tags),
+    damage: skillDamage(run, skill),
+    hitstopMs: 82,
+    knockback: 48,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo
+  };
+  const targets = selectPlayerTargets(scriptedRun, targetingHitbox);
+
+  if (targets.length === 0) {
+    return applyMiss(scriptedRun, targetingHitbox);
+  }
+
+  const baseDamage = skillDamage(run, skill);
+  const stages: Array<{
+    phase: CombatHitPhase;
+    vfxCue: CombatVfxCue;
+    delayMs: number;
+    damageMultiplier: number;
+    hitstopMs: number;
+    knockback: number;
+    juggle: boolean;
+    statusTags: CombatSkillStatusTag[];
+    actionTags: CombatActionTag[];
+  }> = [
+    {
+      phase: "fall",
+      vfxCue: "meteor-fall",
+      delayMs: skill.animation.hitFrameMs,
+      damageMultiplier: 0.55,
+      hitstopMs: 78,
+      knockback: 18,
+      juggle: true,
+      statusTags: ["stagger"],
+      actionTags: ["launcher"]
+    },
+    {
+      phase: "impact",
+      vfxCue: "meteor-impact",
+      delayMs: skill.animation.hitFrameMs + 220,
+      damageMultiplier: 1.25,
+      hitstopMs: 134,
+      knockback: 76,
+      juggle: false,
+      statusTags: ["guard-break", "stagger"],
+      actionTags: ["slam", "knockdown"]
+    }
+  ];
+
+  return stages.reduce((nextRun, stage) => {
+    return targets.reduce((stageRun, target) => {
+      return applyHit(stageRun, {
+        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${target.id}`,
+        targetId: target.id,
+        damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
+        hitstopMs: stage.hitstopMs,
+        knockback: stage.knockback,
+        juggle: stage.juggle,
+        action: "skill",
+        skillId: skill.id,
+        inputToHitMs: stage.delayMs,
+        canceledFromCombo,
+        statusTags: stage.statusTags,
+        actionTags: stage.actionTags,
+        hitPhase: stage.phase,
+        vfxCue: stage.vfxCue
+      });
+    }, nextRun);
+  }, scriptedRun);
+}
+
 function classResource(state: GameState): Omit<CombatResource, "current"> {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
   const resource = classDef?.resource ?? { id: "heat", displayName: "热能", max: 100 };
@@ -688,7 +774,7 @@ function bonusDamagePerMarkForSkill(skill: { id: string; tags: string[] }): numb
 }
 
 function actionTagsForSkill(tags: string[]): CombatActionTag[] {
-  return tags.filter((tag): tag is CombatActionTag => tag === "launcher" || tag === "slam" || tag === "pull");
+  return tags.filter((tag): tag is CombatActionTag => tag === "launcher" || tag === "slam" || tag === "pull" || tag === "knockdown");
 }
 
 function updateEnemyAirStates(run: CombatRun): CombatRun {
@@ -1039,10 +1125,11 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     const armorBrokenUntilMs = hasStatus(statusTags, "guard-break")
       ? Math.max(enemy.armorBrokenUntilMs ?? 0, impactAtMs + 1800)
       : enemy.armorBrokenUntilMs;
+    const forcedKnockdown = actionTags.includes("knockdown");
     const slamDown = actionTags.includes("slam") && enemy.airborne;
     const lethalDown = !hit.juggle && enemy.hp - hpDamage <= 0;
-    const airborne = hit.juggle && !slamDown;
-    const downed = slamDown || lethalDown;
+    const airborne = hit.juggle && !slamDown && !forcedKnockdown;
+    const downed = forcedKnockdown || slamDown || lethalDown;
     const airborneUntilMs = airborne ? Math.max(enemy.airborneUntilMs ?? 0, impactAtMs + 1000) : undefined;
     const downedUntilMs = downed ? Math.max(enemy.downedUntilMs ?? 0, impactAtMs + 760) : airborne ? undefined : enemy.downedUntilMs;
     const airControlUntil = Math.max(airborneUntilMs ?? 0, downedUntilMs ?? 0) || undefined;
@@ -1100,7 +1187,9 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     canceledFromCombo: hit.canceledFromCombo ?? false,
     comboCount,
     statusTags: hit.statusTags,
-    actionTags: hit.actionTags
+    actionTags: hit.actionTags,
+    hitPhase: hit.hitPhase,
+    vfxCue: hit.vfxCue
   };
 
   return {
@@ -1112,6 +1201,33 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     player: {
       ...run.player,
       hitstopUntilMs: Math.max(run.player.hitstopUntilMs, impactAtMs + hitstopMs)
+    }
+  };
+}
+
+function completeSkillAction(
+  run: CombatRun,
+  hitRun: CombatRun,
+  skill: ClassSkillDefinition,
+  statusTags: CombatSkillStatusTag[]
+): CombatRun {
+  const prismGain = prismCycleGain(run, skill.id);
+  const resourcePlayer = spendAndGainPlayerResource(hitRun.player, run, skill.resourceCost, skill.resourceGain + prismGain);
+  const statusPlayer = applyPlayerSkillStatus(resourcePlayer, run, statusTags, skill.id);
+
+  return {
+    ...hitRun,
+    player: {
+      ...statusPlayer,
+      comboStep: 0,
+      actionLockUntilMs: run.elapsedMs + skill.animation.durationMs,
+      cancelWindowUntilMs: 0,
+      lastSkillId: skill.id,
+      prismChain: nextPrismChain(run, skill.id),
+      skillCooldowns: {
+        ...hitRun.player.skillCooldowns,
+        [skill.id]: run.elapsedMs + prismCooldownMs(run, skill.id, skill.cooldownMs)
+      }
     }
   };
 }
@@ -1203,6 +1319,11 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   const statusTags = skillStatusTags(skill.tags);
   const actionTags = actionTagsForSkill(skill.tags);
+
+  if (skill.id === "meteor-knuckle") {
+    return completeSkillAction(run, applyMeteorKnuckle(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
   const scriptedRun = applySkillStartupMovement(run, skill);
   const hitRun = applyPlayerHitbox(scriptedRun, {
     action: "skill",
@@ -1225,25 +1346,8 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     statusTags,
     actionTags
   });
-  const prismGain = prismCycleGain(run, skill.id);
-  const resourcePlayer = spendAndGainPlayerResource(hitRun.player, run, skill.resourceCost, skill.resourceGain + prismGain);
-  const statusPlayer = applyPlayerSkillStatus(resourcePlayer, run, statusTags, skill.id);
 
-  return {
-    ...hitRun,
-    player: {
-      ...statusPlayer,
-      comboStep: 0,
-      actionLockUntilMs: run.elapsedMs + skill.animation.durationMs,
-      cancelWindowUntilMs: 0,
-      lastSkillId: skill.id,
-      prismChain: nextPrismChain(run, skill.id),
-      skillCooldowns: {
-        ...hitRun.player.skillCooldowns,
-        [skill.id]: run.elapsedMs + prismCooldownMs(run, skill.id, skill.cooldownMs)
-      }
-    }
-  };
+  return completeSkillAction(run, hitRun, skill, statusTags);
 }
 
 export function skillCooldownRemaining(run: CombatRun, skillId: string): number {

@@ -102,6 +102,23 @@ p {
   background: rgba(15, 23, 42, 0.66);
 }
 
+.combat-scene[data-screen-shake="ultimate"] {
+  animation: combat-ultimate-shake 520ms steps(5, end) both;
+}
+
+.combat-scene[data-screen-flash="meteor"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 60%, rgba(255, 247, 237, 0.42), transparent 26%),
+    linear-gradient(180deg, rgba(251, 146, 60, 0.26), transparent 48%, rgba(127, 29, 29, 0.28));
+  mix-blend-mode: screen;
+  animation: meteor-screen-flash 520ms ease-out both;
+}
+
 .town-scene {
   position: relative;
   isolation: isolate;
@@ -895,6 +912,10 @@ p {
   animation: weapon-hammer-drop var(--skill-duration, 620ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
 
+.combat-player[data-player-motion="skill"][data-skill-weapon-arc="meteor-smash"] .combat-weapon {
+  animation: weapon-meteor-smash var(--skill-duration, 860ms) cubic-bezier(0.15, 0.84, 0.18, 1) both;
+}
+
 .combat-player[data-player-motion="skill"][data-skill-weapon-arc="fan"] .combat-weapon {
   animation: weapon-fan-arc var(--skill-duration, 680ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
@@ -1197,6 +1218,10 @@ p {
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="ember-anvil"] .combat-player-art {
   animation: player-ember-anvil-crash var(--skill-duration, 620ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
+}
+
+.combat-player[data-player-motion="skill"][data-skill-animation-preset="ember-meteor"] .combat-player-art {
+  animation: player-ember-meteor-crash var(--skill-duration, 860ms) cubic-bezier(0.15, 0.84, 0.18, 1) both;
 }
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="liuli-rain"] .combat-player-art {
@@ -1578,6 +1603,69 @@ p {
   animation: black-rain-target-burst 620ms ease-out both;
 }
 
+.skill-impact-shape-meteor-impact {
+  width: 230px;
+  height: 158px;
+  margin-top: 8px;
+}
+
+.skill-impact-shape-meteor-impact .skill-impact-core {
+  top: 54%;
+  width: 78px;
+  height: 42px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 247, 237, 0.98), rgba(253, 186, 116, 0.86) 28%, rgba(127, 29, 29, 0) 72%),
+    linear-gradient(90deg, transparent, rgba(251, 146, 60, 0.7), transparent);
+  filter: drop-shadow(0 0 24px rgba(251, 146, 60, 0.9));
+  animation: meteor-impact-core 620ms ease-out both;
+}
+
+.skill-impact-shape-meteor-impact .skill-impact-ring {
+  top: 58%;
+  width: 170px;
+  height: 54px;
+  border-color: rgba(253, 186, 116, 0.9);
+  box-shadow: 0 0 34px rgba(251, 146, 60, 0.68), inset 0 0 28px rgba(127, 29, 29, 0.46);
+  animation: meteor-ground-crack 680ms ease-out both;
+}
+
+.skill-impact-shape-meteor-impact .skill-impact-shards {
+  inset: 18% 0 0;
+  background:
+    linear-gradient(106deg, transparent 12%, rgba(255, 247, 237, 0.95) 13% 15%, transparent 16%),
+    linear-gradient(82deg, transparent 31%, rgba(251, 146, 60, 0.88) 32% 35%, transparent 36%),
+    linear-gradient(118deg, transparent 58%, rgba(127, 29, 29, 0.9) 59% 63%, transparent 64%),
+    radial-gradient(circle at 25% 63%, rgba(253, 186, 116, 0.95) 0 5px, transparent 6px),
+    radial-gradient(circle at 77% 54%, rgba(255, 247, 237, 0.9) 0 4px, transparent 5px);
+  animation: meteor-rock-scatter 720ms ease-out both;
+}
+
+.skill-impact-shape-meteor-impact[data-vfx-cue="meteor-fall"] {
+  width: 160px;
+  height: 180px;
+  margin-top: -54px;
+}
+
+.skill-impact-shape-meteor-impact[data-vfx-cue="meteor-fall"] .skill-impact-core {
+  top: 24%;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  animation: meteor-fall-core 560ms ease-in both;
+}
+
+.skill-impact-shape-meteor-impact[data-vfx-cue="meteor-fall"] .skill-impact-ring {
+  top: 72%;
+  width: 92px;
+  height: 32px;
+  opacity: 0.7;
+}
+
+.skill-impact-shape-meteor-impact[data-vfx-cue="meteor-fall"] .skill-impact-shards {
+  animation: spark-scatter 560ms ease-out both;
+}
+
 .damage-number {
   margin-top: -112px;
   color: #fee2e2;
@@ -1661,6 +1749,39 @@ p {
     radial-gradient(circle at 42% 42%, rgba(251, 146, 60, 0.96) 0 5px, transparent 6px),
     radial-gradient(circle at 67% 62%, rgba(248, 113, 113, 0.9) 0 4px, transparent 5px),
     radial-gradient(circle at 84% 38%, rgba(255, 247, 237, 0.95) 0 3px, transparent 4px);
+}
+
+.skill-vfx-shape-meteor-impact {
+  width: 320px;
+  height: 260px;
+  margin-top: -132px;
+}
+
+.skill-vfx-shape-meteor-impact .skill-core {
+  inset: 4% 38% 52%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 44% 34%, rgba(255, 247, 237, 0.98), rgba(253, 186, 116, 0.84) 28%, rgba(185, 28, 28, 0.44) 58%, transparent 74%);
+  filter: drop-shadow(0 0 28px rgba(251, 146, 60, 0.92)) blur(0.4px);
+  animation: meteor-fall var(--skill-duration, 860ms) cubic-bezier(0.12, 0.8, 0.18, 1) both;
+}
+
+.skill-vfx-shape-meteor-impact .skill-wave {
+  inset: 62% 4% 8%;
+  border-color: rgba(253, 186, 116, 0.78);
+  border-radius: 50%;
+  box-shadow: 0 0 42px rgba(248, 113, 113, 0.58), inset 0 0 24px rgba(127, 29, 29, 0.48);
+  animation: meteor-cast-ground-ring var(--skill-duration, 860ms) ease-out both;
+}
+
+.skill-vfx-shape-meteor-impact .skill-sparks {
+  background:
+    linear-gradient(106deg, transparent 18%, rgba(255, 247, 237, 0.92) 19% 21%, transparent 22%),
+    linear-gradient(88deg, transparent 42%, rgba(251, 146, 60, 0.88) 43% 46%, transparent 47%),
+    linear-gradient(118deg, transparent 64%, rgba(185, 28, 28, 0.86) 65% 69%, transparent 70%),
+    radial-gradient(circle at 24% 72%, rgba(253, 186, 116, 0.94) 0 5px, transparent 6px),
+    radial-gradient(circle at 78% 78%, rgba(255, 247, 237, 0.86) 0 4px, transparent 5px);
+  animation: meteor-cast-sparks var(--skill-duration, 860ms) ease-out both;
 }
 
 .skill-vfx-shape-glass-rain {
@@ -2116,6 +2237,14 @@ p {
   100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
 }
 
+@keyframes player-ember-meteor-crash {
+  0% { transform: translateX(calc(var(--skill-lunge-x, 38px) * -0.45)) translateY(6px) rotate(-6deg) scale(0.96) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
+  24% { transform: translateX(calc(var(--skill-lunge-x, 38px) * -0.12)) translateY(-42px) rotate(3deg) scale(1.05) scaleX(var(--model-scale-x, 1)); filter: brightness(1.62) saturate(1.14); }
+  48% { transform: translateX(calc(var(--skill-lunge-x, 38px) * 0.42)) translateY(-28px) rotate(8deg) scale(1.1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.9) saturate(1.24); }
+  72% { transform: translateX(var(--skill-lunge-x, 38px)) translateY(16px) rotate(10deg) scale(1.14) scaleX(var(--model-scale-x, 1)); filter: brightness(2.05) saturate(1.32); }
+  100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
+}
+
 @keyframes player-liuli-rain-cast {
   0% { transform: translateX(calc(var(--skill-lunge-x, 18px) * -0.26)) translateY(0) rotate(-2deg) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
   32% { transform: translateX(calc(var(--skill-lunge-x, 18px) * 0.4)) translateY(-10px) rotate(4deg) scale(1.04) scaleX(var(--model-scale-x, 1)); filter: brightness(1.62) saturate(1.2); }
@@ -2202,6 +2331,14 @@ p {
   100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); }
 }
 
+@keyframes weapon-meteor-smash {
+  0% { transform: translate(calc(-50% - var(--weapon-skill-lunge, 38px) * 0.42), -76%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 58deg)) scale(var(--weapon-scale, 1)); }
+  34% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 38px) * 0.08), -104%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 8deg)) scale(calc(var(--weapon-scale, 1) * 1.15)); filter: brightness(1.34); }
+  62% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 38px) * 0.52), -58%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 42deg)) scale(calc(var(--weapon-scale, 1) * 1.22)); filter: drop-shadow(0 0 42px color-mix(in srgb, var(--weapon-glow, #fb923c) 94%, transparent)) brightness(1.5); }
+  78% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 38px)), -26%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 72deg)) scale(calc(var(--weapon-scale, 1) * 1.26)); filter: drop-shadow(0 0 52px color-mix(in srgb, var(--weapon-glow, #fb923c) 96%, transparent)) brightness(1.66); }
+  100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); }
+}
+
 @keyframes weapon-fan-arc {
   0% { transform: translate(-58%, -52%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 32deg)) scale(var(--weapon-scale, 1)); opacity: 0.88; }
   34% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 18px) * 0.35), calc(-50% + var(--weapon-skill-lift, -14px))) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 18deg)) scale(calc(var(--weapon-scale, 1) * 1.08)); opacity: 1; }
@@ -2283,6 +2420,22 @@ p {
   100% { transform: translate(0, 0); }
 }
 
+@keyframes combat-ultimate-shake {
+  0% { transform: translate(0, 0); }
+  18% { transform: translate(-9px, 5px); }
+  34% { transform: translate(11px, -6px); }
+  52% { transform: translate(-8px, -4px); }
+  72% { transform: translate(7px, 3px); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes meteor-screen-flash {
+  0% { opacity: 0; }
+  12% { opacity: 0.9; }
+  38% { opacity: 0.52; }
+  100% { opacity: 0; }
+}
+
 @keyframes impact-ring {
   0% { opacity: 0; transform: scale(0.32); }
   24% { opacity: 1; }
@@ -2325,6 +2478,30 @@ p {
   100% { opacity: 0; transform: translateY(28px) skewX(-4deg) scale(1.16); }
 }
 
+@keyframes meteor-fall-core {
+  0% { opacity: 0; transform: translate(-50%, -140%) scale(0.48); }
+  28% { opacity: 1; transform: translate(-50%, -64%) scale(0.86); }
+  100% { opacity: 0; transform: translate(-50%, 62%) scale(1.28); }
+}
+
+@keyframes meteor-impact-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.38); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.28); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.82); }
+}
+
+@keyframes meteor-ground-crack {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-4deg) scaleX(0.28) scaleY(0.58); }
+  24% { opacity: 1; transform: translate(-50%, -50%) rotate(-4deg) scaleX(1.08) scaleY(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(-4deg) scaleX(1.55) scaleY(1.18); }
+}
+
+@keyframes meteor-rock-scatter {
+  0% { opacity: 0; transform: translateY(12px) scale(0.55) rotate(-4deg); }
+  22% { opacity: 1; transform: translateY(-2px) scale(1) rotate(2deg); }
+  100% { opacity: 0; transform: translateY(-42px) scale(1.28) rotate(10deg); }
+}
+
 @keyframes skill-core-burst {
   0% { opacity: 0; transform: scale(0.18); }
   24% { opacity: 1; }
@@ -2347,6 +2524,27 @@ p {
   0% { opacity: 0; transform: translateY(-34px) skewX(-10deg) scale(0.72); }
   22% { opacity: 1; transform: translateY(-12px) skewX(-8deg) scale(1); }
   100% { opacity: 0; transform: translateY(44px) skewX(-6deg) scale(1.08); }
+}
+
+@keyframes meteor-fall {
+  0% { opacity: 0; transform: translateY(-120px) scale(0.54); }
+  18% { opacity: 1; transform: translateY(-84px) scale(0.82); }
+  58% { opacity: 0.96; transform: translateY(58px) scale(1.2); }
+  100% { opacity: 0; transform: translateY(96px) scale(1.38); }
+}
+
+@keyframes meteor-cast-ground-ring {
+  0% { opacity: 0; transform: scale(0.3) rotate(-6deg); }
+  34% { opacity: 0.46; transform: scale(0.72) rotate(-6deg); }
+  68% { opacity: 0.92; transform: scale(1.08) rotate(4deg); }
+  100% { opacity: 0; transform: scale(1.44) rotate(8deg); }
+}
+
+@keyframes meteor-cast-sparks {
+  0% { opacity: 0; transform: translateY(-32px) scale(0.55); }
+  28% { opacity: 0.9; transform: translateY(-10px) scale(0.86); }
+  72% { opacity: 1; transform: translateY(12px) scale(1.1); }
+  100% { opacity: 0; transform: translateY(36px) scale(1.28); }
 }
 
 @keyframes enemy-cast-pulse {

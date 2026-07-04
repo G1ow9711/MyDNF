@@ -133,7 +133,11 @@ function withEnemyInRange(run: CombatRun, enemyPatch: Partial<CombatEnemy> = {})
   };
 }
 
-function withPlayerAndEnemies(run: CombatRun, playerPatch: Partial<CombatRun["player"]>, enemyPositions: Array<{ x: number; y: number; hp?: number }>): CombatRun {
+function withPlayerAndEnemies(
+  run: CombatRun,
+  playerPatch: Partial<CombatRun["player"]>,
+  enemyPositions: Array<{ x: number; y: number; hp?: number; maxHp?: number; armor?: number }>
+): CombatRun {
   return {
     ...run,
     player: {
@@ -143,6 +147,8 @@ function withPlayerAndEnemies(run: CombatRun, playerPatch: Partial<CombatRun["pl
     enemies: run.enemies.map((enemy, index) => ({
       ...enemy,
       hp: enemyPositions[index]?.hp ?? enemy.hp,
+      maxHp: enemyPositions[index]?.maxHp ?? enemy.maxHp,
+      armor: enemyPositions[index]?.armor ?? enemy.armor,
       position: {
         x: enemyPositions[index]?.x ?? enemy.position.x,
         y: enemyPositions[index]?.y ?? enemy.position.y
@@ -748,6 +754,37 @@ describe("combat actions and impact feel", () => {
     expect(Math.max(...hitTimes) - Math.min(...hitTimes)).toBeGreaterThanOrEqual(180);
     expect(volley.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
     expect(volley.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
+  it("meteor-knuckle resolves as staged fall and impact hits with forced knockdown", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 330, y: 340, hp: 260, maxHp: 260, armor: 40 },
+        { x: 390, y: 356, hp: 220, maxHp: 220, armor: 30 }
+      ]
+    );
+
+    const meteor = performAction(run, { type: "skill", skillId: "meteor-knuckle" });
+    const meteorHits = meteor.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "meteor-knuckle"
+    );
+    const hitTimes = [...new Set(meteorHits.map((event) => event.occurredAtMs))];
+    const meteorPhases = meteorHits.map((event) => event.hitPhase);
+    const fallHits = meteorHits.filter((event) => event.hitPhase === "fall");
+    const impactHits = meteorHits.filter((event) => event.hitPhase === "impact");
+
+    expect(meteorHits).toHaveLength(4);
+    expect(hitTimes).toHaveLength(2);
+    expect(Math.max(...hitTimes) - Math.min(...hitTimes)).toBeGreaterThanOrEqual(180);
+    expect(meteorPhases).toEqual(["fall", "fall", "impact", "impact"]);
+    expect(fallHits.every((event) => event.hitstopMs < impactHits[0].hitstopMs)).toBe(true);
+    expect(impactHits.every((event) => event.hitstopMs > 100)).toBe(true);
+    expect(impactHits.every((event) => event.statusTags?.includes("guard-break"))).toBe(true);
+    expect(impactHits.every((event) => event.actionTags?.includes("knockdown"))).toBe(true);
+    expect(meteor.enemies.every((enemy) => enemy.downed && (enemy.downedUntilMs ?? 0) > meteor.elapsedMs)).toBe(true);
+    expect(meteor.enemies.every((enemy) => (enemy.armorBrokenUntilMs ?? 0) > meteor.elapsedMs)).toBe(true);
   });
 
   it("guard skills open a mitigation window like shield skills", () => {

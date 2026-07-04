@@ -1,11 +1,11 @@
 import { catalog } from "../data/catalog";
-import type { DungeonId, GameState } from "./types";
+import type { ClassSkillDefinition, DungeonId, GameState } from "./types";
 import type { CombatInput } from "./input";
 import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
 
 export type EnemyKind = "trash" | "elite" | "boss";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "skill"; skillId: string };
-export type CombatSkillStatusTag = "shield" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
+export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull";
 
 export interface CombatVector {
@@ -173,6 +173,7 @@ export interface HitDefinition {
   marksApplied?: number;
   consumeMarks?: boolean;
   bonusDamagePerMark?: number;
+  pullCenter?: CombatVector;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
 }
@@ -203,6 +204,10 @@ interface PlayerHitboxDefinition {
   marksApplied?: number;
   consumeMarks?: boolean;
   bonusDamagePerMark?: number;
+  pullCenter?: CombatVector;
+  repeatHits?: number;
+  repeatIntervalMs?: number;
+  repeatDamageMultiplier?: number;
   inputToHitMs: number;
   canceledFromCombo: boolean;
   statusTags?: CombatSkillStatusTag[];
@@ -378,27 +383,36 @@ function applyPlayerHitbox(run: CombatRun, hitbox: PlayerHitboxDefinition): Comb
     return applyMiss(run, hitbox);
   }
 
-  return targets.reduce(
-    (next, target) =>
-      applyHit(next, {
-        id: `hit-${run.elapsedMs}-${hitbox.action}${hitbox.skillId ? `-${hitbox.skillId}` : ""}-${target.id}`,
+  const repeatHits = hitbox.repeatHits ?? 1;
+  const repeatIntervalMs = hitbox.repeatIntervalMs ?? 0;
+  const repeatDamageMultiplier = hitbox.repeatDamageMultiplier ?? 1;
+
+  return targets.reduce((nextRun, target) => {
+    let next = nextRun;
+
+    for (let hitIndex = 0; hitIndex < repeatHits; hitIndex += 1) {
+      next = applyHit(next, {
+        id: `hit-${run.elapsedMs}-${hitbox.action}${hitbox.skillId ? `-${hitbox.skillId}` : ""}-${target.id}-${hitIndex}`,
         targetId: target.id,
-        damage: hitbox.damage,
+        damage: Math.max(1, Math.round(hitbox.damage * repeatDamageMultiplier)),
         hitstopMs: hitbox.hitstopMs,
         knockback: hitbox.knockback,
         juggle: hitbox.juggle,
         action: hitbox.action,
         skillId: hitbox.skillId,
-        inputToHitMs: hitbox.inputToHitMs,
+        inputToHitMs: hitbox.inputToHitMs + hitIndex * repeatIntervalMs,
         canceledFromCombo: hitbox.canceledFromCombo,
         marksApplied: hitbox.marksApplied,
         consumeMarks: hitbox.consumeMarks,
         bonusDamagePerMark: hitbox.bonusDamagePerMark,
+        pullCenter: hitbox.pullCenter,
         statusTags: hitbox.statusTags,
         actionTags: hitbox.actionTags
-      }),
-    run
-  );
+      });
+    }
+
+    return next;
+  }, run);
 }
 
 function skillTargetCap(tags: string[]): number {
@@ -449,7 +463,7 @@ function skillIsFrontOnly(tags: string[]): boolean {
   return !(tags.includes("area") || tags.includes("trap") || tags.includes("ultimate"));
 }
 
-const combatStatusTags = new Set<CombatSkillStatusTag>(["shield", "evade", "reflect", "trap", "control", "guard-break", "stagger"]);
+const combatStatusTags = new Set<CombatSkillStatusTag>(["shield", "guard", "evade", "reflect", "trap", "control", "guard-break", "stagger"]);
 
 function skillStatusTags(tags: string[]): CombatSkillStatusTag[] {
   return tags.filter((tag): tag is CombatSkillStatusTag => combatStatusTags.has(tag as CombatSkillStatusTag));
@@ -481,6 +495,65 @@ function skillDamage(run: CombatRun, skill: { resourceCost: number; tags: string
       : 1;
 
   return playerDamage(run, Math.round(baseDamage * heatBurstMultiplier));
+}
+
+function skillMovementDistance(skill: ClassSkillDefinition): number {
+  if (skill.id === "furnace-step") {
+    return 124;
+  }
+
+  if (skill.id === "prism-step") {
+    return 104;
+  }
+
+  if (skill.id === "shadow-roll") {
+    return -86;
+  }
+
+  if (skill.tags.includes("dash")) {
+    return Math.max(72, skill.animation.lungePx * 2);
+  }
+
+  return 0;
+}
+
+function applySkillStartupMovement(run: CombatRun, skill: ClassSkillDefinition): CombatRun {
+  const movement = skillMovementDistance(skill);
+
+  if (movement === 0) {
+    return run;
+  }
+
+  return {
+    ...run,
+    player: {
+      ...run.player,
+      x: clamp(run.player.x + movement * run.player.facing, 0, arena.width)
+    }
+  };
+}
+
+function skillPullCenter(run: CombatRun, skill: ClassSkillDefinition): CombatVector | undefined {
+  if (!skill.tags.includes("pull")) {
+    return undefined;
+  }
+
+  return {
+    x: clamp(run.player.x + 112 * run.player.facing, 0, arena.width),
+    y: run.player.y
+  };
+}
+
+function skillRepeatHits(skill: ClassSkillDefinition): Partial<Pick<PlayerHitboxDefinition, "repeatHits" | "repeatIntervalMs" | "repeatDamageMultiplier">> {
+  if (skill.id === "black-rain-volley") {
+    return {
+      repeatHits: 3,
+      repeatIntervalMs: 110,
+      repeatDamageMultiplier: 0.42
+    };
+  }
+
+  return {};
 }
 
 function classResource(state: GameState): Omit<CombatResource, "current"> {
@@ -536,6 +609,14 @@ function applyPlayerSkillStatus(player: CombatPlayer, run: CombatRun, statusTags
       ...next,
       shieldUntilMs: Math.max(next.shieldUntilMs, run.elapsedMs + 1500),
       shieldReduction: Math.max(next.shieldReduction, 0.5)
+    };
+  }
+
+  if (hasStatus(statusTags, "guard")) {
+    next = {
+      ...next,
+      shieldUntilMs: Math.max(next.shieldUntilMs, run.elapsedMs + 900),
+      shieldReduction: Math.max(next.shieldReduction, 0.48)
     };
   }
 
@@ -958,6 +1039,15 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
       airControlUntil ?? 0,
       hasStatus(statusTags, "guard-break") ? impactAtMs + 680 : 0
     );
+    const nextPosition = hit.pullCenter
+      ? {
+          x: clamp(enemy.position.x + (hit.pullCenter.x - enemy.position.x) * 0.75, 0, arena.width),
+          y: clamp(enemy.position.y + (hit.pullCenter.y - enemy.position.y) * 0.45, arena.minY, arena.maxY)
+        }
+      : {
+          ...enemy.position,
+          x: clamp(enemy.position.x + hit.knockback * run.player.facing, 0, arena.width)
+        };
 
     return {
       ...enemy,
@@ -973,10 +1063,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
       attackRecoverUntilMs: statusInterruptsAttack ? undefined : enemy.attackRecoverUntilMs,
       attackSkillId: statusInterruptsAttack ? undefined : enemy.attackSkillId,
       attackHitResolved: statusInterruptsAttack ? undefined : enemy.attackHitResolved,
-      position: {
-        ...enemy.position,
-        x: enemy.position.x + hit.knockback * run.player.facing
-      },
+      position: nextPosition,
       airborne,
       downed,
       airborneUntilMs,
@@ -1099,7 +1186,8 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   const statusTags = skillStatusTags(skill.tags);
   const actionTags = actionTagsForSkill(skill.tags);
-  const hitRun = applyPlayerHitbox(run, {
+  const scriptedRun = applySkillStartupMovement(run, skill);
+  const hitRun = applyPlayerHitbox(scriptedRun, {
     action: "skill",
     skillId: action.skillId,
     rangeX: skillRangeX(skill.tags),
@@ -1113,6 +1201,8 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     marksApplied: markCountForSkill(skill),
     consumeMarks: consumesMarksForSkill(skill),
     bonusDamagePerMark: bonusDamagePerMarkForSkill(skill),
+    pullCenter: skillPullCenter(scriptedRun, skill),
+    ...skillRepeatHits(skill),
     inputToHitMs: skill.animation.hitFrameMs,
     canceledFromCombo,
     statusTags,

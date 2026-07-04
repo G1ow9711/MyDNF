@@ -656,6 +656,21 @@ describe("playable app integration actions", () => {
     expect(html).not.toContain("热能 40");
   });
 
+  it("renders zero-cost guard skills as clickable combat skill buttons", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 40);
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: state
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    const html = renderAppHtml(model);
+
+    expect(html).toContain('data-combat-skill-id="anvil-guard"');
+    expect(html).toContain('data-skill-cost="0"');
+  });
+
   it("renders structured class mechanic state for browser verification", () => {
     let liuliModel = createAppModel({
       storage: new MemoryStorage(),

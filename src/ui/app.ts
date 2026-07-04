@@ -171,9 +171,7 @@ function classSkillIds(state: GameState): Set<string> {
 function combatSkillsForState(state: GameState): ClassSkillDefinition[] {
   const skillIds = classSkillIds(state);
 
-  return catalog.classSkills.filter(
-    (skill) => skill.classId === state.player.classId && skillIds.has(skill.id) && skill.key !== "J" && skill.key !== "K"
-  );
+  return catalog.classSkills.filter((skill) => skill.classId === state.player.classId && skillIds.has(skill.id));
 }
 
 export function combatActionForKeyCode(
@@ -465,7 +463,7 @@ function playerMotion(run: CombatRun): string {
     return "counter";
   }
 
-  if (action?.statusTags?.includes("shield") || playerShieldActive(run)) {
+  if (action?.statusTags?.includes("shield") || action?.statusTags?.includes("guard") || playerShieldActive(run)) {
     return "shield";
   }
 

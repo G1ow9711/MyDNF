@@ -692,6 +692,75 @@ describe("combat actions and impact feel", () => {
     expect(broken.enemies[0].armor).toBeLessThan(40);
     expect(broken.enemies[0].nextAttackAtMs).toBeGreaterThan(broken.elapsedMs);
   });
+
+  it("moves dash skills through their startup before resolving the hitbox", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 470, y: 340 }]
+    );
+
+    const dashed = performAction(run, { type: "skill", skillId: "furnace-step" });
+
+    expect(dashed.player.x).toBeGreaterThan(run.player.x + 80);
+    expect(latestHitForSkill(dashed, "furnace-step").targetId).toBe(run.enemies[0].id);
+    expect(dashed.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("pull skills gather enemies toward the skill center instead of knocking them away", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 90), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 315, y: 340 },
+        { x: 430, y: 348 }
+      ]
+    );
+
+    const pulled = performAction(run, { type: "skill", skillId: "heat-bloom" });
+    const centerX = run.player.x + 112;
+
+    expect(Math.abs(pulled.enemies[0].position.x - centerX)).toBeLessThan(Math.abs(run.enemies[0].position.x - centerX));
+    expect(Math.abs(pulled.enemies[1].position.x - centerX)).toBeLessThan(Math.abs(run.enemies[1].position.x - centerX));
+  });
+
+  it("volley skills emit staggered multi-hit events per target", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 330, y: 340 },
+        { x: 390, y: 356 }
+      ]
+    );
+
+    const volley = performAction(run, { type: "skill", skillId: "black-rain-volley" });
+    const volleyHits = volley.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "black-rain-volley"
+    );
+    const hitTimes = [...new Set(volleyHits.map((event) => event.occurredAtMs))];
+
+    expect(volleyHits).toHaveLength(6);
+    expect(hitTimes.length).toBeGreaterThan(1);
+    expect(Math.max(...hitTimes) - Math.min(...hitTimes)).toBeGreaterThanOrEqual(180);
+    expect(volley.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(volley.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
+  it("guard skills open a mitigation window like shield skills", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 40);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 310, y: 340 }]
+    );
+
+    const guarded = performAction(run, { type: "skill", skillId: "anvil-guard" });
+
+    expect(guarded.player.shieldUntilMs).toBeGreaterThan(guarded.elapsedMs);
+    expect(guarded.player.shieldReduction).toBeGreaterThanOrEqual(0.45);
+  });
 });
 
 describe("enemy attacks and player defeat", () => {

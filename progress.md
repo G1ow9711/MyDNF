@@ -1145,3 +1145,30 @@
   - `git diff --check`: pass with Windows line-ending warnings only.
   - In-app browser validation on `http://127.0.0.1:5174/`: live samples confirmed `ash-ember-spit` windup has telegraph without skill VFX, and later active/miss has skill VFX without telegraph.
   - Browser screenshot saved at `.codex-local/tmp/combat-vfx-phase-check.png`.
+
+## Task 41 Skill Script V1 and Guard Accessibility
+- Started after the user clarified that character/monster models can stay simpler for now, but combat motion smoothness, hit feel, skill VFX, and action-state changes must stay strict.
+- Used two read-only parallel agents:
+  - `019f2da7-dcf4-7d82-be95-689fcf6d9e8e` audited per-skill behavior gaps and recommended the first script targets: true pull, volley multi-hit, guard/parry, and dash movement.
+  - `019f2da8-1c5f-7b12-838d-620846ce88b9` audited dungeon/room flow and identified DNF-style room gate progression as the next major slice after skill scripting.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` verifies `furnace-step` moves before hitbox resolution, `heat-bloom` pulls enemies toward its center, `black-rain-volley` emits staggered multi-hit events per target, and `anvil-guard` opens a mitigation window.
+  - `src/tests/app-integration.test.ts` verifies zero-cost guard skills render as clickable combat skill buttons.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts` initially failed because dash position stayed unchanged, pull moved enemies away, volley produced only 2 hit events instead of 6, and guard produced no shield window.
+  - `npm test -- src/tests/app-integration.test.ts` failed because the combat UI did not contain `data-combat-skill-id="anvil-guard"`.
+- Implemented:
+  - Added skill startup movement for dash scripts before target selection.
+  - Added pull-center hit behavior so pull skills move enemies toward a center instead of knockback away.
+  - Added repeat-hit hitbox fields and wired `black-rain-volley` to 3 staggered hits per target.
+  - Added `guard` as a real combat status that creates a short shield mitigation window.
+  - Updated player motion selection so guard skills render shield motion.
+  - Changed the combat skill button list to render J/K class skills as clickable buttons while preserving keyboard J/K as basic light/heavy attacks.
+- Verification:
+  - `npm test -- src/tests/combat.test.ts`: pass, 34 tests.
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 44 tests.
+  - `npm test`: pass, 13 files and 190 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Browser validation on `http://127.0.0.1:5174/`: `furnace-step` moved the player from 23.67% to 36.58% X and rendered `furnace-trail`; `heat-bloom` pulled both enemies closer to center and rendered `heat-bloom`; `black-rain-volley` rendered `ink-volley` / `black-rain` with 6 damage numbers and 6 impact sparks; `anvil-guard` rendered `actor-model-shield`, `data-shield-active="true"`, and `guard-rune`.
+  - Browser screenshot saved at `.codex-local/tmp/skill-script-v1-check.png`.

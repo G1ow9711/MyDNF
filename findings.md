@@ -190,3 +190,11 @@
 - Monster skill rendering is phase separated: windup events render telegraph zones only, while active/miss events render the actual monster skill VFX. This prevents the old mixed state where a monster could show warning and impact effect as the same phase.
 - Skill animation duration now flows into DOM/CSS through `--skill-duration`, so player model skill casts, weapon arcs, and skill VFX child animations consume catalog animation timing instead of only preserving HTML metadata.
 - Browser validation on `http://127.0.0.1:5174/` confirmed monster `ash-ember-spit` windup telegraph and later active/miss skill VFX on the live page. Screenshot saved at `.codex-local/tmp/combat-vfx-phase-check.png`.
+
+## Skill Script V1 Findings
+- User clarified that lightweight character/monster modeling is acceptable for the current playable slice, but combat motion smoothness, hit feel, player/enemy action changes, skill VFX, and monster skill VFX remain strict requirements.
+- Read-only skill audit found the biggest skill-fidelity gap was broad tag hitboxes without per-skill behavior. The first targeted script pass now covers dash startup movement, pull/vacuum movement, staggered multi-hit volleys, and guard mitigation.
+- Read-only dungeon-flow audit found the next highest DNF gap is room progression: clearing a room still uses a settlement button instead of opening a gate and walking into the next room. This is deferred to the next slice after skill-script V1.
+- Browser validation on `http://127.0.0.1:5174/` confirmed `furnace-step` moved the player from 23.67% to 36.58% X while showing `furnace-trail`, `heat-bloom` pulled both enemies closer to its center and showed `heat-bloom` VFX, `black-rain-volley` showed `ink-volley` / `black-rain` with 6 damage numbers and 6 impact sparks, and `anvil-guard` rendered `actor-model-shield` with `data-shield-active="true"` and `guard-rune` VFX.
+- Live browser validation exposed a playability gap: J/K class skills were filtered from the skill button bar, so `anvil-guard` was test-callable but not clickable. The UI now renders J/K class skills as mouse-clickable skill buttons while keyboard J/K remain light/heavy attack shortcuts.
+- Screenshot evidence for the skill-script browser pass is saved at `.codex-local/tmp/skill-script-v1-check.png`.

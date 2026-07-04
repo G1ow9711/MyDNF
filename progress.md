@@ -803,10 +803,12 @@
   - Enemy attacks now use tier-specific skills: `ash-ember-spit`, `zheng-shockwave`, and `taotie-flame-breath`.
   - Player state now has max HP, invulnerability, hurt lock, defeated flag, and failed combat state.
   - Combat UI now renders HP, failed objective state, disabled combat buttons, player hit/defeated model motion, monster attack model motion, and event-driven enemy VFX phases.
+  - Mounted browser gameplay now runs a 140 ms combat tick, so monster AI can wind up and attack even when the player briefly stops input.
 - Verification:
   - `npm test -- src/tests/combat.test.ts`: pass, 10 tests.
-  - `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 35 tests.
-  - `npm test`: pass, 12 files and 135 tests.
+  - `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 35 tests before tick-loop addition.
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 27 tests after tick-loop addition.
+  - `npm test`: pass, 12 files and 136 tests.
   - `npm run build`: pass.
-  - Edge headless browser check on `http://127.0.0.1:5174/`: initial combat had 2 monster bitmap models and no permanent enemy skill VFX; after ArrowRight movement, DOM showed player `actor-model-hit`, 2 attacking monsters, enemy `actor-model-attack`, `ash-ember-spit` VFX in `active` and `windup` phases, and HP reduced to 972/1000.
+  - Edge headless browser check on `http://127.0.0.1:5174/`: initial combat had 2 monster bitmap models and no permanent enemy skill VFX; after moving into range and waiting for the combat tick, DOM showed 2 attacking monsters, enemy `actor-model-attack`, `ash-ember-spit` VFX in `active`/`miss` phases, and HP reduced to 972/1000.
   - Browser screenshot saved at `.codex-local/tmp/monster-browser-check.png`.

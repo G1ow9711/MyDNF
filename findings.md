@@ -144,3 +144,4 @@
 - Vite must ignore `.codex-local` because Edge headless browser profiles create locked cache files under that project-local temp path; otherwise dev-server file watching can crash on Windows with `EBUSY`.
 - Enemy skills are now real combat events instead of permanent decoration: monsters enter windup, resolve hit/miss on an impact frame, apply player HP damage, trigger short invulnerability, and can fail the run when HP reaches zero.
 - UI motion now follows those events directly: enemy bitmap models enter `actor-model-attack`, player bitmap models enter `actor-model-hit` or `actor-model-defeated`, and monster skill VFX only renders while recent `enemy-attack` events exist.
+- Mounted gameplay now has a 140 ms combat tick, so monster AI advances while the player pauses instead of only progressing on click/key actions.

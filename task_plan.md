@@ -91,7 +91,7 @@ Phase 5 - Verification and Delivery
 - Latest verified delivery is pushed to `origin/feature/vertical-slice`; local and remote refs were checked after the final-record commit.
 - Current stricter continuation goal: move closer to DNF-style keyboard-controlled room combat; do not treat the current prototype as final until keyboard movement, combat gating, room flow, enemy behavior, and player-side acceptance are verified.
 - Current visual-combat continuation goal: combat actors must not be static; player strikes, player skills, monster hit reactions, and monster skill telegraphs need visible motion/effect states.
-- Current combat-loop continuation goal: monster skills must be real attacks with windup, hit/miss, player HP loss, defeat state, and model motion for both attacker and target.
+- Current combat-loop continuation goal: monster skills must be real attacks with windup, hit/miss, player HP loss, defeat state, automatic combat ticking, and model motion for both attacker and target.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

@@ -535,6 +535,77 @@ describe("playable app integration actions", () => {
     }
   });
 
+  it("mounts a combat tick loop so monsters can attack without extra player input", () => {
+    const previousLocalStorage = globalThis.localStorage;
+    const previousSetInterval = globalThis.setInterval;
+    const previousClearInterval = globalThis.clearInterval;
+    let clickHandler: ((event: Event) => void) | undefined;
+    let tickHandler: (() => void) | undefined;
+    let tickMs = 0;
+    let clearedTickId: number | undefined;
+    const root = {
+      innerHTML: "",
+      addEventListener(type: string, handler: EventListener): void {
+        if (type === "click") {
+          clickHandler = handler as (event: Event) => void;
+        }
+      }
+    } as unknown as HTMLDivElement;
+
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: new MemoryStorage()
+    });
+    Object.defineProperty(globalThis, "setInterval", {
+      configurable: true,
+      value: (handler: () => void, ms?: number) => {
+        tickHandler = handler;
+        tickMs = ms ?? 0;
+        return 77;
+      }
+    });
+    Object.defineProperty(globalThis, "clearInterval", {
+      configurable: true,
+      value: (id: number) => {
+        clearedTickId = id;
+      }
+    });
+
+    try {
+      const cleanup = mountApp(root);
+      const enterButton = {
+        dataset: { enterDungeon: "cinder-kiln-alley" },
+        closest: () => enterButton
+      };
+
+      clickHandler?.({ target: enterButton } as unknown as Event);
+
+      for (let i = 0; i < 6; i += 1) {
+        tickHandler?.();
+      }
+
+      expect(tickMs).toBeLessThanOrEqual(160);
+      expect(root.innerHTML).toContain('data-enemy-motion="attack"');
+      expect(root.innerHTML).toContain('data-enemy-skill-vfx="ash-ember-spit"');
+
+      cleanup();
+      expect(clearedTickId).toBe(77);
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: previousLocalStorage
+      });
+      Object.defineProperty(globalThis, "setInterval", {
+        configurable: true,
+        value: previousSetInterval
+      });
+      Object.defineProperty(globalThis, "clearInterval", {
+        configurable: true,
+        value: previousClearInterval
+      });
+    }
+  });
+
   it("buys a gift pack, opens a box, and renders actionable shop controls", () => {
     const storage = new MemoryStorage();
     const model = createAppModel({

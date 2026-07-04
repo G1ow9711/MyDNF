@@ -61,6 +61,7 @@ export interface AppModel extends AppViewModel {
 export type AppAction =
   | { type: "setMode"; mode: AppMode }
   | { type: "enterDungeon"; dungeonId: DungeonId }
+  | { type: "combatTick" }
   | { type: "combatMove"; moveX: number; moveY: number; dash: boolean }
   | { type: "combatAction"; action: "light" | "heavy" | "finish" }
   | { type: "combatAction"; action: "skill"; skillId: string }
@@ -608,6 +609,26 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         message: undefined,
         audio: playBgm(model.audio, chooseMusicLayer({ mode: "dungeon", dungeonId: action.dungeonId, danger: 0.2 }).trackId)
       };
+    case "combatTick": {
+      if (model.mode !== "combat" || !model.combatRun) {
+        return model;
+      }
+
+      const roomCleared = model.combatRun.enemies.length === 0 || model.combatRun.enemies.every((enemy) => enemy.hp <= 0);
+
+      if (roomCleared || model.combatRun.failed || model.combatRun.player.defeated) {
+        return model;
+      }
+
+      const combatRun = stepCombat(model.combatRun, {}, 140);
+
+      return {
+        ...model,
+        combatRun,
+        message: combatRun.failed ? "角色倒地，请返回城镇整备" : model.message,
+        audio: combatRun.failed ? playSfx(model.audio, "hit-light") : model.audio
+      };
+    }
     case "combatMove":
       if (!model.combatRun) {
         return model;
@@ -940,6 +961,21 @@ export function mountApp(root: HTMLDivElement): () => void {
     model = { ...model, audio: audioProcessor.sync(model.audio) };
   }
 
+  const combatTickTimer = globalThis.setInterval?.(() => {
+    if (model.mode !== "combat" || !model.combatRun) {
+      return;
+    }
+
+    dispatch({ type: "combatTick" });
+    render();
+  }, 140);
+
+  function clearCombatTick(): void {
+    if (combatTickTimer !== undefined) {
+      globalThis.clearInterval?.(combatTickTimer);
+    }
+  }
+
   if ("addEventListener" in root) {
     root.addEventListener("input", (event) => {
       const target = event.target as HTMLInputElement;
@@ -1087,10 +1123,11 @@ export function mountApp(root: HTMLDivElement): () => void {
 
     return () => {
       globalThis.removeEventListener?.("keydown", keydownHandler);
+      clearCombatTick();
     };
   }
 
   render();
 
-  return () => undefined;
+  return clearCombatTick;
 }

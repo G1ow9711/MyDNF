@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import type { DungeonDef, GearSlot, OwnedGearItem, PlayerState, QuestDef, SkillDef, TownDef } from "../game/types";
+import type { ClassId, DungeonDef, GearSlot, OwnedGearItem, PlayerState, QuestDef, SkillDef, TownDef } from "../game/types";
 
 const allSlots: GearSlot[] = [
   "weapon",
@@ -113,6 +113,39 @@ describe("catalog", () => {
     const levels = catalog.gear.map((item) => item.level);
     expect(Math.min(...levels)).toBe(1);
     expect(Math.max(...levels)).toBe(50);
+  });
+
+  it("defines class-specific weapon appearances across level tiers", () => {
+    const weaponAppearances = (catalog as typeof catalog & { weaponAppearances?: Array<{
+      id: string;
+      classId: ClassId;
+      tier: string;
+      minLevel: number;
+      displayName: string;
+      silhouette: string;
+      materials: string[];
+      palette: { primary: string; glow: string };
+    }> }).weaponAppearances;
+    const expectedClassIds = ["ember-warden", "liuli-blademage", "ink-shadow-ranger", "iron-forge-guardian"];
+    const expectedTiers = ["novice", "refined", "rare", "epic", "mythic"];
+
+    expect(weaponAppearances).toHaveLength(expectedClassIds.length * expectedTiers.length);
+
+    for (const classId of expectedClassIds) {
+      const rows = weaponAppearances?.filter((item) => item.classId === classId) ?? [];
+
+      expect(rows.map((item) => item.tier)).toEqual(expectedTiers);
+      expect(rows.map((item) => item.minLevel)).toEqual([1, 8, 16, 28, 50]);
+      expect(new Set(rows.map((item) => item.displayName)).size).toBe(expectedTiers.length);
+
+      for (const row of rows) {
+        expect(row.id).toMatch(new RegExp(`^weapon-${classId}-`));
+        expect(row.silhouette.length).toBeGreaterThan(0);
+        expect(row.materials.length).toBeGreaterThanOrEqual(2);
+        expect(row.palette.primary).toMatch(/^#/);
+        expect(row.palette.glow).toMatch(/^#/);
+      }
+    }
   });
 
   it("provides reachable set bonuses, echo slot data, and unique gear display names", () => {

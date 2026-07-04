@@ -84,6 +84,23 @@ export interface GearItem {
   tags: string[];
 }
 
+export type WeaponAppearanceTier = "novice" | "refined" | "rare" | "epic" | "mythic";
+
+export interface WeaponAppearanceDefinition {
+  id: string;
+  classId: ClassId;
+  tier: WeaponAppearanceTier;
+  minLevel: number;
+  displayName: string;
+  silhouette: string;
+  materials: string[];
+  palette: {
+    primary: string;
+    secondary: string;
+    glow: string;
+  };
+}
+
 export interface OwnedGearItem {
   instanceId: string;
   catalogGearId: string;

@@ -1,9 +1,11 @@
 /// <reference types="vite/client" />
 
 import { describe, expect, it } from "vitest";
+import { catalog } from "../data/catalog";
 import { createCombatRun, stepCombat, type CombatEnemy, type CombatRun } from "../game/combat";
 import { createAudioState, setVolume } from "../systems/audio";
-import { createInitialState } from "../game/state";
+import { createInitialState, createOwnedGear } from "../game/state";
+import { selectBaseClass } from "../systems/classes";
 import { renderAppHtml } from "../ui/app";
 import {
   renderAuctionPanel,
@@ -68,11 +70,36 @@ describe("town app shell", () => {
     expect(combatHtml).toContain('class="combat-background-art"');
   });
 
+  it("renders class-specific detailed hero art in town, combat, and class selection", () => {
+    const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
+    const inkState = selectBaseClass(createInitialState(), "ink-shadow-ranger");
+    const townHtml = renderAppHtml({ state: liuliState, mode: "town" });
+    const combatHtml = renderAppHtml({
+      state: inkState,
+      mode: "combat",
+      combatRun: createCombatRun(inkState, "cinder-kiln-alley")
+    });
+    const classHtml = renderClassPanel(createInitialState());
+
+    expect(townHtml).toContain("/assets/hero-liuli-blademage.png");
+    expect(townHtml).toContain('data-hero-class-id="liuli-blademage"');
+    expect(combatHtml).toContain("/assets/hero-ink-shadow-ranger.png");
+    expect(combatHtml).toContain('data-hero-class-id="ink-shadow-ranger"');
+
+    for (const classId of ["ember-warden", "liuli-blademage", "ink-shadow-ranger", "iron-forge-guardian"]) {
+      expect(classHtml).toContain(`data-class-art-id="${classId}"`);
+      expect(classHtml).toContain(`/assets/hero-${classId}.png`);
+    }
+  });
+
   it("keeps referenced bitmap assets present in the public directory", () => {
     expect(Object.keys(publicAssetModules).sort()).toEqual([
       "../../public/assets/cinder-kiln-bg.png",
       "../../public/assets/forge-market-bg.png",
       "../../public/assets/hero-ember-warden.png",
+      "../../public/assets/hero-ink-shadow-ranger.png",
+      "../../public/assets/hero-iron-forge-guardian.png",
+      "../../public/assets/hero-liuli-blademage.png",
       "../../public/assets/liuli-furnace-bg.png",
       "../../public/assets/monster-ash-rat.png",
       "../../public/assets/monster-taotie-overseer.png",
@@ -228,6 +255,34 @@ describe("town app shell", () => {
     expect(renderSettingsPanel(audio)).toContain("重置存档");
   });
 
+  it("renders current-class weapon appearances by weapon level in inventory rows", () => {
+    const rareWeapon = catalog.gear.find((item) => item.slot === "weapon" && item.rarity === "rare");
+
+    if (!rareWeapon) {
+      throw new Error("Expected rare weapon gear");
+    }
+
+    const baseState = selectBaseClass(createInitialState(), "ink-shadow-ranger");
+    const rareOwned = createOwnedGear(rareWeapon.id, "rare-weapon");
+    const state = {
+      ...baseState,
+      player: {
+        ...baseState.player,
+        inventory: [rareOwned],
+        equipment: {
+          weapon: rareOwned.instanceId
+        }
+      }
+    };
+    const html = renderInventoryPanel(state);
+
+    expect(html).toContain('data-weapon-class-id="ink-shadow-ranger"');
+    expect(html).toContain('data-weapon-tier="rare"');
+    expect(html).toContain('data-weapon-appearance-id="weapon-ink-shadow-ranger-rare"');
+    expect(html).toContain("玄墨机关弩");
+    expect(html).toContain("赤矿机括");
+  });
+
   it("renders four base classes and advancement choices in the class panel", () => {
     const html = renderClassPanel(createInitialState());
 
@@ -239,5 +294,14 @@ describe("town app shell", () => {
     expect(html).toContain("转职");
     expect(html).toContain("爆炉宗师");
     expect(html).toContain("镇山破卫");
+  });
+
+  it("renders each class weapon progression from novice to mythic in the class panel", () => {
+    const html = renderClassPanel(createInitialState());
+
+    for (const appearance of catalog.weaponAppearances) {
+      expect(html).toContain(`data-class-weapon-tier="${appearance.classId}-${appearance.tier}"`);
+      expect(html).toContain(appearance.displayName);
+    }
   });
 });

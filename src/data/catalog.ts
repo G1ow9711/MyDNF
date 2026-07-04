@@ -8,7 +8,8 @@ import type {
   QuestDef,
   Rarity,
   SkillDef,
-  TownDef
+  TownDef,
+  WeaponAppearanceDefinition
 } from "../game/types";
 
 const slots: readonly GearSlot[] = [
@@ -338,6 +339,209 @@ const mythicGear: GearItem[] = epicSets.flatMap((set) =>
 
 export const gear: GearItem[] = [...nonSetGear, ...epicGear, ...mythicGear];
 
+export const weaponAppearances: WeaponAppearanceDefinition[] = [
+  {
+    id: "weapon-ember-warden-novice",
+    classId: "ember-warden",
+    tier: "novice",
+    minLevel: 1,
+    displayName: "灰烬拳刃",
+    silhouette: "gauntlet-claw",
+    materials: ["粗铁拳套", "暗红布缠", "微弱火芯"],
+    palette: { primary: "#7c2d12", secondary: "#1f2937", glow: "#fb923c" }
+  },
+  {
+    id: "weapon-ember-warden-refined",
+    classId: "ember-warden",
+    tier: "refined",
+    minLevel: 8,
+    displayName: "窑火拳刃",
+    silhouette: "gauntlet-flame",
+    materials: ["窑钢爪刃", "火纹护腕", "炉温导管"],
+    palette: { primary: "#b45309", secondary: "#111827", glow: "#f97316" }
+  },
+  {
+    id: "weapon-ember-warden-rare",
+    classId: "ember-warden",
+    tier: "rare",
+    minLevel: 16,
+    displayName: "赤矿爆拳",
+    silhouette: "gauntlet-core",
+    materials: ["赤矿拳甲", "齿轮腕轴", "爆燃炉芯"],
+    palette: { primary: "#dc2626", secondary: "#292524", glow: "#facc15" }
+  },
+  {
+    id: "weapon-ember-warden-epic",
+    classId: "ember-warden",
+    tier: "epic",
+    minLevel: 28,
+    displayName: "宗匠熔拳",
+    silhouette: "gauntlet-dragon",
+    materials: ["黑金龙纹", "熔炉掌心", "烬火铭刻"],
+    palette: { primary: "#991b1b", secondary: "#f59e0b", glow: "#fed7aa" }
+  },
+  {
+    id: "weapon-ember-warden-mythic",
+    classId: "ember-warden",
+    tier: "mythic",
+    minLevel: 50,
+    displayName: "天工陨星臂",
+    silhouette: "gauntlet-meteor",
+    materials: ["陨铁巨臂", "白热星核", "古炉金链"],
+    palette: { primary: "#7f1d1d", secondary: "#fbbf24", glow: "#fff7ed" }
+  },
+  {
+    id: "weapon-liuli-blademage-novice",
+    classId: "liuli-blademage",
+    tier: "novice",
+    minLevel: 1,
+    displayName: "灰璃短刃",
+    silhouette: "glass-saber",
+    materials: ["灰璃剑身", "青铜护手", "浅蓝流苏"],
+    palette: { primary: "#0891b2", secondary: "#334155", glow: "#67e8f9" }
+  },
+  {
+    id: "weapon-liuli-blademage-refined",
+    classId: "liuli-blademage",
+    tier: "refined",
+    minLevel: 8,
+    displayName: "窑光璃刃",
+    silhouette: "prism-sword",
+    materials: ["透明璃刃", "银线剑脊", "流光剑穗"],
+    palette: { primary: "#0e7490", secondary: "#c4b5fd", glow: "#22d3ee" }
+  },
+  {
+    id: "weapon-liuli-blademage-rare",
+    classId: "liuli-blademage",
+    tier: "rare",
+    minLevel: 16,
+    displayName: "赤霞镜剑",
+    silhouette: "mirror-blade",
+    materials: ["镜面剑锋", "赤霞晶纹", "折光符环"],
+    palette: { primary: "#38bdf8", secondary: "#fb7185", glow: "#e0f2fe" }
+  },
+  {
+    id: "weapon-liuli-blademage-epic",
+    classId: "liuli-blademage",
+    tier: "epic",
+    minLevel: 28,
+    displayName: "万色晶莲剑",
+    silhouette: "lotus-sword",
+    materials: ["晶莲剑格", "七彩璃脉", "浮空镜片"],
+    palette: { primary: "#67e8f9", secondary: "#a78bfa", glow: "#f0f9ff" }
+  },
+  {
+    id: "weapon-liuli-blademage-mythic",
+    classId: "liuli-blademage",
+    tier: "mythic",
+    minLevel: 50,
+    displayName: "天镜琉璃刃",
+    silhouette: "heaven-mirror-sword",
+    materials: ["天镜剑身", "星辉璃骨", "万象折光"],
+    palette: { primary: "#22d3ee", secondary: "#f0abfc", glow: "#ffffff" }
+  },
+  {
+    id: "weapon-ink-shadow-ranger-novice",
+    classId: "ink-shadow-ranger",
+    tier: "novice",
+    minLevel: 1,
+    displayName: "灰墨短弩",
+    silhouette: "compact-crossbow",
+    materials: ["黑木弩臂", "粗铜机括", "墨线弦"],
+    palette: { primary: "#111827", secondary: "#4c1d95", glow: "#a78bfa" }
+  },
+  {
+    id: "weapon-ink-shadow-ranger-refined",
+    classId: "ink-shadow-ranger",
+    tier: "refined",
+    minLevel: 8,
+    displayName: "窑影机关弩",
+    silhouette: "trap-crossbow",
+    materials: ["折叠弩翼", "机关暗槽", "紫墨符钉"],
+    palette: { primary: "#1f2937", secondary: "#6d28d9", glow: "#c084fc" }
+  },
+  {
+    id: "weapon-ink-shadow-ranger-rare",
+    classId: "ink-shadow-ranger",
+    tier: "rare",
+    minLevel: 16,
+    displayName: "玄墨机关弩",
+    silhouette: "raven-crossbow",
+    materials: ["赤矿机括", "鸦羽弩翼", "契印墨匣"],
+    palette: { primary: "#0f172a", secondary: "#7e22ce", glow: "#d8b4fe" }
+  },
+  {
+    id: "weapon-ink-shadow-ranger-epic",
+    classId: "ink-shadow-ranger",
+    tier: "epic",
+    minLevel: 28,
+    displayName: "夜契千机弩",
+    silhouette: "multi-bolt-crossbow",
+    materials: ["千机弩轮", "夜契墨芯", "暗银箭匣"],
+    palette: { primary: "#020617", secondary: "#8b5cf6", glow: "#f5d0fe" }
+  },
+  {
+    id: "weapon-ink-shadow-ranger-mythic",
+    classId: "ink-shadow-ranger",
+    tier: "mythic",
+    minLevel: 50,
+    displayName: "无明玄雨弩",
+    silhouette: "void-rain-crossbow",
+    materials: ["无明弩骨", "玄雨机关", "影契核心"],
+    palette: { primary: "#030712", secondary: "#a855f7", glow: "#faf5ff" }
+  },
+  {
+    id: "weapon-iron-forge-guardian-novice",
+    classId: "iron-forge-guardian",
+    tier: "novice",
+    minLevel: 1,
+    displayName: "灰铁炉盾",
+    silhouette: "round-shield",
+    materials: ["灰铁盾面", "铆钉边框", "护炉握柄"],
+    palette: { primary: "#44403c", secondary: "#1c1917", glow: "#fb923c" }
+  },
+  {
+    id: "weapon-iron-forge-guardian-refined",
+    classId: "iron-forge-guardian",
+    tier: "refined",
+    minLevel: 8,
+    displayName: "窑钢重盾",
+    silhouette: "tower-shield",
+    materials: ["窑钢盾墙", "重铆护角", "炉火缝线"],
+    palette: { primary: "#57534e", secondary: "#7c2d12", glow: "#f97316" }
+  },
+  {
+    id: "weapon-iron-forge-guardian-rare",
+    classId: "iron-forge-guardian",
+    tier: "rare",
+    minLevel: 16,
+    displayName: "赤炉镇山盾",
+    silhouette: "forge-aegis",
+    materials: ["赤矿盾心", "山纹盾脊", "熔铆环带"],
+    palette: { primary: "#78716c", secondary: "#b45309", glow: "#fdba74" }
+  },
+  {
+    id: "weapon-iron-forge-guardian-epic",
+    classId: "iron-forge-guardian",
+    tier: "epic",
+    minLevel: 28,
+    displayName: "玄炉不动盾",
+    silhouette: "black-furnace-aegis",
+    materials: ["玄铁盾门", "黑炉火窗", "镇山符钉"],
+    palette: { primary: "#292524", secondary: "#ef4444", glow: "#fed7aa" }
+  },
+  {
+    id: "weapon-iron-forge-guardian-mythic",
+    classId: "iron-forge-guardian",
+    tier: "mythic",
+    minLevel: 50,
+    displayName: "太岳天炉盾",
+    silhouette: "mountain-forge-shield",
+    materials: ["太岳盾骨", "天炉熔核", "黑金护阵"],
+    palette: { primary: "#1c1917", secondary: "#f97316", glow: "#fff7ed" }
+  }
+];
+
 export const dungeons: DungeonDef[] = [
   {
     id: "cinder-kiln-alley",
@@ -412,6 +616,7 @@ export const catalog = {
   dungeons,
   towns,
   epicSets,
+  weaponAppearances,
   gear,
   quests
 } as const;

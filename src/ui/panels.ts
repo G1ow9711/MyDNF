@@ -6,6 +6,8 @@ import { getAuctionPricing } from "../systems/market";
 import { getActiveQuestText, isSystemUnlocked } from "../systems/quests";
 import { getBoxRates } from "../systems/shop";
 import type { AudioState } from "../systems/audio";
+import { weaponAppearanceFor } from "../systems/weapon-appearance";
+import { heroAssetForClass } from "./assets";
 
 function gearFor(owned: OwnedGearItem): GearItem | undefined {
   return catalog.gear.find((item) => item.id === owned.catalogGearId);
@@ -25,6 +27,42 @@ function statLine(gear: GearItem | undefined): string {
     .map(([key, value]) => `${key}+${value}`);
 
   return stats.length > 0 ? stats.join(" / ") : "无属性";
+}
+
+function weaponAppearanceMarkup(state: GameState, gear: GearItem | undefined): string {
+  if (!gear || gear.slot !== "weapon") {
+    return "";
+  }
+
+  const appearance = weaponAppearanceFor(state.player.classId, gear);
+
+  if (!appearance) {
+    return "";
+  }
+
+  return `
+    <div class="weapon-appearance weapon-appearance-${appearance.classId} weapon-tier-${appearance.tier}" data-weapon-class-id="${appearance.classId}" data-weapon-tier="${appearance.tier}" data-weapon-appearance-id="${appearance.id}" style="--weapon-primary: ${appearance.palette.primary}; --weapon-secondary: ${appearance.palette.secondary}; --weapon-glow: ${appearance.palette.glow};">
+      <span class="weapon-shape weapon-shape-${appearance.silhouette}" aria-hidden="true"></span>
+      <span class="weapon-copy">
+        <b>${appearance.displayName}</b>
+        <small>${appearance.materials.join(" / ")}</small>
+      </span>
+    </div>
+  `;
+}
+
+function classWeaponProgression(classId: GameState["player"]["classId"]): string {
+  return catalog.weaponAppearances
+    .filter((appearance) => appearance.classId === classId)
+    .map(
+      (appearance) => `
+        <span class="weapon-chip weapon-tier-${appearance.tier}" data-class-weapon-tier="${classId}-${appearance.tier}" style="--weapon-primary: ${appearance.palette.primary}; --weapon-secondary: ${appearance.palette.secondary}; --weapon-glow: ${appearance.palette.glow};">
+          <i class="weapon-shape weapon-shape-${appearance.silhouette}" aria-hidden="true"></i>
+          <span>Lv.${appearance.minLevel} ${appearance.displayName}</span>
+        </span>
+      `
+    )
+    .join("");
 }
 
 function panel(title: string, body: string): string {
@@ -87,6 +125,10 @@ export function renderClassPanel(state: GameState): string {
 
       return `
         <article class="class-card${selected ? " is-active" : ""}">
+          <img class="class-card-art" data-class-art-id="${classDef.id}" src="${heroAssetForClass(classDef.id)}" alt="${classDef.displayName}" />
+          <div class="weapon-progression" aria-label="${classDef.displayName} weapon progression">
+            ${classWeaponProgression(classDef.id)}
+          </div>
           <h3>${classDef.displayName}</h3>
           <p>${tagLine(classDef.roleTags)} · 难度 ${classDef.difficulty} · ${classDef.preferredWeapon}</p>
           <p>${classDef.resource.displayName} ${classDef.resource.max} · ${classDef.armorStyle}</p>
@@ -167,6 +209,7 @@ export function renderInventoryPanel(state: GameState): string {
         <li class="inventory-row">
           <div>
             <span>${gearName(owned)}${owned.locked ? " · 已锁定" : ""}</span>
+            ${weaponAppearanceMarkup(state, gear)}
             <small>${compareText}</small>
           </div>
           <b>+${owned.reinforceLevel}</b>

@@ -974,3 +974,27 @@
   - `npm test`: pass, 12 files and 163 tests.
   - `npm run build`: pass.
   - Edge headless browser check via `.codex-local/tmp/status-motion-check.mjs`: `molten-wall` rendered `actor-model-shield`, `mirror-arc` rendered `actor-model-counter`, `crow-feint` rendered `actor-model-dodge`, `ink-snare` rendered enemy `actor-model-controlled`, and `earth-furnace-breaker` rendered enemy `actor-model-guard-break`.
+
+## Task 34 Class Hero Art and Weapon Appearance Progression
+- Started after the user required character images to be more detailed, environments to remain high quality, and weapons to match each class identity across levels.
+- Used two read-only parallel agents:
+  - `019f2cad-9234-76e3-8275-eed629413d2f` audited class art insertion points in town, combat, and class panels.
+  - `019f2cad-a640-7d81-a358-355d760760d2` audited browser verification hooks for class art and weapon DOM state.
+- Added RED coverage:
+  - `src/tests/ui-smoke.test.ts` verifies selected classes render class-specific hero PNGs in town and combat, and all class cards expose class art assets.
+  - `src/tests/catalog.test.ts` verifies four classes each define five weapon appearance tiers at levels 1, 8, 16, 28, and 50.
+  - `src/tests/ui-smoke.test.ts` verifies inventory weapon rows show current-class weapon appearance data and the class panel lists every weapon tier.
+- Implemented:
+  - Generated and added detailed class hero art for Liuli Blademage, Ink Shadow Ranger, and Iron Forge Guardian.
+  - Added `heroAssetForClass()` so town, combat, and class cards select hero art by class id.
+  - Added `WeaponAppearanceDefinition` and 20 class-specific weapon appearance definitions covering fists, glass swords, mechanism crossbows, and forge shields.
+  - Added `weaponAppearanceFor()` to choose the highest unlocked appearance for the player's class and weapon level.
+  - Added class-card weapon progression chips and inventory weapon appearance cards with distinct CSS silhouettes and palette-driven glow.
+- Verification:
+  - RED confirmed: the new class-panel weapon progression test initially failed because no `data-class-weapon-tier` markup existed.
+  - `npm test -- src/tests/catalog.test.ts src/tests/ui-smoke.test.ts`: pass, 20 tests.
+  - `npm test`: pass, 12 files and 167 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Edge headless browser check via `.codex-local/tmp/class-weapon-check.mjs`: Ink Shadow Ranger town hero loaded `/assets/hero-ink-shadow-ranger.png` at `864x1821`, the class panel loaded 4/4 class art images and 20 weapon tier chips, and the inventory rendered `weapon-ink-shadow-ranger-rare` with `weapon-shape-raven-crossbow`, `玄墨机关弩`, and `赤矿机括`.
+  - Browser screenshots saved at `.codex-local/tmp/class-weapon-panel-check.png` and `.codex-local/tmp/class-weapon-check.png`; after visual review, the weapon progression chips were adjusted so level and weapon names remain visible in the class panel.

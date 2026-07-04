@@ -33,6 +33,7 @@ import { applyQuestEvent, claimQuestReward, getActiveQuestText } from "../system
 import { loadGame, saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 import { buyShopItem, openRandomBox } from "../systems/shop";
 import { amplify, reinforce } from "../systems/upgrades";
+import { heroAssetForClass } from "./assets";
 import {
   renderAuctionPanel,
   renderClassPanel,
@@ -247,7 +248,7 @@ function renderTownScene(model: AppViewModel): string {
         <div class="stone-lane"></div>
       </div>
       <div class="hero-portrait" aria-label="${classDef?.displayName ?? state.player.classId}">
-        <img class="hero-art" src="/assets/hero-ember-warden.png" alt="${classDef?.displayName ?? state.player.classId}" />
+        <img class="hero-art" data-hero-class-id="${state.player.classId}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
       </div>
       <div class="town-hud">
         <h1>烬璃纪元</h1>
@@ -551,7 +552,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   return `
     <div class="combat-actors" data-last-hit-target="${lastHit?.targetId ?? ""}">
       <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
-        <img class="combat-player-art actor-model actor-model-${playerMotionName}" style="${playerModelMotionStyle(run)}" src="/assets/hero-ember-warden.png" alt="${classDef?.displayName ?? state.player.classId}" />
+        <img class="combat-player-art actor-model actor-model-${playerMotionName}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
         <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>
       </div>
       ${enemyActors}

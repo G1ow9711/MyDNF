@@ -565,6 +565,128 @@ describe("playable app integration actions", () => {
     expect(inkHtml).toContain('data-ink-marks="2"');
   });
 
+  it("renders skill status motion classes for shield, counter, control, and armor break", () => {
+    let shieldModel = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90)
+    });
+
+    shieldModel = reduceAppAction(shieldModel, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    shieldModel = placeAliveEnemiesInFront(shieldModel);
+    shieldModel = reduceAppAction(shieldModel, { type: "combatAction", action: "skill", skillId: "molten-wall" });
+
+    const shieldHtml = renderAppHtml(shieldModel);
+
+    expect(shieldHtml).toContain('data-shield-active="true"');
+    expect(shieldHtml).toContain('data-player-motion="shield"');
+    expect(shieldHtml).toContain('class="combat-player-art actor-model actor-model-shield"');
+
+    let reflectModel = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90)
+    });
+
+    reflectModel = reduceAppAction(reflectModel, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    reflectModel = placeAliveEnemiesInFront(reflectModel);
+    reflectModel = reduceAppAction(reflectModel, { type: "combatAction", action: "skill", skillId: "mirror-arc" });
+
+    const reflectHtml = renderAppHtml(reflectModel);
+
+    expect(reflectHtml).toContain('data-reflect-active="true"');
+    expect(reflectHtml).toContain('data-player-motion="counter"');
+    expect(reflectHtml).toContain('class="combat-player-art actor-model actor-model-counter"');
+
+    let controlModel = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90)
+    });
+
+    controlModel = reduceAppAction(controlModel, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    controlModel = placeAliveEnemiesInFront(controlModel);
+    controlModel = reduceAppAction(controlModel, { type: "combatAction", action: "skill", skillId: "ink-snare" });
+
+    const controlHtml = renderAppHtml(controlModel);
+
+    expect(controlHtml).toContain('data-control-state="controlled"');
+    expect(controlHtml).toContain('data-enemy-motion="controlled"');
+    expect(controlHtml).toContain('class="enemy-art actor-model actor-model-controlled"');
+
+    let breakModel = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 90)
+    });
+
+    breakModel = reduceAppAction(breakModel, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    breakModel = placeAliveEnemiesInFront(breakModel);
+    breakModel = {
+      ...breakModel,
+      combatRun: breakModel.combatRun
+        ? {
+            ...breakModel.combatRun,
+            enemies: breakModel.combatRun.enemies.map((enemy, index) =>
+              index === 0
+                ? {
+                    ...enemy,
+                    armor: 40
+                  }
+                : enemy
+            )
+          }
+        : undefined
+    };
+    breakModel = reduceAppAction(breakModel, { type: "combatAction", action: "skill", skillId: "mountain-guard-break" });
+
+    const breakHtml = renderAppHtml(breakModel);
+
+    expect(breakHtml).toContain('data-armor-state="broken"');
+    expect(breakHtml).toContain('data-enemy-motion="guard-break"');
+    expect(breakHtml).toContain('class="enemy-art actor-model actor-model-guard-break"');
+  });
+
+  it("renders evade motion and miss result when a monster skill is dodged by a skill window", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "crow-feint" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        enemies: model.combatRun.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: {
+                  x: model.combatRun?.player.x ?? enemy.position.x,
+                  y: model.combatRun?.player.y ?? enemy.position.y
+                },
+                nextAttackAtMs: model.combatRun?.elapsedMs ?? 0
+              }
+            : enemy
+        )
+      }
+    };
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const html = renderAppHtml(model);
+
+    expect(html).toContain('data-evade-active="true"');
+    expect(html).toContain('data-dodge-result="missed"');
+    expect(html).toContain('data-player-motion="dodge"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-dodge"');
+  });
+
   it("filters combat skill hotkeys and settlement persistence by selected class resource", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

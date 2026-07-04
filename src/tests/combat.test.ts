@@ -480,6 +480,139 @@ describe("combat actions and impact feel", () => {
     expect(detonated.enemies[0].marks).toBe(0);
     expect(latestHitForSkill(detonated, "night-mark-detonation").damage).toBeGreaterThan(50);
   });
+
+  it("turns shield skills into a visible mitigation window for the next monster hit", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 310, y: 340 }]
+    );
+    const shielded = performAction(run, { type: "skill", skillId: "molten-wall" });
+    const telegraph = stepCombat(
+      withEnemyInRange(shielded, {
+        nextAttackAtMs: shielded.elapsedMs + 1
+      }),
+      {},
+      80
+    );
+    const impacted = stepCombat(telegraph, {}, 360);
+
+    expect(shielded.player.shieldUntilMs).toBeGreaterThan(shielded.elapsedMs);
+    expect(shielded.player.shieldReduction).toBeGreaterThan(0);
+    expect(impacted.player.hp).toBeGreaterThan(run.player.hp - 28);
+    expect(impacted.player.shieldUntilMs).toBeLessThanOrEqual(impacted.elapsedMs);
+    expect(impacted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          damage: 14
+        })
+      ])
+    );
+  });
+
+  it("turns evade skills into a dodge window that makes monster impact miss", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 310, y: 340 }]
+    );
+    const evading = performAction(run, { type: "skill", skillId: "crow-feint" });
+    const telegraph = stepCombat(
+      withEnemyInRange(evading, {
+        nextAttackAtMs: evading.elapsedMs + 1
+      }),
+      {},
+      80
+    );
+    const dodged = stepCombat(telegraph, {}, 360);
+
+    expect(evading.player.evadeUntilMs).toBeGreaterThan(evading.elapsedMs);
+    expect(dodged.player.hp).toBe(run.player.hp);
+    expect(dodged.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          phase: "miss"
+        })
+      ])
+    );
+    expect(dodged.events.some((event) => event.kind === "player-hit")).toBe(false);
+  });
+
+  it("turns reflect skills into a counter window against monster attacks", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 310, y: 340 }]
+    );
+    const reflecting = performAction(run, { type: "skill", skillId: "mirror-arc" });
+    const enemyHpBeforeImpact = reflecting.enemies[0].hp;
+    const telegraph = stepCombat(
+      withEnemyInRange(reflecting, {
+        nextAttackAtMs: reflecting.elapsedMs + 1
+      }),
+      {},
+      80
+    );
+    const countered = stepCombat(telegraph, {}, 360);
+
+    expect(reflecting.player.reflectUntilMs).toBeGreaterThan(reflecting.elapsedMs);
+    expect(countered.player.hp).toBe(run.player.hp);
+    expect(countered.enemies[0].hp).toBeLessThan(enemyHpBeforeImpact);
+    expect(countered.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "hit",
+          skillId: "mirror-reflect"
+        })
+      ])
+    );
+  });
+
+  it("turns trap and break tags into monster control and armor-break state", () => {
+    const trapState = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
+    const trapRun = withPlayerAndEnemies(
+      createCombatRun(trapState, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 310, y: 340 },
+        { x: 360, y: 348 }
+      ]
+    );
+    const trapped = performAction(trapRun, { type: "skill", skillId: "ink-snare" });
+
+    expect(trapped.enemies[0].controlledUntilMs).toBeGreaterThan(trapped.elapsedMs);
+    expect(trapped.enemies[0].nextAttackAtMs).toBeGreaterThanOrEqual(trapped.enemies[0].controlledUntilMs ?? 0);
+
+    const breakState = withHeat(createInitialState(), 90);
+    const breakRun = withPlayerAndEnemies(
+      createCombatRun(breakState, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 310, y: 340 }]
+    );
+    const broken = performAction(
+      {
+        ...breakRun,
+        enemies: breakRun.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                armor: 40
+              }
+            : enemy
+        )
+      },
+      { type: "skill", skillId: "mountain-guard-break" }
+    );
+
+    expect(broken.enemies[0].armorBrokenUntilMs).toBeGreaterThan(broken.elapsedMs);
+    expect(broken.enemies[0].armor).toBeLessThan(40);
+    expect(broken.enemies[0].nextAttackAtMs).toBeGreaterThan(broken.elapsedMs);
+  });
 });
 
 describe("enemy attacks and player defeat", () => {

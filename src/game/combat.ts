@@ -5,6 +5,7 @@ import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
 
 export type EnemyKind = "trash" | "elite" | "boss";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "skill"; skillId: string };
+export type CombatSkillStatusTag = "shield" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 
 export interface CombatVector {
   x: number;
@@ -28,6 +29,9 @@ export interface CombatEnemy {
   attackRecoverUntilMs?: number;
   attackSkillId?: string;
   attackHitResolved?: boolean;
+  controlledUntilMs?: number;
+  armorBrokenUntilMs?: number;
+  statusSourceSkillId?: string;
 }
 
 export interface CombatPlayer {
@@ -44,6 +48,11 @@ export interface CombatPlayer {
   hitstopUntilMs: number;
   invulnerableUntilMs: number;
   hurtLockUntilMs: number;
+  shieldUntilMs: number;
+  shieldReduction: number;
+  evadeUntilMs: number;
+  reflectUntilMs: number;
+  reflectSkillId?: string;
   defeated: boolean;
   skillCooldowns: Record<string, number>;
   lastSkillId?: string;
@@ -75,6 +84,7 @@ export interface CombatHitEvent {
   inputToHitMs: number;
   hitstopMs: number;
   canceledFromCombo: boolean;
+  statusTags?: CombatSkillStatusTag[];
 }
 
 export interface CombatMissEvent {
@@ -85,6 +95,7 @@ export interface CombatMissEvent {
   occurredAtMs: number;
   inputToHitMs: number;
   canceledFromCombo: boolean;
+  statusTags?: CombatSkillStatusTag[];
 }
 
 export interface CombatRoomClearedEvent {
@@ -153,6 +164,7 @@ export interface HitDefinition {
   marksApplied?: number;
   consumeMarks?: boolean;
   bonusDamagePerMark?: number;
+  statusTags?: CombatSkillStatusTag[];
 }
 
 interface EnemyAttackDefinition {
@@ -183,6 +195,7 @@ interface PlayerHitboxDefinition {
   bonusDamagePerMark?: number;
   inputToHitMs: number;
   canceledFromCombo: boolean;
+  statusTags?: CombatSkillStatusTag[];
 }
 
 const arena: CombatArena = {
@@ -334,7 +347,8 @@ function applyMiss(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatRun {
     skillId: hitbox.skillId,
     occurredAtMs: run.elapsedMs,
     inputToHitMs: hitbox.inputToHitMs,
-    canceledFromCombo: hitbox.canceledFromCombo
+    canceledFromCombo: hitbox.canceledFromCombo,
+    statusTags: hitbox.statusTags
   };
 
   return {
@@ -365,7 +379,8 @@ function applyPlayerHitbox(run: CombatRun, hitbox: PlayerHitboxDefinition): Comb
         canceledFromCombo: hitbox.canceledFromCombo,
         marksApplied: hitbox.marksApplied,
         consumeMarks: hitbox.consumeMarks,
-        bonusDamagePerMark: hitbox.bonusDamagePerMark
+        bonusDamagePerMark: hitbox.bonusDamagePerMark,
+        statusTags: hitbox.statusTags
       }),
     run
   );
@@ -417,6 +432,16 @@ function skillLaneRange(tags: string[]): number {
 
 function skillIsFrontOnly(tags: string[]): boolean {
   return !(tags.includes("area") || tags.includes("trap") || tags.includes("ultimate"));
+}
+
+const combatStatusTags = new Set<CombatSkillStatusTag>(["shield", "evade", "reflect", "trap", "control", "guard-break", "stagger"]);
+
+function skillStatusTags(tags: string[]): CombatSkillStatusTag[] {
+  return tags.filter((tag): tag is CombatSkillStatusTag => combatStatusTags.has(tag as CombatSkillStatusTag));
+}
+
+function hasStatus(tags: readonly CombatSkillStatusTag[] | undefined, status: CombatSkillStatusTag): boolean {
+  return tags?.includes(status) ?? false;
 }
 
 function playerDamage(run: CombatRun, baseDamage: number): number {
@@ -488,6 +513,37 @@ function spendAndGainPlayerResource(player: CombatPlayer, run: CombatRun, cost: 
   return syncPlayerResource(player, player.resource.current - cost + playerResourceGain(run, baseGain));
 }
 
+function applyPlayerSkillStatus(player: CombatPlayer, run: CombatRun, statusTags: readonly CombatSkillStatusTag[], skillId: string): CombatPlayer {
+  let next = player;
+
+  if (hasStatus(statusTags, "shield")) {
+    next = {
+      ...next,
+      shieldUntilMs: Math.max(next.shieldUntilMs, run.elapsedMs + 1500),
+      shieldReduction: Math.max(next.shieldReduction, 0.5)
+    };
+  }
+
+  if (hasStatus(statusTags, "evade")) {
+    next = {
+      ...next,
+      x: clamp(next.x - next.facing * 44, 0, arena.width),
+      evadeUntilMs: Math.max(next.evadeUntilMs, run.elapsedMs + 980),
+      invulnerableUntilMs: Math.max(next.invulnerableUntilMs, run.elapsedMs + 420)
+    };
+  }
+
+  if (hasStatus(statusTags, "reflect")) {
+    next = {
+      ...next,
+      reflectUntilMs: Math.max(next.reflectUntilMs, run.elapsedMs + 1100),
+      reflectSkillId: skillId
+    };
+  }
+
+  return next;
+}
+
 function prismCycleGain(run: CombatRun, skillId: string): number {
   return run.player.resource.id === "prism" && run.player.lastSkillId !== skillId ? 8 : 0;
 }
@@ -552,6 +608,10 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       hitstopUntilMs: 0,
       invulnerableUntilMs: 0,
       hurtLockUntilMs: 0,
+      shieldUntilMs: 0,
+      shieldReduction: 0,
+      evadeUntilMs: 0,
+      reflectUntilMs: 0,
       defeated: false,
       skillCooldowns: {},
       prismChain: 0
@@ -617,7 +677,12 @@ function clearRecoveredAttack(enemy: CombatEnemy, elapsedMs: number): CombatEnem
 function beginEnemyAttack(enemy: CombatEnemy, elapsedMs: number): { enemy: CombatEnemy; event?: CombatEnemyAttackEvent } {
   const recovered = clearRecoveredAttack(enemy, elapsedMs);
 
-  if (recovered.hp <= 0 || hasActiveEnemyAttack(recovered, elapsedMs) || elapsedMs < recovered.nextAttackAtMs) {
+  if (
+    recovered.hp <= 0 ||
+    hasActiveEnemyAttack(recovered, elapsedMs) ||
+    elapsedMs < recovered.nextAttackAtMs ||
+    elapsedMs < (recovered.controlledUntilMs ?? 0)
+  ) {
     return { enemy: recovered };
   }
 
@@ -670,7 +735,9 @@ function applyEnemyImpact(
   }
 
   const attack = enemyAttackDefinition(enemy.kind);
-  const phase = playerInEnemyAttackRange(enemy, player, attack) ? "active" : "miss";
+  const inRange = playerInEnemyAttackRange(enemy, player, attack);
+  const evaded = inRange && elapsedMs < player.evadeUntilMs;
+  const phase = inRange && !evaded ? "active" : "miss";
   const attackEvent: CombatEnemyAttackEvent = {
     kind: "enemy-attack",
     id: `enemy-attack-${elapsedMs}-${enemy.id}-${phase}`,
@@ -689,7 +756,43 @@ function applyEnemyImpact(
     return { enemy: resolvedEnemy, player, events: [attackEvent], failed: player.defeated };
   }
 
-  const damage = Math.max(1, Math.round(attack.damage * combatProfile.damageTakenMultiplier));
+  if (elapsedMs < player.reflectUntilMs) {
+    const reflectDamage = Math.max(1, Math.round(attack.damage * 0.65));
+    const armorDamage = Math.min(resolvedEnemy.armor, reflectDamage);
+    const hpDamage = reflectDamage - armorDamage;
+    const reflectedEnemy: CombatEnemy = {
+      ...resolvedEnemy,
+      hp: Math.max(0, resolvedEnemy.hp - hpDamage),
+      armor: Math.max(0, resolvedEnemy.armor - armorDamage)
+    };
+    const reflectEvent: CombatHitEvent = {
+      kind: "hit",
+      id: `hit-${elapsedMs}-mirror-reflect-${enemy.id}`,
+      action: "skill",
+      skillId: "mirror-reflect",
+      targetId: enemy.id,
+      damage: reflectDamage,
+      occurredAtMs: elapsedMs,
+      inputToHitMs: 0,
+      hitstopMs: attack.hitstopMs,
+      canceledFromCombo: false,
+      statusTags: ["reflect"]
+    };
+
+    return {
+      enemy: reflectedEnemy,
+      player: {
+        ...player,
+        reflectUntilMs: elapsedMs
+      },
+      events: [attackEvent, reflectEvent],
+      failed: player.defeated
+    };
+  }
+
+  const shieldActive = elapsedMs < player.shieldUntilMs;
+  const mitigation = shieldActive ? clamp(player.shieldReduction, 0, 0.85) : 0;
+  const damage = Math.max(1, Math.round(attack.damage * combatProfile.damageTakenMultiplier * (1 - mitigation)));
   const nextHp = Math.max(0, player.hp - damage);
   const nextFacing: 1 | -1 = enemy.position.x >= player.x ? 1 : -1;
   const hitEvent: CombatPlayerHitEvent = {
@@ -709,6 +812,8 @@ function applyEnemyImpact(
     hitstopUntilMs: Math.max(player.hitstopUntilMs, elapsedMs + attack.hitstopMs),
     invulnerableUntilMs: elapsedMs + 560,
     hurtLockUntilMs: elapsedMs + Math.max(attack.hitstopMs, 420),
+    shieldUntilMs: shieldActive ? elapsedMs : player.shieldUntilMs,
+    shieldReduction: shieldActive ? 0 : player.shieldReduction,
     defeated: nextHp <= 0
   };
   const nextPlayer = damagedPlayer.resource.id === "guard" ? gainFlatPlayerResource(damagedPlayer, 12) : damagedPlayer;
@@ -754,6 +859,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
 
   const bonusDamage = hit.consumeMarks ? target.marks * (hit.bonusDamagePerMark ?? 0) : 0;
   const effectiveDamage = hit.damage + bonusDamage;
+  const statusTags = hit.statusTags ?? [];
   const hitstopMs = eventHitstop(target, hit.hitstopMs);
   const nextEnemies = run.enemies.map((enemy) => {
     if (enemy.id !== hit.targetId) {
@@ -763,12 +869,29 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     const armorDamage = Math.min(enemy.armor, effectiveDamage);
     const hpDamage = effectiveDamage - armorDamage;
     const nextMarks = hit.consumeMarks ? 0 : clamp(enemy.marks + (hit.marksApplied ?? 0), 0, 9);
+    const controlUntil = hasStatus(statusTags, "trap") || hasStatus(statusTags, "control") ? run.elapsedMs + 1100 : undefined;
+    const staggerUntil = hasStatus(statusTags, "stagger") ? run.elapsedMs + 780 : undefined;
+    const controlledUntilMs = Math.max(enemy.controlledUntilMs ?? 0, controlUntil ?? 0, staggerUntil ?? 0) || undefined;
+    const armorBrokenUntilMs = hasStatus(statusTags, "guard-break")
+      ? Math.max(enemy.armorBrokenUntilMs ?? 0, run.elapsedMs + 1800)
+      : enemy.armorBrokenUntilMs;
+    const statusInterruptsAttack = Boolean(controlledUntilMs && controlledUntilMs > run.elapsedMs) || hasStatus(statusTags, "guard-break");
+    const delayedUntil = Math.max(enemy.nextAttackAtMs, controlledUntilMs ?? 0, hasStatus(statusTags, "guard-break") ? run.elapsedMs + 680 : 0);
 
     return {
       ...enemy,
       hp: Math.max(0, enemy.hp - hpDamage),
       armor: Math.max(0, enemy.armor - armorDamage),
       marks: nextMarks,
+      controlledUntilMs,
+      armorBrokenUntilMs,
+      statusSourceSkillId: statusTags.length > 0 ? hit.skillId : enemy.statusSourceSkillId,
+      nextAttackAtMs: delayedUntil,
+      attackStartedAtMs: statusInterruptsAttack ? undefined : enemy.attackStartedAtMs,
+      attackImpactAtMs: statusInterruptsAttack ? undefined : enemy.attackImpactAtMs,
+      attackRecoverUntilMs: statusInterruptsAttack ? undefined : enemy.attackRecoverUntilMs,
+      attackSkillId: statusInterruptsAttack ? undefined : enemy.attackSkillId,
+      attackHitResolved: statusInterruptsAttack ? undefined : enemy.attackHitResolved,
       position: {
         ...enemy.position,
         x: enemy.position.x + hit.knockback * run.player.facing
@@ -787,7 +910,8 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     occurredAtMs: run.elapsedMs,
     inputToHitMs: hit.inputToHitMs ?? 0,
     hitstopMs,
-    canceledFromCombo: hit.canceledFromCombo ?? false
+    canceledFromCombo: hit.canceledFromCombo ?? false,
+    statusTags: hit.statusTags
   };
 
   return {
@@ -885,6 +1009,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     throw new Error(`Skill on cooldown: ${action.skillId}`);
   }
 
+  const statusTags = skillStatusTags(skill.tags);
   const hitRun = applyPlayerHitbox(run, {
     action: "skill",
     skillId: action.skillId,
@@ -900,15 +1025,17 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     consumeMarks: consumesMarksForSkill(skill),
     bonusDamagePerMark: bonusDamagePerMarkForSkill(skill),
     inputToHitMs: 70,
-    canceledFromCombo
+    canceledFromCombo,
+    statusTags
   });
   const prismGain = prismCycleGain(run, skill.id);
+  const resourcePlayer = spendAndGainPlayerResource(hitRun.player, run, skill.resourceCost, skill.resourceGain + prismGain);
+  const statusPlayer = applyPlayerSkillStatus(resourcePlayer, run, statusTags, skill.id);
 
   return {
     ...hitRun,
     player: {
-      ...hitRun.player,
-      ...spendAndGainPlayerResource(hitRun.player, run, skill.resourceCost, skill.resourceGain + prismGain),
+      ...statusPlayer,
       comboStep: 0,
       actionLockUntilMs: run.elapsedMs + 420,
       cancelWindowUntilMs: 0,

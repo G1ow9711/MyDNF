@@ -951,3 +951,26 @@
   - `npm run build`: pass.
   - `git diff --check`: pass with Windows line-ending warnings only.
   - Edge headless browser check via `.codex-local/tmp/mechanics-check.mjs`: Liuli `mirror-arc` showed resource `prism`, current `34`, chain `1`, and last skill `mirror-arc`; Ink `marking-bolt` showed resource `ink`, hit enemy marks `2`, and VFX `marking-bolt`; Iron Guardian showed resource `guard`, current `12`, and player motion `hit`.
+
+## Task 33 Skill Status Actions and Actor Motion
+- Started after the user required player and monster models to move with attacks, not remain static while numbers change.
+- Used two read-only parallel agents:
+  - `019f2c90-71ab-7e60-b214-475c8249440d` audited combat insertion points for skill status tags.
+  - `019f2c90-85ba-7b43-961b-ccd6bb44bf38` audited UI/DOM hooks and browser verification strategy.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` verifies shield mitigation, evade miss windows, reflect counters, trap/control state, and armor-break/stagger timing.
+  - `src/tests/app-integration.test.ts` verifies player `shield/dodge/counter` model classes and enemy `controlled/guard-break` model classes plus data attributes.
+- Implemented:
+  - Added combat status tags for `shield`, `evade`, `reflect`, `trap`, `control`, `guard-break`, and `stagger`.
+  - Added player defensive windows: shield mitigation, evade window, and reflect counter window.
+  - Added monster status windows: controlled and armor-broken, including attack interruption and next-attack delay.
+  - Monster impact now treats evade as a miss, shield as reduced damage, and reflect as a counter hit on the attacker.
+  - UI now exposes `data-shield-active`, `data-evade-active`, `data-reflect-active`, `data-dodge-result`, `data-control-state`, and `data-armor-state`.
+  - CSS now animates player shield/dodge/counter motions and monster controlled/guard-break motions on the bitmap model nodes.
+- Verification:
+  - RED confirmed: focused combat tests failed because the new status fields were undefined; focused app tests failed because DOM lacked status data/classes.
+  - `npm test -- src/tests/combat.test.ts`: pass, 26 tests.
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 37 tests.
+  - `npm test`: pass, 12 files and 163 tests.
+  - `npm run build`: pass.
+  - Edge headless browser check via `.codex-local/tmp/status-motion-check.mjs`: `molten-wall` rendered `actor-model-shield`, `mirror-arc` rendered `actor-model-counter`, `crow-feint` rendered `actor-model-dodge`, `ink-snare` rendered enemy `actor-model-controlled`, and `earth-furnace-breaker` rendered enemy `actor-model-guard-break`.

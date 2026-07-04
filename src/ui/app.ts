@@ -344,6 +344,33 @@ function recentEnemyAttackEvents(run: CombatRun): CombatEnemyAttackEvent[] {
   return [...latestByEnemy.values()];
 }
 
+function latestPlayerActionEvent(run: CombatRun): CombatHitEvent | CombatMissEvent | undefined {
+  const hit = latestHitEvent(run);
+  const miss = latestMissEvent(run);
+
+  if (hit && miss) {
+    return hit.occurredAtMs >= miss.occurredAtMs ? hit : miss;
+  }
+
+  return hit ?? miss;
+}
+
+function playerShieldActive(run: CombatRun): boolean {
+  return run.elapsedMs < run.player.shieldUntilMs;
+}
+
+function playerEvadeActive(run: CombatRun): boolean {
+  return run.elapsedMs < run.player.evadeUntilMs;
+}
+
+function playerReflectActive(run: CombatRun): boolean {
+  return run.elapsedMs < run.player.reflectUntilMs;
+}
+
+function playerDodgeResult(run: CombatRun): "missed" | "none" {
+  return recentEnemyAttackEvents(run).some((event) => event.phase === "miss") ? "missed" : "none";
+}
+
 function playerMotion(run: CombatRun): string {
   if (run.player.defeated) {
     return "defeated";
@@ -353,9 +380,23 @@ function playerMotion(run: CombatRun): string {
     return "hit";
   }
 
-  const hit = latestHitEvent(run);
-  const miss = latestMissEvent(run);
-  const action = hit ?? miss;
+  const action = latestPlayerActionEvent(run);
+
+  if (playerDodgeResult(run) === "missed" && playerEvadeActive(run)) {
+    return "dodge";
+  }
+
+  if (action?.statusTags?.includes("evade") || playerEvadeActive(run)) {
+    return "dodge";
+  }
+
+  if (action?.statusTags?.includes("reflect") || playerReflectActive(run)) {
+    return "counter";
+  }
+
+  if (action?.statusTags?.includes("shield") || playerShieldActive(run)) {
+    return "shield";
+  }
 
   return action?.action === "skill" ? "skill" : action?.action ?? "idle";
 }
@@ -377,6 +418,14 @@ function enemyMotion(
     return "defeated";
   }
 
+  if (elapsedMs < (enemy.controlledUntilMs ?? 0)) {
+    return "controlled";
+  }
+
+  if (elapsedMs < (enemy.armorBrokenUntilMs ?? 0)) {
+    return "guard-break";
+  }
+
   if (enemy.id === lastHitTargetId) {
     return "hit";
   }
@@ -386,6 +435,26 @@ function enemyMotion(
   }
 
   return "idle";
+}
+
+function enemyControlState(enemy: CombatEnemy, elapsedMs: number): string {
+  if (elapsedMs < (enemy.controlledUntilMs ?? 0)) {
+    return "controlled";
+  }
+
+  if (enemy.airborne) {
+    return "airborne";
+  }
+
+  if (enemy.downed) {
+    return "downed";
+  }
+
+  return "none";
+}
+
+function enemyArmorState(enemy: CombatEnemy, elapsedMs: number): string {
+  return elapsedMs < (enemy.armorBrokenUntilMs ?? 0) ? "broken" : "normal";
 }
 
 function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { id: string; label: string } {
@@ -462,9 +531,11 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const hpPercent = enemyHpPercent(enemy);
       const motion = enemyMotion(enemy, lastHit?.targetId, run.elapsedMs);
       const hitRecent = enemy.id === lastHit?.targetId;
+      const controlState = enemyControlState(enemy, run.elapsedMs);
+      const armorState = enemyArmorState(enemy, run.elapsedMs);
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-armor-state="${armorState}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
             <img class="enemy-art actor-model actor-model-${motion}" style="${enemyModelMotionStyle(run, enemy)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
@@ -479,7 +550,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   return `
     <div class="combat-actors" data-last-hit-target="${lastHit?.targetId ?? ""}">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
         <img class="combat-player-art actor-model actor-model-${playerMotionName}" style="${playerModelMotionStyle(run)}" src="/assets/hero-ember-warden.png" alt="${classDef?.displayName ?? state.player.classId}" />
         <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>
       </div>

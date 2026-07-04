@@ -3,7 +3,7 @@ import { catalog } from "../data/catalog";
 import { createInitialState, createOwnedGear } from "../game/state";
 import type { GameState, GearSlot, OwnedGearItem } from "../game/types";
 import { equipItem } from "../systems/inventory";
-import { selectBaseClass } from "../systems/classes";
+import { advanceClass, selectBaseClass } from "../systems/classes";
 import { applyQuestEvent, claimQuestReward } from "../systems/quests";
 import {
   applyHit,
@@ -34,6 +34,20 @@ function withHeat(state: GameState, heat: number): GameState {
     player: {
       ...state.player,
       heat
+    }
+  };
+}
+
+function readyForAdvancement(state: GameState): GameState {
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      level: 15,
+      quests: {
+        ...state.player.quests,
+        "prologue-ember-warden": "completed"
+      }
     }
   };
 }
@@ -740,10 +754,93 @@ describe("combat actions and impact feel", () => {
       }
     };
     const detonated = performAction(ready, { type: "skill", skillId: "night-mark-detonation" });
+    const resolved = stepCombat(detonated, {}, 490);
 
     expect(marked.enemies[0].marks).toBe(2);
-    expect(detonated.enemies[0].marks).toBe(0);
+    expect(detonated.enemies[0].marks).toBe(2);
+    expect(resolved.enemies[0].marks).toBe(0);
     expect(latestHitForSkill(detonated, "night-mark-detonation").damage).toBeGreaterThan(50);
+  });
+
+  it("detonates night marks as staged bursts on every marked target", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 100)),
+      "night-contract-hunter"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 318, y: 340, hp: 260, maxHp: 260 },
+        { x: 376, y: 348, hp: 260, maxHp: 260 }
+      ]
+    );
+    const markedRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) => ({
+        ...enemy,
+        marks: index === 0 ? 3 : 2
+      }))
+    };
+    const detonated = performAction(markedRun, { type: "skill", skillId: "night-mark-detonation" });
+    const detonationHits = detonated.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "night-mark-detonation"
+    );
+
+    expect(detonationHits).toHaveLength(4);
+    expect(detonationHits.map((event) => event.hitPhase)).toEqual(["mark-lock", "mark-lock", "detonate", "detonate"]);
+    expect(detonationHits.map((event) => event.vfxCue)).toEqual([
+      "night-mark-lock",
+      "night-mark-lock",
+      "night-mark-burst",
+      "night-mark-burst"
+    ]);
+    expect(detonationHits.map((event) => event.occurredAtMs)).toEqual([310, 310, 490, 490]);
+    expect(new Set(detonationHits.map((event) => event.targetId)).size).toBe(2);
+    expect(detonationHits[2].damage).toBeGreaterThan(detonationHits[0].damage);
+    expect(detonationHits[2].hitstopMs).toBeGreaterThan(detonationHits[0].hitstopMs);
+    expect(detonated.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
+    expect(detonated.enemies.some((enemy) => enemy.downed)).toBe(false);
+
+    const beforeLock = stepCombat(detonated, {}, 309);
+
+    expect(beforeLock.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
+    expect(beforeLock.enemies.map((enemy) => enemy.hp)).toEqual([260, 260]);
+    expect(beforeLock.enemies.some((enemy) => enemy.downed)).toBe(false);
+
+    const lockFrame = stepCombat(beforeLock, {}, 1);
+    const lockHp = lockFrame.enemies.map((enemy) => enemy.hp);
+
+    expect(lockFrame.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
+    expect(lockHp[0]).toBeLessThan(260);
+    expect(lockHp[1]).toBeLessThan(260);
+    expect(lockFrame.enemies.some((enemy) => enemy.downed)).toBe(false);
+
+    const burstFrame = stepCombat(lockFrame, {}, 180);
+
+    expect(burstFrame.enemies.map((enemy) => enemy.marks)).toEqual([0, 0]);
+    expect(burstFrame.enemies[0].hp).toBeLessThan(lockHp[0]);
+    expect(burstFrame.enemies[1].hp).toBeLessThan(lockHp[1]);
+    expect(burstFrame.enemies.every((enemy) => enemy.downed)).toBe(true);
+  });
+
+  it("makes night mark detonation miss when no marked target is available", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 100)),
+      "night-contract-hunter"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 318, y: 340 },
+        { x: 376, y: 348 }
+      ]
+    );
+    const detonated = performAction(run, { type: "skill", skillId: "night-mark-detonation" });
+
+    expect(detonated.events.at(-1)).toMatchObject({ kind: "miss", action: "skill", skillId: "night-mark-detonation" });
+    expect(detonated.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
   });
 
   it("turns shield skills into a visible mitigation window for the next monster hit", () => {

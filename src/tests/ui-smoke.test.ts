@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
 import {
@@ -14,7 +15,7 @@ import {
 } from "../game/combat";
 import { createAudioState, setVolume } from "../systems/audio";
 import { createInitialState, createOwnedGear } from "../game/state";
-import { selectBaseClass } from "../systems/classes";
+import { advanceClass, selectBaseClass } from "../systems/classes";
 import { renderAppHtml } from "../ui/app";
 import {
   renderAuctionPanel,
@@ -37,6 +38,8 @@ const publicWeaponAssetModules = import.meta.glob("../../public/assets/weapons/*
   query: "?url",
   import: "default"
 }) as Record<string, string>;
+
+const stylesCss = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
 function withSingleReadyEnemy(run: CombatRun, enemyPatch: Partial<CombatEnemy>): CombatRun {
   return {
@@ -84,6 +87,20 @@ function reachCombatRoom(run: CombatRun, roomIndex: number): CombatRun {
   }
 
   return next;
+}
+
+function readyForAdvancement(state: ReturnType<typeof createInitialState>): ReturnType<typeof createInitialState> {
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      level: 15,
+      quests: {
+        ...state.player.quests,
+        "prologue-ember-warden": "completed"
+      }
+    }
+  };
 }
 
 function countOccurrences(text: string, pattern: string): number {
@@ -340,6 +357,69 @@ describe("town app shell", () => {
     expect(html).toContain('data-impact-vfx-shape="glass-rain"');
     expect(html).toContain('data-vfx-cue="glass-rain-fall"');
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-glass-rain"');
+  });
+
+  it("renders night-mark-detonation target impact metadata for marked enemies", () => {
+    const baseState = selectBaseClass(createInitialState(), "ink-shadow-ranger");
+    const state = advanceClass(
+      readyForAdvancement({
+        ...baseState,
+        player: {
+          ...baseState.player,
+          heat: 100
+        }
+      }),
+      "night-contract-hunter"
+    );
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 260,
+          maxHp: 260,
+          marks: index === 0 ? 3 : 2,
+          position: { x: player.x + 86 + index * 58, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "night-mark-detonation" }
+    );
+    const detonationHits = castRun.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "night-mark-detonation"
+    );
+    const lockAtMs = Math.min(...detonationHits.map((event) => event.occurredAtMs));
+    const finalAtMs = Math.max(...detonationHits.map((event) => event.occurredAtMs));
+    const lockRun = stepCombat(castRun, {}, lockAtMs);
+    const burstRun = stepCombat(lockRun, {}, finalAtMs - lockAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: burstRun
+    });
+
+    expect(detonationHits).toHaveLength(4);
+    expect(castRun.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
+    expect(lockRun.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
+    expect(burstRun.enemies.map((enemy) => enemy.marks)).toEqual([0, 0]);
+    expect(countOccurrences(html, 'data-skill-impact-vfx="night-mark-detonation"')).toBe(4);
+    expect(html).toContain('data-impact-vfx-shape="night-detonation"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-night-detonation"');
+    expect(html).toContain('data-hit-phase="detonate"');
+    expect(html).toContain('data-vfx-cue="night-mark-burst"');
+  });
+
+  it("defines dedicated night mark detonation player, weapon, cast, and impact animations", () => {
+    expect(stylesCss).toContain('[data-skill-animation-preset="ink-detonation"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="detonate-mark"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-night-detonation");
+    expect(stylesCss).toContain(".skill-impact-shape-night-detonation");
+    expect(stylesCss).toContain("@keyframes player-ink-detonation-cast");
+    expect(stylesCss).toContain("@keyframes weapon-detonate-mark");
+    expect(stylesCss).toContain("@keyframes night-mark-burst-core");
   });
 
   it("renders prism-step as a prism-afterimage path pierce impact", () => {

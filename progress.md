@@ -1443,3 +1443,29 @@
   - Fixed front-facing attacks to check attack-interval and hurtbox-interval overlap.
   - `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts`: pass, 73 tests.
   - Browser DOM re-validation on `http://127.0.0.1:5174/.codex-local/tmp/hurtbox-check.html`: reconfirmed trash/elite/boss rendered dimensions `144x116`, `188x148`, `260x216`, hurtboxes `82x52`, `132x96`, `190x128`, and ascending computed actor sizes after the review fix.
+
+## Task 52 Night Mark Detonation Skill Feel
+- Started after user clarified that character/monster models can remain simple for now, but combat motion smoothness, hit feel, player/enemy action changes, skill VFX, and monster skill VFX remain strict.
+- Used two read-only parallel agents:
+  - `019f2eee-fbe7-7032-bae4-e1f0e5274cf0` audited `night-mark-detonation` combat logic and found it still used the generic single-target skill path.
+  - `019f2eef-2f5a-7e60-ac0d-b8cab0cbc992` audited UI/CSS hooks and found catalog metadata existed but dedicated CSS and hit event cues were missing.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `night-mark-detonation` to hit every marked target in lock/burst stages, keep marks before the lock frame, consume marks only on final detonation, knock targets down at the burst frame, and miss if no marked target exists.
+  - `src/tests/app-integration.test.ts` requires advanced Ink Space skill rendering to show `ink-detonation`, `detonate-mark`, `night-detonation`, lock-frame marks, final burst cues, hitstop, screen shake, and knockdown enemy motion.
+  - `src/tests/app-integration.test.ts` also covers a real reducer path: cast `marking-bolt`, advance combat time, then use the Space advancement hotkey to trigger `night-mark-detonation`.
+  - `src/tests/ui-smoke.test.ts` requires static render coverage for four target-bound night detonation bursts plus dedicated CSS selectors/keyframes.
+- RED evidence:
+  - Focused tests initially failed because the generic skill path emitted one hit instead of four, hit unmarked/no-mark cases instead of missing, and CSS lacked `ink-detonation` / `detonate-mark` / `night-detonation` selectors.
+  - Code-review RED follow-up failed because the first implementation cleared marks and knocked targets down immediately at cast time even though events were stamped for 310 ms and 490 ms.
+- Implemented:
+  - Added `mark-lock` and `detonate` hit phases plus `night-mark-lock` and `night-mark-burst` VFX cues.
+  - Added a dedicated `night-mark-detonation` combat script that locks marked targets, performs a light lock pulse, then detonates all locked marks with stronger hitstop, bonus mark damage, stagger, and knockdown.
+  - Added a narrow scheduled enemy hit queue for night detonation so enemy HP/marks/knockdown state resolves through `stepCombat()` at the actual event frames instead of at cast time.
+  - Added dedicated CSS for player cast motion, weapon detonation arc, player-side night detonation cast VFX, and target-bound lock/burst night detonation impacts.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 132 tests.
+  - Browser DOM validation on `http://127.0.0.1:5174/.codex-local/tmp/night-mark-detonation-check.html`: confirmed cast marks `[3,2]`, lock marks `[3,2]`, lock downed `[false,false]`, final marks `[0,0]`, final downed `[true,true]`, event frames `[310,310,490,490]`, phases `mark-lock/mark-lock/detonate/detonate`, 4 target impacts, `player-ink-detonation-cast`, `weapon-detonate-mark`, `night-detonation-cast-core`, and lock/burst impact animations.
+  - Browser console error log: empty.
+  - Final `npm test`: pass, 13 files and 228 tests.
+  - Final `npm run build`: pass.
+  - Final `git diff --check`: pass with Windows line-ending warnings only.

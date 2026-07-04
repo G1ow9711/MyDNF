@@ -270,3 +270,11 @@
 - Verification hook note: enemy DOM now exposes `data-enemy-body-width`, `data-enemy-body-height`, `data-enemy-hurtbox-width`, `data-enemy-hurtbox-height`, plus matching CSS variables for browser checks.
 - Review follow-up: front-only player attacks must test overlap between the attack interval and the monster hurtbox interval, not only the monster center point. Otherwise large monsters whose center is behind the player but whose hurtbox crosses the attack origin can incorrectly miss.
 - Test helper note: `cinder-kiln-alley` currently has three rooms; elite is room `1` and boss is room `2`. UI tests now use production room progression with a guard instead of hand-mutating `kind` without matching dimensions.
+
+## Night Mark Detonation Findings
+- User clarified that simpler character/monster modeling only lowers near-term model fidelity; combat animation smoothness, hit feel, player/enemy action changes, skill VFX, and monster VFX remain strict acceptance criteria.
+- Read-only combat audit found `night-mark-detonation` was still a generic single-target skill despite its advancement fantasy. It did not prefer marked enemies, did not miss when no marks existed, and had no staged lock/burst event metadata.
+- Read-only UI/CSS audit found catalog metadata already existed for `ink-detonation`, `detonate-mark`, and `night-detonation`; the missing pieces were dedicated CSS selectors/keyframes plus event-level `hitPhase` and `vfxCue`.
+- Implementation note: `night-mark-detonation` now selects marked enemies inside a wider hitbox, emits `mark-lock` hits at the catalog hit frame, emits stronger `detonate` hits 180 ms later, consumes marks only on final burst, and applies stagger/knockdown feedback.
+- Presentation note: target-bound night detonation VFX has distinct lock and burst cue styling, while player model and equipped weapon get dedicated cast and detonation arc keyframes.
+- Code review follow-up found that future-stamped staged hits must not mutate enemy state at cast time. Night detonation now queues enemy hit effects and resolves them through `stepCombat()`, so cast keeps marks, the 310 ms lock frame keeps targets standing, and the 490 ms burst frame clears marks and applies knockdown.

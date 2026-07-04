@@ -1264,6 +1264,152 @@ describe("playable app integration actions", () => {
     expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[1]}"`);
   });
 
+  it("renders night-mark-detonation as staged marked-target bursts", () => {
+    const advancedState = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 100)),
+      "night-contract-hunter"
+    );
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: advancedState
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            enemies: model.combatRun.enemies.map((enemy, index) => ({
+              ...enemy,
+              hp: 260,
+              maxHp: 260,
+              marks: index === 0 ? 3 : 2
+            }))
+          }
+        : undefined
+    };
+
+    expect(combatActionForKeyCode(model.state, "Space", model.combatRun?.player.resource.current, false, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "night-mark-detonation"
+    });
+
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "night-mark-detonation" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const detonationHits = model.combatRun.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "night-mark-detonation"
+    );
+    const lockAtMs = Math.min(...detonationHits.map((event) => event.occurredAtMs));
+    const finalBurstAtMs = Math.max(...detonationHits.map((event) => event.occurredAtMs));
+    const castHtml = renderAppHtml(model);
+    const lockRun = stepCombat(model.combatRun, {}, lockAtMs);
+    const lockHtml = renderAppHtml({
+      ...model,
+      combatRun: lockRun
+    });
+    const finalRun = stepCombat(lockRun, {}, finalBurstAtMs - lockAtMs);
+    const finalBurstHtml = renderAppHtml({
+      ...model,
+      combatRun: finalRun
+    });
+
+    expect(detonationHits).toHaveLength(4);
+    expect(castHtml).toContain('data-advancement-id="night-contract-hunter"');
+    expect(castHtml).toContain('data-active-skill-id="night-mark-detonation"');
+    expect(castHtml).toContain('data-skill-animation-preset="ink-detonation"');
+    expect(castHtml).toContain('data-skill-weapon-arc="detonate-mark"');
+    expect(castHtml).toContain('data-skill-vfx-shape="night-detonation"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-night-mark-detonation skill-vfx-shape-night-detonation"');
+    expect(castHtml).toContain('data-ink-marks="3"');
+    expect(castHtml).toContain('data-ink-marks="2"');
+    expect(castHtml).not.toContain('data-hit-phase="detonate"');
+    expect(lockHtml).toContain('data-hit-phase="mark-lock"');
+    expect(lockHtml).toContain('data-vfx-cue="night-mark-lock"');
+    expect(countOccurrences(lockHtml, 'data-skill-impact-vfx="night-mark-detonation"')).toBe(2);
+    expect(lockHtml).not.toContain('data-hit-phase="detonate"');
+    expect(lockHtml).toContain('data-ink-marks="3"');
+    expect(lockHtml).toContain('data-ink-marks="2"');
+    expect(lockHtml).not.toContain('data-enemy-knockdown="true"');
+    expect(finalBurstHtml).toContain('data-hitstop-active="true"');
+    expect(finalBurstHtml).toContain('data-screen-shake="skill"');
+    expect(finalBurstHtml).toContain('data-impact-skill-id="night-mark-detonation"');
+    expect(finalBurstHtml).toContain('data-hit-phase="detonate"');
+    expect(finalBurstHtml).toContain('data-vfx-cue="night-mark-burst"');
+    expect(countOccurrences(finalBurstHtml, 'data-skill-impact-vfx="night-mark-detonation"')).toBe(4);
+    expect(countOccurrences(finalBurstHtml, 'data-damage-number="true"')).toBe(4);
+    expect(countOccurrences(finalBurstHtml, 'data-ink-marks="0"')).toBe(2);
+    expect(countOccurrences(finalBurstHtml, 'data-enemy-knockdown="true"')).toBe(2);
+  });
+
+  it("marks with marking-bolt before detonating from the Space advancement hotkey", () => {
+    const advancedState = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 100)),
+      "night-contract-hunter"
+    );
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: advancedState
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "marking-bolt" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    expect(model.combatRun.enemies[0].marks).toBe(2);
+
+    const steppedRun = stepCombat(model.combatRun, {}, 620);
+    const readyRun = {
+      ...steppedRun,
+      player: {
+        ...steppedRun.player,
+        actionLockUntilMs: 0
+      }
+    };
+    model = {
+      ...model,
+      combatRun: readyRun
+    };
+    const spaceRun = model.combatRun;
+
+    if (!spaceRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    expect(combatActionForKeyCode(model.state, "Space", spaceRun.player.resource.current, false, spaceRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "night-mark-detonation"
+    });
+
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "night-mark-detonation" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const burstRun = stepCombat(model.combatRun, {}, 490);
+    const html = renderAppHtml({
+      ...model,
+      combatRun: burstRun
+    });
+
+    expect(burstRun.enemies[0].marks).toBe(0);
+    expect(html).toContain('data-skill-impact-vfx="night-mark-detonation"');
+    expect(html).toContain('data-hit-phase="detonate"');
+    expect(html).toContain('data-skill-cooldown-remaining="');
+  });
+
   it("renders meteor-knuckle as a staged ultimate with screen flash and ground impact", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

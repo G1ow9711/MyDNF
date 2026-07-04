@@ -7,8 +7,14 @@ export type EnemyKind = "trash" | "elite" | "boss";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "backstep" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
-export type CombatHitPhase = "fall" | "impact" | "rain" | "pierce";
-export type CombatVfxCue = "meteor-fall" | "meteor-impact" | "glass-rain-fall" | "prism-pierce";
+export type CombatHitPhase = "fall" | "impact" | "rain" | "pierce" | "mark-lock" | "detonate";
+export type CombatVfxCue =
+  | "meteor-fall"
+  | "meteor-impact"
+  | "glass-rain-fall"
+  | "prism-pierce"
+  | "night-mark-lock"
+  | "night-mark-burst";
 export type CombatEnemyVfxCue =
   | "ash-ember-spit-impact"
   | "zheng-shockwave-impact"
@@ -200,6 +206,7 @@ export interface CombatRun {
   enemies: CombatEnemy[];
   events: CombatEvent[];
   lootEvents: CombatLootEvent[];
+  scheduledEnemyHitEffects: CombatScheduledEnemyHitEffect[];
   completed: boolean;
   failed: boolean;
 }
@@ -224,6 +231,23 @@ export interface HitDefinition {
   hitPhase?: CombatHitPhase;
   vfxCue?: CombatVfxCue;
   vfxWindowMs?: number;
+}
+
+export interface CombatScheduledEnemyHitEffect {
+  id: string;
+  targetId: string;
+  applyAtMs: number;
+  damage: number;
+  hitstopMs: number;
+  knockback: number;
+  juggle: boolean;
+  playerFacing: 1 | -1;
+  marksApplied?: number;
+  consumeMarks?: boolean;
+  pullCenter?: CombatVector;
+  statusTags?: CombatSkillStatusTag[];
+  actionTags?: CombatActionTag[];
+  skillId?: string;
 }
 
 interface EnemyAttackDefinition {
@@ -966,6 +990,99 @@ function applyPrismStep(run: CombatRun, skill: ClassSkillDefinition, canceledFro
   }, scriptedRun);
 }
 
+function selectNightMarkDetonationTargets(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatEnemy[] {
+  return run.enemies
+    .filter((enemy) => enemy.marks > 0 && enemyInPlayerHitbox(run, enemy, hitbox))
+    .sort((left, right) => enemyDistanceScore(run, left) - enemyDistanceScore(run, right))
+    .slice(0, hitbox.targetCap);
+}
+
+function applyNightMarkDetonation(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const scriptedRun = applySkillStartupMovement(run, skill);
+  const targetingHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 380,
+    laneRange: 96,
+    targetCap: 3,
+    frontOnly: false,
+    damage: skillDamage(run, skill),
+    hitstopMs: 58,
+    knockback: 14,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo
+  };
+  const targets = selectNightMarkDetonationTargets(scriptedRun, targetingHitbox);
+
+  if (targets.length === 0) {
+    return applyMiss(scriptedRun, targetingHitbox);
+  }
+
+  const baseDamage = skillDamage(run, skill);
+  const stages: Array<{
+    phase: CombatHitPhase;
+    vfxCue: CombatVfxCue;
+    delayMs: number;
+    damageMultiplier: number;
+    hitstopMs: number;
+    knockback: number;
+    consumeMarks: boolean;
+    statusTags: CombatSkillStatusTag[];
+    actionTags: CombatActionTag[];
+    vfxWindowMs: number;
+  }> = [
+    {
+      phase: "mark-lock",
+      vfxCue: "night-mark-lock",
+      delayMs: skill.animation.hitFrameMs,
+      damageMultiplier: 0.34,
+      hitstopMs: 58,
+      knockback: 8,
+      consumeMarks: false,
+      statusTags: [],
+      actionTags: [],
+      vfxWindowMs: 360
+    },
+    {
+      phase: "detonate",
+      vfxCue: "night-mark-burst",
+      delayMs: skill.animation.hitFrameMs + 180,
+      damageMultiplier: 0.9,
+      hitstopMs: 96,
+      knockback: 54,
+      consumeMarks: true,
+      statusTags: ["stagger"],
+      actionTags: ["knockdown"],
+      vfxWindowMs: 520
+    }
+  ];
+
+  return stages.reduce((nextRun, stage) => {
+    return targets.reduce((stageRun, target) => {
+      return scheduleEnemyHitEffect(stageRun, {
+        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${target.id}`,
+        targetId: target.id,
+        damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
+        hitstopMs: stage.hitstopMs,
+        knockback: stage.knockback,
+        juggle: false,
+        action: "skill",
+        skillId: skill.id,
+        inputToHitMs: stage.delayMs,
+        canceledFromCombo,
+        consumeMarks: stage.consumeMarks,
+        bonusDamagePerMark: bonusDamagePerMarkForSkill(skill),
+        statusTags: stage.statusTags,
+        actionTags: stage.actionTags,
+        hitPhase: stage.phase,
+        vfxCue: stage.vfxCue,
+        vfxWindowMs: stage.vfxWindowMs
+      });
+    }, nextRun);
+  }, scriptedRun);
+}
+
 function classResource(state: GameState): Omit<CombatResource, "current"> {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
   const resource = classDef?.resource ?? { id: "heat", displayName: "热能", max: 100 };
@@ -1169,6 +1286,7 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
     enemies: createRoomEnemies(dungeon.id, 0),
     events: [],
     lootEvents: [],
+    scheduledEnemyHitEffects: [],
     completed: false,
     failed: false
   };
@@ -1207,6 +1325,7 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
       comboStep: comboActiveAtElapsed ? run.player.comboStep : 0
     }
   };
+  const movedRunWithEffects = resolveScheduledEnemyHitEffects(movedRun);
 
   if (shouldReleaseBuffer) {
     const releaseDtMs = bufferExecuteAtMs - run.elapsedMs;
@@ -1215,12 +1334,12 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
     const releaseFacing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
     const comboActiveAtRelease = comboStillActive(run, bufferExecuteAtMs);
     const releaseBase: CombatRun = {
-      ...movedRun,
+      ...movedRunWithEffects,
       elapsedMs: bufferExecuteAtMs,
       comboCount: comboActiveAtRelease ? run.comboCount : 0,
       comboExpiresAtMs: comboActiveAtRelease ? run.comboExpiresAtMs : 0,
       player: {
-        ...clearBufferedAction(movedRun.player),
+        ...clearBufferedAction(movedRunWithEffects.player),
         x: releaseX,
         y: releaseY,
         facing: releaseFacing,
@@ -1246,8 +1365,8 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
 
   if (buffer !== undefined && bufferExecuteAtMs !== undefined && elapsedMs >= bufferExecuteAtMs) {
     const expiredRun: CombatRun = {
-      ...movedRun,
-      player: clearBufferedAction(movedRun.player)
+      ...movedRunWithEffects,
+      player: clearBufferedAction(movedRunWithEffects.player)
     };
 
     if (run.completed || run.failed) {
@@ -1258,10 +1377,10 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
   }
 
   if (run.completed || run.failed) {
-    return movedRun;
+    return movedRunWithEffects;
   }
 
-  return advanceEnemyAttacks(updateEnemyAirStates(movedRun));
+  return advanceEnemyAttacks(updateEnemyAirStates(movedRunWithEffects));
 }
 
 function hasActiveEnemyAttack(enemy: CombatEnemy, elapsedMs: number): boolean {
@@ -1616,6 +1735,155 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
   };
 }
 
+function scheduleEnemyHitEffect(run: CombatRun, hit: HitDefinition): CombatRun {
+  const target = run.enemies.find((enemy) => enemy.id === hit.targetId);
+
+  if (!target) {
+    throw new Error(`Unknown combat target: ${hit.targetId}`);
+  }
+
+  const bonusDamage = hit.consumeMarks ? target.marks * (hit.bonusDamagePerMark ?? 0) : 0;
+  const effectiveDamage = hit.damage + bonusDamage;
+  const hitstopMs = eventHitstop(target, hit.hitstopMs);
+  const impactAtMs = run.elapsedMs + (hit.inputToHitMs ?? 0);
+  const event: CombatHitEvent = {
+    kind: "hit",
+    id: hit.id,
+    action: hit.action ?? "test",
+    skillId: hit.skillId,
+    targetId: hit.targetId,
+    damage: effectiveDamage,
+    occurredAtMs: impactAtMs,
+    inputToHitMs: hit.inputToHitMs ?? 0,
+    hitstopMs,
+    canceledFromCombo: hit.canceledFromCombo ?? false,
+    statusTags: hit.statusTags,
+    actionTags: hit.actionTags,
+    hitPhase: hit.hitPhase,
+    vfxCue: hit.vfxCue,
+    vfxWindowMs: hit.vfxWindowMs
+  };
+  const effect: CombatScheduledEnemyHitEffect = {
+    id: hit.id,
+    targetId: hit.targetId,
+    applyAtMs: impactAtMs,
+    damage: effectiveDamage,
+    hitstopMs,
+    knockback: hit.knockback,
+    juggle: hit.juggle,
+    playerFacing: run.player.facing,
+    marksApplied: hit.marksApplied,
+    consumeMarks: hit.consumeMarks,
+    pullCenter: hit.pullCenter,
+    statusTags: hit.statusTags,
+    actionTags: hit.actionTags,
+    skillId: hit.skillId
+  };
+
+  return {
+    ...run,
+    events: [...run.events, event],
+    scheduledEnemyHitEffects: [...(run.scheduledEnemyHitEffects ?? []), effect],
+    player: {
+      ...run.player,
+      hitstopUntilMs: Math.max(run.player.hitstopUntilMs, impactAtMs + hitstopMs)
+    }
+  };
+}
+
+function applyScheduledEnemyHitEffect(run: CombatRun, effect: CombatScheduledEnemyHitEffect): CombatRun {
+  const statusTags = effect.statusTags ?? [];
+  const actionTags = effect.actionTags ?? [];
+  const comboCount = run.comboCount > 0 && effect.applyAtMs <= run.comboExpiresAtMs ? run.comboCount + 1 : 1;
+  const comboExpiresAtMs = effect.applyAtMs + 1200;
+  const nextEnemies = run.enemies.map((enemy) => {
+    if (enemy.id !== effect.targetId) {
+      return enemy;
+    }
+
+    const armorDamage = Math.min(enemy.armor, effect.damage);
+    const hpDamage = effect.damage - armorDamage;
+    const nextMarks = effect.consumeMarks ? 0 : clamp(enemy.marks + (effect.marksApplied ?? 0), 0, 9);
+    const controlUntil = hasStatus(statusTags, "trap") || hasStatus(statusTags, "control") ? effect.applyAtMs + 1100 : undefined;
+    const staggerUntil = hasStatus(statusTags, "stagger") ? effect.applyAtMs + 780 : undefined;
+    const controlledUntilMs = Math.max(enemy.controlledUntilMs ?? 0, controlUntil ?? 0, staggerUntil ?? 0) || undefined;
+    const armorBrokenUntilMs = hasStatus(statusTags, "guard-break")
+      ? Math.max(enemy.armorBrokenUntilMs ?? 0, effect.applyAtMs + 1800)
+      : enemy.armorBrokenUntilMs;
+    const forcedKnockdown = actionTags.includes("knockdown");
+    const slamDown = actionTags.includes("slam") && enemy.airborne;
+    const lethalDown = !effect.juggle && enemy.hp - hpDamage <= 0;
+    const airborne = effect.juggle && !slamDown && !forcedKnockdown;
+    const downed = forcedKnockdown || slamDown || lethalDown;
+    const airborneUntilMs = airborne ? Math.max(enemy.airborneUntilMs ?? 0, effect.applyAtMs + 1000) : undefined;
+    const downedUntilMs = downed ? Math.max(enemy.downedUntilMs ?? 0, effect.applyAtMs + 760) : airborne ? undefined : enemy.downedUntilMs;
+    const airControlUntil = Math.max(airborneUntilMs ?? 0, downedUntilMs ?? 0) || undefined;
+    const statusInterruptsAttack =
+      Boolean(controlledUntilMs && controlledUntilMs > effect.applyAtMs) ||
+      Boolean(airControlUntil && airControlUntil > effect.applyAtMs) ||
+      hasStatus(statusTags, "guard-break");
+    const delayedUntil = Math.max(
+      enemy.nextAttackAtMs,
+      controlledUntilMs ?? 0,
+      airControlUntil ?? 0,
+      hasStatus(statusTags, "guard-break") ? effect.applyAtMs + 680 : 0
+    );
+    const nextPosition = effect.pullCenter
+      ? {
+          x: clamp(enemy.position.x + (effect.pullCenter.x - enemy.position.x) * 0.75, 0, run.arena.width),
+          y: clamp(enemy.position.y + (effect.pullCenter.y - enemy.position.y) * 0.45, run.arena.minY, run.arena.maxY)
+        }
+      : {
+          ...enemy.position,
+          x: clamp(enemy.position.x + effect.knockback * effect.playerFacing, 0, run.arena.width)
+        };
+
+    return {
+      ...enemy,
+      hp: Math.max(0, enemy.hp - hpDamage),
+      armor: Math.max(0, enemy.armor - armorDamage),
+      marks: nextMarks,
+      controlledUntilMs,
+      armorBrokenUntilMs,
+      statusSourceSkillId: statusTags.length > 0 ? effect.skillId : enemy.statusSourceSkillId,
+      nextAttackAtMs: delayedUntil,
+      attackStartedAtMs: statusInterruptsAttack ? undefined : enemy.attackStartedAtMs,
+      attackImpactAtMs: statusInterruptsAttack ? undefined : enemy.attackImpactAtMs,
+      attackRecoverUntilMs: statusInterruptsAttack ? undefined : enemy.attackRecoverUntilMs,
+      attackSkillId: statusInterruptsAttack ? undefined : enemy.attackSkillId,
+      attackHitResolved: statusInterruptsAttack ? undefined : enemy.attackHitResolved,
+      attackResolvedHits: statusInterruptsAttack ? undefined : enemy.attackResolvedHits,
+      position: nextPosition,
+      airborne,
+      downed,
+      airborneUntilMs,
+      downedUntilMs
+    };
+  });
+
+  return {
+    ...run,
+    comboCount,
+    comboExpiresAtMs,
+    enemies: nextEnemies
+  };
+}
+
+function resolveScheduledEnemyHitEffects(run: CombatRun): CombatRun {
+  const due = (run.scheduledEnemyHitEffects ?? [])
+    .filter((effect) => effect.applyAtMs <= run.elapsedMs)
+    .sort((left, right) => left.applyAtMs - right.applyAtMs);
+  const pending = (run.scheduledEnemyHitEffects ?? []).filter((effect) => effect.applyAtMs > run.elapsedMs);
+
+  return due.reduce(
+    (nextRun, effect) => applyScheduledEnemyHitEffect(nextRun, effect),
+    {
+      ...run,
+      scheduledEnemyHitEffects: pending
+    }
+  );
+}
+
 function completeSkillAction(
   run: CombatRun,
   hitRun: CombatRun,
@@ -1805,6 +2073,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     return completeSkillAction(run, applyPrismStep(run, skill, canceledFromCombo), skill, statusTags);
   }
 
+  if (skill.id === "night-mark-detonation") {
+    return completeSkillAction(run, applyNightMarkDetonation(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
   const scriptedRun = applySkillStartupMovement(run, skill);
   const hitRun = applyPlayerHitbox(scriptedRun, {
     action: "skill",
@@ -1941,6 +2213,7 @@ export function finishRoom(run: CombatRun): CombatRun {
     enemies: completed ? [] : createRoomEnemies(run.dungeonId, nextRoomIndex),
     events: [clearedEvent],
     lootEvents: [...run.lootEvents, lootEvent],
+    scheduledEnemyHitEffects: [],
     completed
   };
 }

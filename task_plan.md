@@ -4,7 +4,7 @@
 Design and, after approval, implement a mature playable offline side-scrolling action RPG prototype inspired by Dungeon Fighter Online, with original assets/mechanics, flashy skills, combat feel, at least four base classes, class advancement gameplay, economy systems, enhancement/amplification, shop, costumes, gift packs, and high replay value.
 
 ## Current Phase
-Phase 5 - Verification and Delivery
+Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 
 ## Phases
 
@@ -58,7 +58,7 @@ Phase 5 - Verification and Delivery
 - [x] Add reset-save confirmation flow
 - [x] Update progress and findings
 - [x] Final handoff with paths and run command
-- **Status:** complete
+- **Status:** ongoing for continuation polish; latest full verification is tracked in `progress.md`
 
 ## Key Questions
 1. Should first delivery be a browser-playable prototype, a desktop executable prototype, or a code-heavy foundation?
@@ -106,6 +106,7 @@ Phase 5 - Verification and Delivery
 - Current staged-ultimate progress: `meteor-knuckle` now has a scripted fall/impact timeline, stronger final hitstop, forced knockdown, armor-break, scene-level ultimate shake, meteor flash, target ground-crack VFX, and player/weapon meteor-smash animations.
 - Current Liuli skill progress: `liuli-rain` now has a dedicated three-wave target-locked script, `rain` hit phases, `glass-rain-fall` VFX cues, short per-event target VFX windows, and target-bound glass-rain burst styling.
 - Current Liuli dash progress: `prism-step` now pierces up to two enemies along the dash path, carries `pierce`/`prism-pierce` event metadata, staggers targets, and has dedicated player/weapon/cast/impact prism-afterimage presentation.
+- Current Ink advancement progress: `night-mark-detonation` now targets marked enemies, misses when no marks exist, emits lock/burst staged hits, consumes marks on final detonation, knocks targets down, and has dedicated player/weapon/cast/impact night-detonation presentation.
 - Remaining strict-DNF combat gaps: deeper scripts for remaining skills, class-specific animation timelines beyond the first meteor/anvil/liuli/ink/iron presets, enemy hurtbox sizing, broader target-bound VFX coverage, weapon atlas/frame animation beyond static SVG assets, stronger room-transition staging, and a formal save migration from `heat` alias to class-resource storage.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.

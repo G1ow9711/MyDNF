@@ -9,6 +9,7 @@ import {
   finishRoom,
   performAction,
   stepCombat,
+  type CombatEnemy,
   type CombatHitEvent,
   type CombatRun
 } from "../game/combat";
@@ -64,6 +65,25 @@ function reachBossRoom(run: CombatRun): CombatRun {
   }
 
   return next;
+}
+
+function withEnemyInRange(run: CombatRun, enemyPatch: Partial<CombatEnemy> = {}): CombatRun {
+  return {
+    ...run,
+    enemies: run.enemies.map((enemy, index) =>
+      index === 0
+        ? {
+            ...enemy,
+            position: {
+              x: run.player.x + 96,
+              y: run.player.y
+            },
+            nextAttackAtMs: 1,
+            ...enemyPatch
+          }
+        : enemy
+    )
+  };
 }
 
 describe("combat run setup and movement", () => {
@@ -155,6 +175,95 @@ describe("combat actions and impact feel", () => {
     expect(lastHitEvent(heavy).hitstopMs).toBe(72);
     expect(lastHitEvent(bossArmorHit).hitstopMs).toBe(25);
     expect(lastHitEvent(bossArmorHit).hitstopMs).toBeLessThan(lastHitEvent(light).hitstopMs);
+  });
+});
+
+describe("enemy attacks and player defeat", () => {
+  it("telegraphs monster attacks before the damage frame", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const telegraph = stepCombat(run, {}, 80);
+
+    expect(telegraph.player.hp).toBe(run.player.hp);
+    expect(telegraph.enemies[0].attackSkillId).toBe("ash-ember-spit");
+    expect(telegraph.enemies[0].attackImpactAtMs).toBeGreaterThan(telegraph.elapsedMs);
+    expect(telegraph.events.at(-1)).toMatchObject({
+      kind: "enemy-attack",
+      enemyId: telegraph.enemies[0].id,
+      skillId: "ash-ember-spit",
+      phase: "windup"
+    });
+  });
+
+  it("damages the player on a monster attack impact frame and starts recovery", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const telegraph = stepCombat(run, {}, 80);
+    const impacted = stepCombat(telegraph, {}, 360);
+
+    expect(impacted.player.hp).toBeLessThan(run.player.hp);
+    expect(impacted.player.invulnerableUntilMs).toBeGreaterThan(impacted.elapsedMs);
+    expect(impacted.enemies[0].attackHitResolved).toBe(true);
+    expect(impacted.enemies[0].nextAttackAtMs).toBeGreaterThan(impacted.elapsedMs);
+    expect(impacted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          enemyId: impacted.enemies[0].id,
+          skillId: "ash-ember-spit"
+        })
+      ])
+    );
+  });
+
+  it("lets the player dodge monster skills by leaving the attack lane", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const telegraph = stepCombat(run, {}, 80);
+    const dodged = stepCombat(
+      {
+        ...telegraph,
+        player: {
+          ...telegraph.player,
+          y: telegraph.arena.maxY
+        }
+      },
+      {},
+      360
+    );
+
+    expect(dodged.player.hp).toBe(run.player.hp);
+    expect(dodged.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          enemyId: dodged.enemies[0].id,
+          phase: "miss"
+        })
+      ])
+    );
+    expect(dodged.events.some((event) => event.kind === "player-hit")).toBe(false);
+  });
+
+  it("marks the combat run failed when monster attacks drop player HP to zero", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      kind: "boss",
+      hp: 520,
+      maxHp: 520,
+      armor: 0,
+      nextAttackAtMs: 1
+    });
+    const lowHpRun = {
+      ...run,
+      player: {
+        ...run.player,
+        hp: 40
+      }
+    };
+    const telegraph = stepCombat(lowHpRun, {}, 80);
+    const defeated = stepCombat(telegraph, {}, 520);
+
+    expect(defeated.player.hp).toBe(0);
+    expect(defeated.player.defeated).toBe(true);
+    expect(defeated.failed).toBe(true);
+    expect(() => finishRoom(defeated)).toThrow(/failed combat/i);
   });
 });
 

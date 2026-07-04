@@ -20,6 +20,12 @@ export interface CombatEnemy {
   position: CombatVector;
   airborne: boolean;
   downed: boolean;
+  nextAttackAtMs: number;
+  attackStartedAtMs?: number;
+  attackImpactAtMs?: number;
+  attackRecoverUntilMs?: number;
+  attackSkillId?: string;
+  attackHitResolved?: boolean;
 }
 
 export interface CombatPlayer {
@@ -27,11 +33,15 @@ export interface CombatPlayer {
   y: number;
   facing: 1 | -1;
   hp: number;
+  maxHp: number;
   heat: number;
   comboStep: number;
   actionLockUntilMs: number;
   cancelWindowUntilMs: number;
   hitstopUntilMs: number;
+  invulnerableUntilMs: number;
+  hurtLockUntilMs: number;
+  defeated: boolean;
 }
 
 export interface CombatArena {
@@ -60,7 +70,27 @@ export interface CombatRoomClearedEvent {
   roomIndex: number;
 }
 
-export type CombatEvent = CombatHitEvent | CombatRoomClearedEvent;
+export interface CombatEnemyAttackEvent {
+  kind: "enemy-attack";
+  id: string;
+  enemyId: string;
+  skillId: string;
+  phase: "windup" | "active" | "miss";
+  occurredAtMs: number;
+  impactAtMs: number;
+}
+
+export interface CombatPlayerHitEvent {
+  kind: "player-hit";
+  id: string;
+  enemyId: string;
+  skillId: string;
+  damage: number;
+  occurredAtMs: number;
+  hitstopMs: number;
+}
+
+export type CombatEvent = CombatHitEvent | CombatRoomClearedEvent | CombatEnemyAttackEvent | CombatPlayerHitEvent;
 
 export interface CombatLootEvent {
   dungeonId: DungeonId;
@@ -82,6 +112,7 @@ export interface CombatRun {
   events: CombatEvent[];
   lootEvents: CombatLootEvent[];
   completed: boolean;
+  failed: boolean;
 }
 
 export interface HitDefinition {
@@ -95,6 +126,18 @@ export interface HitDefinition {
   skillId?: string;
   inputToHitMs?: number;
   canceledFromCombo?: boolean;
+}
+
+interface EnemyAttackDefinition {
+  skillId: string;
+  damage: number;
+  rangeX: number;
+  laneRange: number;
+  windupMs: number;
+  recoveryMs: number;
+  cooldownMs: number;
+  hitstopMs: number;
+  knockback: number;
 }
 
 const arena: CombatArena = {
@@ -124,6 +167,48 @@ function enemyStats(kind: EnemyKind): Pick<CombatEnemy, "displayName" | "hp" | "
   return { displayName: "灰烬小妖", hp: 80, maxHp: 80, armor: 0 };
 }
 
+function enemyAttackDefinition(kind: EnemyKind): EnemyAttackDefinition {
+  if (kind === "boss") {
+    return {
+      skillId: "taotie-flame-breath",
+      damage: 88,
+      rangeX: 310,
+      laneRange: 86,
+      windupMs: 420,
+      recoveryMs: 360,
+      cooldownMs: 2200,
+      hitstopMs: 60,
+      knockback: 84
+    };
+  }
+
+  if (kind === "elite") {
+    return {
+      skillId: "zheng-shockwave",
+      damage: 52,
+      rangeX: 230,
+      laneRange: 68,
+      windupMs: 360,
+      recoveryMs: 300,
+      cooldownMs: 1800,
+      hitstopMs: 48,
+      knockback: 64
+    };
+  }
+
+  return {
+    skillId: "ash-ember-spit",
+    damage: 28,
+    rangeX: 190,
+    laneRange: 58,
+    windupMs: 280,
+    recoveryMs: 240,
+    cooldownMs: 1500,
+    hitstopMs: 36,
+    knockback: 42
+  };
+}
+
 function createEnemy(dungeonId: DungeonId, roomIndex: number, enemyIndex: number, kind: EnemyKind): CombatEnemy {
   const stats = enemyStats(kind);
 
@@ -136,7 +221,8 @@ function createEnemy(dungeonId: DungeonId, roomIndex: number, enemyIndex: number
       y: 320 + (enemyIndex % 2) * 34
     },
     airborne: false,
-    downed: false
+    downed: false,
+    nextAttackAtMs: (kind === "boss" ? 650 : kind === "elite" ? 760 : 700) + enemyIndex * 220
   };
 }
 
@@ -198,16 +284,21 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       y: 345,
       facing: 1,
       hp: 1000,
+      maxHp: 1000,
       heat: state.player.heat,
       comboStep: 0,
       actionLockUntilMs: 0,
       cancelWindowUntilMs: 0,
-      hitstopUntilMs: 0
+      hitstopUntilMs: 0,
+      invulnerableUntilMs: 0,
+      hurtLockUntilMs: 0,
+      defeated: false
     },
     enemies: createRoomEnemies(dungeon.id, 0),
     events: [],
     lootEvents: [],
-    completed: false
+    completed: false,
+    failed: false
   };
 }
 
@@ -219,8 +310,7 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
   const nextX = clamp(run.player.x + moveX * speed * dtMs, 0, run.arena.width);
   const nextY = clamp(run.player.y + moveY * speed * dtMs, run.arena.minY, run.arena.maxY);
   const facing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
-
-  return {
+  const movedRun: CombatRun = {
     ...run,
     elapsedMs,
     player: {
@@ -229,6 +319,164 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
       y: nextY,
       facing
     }
+  };
+
+  if (run.completed || run.failed) {
+    return movedRun;
+  }
+
+  return advanceEnemyAttacks(movedRun);
+}
+
+function hasActiveEnemyAttack(enemy: CombatEnemy, elapsedMs: number): boolean {
+  return Boolean(
+    enemy.attackSkillId &&
+      enemy.attackImpactAtMs !== undefined &&
+      enemy.attackRecoverUntilMs !== undefined &&
+      elapsedMs < enemy.attackRecoverUntilMs
+  );
+}
+
+function clearRecoveredAttack(enemy: CombatEnemy, elapsedMs: number): CombatEnemy {
+  if (enemy.attackRecoverUntilMs !== undefined && elapsedMs >= enemy.attackRecoverUntilMs) {
+    return {
+      ...enemy,
+      attackStartedAtMs: undefined,
+      attackImpactAtMs: undefined,
+      attackRecoverUntilMs: undefined,
+      attackSkillId: undefined,
+      attackHitResolved: undefined
+    };
+  }
+
+  return enemy;
+}
+
+function beginEnemyAttack(enemy: CombatEnemy, elapsedMs: number): { enemy: CombatEnemy; event?: CombatEnemyAttackEvent } {
+  const recovered = clearRecoveredAttack(enemy, elapsedMs);
+
+  if (recovered.hp <= 0 || hasActiveEnemyAttack(recovered, elapsedMs) || elapsedMs < recovered.nextAttackAtMs) {
+    return { enemy: recovered };
+  }
+
+  const attack = enemyAttackDefinition(recovered.kind);
+  const impactAtMs = elapsedMs + attack.windupMs;
+
+  return {
+    enemy: {
+      ...recovered,
+      attackStartedAtMs: elapsedMs,
+      attackImpactAtMs: impactAtMs,
+      attackRecoverUntilMs: impactAtMs + attack.recoveryMs,
+      attackSkillId: attack.skillId,
+      attackHitResolved: false,
+      nextAttackAtMs: elapsedMs + attack.cooldownMs
+    },
+    event: {
+      kind: "enemy-attack",
+      id: `enemy-attack-${elapsedMs}-${recovered.id}-windup`,
+      enemyId: recovered.id,
+      skillId: attack.skillId,
+      phase: "windup",
+      occurredAtMs: elapsedMs,
+      impactAtMs
+    }
+  };
+}
+
+function playerInEnemyAttackRange(enemy: CombatEnemy, player: CombatPlayer, attack: EnemyAttackDefinition): boolean {
+  const xDistance = Math.abs(enemy.position.x - player.x);
+  const yDistance = Math.abs(enemy.position.y - player.y);
+
+  return xDistance <= attack.rangeX && yDistance <= attack.laneRange;
+}
+
+function applyEnemyImpact(
+  enemy: CombatEnemy,
+  player: CombatPlayer,
+  elapsedMs: number
+): { enemy: CombatEnemy; player: CombatPlayer; events: CombatEvent[]; failed: boolean } {
+  if (
+    enemy.hp <= 0 ||
+    !enemy.attackSkillId ||
+    enemy.attackImpactAtMs === undefined ||
+    enemy.attackHitResolved ||
+    elapsedMs < enemy.attackImpactAtMs
+  ) {
+    return { enemy, player, events: [], failed: player.defeated };
+  }
+
+  const attack = enemyAttackDefinition(enemy.kind);
+  const phase = playerInEnemyAttackRange(enemy, player, attack) ? "active" : "miss";
+  const attackEvent: CombatEnemyAttackEvent = {
+    kind: "enemy-attack",
+    id: `enemy-attack-${elapsedMs}-${enemy.id}-${phase}`,
+    enemyId: enemy.id,
+    skillId: attack.skillId,
+    phase,
+    occurredAtMs: elapsedMs,
+    impactAtMs: enemy.attackImpactAtMs
+  };
+  const resolvedEnemy = {
+    ...enemy,
+    attackHitResolved: true
+  };
+
+  if (phase === "miss" || player.defeated || elapsedMs < player.invulnerableUntilMs) {
+    return { enemy: resolvedEnemy, player, events: [attackEvent], failed: player.defeated };
+  }
+
+  const nextHp = Math.max(0, player.hp - attack.damage);
+  const nextFacing: 1 | -1 = enemy.position.x >= player.x ? 1 : -1;
+  const hitEvent: CombatPlayerHitEvent = {
+    kind: "player-hit",
+    id: `player-hit-${elapsedMs}-${enemy.id}`,
+    enemyId: enemy.id,
+    skillId: attack.skillId,
+    damage: attack.damage,
+    occurredAtMs: elapsedMs,
+    hitstopMs: attack.hitstopMs
+  };
+  const nextPlayer: CombatPlayer = {
+    ...player,
+    hp: nextHp,
+    x: clamp(player.x - nextFacing * attack.knockback, 0, arena.width),
+    facing: nextFacing,
+    hitstopUntilMs: Math.max(player.hitstopUntilMs, elapsedMs + attack.hitstopMs),
+    invulnerableUntilMs: elapsedMs + 560,
+    hurtLockUntilMs: elapsedMs + attack.hitstopMs,
+    defeated: nextHp <= 0
+  };
+
+  return { enemy: resolvedEnemy, player: nextPlayer, events: [attackEvent, hitEvent], failed: nextHp <= 0 };
+}
+
+function advanceEnemyAttacks(run: CombatRun): CombatRun {
+  let player = run.player;
+  let failed = run.failed;
+  const events: CombatEvent[] = [];
+  const enemies = run.enemies.map((enemy) => {
+    const started = beginEnemyAttack(enemy, run.elapsedMs);
+
+    if (started.event) {
+      events.push(started.event);
+    }
+
+    const impacted = applyEnemyImpact(started.enemy, player, run.elapsedMs);
+
+    player = impacted.player;
+    failed = failed || impacted.failed;
+    events.push(...impacted.events);
+
+    return impacted.enemy;
+  });
+
+  return {
+    ...run,
+    player,
+    enemies,
+    events: [...run.events, ...events],
+    failed
   };
 }
 
@@ -285,6 +533,10 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
 }
 
 export function performAction(run: CombatRun, action: CombatActionInput): CombatRun {
+  if (run.failed || run.player.defeated) {
+    return run;
+  }
+
   const locked = run.elapsedMs < run.player.actionLockUntilMs;
   const canceledFromCombo = action.type === "skill" && run.elapsedMs <= run.player.cancelWindowUntilMs && run.player.comboStep > 0;
 
@@ -391,6 +643,10 @@ function createLootEvent(run: CombatRun): CombatLootEvent {
 }
 
 export function finishRoom(run: CombatRun): CombatRun {
+  if (run.failed || run.player.defeated) {
+    throw new Error("Cannot finish failed combat run");
+  }
+
   if (run.enemies.some((enemy) => enemy.hp > 0)) {
     throw new Error("Cannot finish room while enemies are alive");
   }

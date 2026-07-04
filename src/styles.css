@@ -570,6 +570,16 @@ p {
   animation: player-skill-cast 520ms cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
 
+.combat-player[data-player-motion="hit"] .combat-player-art,
+.combat-player .actor-model-hit {
+  animation: player-hurt-react 420ms cubic-bezier(0.2, 0.82, 0.2, 1) both;
+}
+
+.combat-player[data-player-motion="defeated"] .combat-player-art,
+.combat-player .actor-model-defeated {
+  animation: player-defeated-drop 620ms cubic-bezier(0.16, 0.74, 0.22, 1) both;
+}
+
 .player-nameplate,
 .enemy-nameplate {
   padding: 3px 8px;
@@ -626,6 +636,11 @@ p {
 .actor-model-hit,
 .combat-enemy[data-enemy-motion="hit"] .enemy-art {
   animation: monster-hit-react 360ms cubic-bezier(0.2, 0.82, 0.2, 1) both;
+}
+
+.actor-model-attack,
+.combat-enemy[data-enemy-motion="attack"] .enemy-art {
+  animation: monster-attack-lunge 520ms cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
 
 .actor-model-idle,
@@ -951,6 +966,36 @@ p {
   color: #dbeafe;
 }
 
+.room-failed-banner {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  z-index: 5;
+  display: grid;
+  gap: 4px;
+  min-width: min(420px, calc(100% - 40px));
+  padding: 14px 18px;
+  border: 1px solid rgba(248, 113, 113, 0.68);
+  border-radius: 8px;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  background:
+    linear-gradient(135deg, rgba(127, 29, 29, 0.94), rgba(2, 6, 23, 0.9)),
+    rgba(2, 6, 23, 0.92);
+  box-shadow:
+    0 18px 34px rgba(2, 6, 23, 0.66),
+    0 0 28px rgba(248, 113, 113, 0.22);
+}
+
+.room-failed-banner strong {
+  color: #fee2e2;
+  font-size: 22px;
+}
+
+.room-failed-banner span {
+  color: #dbeafe;
+}
+
 .settle-button.is-ready {
   border-color: rgba(250, 204, 21, 0.86);
   background: rgba(146, 64, 14, 0.92);
@@ -1019,9 +1064,29 @@ p {
   100% { transform: translateY(0) scale(1); filter: brightness(1); }
 }
 
+@keyframes player-hurt-react {
+  0% { transform: translateX(0) rotate(0deg); filter: brightness(1); }
+  28% { transform: translateX(-18px) rotate(-4deg) scale(0.98); filter: brightness(1.55) saturate(1.25); }
+  64% { transform: translateX(6px) rotate(1.5deg); }
+  100% { transform: translateX(0) rotate(0deg); filter: brightness(1); }
+}
+
+@keyframes player-defeated-drop {
+  0% { transform: translateY(0) rotate(0deg) scale(1); filter: brightness(1); opacity: 1; }
+  46% { transform: translateY(16px) rotate(-7deg) scale(0.96); filter: brightness(0.74) saturate(0.85); }
+  100% { transform: translateY(24px) rotate(-10deg) scale(0.92); filter: brightness(0.58) saturate(0.75); opacity: 0.82; }
+}
+
 @keyframes monster-idle-breathe {
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-3px) scale(1.012); }
+}
+
+@keyframes monster-attack-lunge {
+  0% { transform: translateX(0) translateY(0) scale(1); filter: brightness(1); }
+  26% { transform: translateX(-8px) translateY(-3px) scale(1.02); filter: brightness(1.28); }
+  56% { transform: translateX(24px) translateY(2px) scale(1.08); filter: brightness(1.7) saturate(1.22); }
+  100% { transform: translateX(0) translateY(0) scale(1); filter: brightness(1); }
 }
 
 @keyframes monster-hit-react {

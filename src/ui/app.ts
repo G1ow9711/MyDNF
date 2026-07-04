@@ -5,8 +5,10 @@ import {
   performAction,
   stepCombat,
   type CombatEnemy,
+  type CombatEnemyAttackEvent,
   type CombatHitEvent,
   type CombatLootEvent,
+  type CombatPlayerHitEvent,
   type CombatRun
 } from "../game/combat";
 import { addOwnedGear, createInitialState } from "../game/state";
@@ -276,6 +278,7 @@ function enemyAsset(enemy: CombatEnemy): string {
 }
 
 const recentHitWindowMs = 520;
+const recentEnemyAttackWindowMs = 760;
 
 function latestHitEvent(run: CombatRun): CombatHitEvent | undefined {
   return [...run.events]
@@ -286,26 +289,71 @@ function latestHitEvent(run: CombatRun): CombatHitEvent | undefined {
     );
 }
 
+function latestPlayerHitEvent(run: CombatRun): CombatPlayerHitEvent | undefined {
+  return [...run.events]
+    .reverse()
+    .find(
+      (event): event is CombatPlayerHitEvent =>
+        event.kind === "player-hit" && run.elapsedMs - event.occurredAtMs <= recentHitWindowMs
+    );
+}
+
+function recentEnemyAttackEvents(run: CombatRun): CombatEnemyAttackEvent[] {
+  const latestByEnemy = new Map<string, CombatEnemyAttackEvent>();
+
+  for (const event of run.events) {
+    if (event.kind === "enemy-attack" && run.elapsedMs - event.occurredAtMs <= recentEnemyAttackWindowMs) {
+      latestByEnemy.set(event.enemyId, event);
+    }
+  }
+
+  return [...latestByEnemy.values()];
+}
+
 function playerMotion(run: CombatRun): string {
+  if (run.player.defeated) {
+    return "defeated";
+  }
+
+  if (latestPlayerHitEvent(run)) {
+    return "hit";
+  }
+
   const hit = latestHitEvent(run);
 
   return hit?.action === "skill" ? "skill" : hit?.action ?? "idle";
 }
 
-function enemyMotion(enemy: CombatEnemy, lastHitTargetId: string | undefined): string {
+function playerState(run: CombatRun): string {
+  if (run.player.defeated) {
+    return "defeated";
+  }
+
+  return latestPlayerHitEvent(run) ? "hit" : "active";
+}
+
+function enemyMotion(
+  enemy: CombatEnemy,
+  lastHitTargetId: string | undefined,
+  attackEvent: CombatEnemyAttackEvent | undefined
+): string {
   if (enemy.hp <= 0) {
     return "defeated";
   }
 
-  return enemy.id === lastHitTargetId ? "hit" : "idle";
+  if (enemy.id === lastHitTargetId) {
+    return "hit";
+  }
+
+  return attackEvent ? "attack" : "idle";
 }
 
-function enemySkillEffect(enemy: CombatEnemy): { id: string; label: string } {
-  if (enemy.kind === "boss") {
+function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { id: string; label: string } {
+  if (skillId === "taotie-flame-breath" || enemy.kind === "boss") {
     return { id: "taotie-flame-breath", label: "饕餮炉火" };
   }
 
-  if (enemy.kind === "elite") {
+  if (skillId === "zheng-shockwave" || enemy.kind === "elite") {
     return { id: "zheng-shockwave", label: "狰卫震地" };
   }
 
@@ -335,13 +383,18 @@ function renderCombatVfx(run: CombatRun): string {
         </div>
       `
       : "";
-  const enemyVfx = run.enemies
-    .filter((enemy) => enemy.hp > 0)
-    .map((enemy) => {
-      const effect = enemySkillEffect(enemy);
+  const enemyVfx = recentEnemyAttackEvents(run)
+    .map((event) => {
+      const enemy = run.enemies.find((item) => item.id === event.enemyId);
+
+      if (!enemy || enemy.hp <= 0) {
+        return "";
+      }
+
+      const effect = enemySkillEffect(enemy, event.skillId);
 
       return `
-        <div class="enemy-skill-vfx enemy-skill-${effect.id}" data-enemy-id="${enemy.id}" data-enemy-skill-vfx="${effect.id}" aria-label="${effect.label}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+        <div class="enemy-skill-vfx enemy-skill-${effect.id}" data-enemy-id="${enemy.id}" data-enemy-skill-vfx="${effect.id}" data-enemy-attack-phase="${event.phase}" aria-label="${effect.label}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
           <span class="enemy-cast-ring"></span>
           <span class="enemy-cast-core"></span>
           <span class="enemy-cast-trail"></span>
@@ -362,11 +415,13 @@ function renderCombatVfx(run: CombatRun): string {
 function renderCombatActors(run: CombatRun, state: GameState): string {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
   const lastHit = latestHitEvent(run);
+  const playerMotionName = playerMotion(run);
+  const attackByEnemy = new Map(recentEnemyAttackEvents(run).map((event) => [event.enemyId, event]));
   const enemyActors = run.enemies
     .map((enemy) => {
       const enemyState = enemy.hp > 0 ? "alive" : "defeated";
       const hpPercent = enemyHpPercent(enemy);
-      const motion = enemyMotion(enemy, lastHit?.targetId);
+      const motion = enemyMotion(enemy, lastHit?.targetId, attackByEnemy.get(enemy.id));
       const hitRecent = enemy.id === lastHit?.targetId;
 
       return `
@@ -385,8 +440,8 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   return `
     <div class="combat-actors" data-last-hit-target="${lastHit?.targetId ?? ""}">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotion(run)}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
-        <img class="combat-player-art actor-model actor-model-${playerMotion(run)}" src="/assets/hero-ember-warden.png" alt="${classDef?.displayName ?? state.player.classId}" />
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+        <img class="combat-player-art actor-model actor-model-${playerMotionName}" src="/assets/hero-ember-warden.png" alt="${classDef?.displayName ?? state.player.classId}" />
         <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>
       </div>
       ${enemyActors}
@@ -397,9 +452,11 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 function renderCombatScene(run: CombatRun, state: GameState): string {
   const plan = createRenderPlan(run, run.dungeonId);
   const roomCleared = run.enemies.length === 0 || run.enemies.every((enemy) => enemy.hp <= 0);
+  const roomFailed = run.failed || run.player.defeated;
+  const objective = roomFailed ? "failed" : roomCleared ? "cleared" : "active";
   const skillButtons = combatSkillsForState(state)
     .map((skill) => {
-      const disabled = roomCleared || run.player.heat < skill.resourceCost;
+      const disabled = roomCleared || roomFailed || run.player.heat < skill.resourceCost;
 
       return `<button data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-skill-cost="${skill.resourceCost}" ${disabled ? "disabled" : ""}>${skill.displayName}<span>${skill.key} · ${skill.resourceCost}</span></button>`;
     })
@@ -411,7 +468,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const activeQuest = getActiveQuestText(state);
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${roomCleared ? "cleared" : "active"}">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
@@ -423,16 +480,21 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
           ? `<div class="room-clear-banner"><strong>房间已清理</strong><span>点击“结算房间”进入下一段战斗</span></div>`
           : ""
       }
+      ${
+        roomFailed
+          ? `<div class="room-failed-banner"><strong>角色倒地</strong><span>返回城镇整备后重新挑战</span></div>`
+          : ""
+      }
       <div class="combat-actions">
         <div class="combat-control-hint">方向键/WASD 移动 · Shift 冲刺 · X/J 轻击 · Z/K 重击</div>
-        <button data-combat-action="light" data-hotkey="J" ${roomCleared ? "disabled" : ""}>轻击<span>X/J</span></button>
-        <button data-combat-action="heavy" data-hotkey="K" ${roomCleared ? "disabled" : ""}>重击<span>Z/K</span></button>
+        <button data-combat-action="light" data-hotkey="J" ${roomCleared || roomFailed ? "disabled" : ""}>轻击<span>X/J</span></button>
+        <button data-combat-action="heavy" data-hotkey="K" ${roomCleared || roomFailed ? "disabled" : ""}>重击<span>Z/K</span></button>
         ${skillButtons}
-        <button class="settle-button${roomCleared ? " is-ready" : ""}" data-combat-action="finish">结算房间</button>
+        <button class="settle-button${roomCleared ? " is-ready" : ""}" data-combat-action="finish" ${roomFailed ? "disabled" : ""}>结算房间</button>
         <button data-mode="town">返回</button>
       </div>
       <div class="combat-status">
-        <p>房间 ${run.roomIndex + 1} · 热能 ${run.player.heat} · 连段 ${run.player.comboStep}</p>
+        <p>房间 ${run.roomIndex + 1} · HP ${run.player.hp}/${run.player.maxHp} · 热能 ${run.player.heat} · 连段 ${run.player.comboStep}</p>
         <ul>${enemies}</ul>
       </div>
       <aside class="quest-tracker quest-tracker-prominent" aria-label="任务追踪">
@@ -551,9 +613,15 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         return model;
       }
 
-      return {
-        ...model,
-        combatRun: stepCombat(
+      if (model.combatRun.failed || model.combatRun.player.defeated) {
+        return {
+          ...model,
+          message: "角色已倒地，请返回城镇整备"
+        };
+      }
+
+      {
+        const combatRun = stepCombat(
           model.combatRun,
           {
             moveX: action.moveX,
@@ -561,12 +629,27 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
             dash: action.dash
           },
           160
-        ),
-        message: undefined
-      };
+        );
+
+        return {
+          ...model,
+          combatRun,
+          message: combatRun.failed ? "角色倒地，请返回城镇整备" : undefined,
+          audio: combatRun.failed ? playSfx(model.audio, "hit-light") : model.audio
+        };
+      }
+
     case "combatAction": {
       if (!model.combatRun) {
         return model;
+      }
+
+      if (model.combatRun.failed || model.combatRun.player.defeated) {
+        return {
+          ...model,
+          message: "角色已倒地，请返回城镇整备",
+          audio: playSfx(model.audio, "ui-select")
+        };
       }
 
       if (action.action === "finish") {
@@ -617,6 +700,15 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
 
       const readyRun = stepCombat(model.combatRun, {}, 220);
       let combatRun: CombatRun;
+
+      if (readyRun.failed || readyRun.player.defeated) {
+        return {
+          ...model,
+          combatRun: readyRun,
+          message: "角色倒地，请返回城镇整备",
+          audio: playSfx(model.audio, "hit-light")
+        };
+      }
 
       if (action.action === "light") {
         combatRun = performAction(readyRun, { type: "light" });

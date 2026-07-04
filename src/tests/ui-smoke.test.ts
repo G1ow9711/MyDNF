@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 import { describe, expect, it } from "vitest";
-import { createCombatRun } from "../game/combat";
+import { createCombatRun, stepCombat, type CombatEnemy, type CombatRun } from "../game/combat";
 import { createAudioState, setVolume } from "../systems/audio";
 import { createInitialState } from "../game/state";
 import { renderAppHtml } from "../ui/app";
@@ -20,6 +20,23 @@ const publicAssetModules = import.meta.glob("../../public/assets/*.png", {
   query: "?url",
   import: "default"
 }) as Record<string, string>;
+
+function withSingleReadyEnemy(run: CombatRun, enemyPatch: Partial<CombatEnemy>): CombatRun {
+  return {
+    ...run,
+    enemies: [
+      {
+        ...run.enemies[0],
+        position: {
+          x: run.player.x + 72,
+          y: run.player.y
+        },
+        nextAttackAtMs: 1,
+        ...enemyPatch
+      }
+    ]
+  };
+}
 
 describe("town app shell", () => {
   it("uses generated bitmap assets for detailed character and realistic Chinese-style environments", () => {
@@ -119,27 +136,15 @@ describe("town app shell", () => {
     );
   });
 
-  it("renders monster skill effects for trash, elite, and boss enemies", () => {
+  it("renders monster skill effects for trash, elite, and boss attack events", () => {
     const state = createInitialState();
-    const trashRun = createCombatRun(state, "cinder-kiln-alley");
-    const eliteRun = {
-      ...trashRun,
-      enemies: [
-        {
-          ...trashRun.enemies[0],
-          kind: "elite" as const
-        }
-      ]
-    };
-    const bossRun = {
-      ...trashRun,
-      enemies: [
-        {
-          ...trashRun.enemies[0],
-          kind: "boss" as const
-        }
-      ]
-    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const quietHtml = renderAppHtml({ state, mode: "combat", combatRun: baseRun });
+    const trashRun = stepCombat(withSingleReadyEnemy(baseRun, { kind: "trash" }), {}, 80);
+    const eliteRun = stepCombat(withSingleReadyEnemy(baseRun, { kind: "elite" }), {}, 80);
+    const bossRun = stepCombat(withSingleReadyEnemy(baseRun, { kind: "boss" }), {}, 80);
+
+    expect(quietHtml).not.toContain("data-enemy-skill-vfx");
 
     expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain(
       'data-enemy-skill-vfx="ash-ember-spit"'
@@ -149,6 +154,9 @@ describe("town app shell", () => {
     );
     expect(renderAppHtml({ state, mode: "combat", combatRun: bossRun })).toContain(
       'data-enemy-skill-vfx="taotie-flame-breath"'
+    );
+    expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain(
+      'data-enemy-attack-phase="windup"'
     );
   });
 

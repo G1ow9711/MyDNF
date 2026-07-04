@@ -789,3 +789,24 @@
   - CSS animation selectors now target those model classes directly, so the bitmap models themselves translate, rotate, compress, and recover during attacks and hit reactions.
   - `npm test -- src/tests/app-integration.test.ts`: pass, 24 tests.
   - Browser check confirmed model classes at runtime: player `combat-player-art actor-model actor-model-light`, hit monster `enemy-art actor-model actor-model-hit`.
+
+## Task 26 Monster Attack AI and Player Hurt Motion
+- Started after the user required both player and monster models to follow attack actions, not remain static.
+- Read `planning-with-files`, `superpowers:test-driven-development`, and `superpowers:dispatching-parallel-agents`.
+- Used parallel explorer agent `019f2bfb-150e-7b20-9d37-c8dbee87b0df` for a read-only strict-DNF gameplay gap audit; it identified monster AI/player damage/death as the top missing loop.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` verifies enemy windup does not damage early, impact frames damage player, lane dodge causes miss, and HP 0 marks the run failed.
+  - `src/tests/app-integration.test.ts` verifies real enemy skills drive monster `actor-model-attack`, player `actor-model-hit`, player defeated UI, and post-death action blocking.
+  - `src/tests/ui-smoke.test.ts` verifies monster skill VFX is not permanent decoration and only renders from enemy attack events.
+- Implemented:
+  - Enemy AI state now includes next attack timing, windup, impact, recovery, skill id, and hit resolution.
+  - Enemy attacks now use tier-specific skills: `ash-ember-spit`, `zheng-shockwave`, and `taotie-flame-breath`.
+  - Player state now has max HP, invulnerability, hurt lock, defeated flag, and failed combat state.
+  - Combat UI now renders HP, failed objective state, disabled combat buttons, player hit/defeated model motion, monster attack model motion, and event-driven enemy VFX phases.
+- Verification:
+  - `npm test -- src/tests/combat.test.ts`: pass, 10 tests.
+  - `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 35 tests.
+  - `npm test`: pass, 12 files and 135 tests.
+  - `npm run build`: pass.
+  - Edge headless browser check on `http://127.0.0.1:5174/`: initial combat had 2 monster bitmap models and no permanent enemy skill VFX; after ArrowRight movement, DOM showed player `actor-model-hit`, 2 attacking monsters, enemy `actor-model-attack`, `ash-ember-spit` VFX in `active` and `windup` phases, and HP reduced to 972/1000.
+  - Browser screenshot saved at `.codex-local/tmp/monster-browser-check.png`.

@@ -86,6 +86,31 @@ function settleClearedRoom(model: ReturnType<typeof createAppModel>): ReturnType
   return reduceAppAction(defeatCurrentRoom(model), { type: "combatAction", action: "finish" });
 }
 
+function readyFirstEnemyAttack(model: ReturnType<typeof createAppModel>): ReturnType<typeof createAppModel> {
+  if (!model.combatRun) {
+    throw new Error("Expected active combat run");
+  }
+
+  return {
+    ...model,
+    combatRun: {
+      ...model.combatRun,
+      enemies: model.combatRun.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: {
+                x: model.combatRun?.player.x ?? enemy.position.x,
+                y: model.combatRun?.player.y ?? enemy.position.y
+              },
+              nextAttackAtMs: 1
+            }
+          : enemy
+      )
+    }
+  };
+}
+
 describe("playable app integration actions", () => {
   it("reinforces selected gear through the app reducer", () => {
     const storage = new MemoryStorage();
@@ -343,6 +368,70 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-player-skill-vfx="anvil-crash"');
     expect(html).toContain('data-vfx-action="skill"');
     expect(html).toContain('data-damage-number="true"');
+  });
+
+  it("renders monster attack motion and player hurt motion from real enemy skills", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = readyFirstEnemyAttack(model);
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const windupHtml = renderAppHtml(model);
+
+    expect(windupHtml).toContain('data-enemy-motion="attack"');
+    expect(windupHtml).toContain('class="enemy-art actor-model actor-model-attack"');
+    expect(windupHtml).toContain('data-enemy-skill-vfx="ash-ember-spit"');
+    expect(windupHtml).toContain('data-enemy-attack-phase="windup"');
+
+    const hpBeforeImpact = model.combatRun?.player.hp ?? 0;
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const hitHtml = renderAppHtml(model);
+
+    expect(model.combatRun?.player.hp).toBeLessThan(hpBeforeImpact);
+    expect(hitHtml).toContain('data-player-motion="hit"');
+    expect(hitHtml).toContain('data-player-state="hit"');
+    expect(hitHtml).toContain('class="combat-player-art actor-model actor-model-hit"');
+    expect(hitHtml).toContain('data-enemy-attack-phase="active"');
+  });
+
+  it("shows failed combat state after monster attacks defeat the player", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = readyFirstEnemyAttack(model);
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            player: {
+              ...model.combatRun.player,
+              hp: 20
+            }
+          }
+        : undefined
+    };
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const failedHtml = renderAppHtml(model);
+
+    expect(model.combatRun?.failed).toBe(true);
+    expect(model.combatRun?.player.hp).toBe(0);
+    expect(failedHtml).toContain('data-combat-objective="failed"');
+    expect(failedHtml).toContain('data-player-state="defeated"');
+    expect(failedHtml).toContain('class="combat-player-art actor-model actor-model-defeated"');
+    expect(failedHtml).toContain('<button data-combat-action="light" data-hotkey="J" disabled>');
+
+    const blocked = reduceAppAction(model, { type: "combatAction", action: "light" });
+
+    expect(blocked.combatRun).toEqual(model.combatRun);
+    expect(blocked.message).toContain("倒地");
   });
 
   it("does not map unaffordable combat skill hotkeys", () => {

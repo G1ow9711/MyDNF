@@ -1016,24 +1016,33 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run");
     }
 
-    const hitEvent = model.combatRun.events.find(
+    const rainHits = model.combatRun.events.filter(
       (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "liuli-rain"
     );
 
-    if (!hitEvent) {
-      throw new Error("Expected liuli-rain hit event");
+    if (rainHits.length === 0) {
+      throw new Error("Expected liuli-rain hit events");
     }
 
+    const firstWaveAtMs = Math.min(...rainHits.map((event) => event.occurredAtMs));
+    const finalWaveAtMs = Math.max(...rainHits.map((event) => event.occurredAtMs));
     const preHitHtml = renderAppHtml(model);
-    const hitFrameHtml = renderAppHtml({
+    const firstWaveHtml = renderAppHtml({
       ...model,
       combatRun: {
         ...model.combatRun,
-        elapsedMs: hitEvent.occurredAtMs
+        elapsedMs: firstWaveAtMs
+      }
+    });
+    const finalWaveHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs: finalWaveAtMs
       }
     });
 
-    expect(model.combatRun?.events.filter((event) => event.kind === "hit")).toHaveLength(2);
+    expect(rainHits).toHaveLength(6);
     expect(preHitHtml).toContain('data-hitstop-active="false"');
     expect(preHitHtml).toContain('data-screen-shake="none"');
     expect(preHitHtml).toContain('data-player-trail="skill"');
@@ -1041,10 +1050,17 @@ describe("playable app integration actions", () => {
     expect(preHitHtml).toContain('data-player-skill-vfx="liuli-rain"');
     expect(preHitHtml).toContain("--skill-duration: 680ms;");
     expect(preHitHtml).not.toContain('data-impact-spark="true"');
-    expect(hitFrameHtml).toContain('data-hitstop-active="true"');
-    expect(hitFrameHtml).toContain('data-screen-shake="skill"');
-    expect(countOccurrences(hitFrameHtml, 'data-impact-spark="true"')).toBe(2);
-    expect(countOccurrences(hitFrameHtml, 'data-damage-number="true"')).toBe(2);
+    expect(firstWaveHtml).toContain('data-hitstop-active="true"');
+    expect(firstWaveHtml).toContain('data-screen-shake="skill"');
+    expect(countOccurrences(firstWaveHtml, 'data-impact-spark="true"')).toBe(2);
+    expect(countOccurrences(firstWaveHtml, 'data-skill-impact-vfx="liuli-rain"')).toBe(2);
+    expect(finalWaveHtml).toContain('data-impact-vfx-shape="glass-rain"');
+    expect(finalWaveHtml).toContain('data-vfx-cue="glass-rain-fall"');
+    expect(finalWaveHtml).toContain('data-hit-phase="rain"');
+    expect(finalWaveHtml).toContain('class="skill-impact-burst skill-impact-shape-glass-rain"');
+    expect(countOccurrences(finalWaveHtml, 'data-impact-spark="true"')).toBe(6);
+    expect(countOccurrences(finalWaveHtml, 'data-damage-number="true"')).toBe(6);
+    expect(countOccurrences(finalWaveHtml, 'data-skill-impact-vfx="liuli-rain"')).toBe(6);
   });
 
   it("renders skill-specific impact bursts on every target hit of a multi-hit skill", () => {

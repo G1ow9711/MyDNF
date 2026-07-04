@@ -219,3 +219,10 @@
 - RED evidence: focused combat/app/UI tests failed because `meteor-knuckle` still emitted two single-stage hit events instead of four staged fall/impact hit events across two targets.
 - Browser validation confirmed the staged ultimate DOM on `http://127.0.0.1:5174/.codex-local/tmp/meteor-vfx-check.html`: four meteor impacts across two targets, `fall/fall/impact/impact`, `meteor-fall/meteor-impact` cues, `data-screen-shake="ultimate"`, `data-screen-flash="meteor"`, `player-ember-meteor-crash`, `weapon-meteor-smash`, and enemy `data-enemy-motion="knockdown"`.
 - UI motion priority matters for action credibility: meteor originally set enemy knockdown state but rendered `controlled` because control/armor-break took priority. Enemy visual motion now prioritizes airborne/knockdown over control/guard-break when those states overlap.
+
+## Liuli Rain Staggered Skill Findings
+- User clarified again that character and monster model detail may stay lightweight for the first playable flow, but combat model motion, action smoothness, hit feel, skill VFX, and monster skill VFX are strict.
+- Read-only combat audit found `liuli-rain` was a high-value next skill script because the catalog already marks it as a ranged burst, but the generic hitbox path only produced one hit per target and no phase/cue data.
+- Read-only UI/CSS audit found the actor-side Liuli cast animation and `glass-rain` player VFX already existed; the missing piece was target-bound `glass-rain` impact styling plus event-level phase/cue metadata.
+- RED evidence: focused combat/app/UI tests failed because `liuli-rain` emitted 2 hit events instead of 6 staggered rain-wave hits across two locked targets.
+- Implementation now locks targets once, emits three rain waves per target, adds `rain` hit phase and `glass-rain-fall` VFX cue, gives the final wave a stagger status, and uses a short event VFX window so the multi-wave target sparks do not linger after the catalog skill animation ends.

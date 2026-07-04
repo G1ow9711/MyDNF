@@ -1249,3 +1249,28 @@
   - `git diff --check`: pass with Windows line-ending warnings only.
   - Browser validation on `http://127.0.0.1:5174/.codex-local/tmp/meteor-vfx-check.html`: confirmed `activeSkill=meteor-knuckle`, 4 impact bursts, 2 targets, `fall/fall/impact/impact`, `meteor-fall/meteor-impact`, hitstop active, ultimate shake, meteor flash, player `player-ember-meteor-crash`, weapon `weapon-meteor-smash`, and both enemies `data-enemy-motion="knockdown"`.
   - Browser screenshot saved at `.codex-local/tmp/meteor-vfx-check.png`.
+
+## Task 45 Liuli Rain Staggered Combat Feel
+- Started after user clarified that simple models only relax model fidelity; combat flow, animation smoothness, hit feel, and skill effects remain strict.
+- Used two read-only parallel agents:
+  - `019f2e18-d132-7190-9b01-e312b64f9261` audited Liuli combat skills and recommended `liuli-rain` as the next staged script target.
+  - `019f2e19-3dbb-79e1-a3b8-7b52d303a8c3` audited UI/CSS and found `liuli-rain` had cast-side animation but lacked target-side `glass-rain` impact styling.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `liuli-rain` to emit six hits as three staggered rain waves across two locked targets with `rain` phase and `glass-rain-fall` cue.
+  - `src/tests/app-integration.test.ts` requires first-wave and final-wave DOM to show target-bound `glass-rain` impact bursts, hitstop, screen shake, damage numbers, and player motion trail.
+  - `src/tests/ui-smoke.test.ts` requires static render coverage for six `liuli-rain` target impact nodes.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts` initially failed because `liuli-rain` emitted 2 hits instead of 6.
+- Implemented:
+  - Added `rain` hit phase and `glass-rain-fall` VFX cue support.
+  - Added a dedicated `liuli-rain` script that locks targets once and emits three timed waves per target.
+  - Added event-level `vfxWindowMs` so short multi-wave impacts expire before the full skill animation cleanup assertion.
+  - Added target-side `skill-impact-shape-glass-rain` CSS with falling shard, ring, and shatter animations.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 104 tests.
+  - `npm test`: pass, 13 files and 200 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Browser validation on `http://127.0.0.1:5174/.codex-local/tmp/liuli-rain-vfx-check.html`: confirmed 6 `liuli-rain` impact bursts, 6 hit sparks, 6 damage numbers, 2 target ids, all phases `rain`, all cues `glass-rain-fall`, hitstop active, skill shake, player `liuli-rain` motion, weapon arc `fan`, and CSS animations `glass-rain-target-core/ring/shatter`.
+  - Browser console error log: empty.
+  - Browser screenshot saved at `.codex-local/tmp/liuli-rain-vfx-check.png`.

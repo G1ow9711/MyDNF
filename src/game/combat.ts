@@ -7,8 +7,8 @@ export type EnemyKind = "trash" | "elite" | "boss";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
-export type CombatHitPhase = "fall" | "impact";
-export type CombatVfxCue = "meteor-fall" | "meteor-impact";
+export type CombatHitPhase = "fall" | "impact" | "rain";
+export type CombatVfxCue = "meteor-fall" | "meteor-impact" | "glass-rain-fall";
 
 export interface CombatVector {
   x: number;
@@ -105,6 +105,7 @@ export interface CombatHitEvent {
   actionTags?: CombatActionTag[];
   hitPhase?: CombatHitPhase;
   vfxCue?: CombatVfxCue;
+  vfxWindowMs?: number;
 }
 
 export interface CombatMissEvent {
@@ -193,6 +194,7 @@ export interface HitDefinition {
   actionTags?: CombatActionTag[];
   hitPhase?: CombatHitPhase;
   vfxCue?: CombatVfxCue;
+  vfxWindowMs?: number;
 }
 
 interface EnemyAttackDefinition {
@@ -654,6 +656,81 @@ function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, cancele
         actionTags: stage.actionTags,
         hitPhase: stage.phase,
         vfxCue: stage.vfxCue
+      });
+    }, nextRun);
+  }, scriptedRun);
+}
+
+function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const scriptedRun = applySkillStartupMovement(run, skill);
+  const targetingHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: skillRangeX(skill.tags),
+    laneRange: skillLaneRange(skill.tags),
+    targetCap: skillTargetCap(skill.tags),
+    frontOnly: skillIsFrontOnly(skill.tags),
+    damage: skillDamage(run, skill),
+    hitstopMs: 60,
+    knockback: 12,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo
+  };
+  const targets = selectPlayerTargets(scriptedRun, targetingHitbox);
+
+  if (targets.length === 0) {
+    return applyMiss(scriptedRun, targetingHitbox);
+  }
+
+  const baseDamage = skillDamage(run, skill);
+  const waves: Array<{
+    delayMs: number;
+    damageMultiplier: number;
+    hitstopMs: number;
+    knockback: number;
+    statusTags: CombatSkillStatusTag[];
+  }> = [
+    {
+      delayMs: skill.animation.hitFrameMs,
+      damageMultiplier: 0.38,
+      hitstopMs: 54,
+      knockback: 8,
+      statusTags: []
+    },
+    {
+      delayMs: skill.animation.hitFrameMs + 95,
+      damageMultiplier: 0.42,
+      hitstopMs: 58,
+      knockback: 12,
+      statusTags: []
+    },
+    {
+      delayMs: skill.animation.hitFrameMs + 190,
+      damageMultiplier: 0.48,
+      hitstopMs: 68,
+      knockback: 20,
+      statusTags: ["stagger"]
+    }
+  ];
+
+  return waves.reduce((nextRun, wave, waveIndex) => {
+    return targets.reduce((waveRun, target) => {
+      return applyHit(waveRun, {
+        id: `hit-${run.elapsedMs}-skill-${skill.id}-rain-${waveIndex}-${target.id}`,
+        targetId: target.id,
+        damage: Math.max(1, Math.round(baseDamage * wave.damageMultiplier)),
+        hitstopMs: wave.hitstopMs,
+        knockback: wave.knockback,
+        juggle: false,
+        action: "skill",
+        skillId: skill.id,
+        inputToHitMs: wave.delayMs,
+        canceledFromCombo,
+        statusTags: wave.statusTags,
+        hitPhase: "rain",
+        vfxCue: "glass-rain-fall",
+        vfxWindowMs: 300
       });
     }, nextRun);
   }, scriptedRun);
@@ -1189,7 +1266,8 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     statusTags: hit.statusTags,
     actionTags: hit.actionTags,
     hitPhase: hit.hitPhase,
-    vfxCue: hit.vfxCue
+    vfxCue: hit.vfxCue,
+    vfxWindowMs: hit.vfxWindowMs
   };
 
   return {
@@ -1322,6 +1400,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "meteor-knuckle") {
     return completeSkillAction(run, applyMeteorKnuckle(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "liuli-rain") {
+    return completeSkillAction(run, applyLiuliRain(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   const scriptedRun = applySkillStartupMovement(run, skill);

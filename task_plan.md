@@ -104,6 +104,7 @@ Phase 5 - Verification and Delivery
 - Current DNF-style room-flow progress: clearing a room now opens a right-side gate/door, walking to the gate enters the next room or boss room, and final gate completion returns to town with loot/quest progress.
 - Current target-bound VFX progress: skill hit events now render per-target skill impact bursts with skill id, target id, catalog VFX shape, hit event id, and stagger index; `black-rain-volley` shows six black-rain bursts across two targets.
 - Current staged-ultimate progress: `meteor-knuckle` now has a scripted fall/impact timeline, stronger final hitstop, forced knockdown, armor-break, scene-level ultimate shake, meteor flash, target ground-crack VFX, and player/weapon meteor-smash animations.
+- Current Liuli skill progress: `liuli-rain` now has a dedicated three-wave target-locked script, `rain` hit phases, `glass-rain-fall` VFX cues, short per-event target VFX windows, and target-bound glass-rain burst styling.
 - Remaining strict-DNF combat gaps: deeper scripts for remaining skills, class-specific animation timelines beyond the first meteor/anvil/liuli/ink/iron presets, enemy hurtbox sizing, broader target-bound VFX coverage, weapon atlas/frame animation beyond static SVG assets, stronger room-transition staging, and a formal save migration from `heat` alias to class-resource storage.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.

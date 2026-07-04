@@ -756,6 +756,33 @@ describe("combat actions and impact feel", () => {
     expect(volley.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
   });
 
+  it("liuli-rain falls in staggered prism waves on locked targets", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 330, y: 340 },
+        { x: 390, y: 356 }
+      ]
+    );
+
+    const rain = performAction(run, { type: "skill", skillId: "liuli-rain" });
+    const rainHits = rain.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "liuli-rain");
+    const hitTimes = [...new Set(rainHits.map((event) => event.occurredAtMs))];
+    const targetIds = [...new Set(rainHits.map((event) => event.targetId))];
+
+    expect(rainHits).toHaveLength(6);
+    expect(hitTimes).toHaveLength(3);
+    expect(Math.max(...hitTimes) - Math.min(...hitTimes)).toBeGreaterThanOrEqual(180);
+    expect(targetIds).toHaveLength(2);
+    expect(targetIds.every((targetId) => rainHits.filter((event) => event.targetId === targetId).length === 3)).toBe(true);
+    expect(rainHits.every((event) => event.hitPhase === "rain")).toBe(true);
+    expect(rainHits.every((event) => event.vfxCue === "glass-rain-fall")).toBe(true);
+    expect(rain.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(rain.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
   it("meteor-knuckle resolves as staged fall and impact hits with forced knockdown", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),

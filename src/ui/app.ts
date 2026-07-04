@@ -352,8 +352,9 @@ function eventAge(run: CombatRun, occurredAtMs: number): number {
 
 function isActiveHitEvent(run: CombatRun, event: CombatHitEvent): boolean {
   const age = eventAge(run, event.occurredAtMs);
+  const vfxWindowMs = event.vfxWindowMs ?? recentHitWindowMs;
 
-  return age >= 0 && age <= recentHitWindowMs;
+  return age >= 0 && age <= vfxWindowMs;
 }
 
 function actionStartedAtMs(event: CombatHitEvent | CombatMissEvent): number {

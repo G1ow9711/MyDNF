@@ -260,6 +260,46 @@ describe("town app shell", () => {
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-black-rain"');
   });
 
+  it("renders liuli-rain as staggered glass-rain impact waves", () => {
+    const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
+    const state = {
+      ...liuliState,
+      player: {
+        ...liuliState.player,
+        heat: 90
+      }
+    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          position: { x: player.x + 90 + index * 58, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "liuli-rain" }
+    );
+    const rainHits = castRun.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "liuli-rain");
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: {
+        ...castRun,
+        elapsedMs: Math.max(...rainHits.map((event) => event.occurredAtMs))
+      }
+    });
+
+    expect(rainHits).toHaveLength(6);
+    expect(countOccurrences(html, 'data-skill-impact-vfx="liuli-rain"')).toBe(6);
+    expect(html).toContain('data-impact-vfx-shape="glass-rain"');
+    expect(html).toContain('data-vfx-cue="glass-rain-fall"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-glass-rain"');
+  });
+
   it("renders meteor-knuckle with ultimate impact VFX instead of generic skill feedback", () => {
     const state = {
       ...createInitialState(),

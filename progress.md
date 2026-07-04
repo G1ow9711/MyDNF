@@ -1496,3 +1496,31 @@
   - Strengthened tests so the pre-bind frame has no bind VFX, no damage numbers, and no controlled enemy motion.
   - Corrected the center assertion to use the actual runtime player position and arena width instead of a hard-coded visual lunge assumption.
   - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 136 tests.
+
+## Task 54 Mountain Crack Hammer Skill Feel
+- Started after user clarified that character/monster modeling can stay simple for now, but combat animation smoothness, hit feel, action changes, skill VFX, and monster skill VFX remain strict.
+- Used two read-only parallel agents:
+  - `019f2f1c-ab54-7882-9bcc-9315a4d6cbba` audited Iron Guardian skill gaps and recommended `mountain-crack-hammer` with delayed stagger/impact frames.
+  - `019f2f1c-dff9-7222-a2b2-27a488f5ee83` audited UI/CSS hooks and identified missing `iron-mountain-crack`, `mountain-hammer`, and `mountain-crack` selectors/keyframes.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `mountain-crack-hammer` to emit two staged hits across two targets, keep enemy HP/control/armor/knockdown unchanged at cast time, stagger and interrupt windup on the first frame, then armor-break/knockdown on impact.
+  - `src/tests/app-integration.test.ts` requires Space mapping for advanced Iron, player/weapon/cast metadata, staged target-bound VFX, hitstop, screen shake, controlled motion, and knockdown motion.
+  - `src/tests/ui-smoke.test.ts` requires rendered mountain-crack target impact metadata and dedicated CSS selectors/keyframes.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts` initially failed because the generic path emitted one hit instead of four and CSS lacked the dedicated mountain-crack presentation.
+- Implemented:
+  - Added `hammer-stagger` and `hammer-impact` phases plus `mountain-hammer-stagger` and `mountain-crack-impact` VFX cues.
+  - Added a dedicated `mountain-crack-hammer` combat script that schedules enemy hit effects, interrupts enemy windup on stagger, applies heavier impact damage, armor-break, and knockdown at the true impact frame.
+  - Added dedicated CSS for Iron player cast motion, mountain-hammer weapon arc, player-side mountain-crack cast VFX, and target-bound stagger/impact mountain-crack bursts.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 140 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/mountain-crack-hammer-check.html`: confirmed player animation `player-iron-mountain-crack-cast`, weapon animation `weapon-mountain-hammer`, cast VFX `mountain-crack-cast-core`, stagger impact count `2`, stagger cue `mountain-hammer-stagger`, stagger impact animation `mountain-hammer-stagger-core`, controlled enemy motion count `2`, impact count `4`, impact cue `mountain-crack-impact`, damage numbers `4`, hitstop active `true`, screen shake `skill`, impact animation `mountain-crack-impact-core`, and knockdown enemy motion count `2`.
+  - Browser console error log: empty.
+  - Browser screenshot saved at `.codex-local/tmp/mountain-crack-hammer-check.png`.
+- Code review follow-up:
+  - Read-only review caught a time-ordering bug: a large `stepCombat()` delta could cross an enemy hit at 200 ms and the hammer stagger at 290 ms, then resolve the delayed hammer stagger first and retroactively cancel the earlier enemy hit.
+  - Added RED regression coverage requiring the 200 ms `ash-ember-spit` player-hit to survive before the 290 ms stagger and 380 ms impact; initial `npm test -- src/tests/combat.test.ts` failed with `expected [] to have a length of 1`.
+  - Fixed scheduled enemy hit effects so each effect first resolves already-landed target enemy hits up to `effect.applyAtMs`, then applies stagger/guard-break interruption.
+  - `npm test -- src/tests/combat.test.ts`: pass, 57 tests.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 141 tests.
+  - Follow-up review agent confirmed no blocking issue after the fix. Remaining non-blocking note: event arrays are not globally sorted by `occurredAtMs`, so future UI logic should keep filtering by event timestamps rather than using `events.at(-1)` as a time-order proxy.

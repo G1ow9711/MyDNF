@@ -7,7 +7,17 @@ export type EnemyKind = "trash" | "elite" | "boss";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "backstep" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
-export type CombatHitPhase = "fall" | "impact" | "rain" | "pierce" | "mark-lock" | "detonate" | "trap-bind" | "trap-snap";
+export type CombatHitPhase =
+  | "fall"
+  | "impact"
+  | "rain"
+  | "pierce"
+  | "mark-lock"
+  | "detonate"
+  | "trap-bind"
+  | "trap-snap"
+  | "hammer-stagger"
+  | "hammer-impact";
 export type CombatVfxCue =
   | "meteor-fall"
   | "meteor-impact"
@@ -16,7 +26,9 @@ export type CombatVfxCue =
   | "night-mark-lock"
   | "night-mark-burst"
   | "mechanism-net-bind"
-  | "mechanism-net-snap";
+  | "mechanism-net-snap"
+  | "mountain-hammer-stagger"
+  | "mountain-crack-impact";
 export type CombatEnemyVfxCue =
   | "ash-ember-spit-impact"
   | "zheng-shockwave-impact"
@@ -1170,6 +1182,87 @@ function applyMechanismShadowNet(run: CombatRun, skill: ClassSkillDefinition, ca
   }, scriptedRun);
 }
 
+function applyMountainCrackHammer(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const scriptedRun = applySkillStartupMovement(run, skill);
+  const targetingHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 260,
+    laneRange: 96,
+    targetCap: 2,
+    frontOnly: true,
+    damage: skillDamage(run, skill),
+    hitstopMs: 70,
+    knockback: 34,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo
+  };
+  const targets = selectPlayerTargets(scriptedRun, targetingHitbox);
+
+  if (targets.length === 0) {
+    return applyMiss(scriptedRun, targetingHitbox);
+  }
+
+  const baseDamage = skillDamage(run, skill);
+  const stages: Array<{
+    phase: CombatHitPhase;
+    vfxCue: CombatVfxCue;
+    delayMs: number;
+    damageMultiplier: number;
+    hitstopMs: number;
+    knockback: number;
+    statusTags: CombatSkillStatusTag[];
+    actionTags: CombatActionTag[];
+    vfxWindowMs: number;
+  }> = [
+    {
+      phase: "hammer-stagger",
+      vfxCue: "mountain-hammer-stagger",
+      delayMs: Math.max(0, skill.animation.hitFrameMs - 90),
+      damageMultiplier: 0.34,
+      hitstopMs: 62,
+      knockback: 18,
+      statusTags: ["stagger"],
+      actionTags: [],
+      vfxWindowMs: 360
+    },
+    {
+      phase: "hammer-impact",
+      vfxCue: "mountain-crack-impact",
+      delayMs: skill.animation.hitFrameMs,
+      damageMultiplier: 0.92,
+      hitstopMs: 108,
+      knockback: 72,
+      statusTags: ["guard-break", "stagger"],
+      actionTags: ["knockdown"],
+      vfxWindowMs: 620
+    }
+  ];
+
+  return stages.reduce((nextRun, stage) => {
+    return targets.reduce((stageRun, target) => {
+      return scheduleEnemyHitEffect(stageRun, {
+        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${target.id}`,
+        targetId: target.id,
+        damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
+        hitstopMs: stage.hitstopMs,
+        knockback: stage.knockback,
+        juggle: false,
+        action: "skill",
+        skillId: skill.id,
+        inputToHitMs: stage.delayMs,
+        canceledFromCombo,
+        statusTags: stage.statusTags,
+        actionTags: stage.actionTags,
+        hitPhase: stage.phase,
+        vfxCue: stage.vfxCue,
+        vfxWindowMs: stage.vfxWindowMs
+      });
+    }, nextRun);
+  }, scriptedRun);
+}
+
 function classResource(state: GameState): Omit<CombatResource, "current"> {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
   const resource = classDef?.resource ?? { id: "heat", displayName: "热能", max: 100 };
@@ -1879,11 +1972,15 @@ function scheduleEnemyHitEffect(run: CombatRun, hit: HitDefinition): CombatRun {
 }
 
 function applyScheduledEnemyHitEffect(run: CombatRun, effect: CombatScheduledEnemyHitEffect): CombatRun {
+  const impactResolvedRun = resolveTargetEnemyImpactsBeforeScheduledEffect(run, effect);
   const statusTags = effect.statusTags ?? [];
   const actionTags = effect.actionTags ?? [];
-  const comboCount = run.comboCount > 0 && effect.applyAtMs <= run.comboExpiresAtMs ? run.comboCount + 1 : 1;
+  const comboCount =
+    impactResolvedRun.comboCount > 0 && effect.applyAtMs <= impactResolvedRun.comboExpiresAtMs
+      ? impactResolvedRun.comboCount + 1
+      : 1;
   const comboExpiresAtMs = effect.applyAtMs + 1200;
-  const nextEnemies = run.enemies.map((enemy) => {
+  const nextEnemies = impactResolvedRun.enemies.map((enemy) => {
     if (enemy.id !== effect.targetId) {
       return enemy;
     }
@@ -1917,12 +2014,16 @@ function applyScheduledEnemyHitEffect(run: CombatRun, effect: CombatScheduledEne
     );
     const nextPosition = effect.pullCenter
       ? {
-          x: clamp(enemy.position.x + (effect.pullCenter.x - enemy.position.x) * 0.75, 0, run.arena.width),
-          y: clamp(enemy.position.y + (effect.pullCenter.y - enemy.position.y) * 0.45, run.arena.minY, run.arena.maxY)
+          x: clamp(enemy.position.x + (effect.pullCenter.x - enemy.position.x) * 0.75, 0, impactResolvedRun.arena.width),
+          y: clamp(
+            enemy.position.y + (effect.pullCenter.y - enemy.position.y) * 0.45,
+            impactResolvedRun.arena.minY,
+            impactResolvedRun.arena.maxY
+          )
         }
       : {
           ...enemy.position,
-          x: clamp(enemy.position.x + effect.knockback * effect.playerFacing, 0, run.arena.width)
+          x: clamp(enemy.position.x + effect.knockback * effect.playerFacing, 0, impactResolvedRun.arena.width)
         };
 
     return {
@@ -1949,10 +2050,35 @@ function applyScheduledEnemyHitEffect(run: CombatRun, effect: CombatScheduledEne
   });
 
   return {
-    ...run,
+    ...impactResolvedRun,
     comboCount,
     comboExpiresAtMs,
     enemies: nextEnemies
+  };
+}
+
+function resolveTargetEnemyImpactsBeforeScheduledEffect(
+  run: CombatRun,
+  effect: CombatScheduledEnemyHitEffect
+): CombatRun {
+  const target = run.enemies.find((enemy) => enemy.id === effect.targetId);
+
+  if (!target || target.attackImpactAtMs === undefined || effect.applyAtMs < target.attackImpactAtMs) {
+    return run;
+  }
+
+  const impacted = applyEnemyImpact(target, run.player, effect.applyAtMs, run.combatProfile);
+
+  if (impacted.events.length === 0) {
+    return run;
+  }
+
+  return {
+    ...run,
+    player: impacted.player,
+    enemies: run.enemies.map((enemy) => (enemy.id === target.id ? impacted.enemy : enemy)),
+    events: [...run.events, ...impacted.events],
+    failed: run.failed || impacted.failed
   };
 }
 
@@ -2166,6 +2292,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "mechanism-shadow-net") {
     return completeSkillAction(run, applyMechanismShadowNet(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "mountain-crack-hammer") {
+    return completeSkillAction(run, applyMountainCrackHammer(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   const scriptedRun = applySkillStartupMovement(run, skill);

@@ -1498,6 +1498,89 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(snapHtml, 'data-damage-number="true"')).toBe(4);
   });
 
+  it("renders mountain-crack-hammer as a staged iron hammer impact with knockdown feedback", () => {
+    const advancedState = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)),
+      "mountain-cracking-smith"
+    );
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: advancedState
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            enemies: model.combatRun.enemies.map((enemy) => ({
+              ...enemy,
+              hp: 280,
+              maxHp: 280,
+              armor: 32
+            }))
+          }
+        : undefined
+    };
+
+    expect(combatActionForKeyCode(model.state, "Space", model.combatRun?.player.resource.current, false, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "mountain-crack-hammer"
+    });
+
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "mountain-crack-hammer" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const hammerHits = model.combatRun.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mountain-crack-hammer"
+    );
+    const staggerAtMs = Math.min(...hammerHits.map((event) => event.occurredAtMs));
+    const impactAtMs = Math.max(...hammerHits.map((event) => event.occurredAtMs));
+    const castHtml = renderAppHtml(model);
+    const beforeStaggerHtml = renderAppHtml({
+      ...model,
+      combatRun: stepCombat(model.combatRun, {}, staggerAtMs - 1)
+    });
+    const staggerRun = stepCombat(model.combatRun, {}, staggerAtMs);
+    const staggerHtml = renderAppHtml({
+      ...model,
+      combatRun: staggerRun
+    });
+    const impactRun = stepCombat(staggerRun, {}, impactAtMs - staggerAtMs);
+    const impactHtml = renderAppHtml({
+      ...model,
+      combatRun: impactRun
+    });
+
+    expect(hammerHits).toHaveLength(4);
+    expect(castHtml).toContain('data-advancement-id="mountain-cracking-smith"');
+    expect(castHtml).toContain('data-active-skill-id="mountain-crack-hammer"');
+    expect(castHtml).toContain('data-skill-animation-preset="iron-mountain-crack"');
+    expect(castHtml).toContain('data-skill-weapon-arc="mountain-hammer"');
+    expect(castHtml).toContain('data-skill-vfx-shape="mountain-crack"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-mountain-crack-hammer skill-vfx-shape-mountain-crack"');
+    expect(beforeStaggerHtml).not.toContain('data-skill-impact-vfx="mountain-crack-hammer"');
+    expect(beforeStaggerHtml).not.toContain('data-damage-number="true"');
+    expect(staggerHtml).toContain('data-hit-phase="hammer-stagger"');
+    expect(staggerHtml).toContain('data-vfx-cue="mountain-hammer-stagger"');
+    expect(staggerHtml).toContain('data-enemy-motion="controlled"');
+    expect(countOccurrences(staggerHtml, 'data-skill-impact-vfx="mountain-crack-hammer"')).toBe(2);
+    expect(impactHtml).toContain('data-hitstop-active="true"');
+    expect(impactHtml).toContain('data-screen-shake="skill"');
+    expect(impactHtml).toContain('data-hit-phase="hammer-impact"');
+    expect(impactHtml).toContain('data-vfx-cue="mountain-crack-impact"');
+    expect(impactHtml).toContain('data-impact-vfx-shape="mountain-crack"');
+    expect(impactHtml).toContain('data-enemy-motion="knockdown"');
+    expect(countOccurrences(impactHtml, 'data-skill-impact-vfx="mountain-crack-hammer"')).toBe(4);
+    expect(countOccurrences(impactHtml, 'data-damage-number="true"')).toBe(4);
+  });
+
   it("renders meteor-knuckle as a staged ultimate with screen flash and ground impact", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

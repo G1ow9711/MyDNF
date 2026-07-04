@@ -479,6 +479,64 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes mechanism-net-snap-core");
   });
 
+  it("renders mountain-crack-hammer with staged mountain-crack impact metadata", () => {
+    const ironState = advanceClass(
+      readyForAdvancement({
+        ...selectBaseClass(createInitialState(), "iron-forge-guardian"),
+        player: {
+          ...selectBaseClass(createInitialState(), "iron-forge-guardian").player,
+          heat: 100
+        }
+      }),
+      "mountain-cracking-smith"
+    );
+    const baseRun = createCombatRun(ironState, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 280,
+          maxHp: 280,
+          armor: 32,
+          position: { x: player.x + 92 + index * 58, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "mountain-crack-hammer" }
+    );
+    const hammerHits = castRun.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mountain-crack-hammer"
+    );
+    const staggerAtMs = Math.min(...hammerHits.map((event) => event.occurredAtMs));
+    const impactAtMs = Math.max(...hammerHits.map((event) => event.occurredAtMs));
+    const html = renderAppHtml({
+      state: ironState,
+      mode: "combat",
+      combatRun: stepCombat(stepCombat(castRun, {}, staggerAtMs), {}, impactAtMs - staggerAtMs)
+    });
+
+    expect(hammerHits).toHaveLength(4);
+    expect(countOccurrences(html, 'data-skill-impact-vfx="mountain-crack-hammer"')).toBe(4);
+    expect(html).toContain('data-impact-vfx-shape="mountain-crack"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-mountain-crack"');
+    expect(html).toContain('data-hit-phase="hammer-impact"');
+    expect(html).toContain('data-vfx-cue="mountain-crack-impact"');
+    expect(html).toContain('data-enemy-motion="knockdown"');
+  });
+
+  it("defines dedicated mountain crack player, weapon, cast, and impact animations", () => {
+    expect(stylesCss).toContain('[data-skill-animation-preset="iron-mountain-crack"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="mountain-hammer"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-mountain-crack");
+    expect(stylesCss).toContain(".skill-impact-shape-mountain-crack");
+    expect(stylesCss).toContain("@keyframes player-iron-mountain-crack-cast");
+    expect(stylesCss).toContain("@keyframes weapon-mountain-hammer");
+    expect(stylesCss).toContain("@keyframes mountain-crack-impact-core");
+  });
+
   it("renders prism-step as a prism-afterimage path pierce impact", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const state = {

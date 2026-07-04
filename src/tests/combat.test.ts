@@ -1170,6 +1170,126 @@ describe("combat actions and impact feel", () => {
     ).toBe(true);
   });
 
+  it("mountain-crack-hammer staggers first and then breaks armor on the impact frame", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)),
+      "mountain-cracking-smith"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 332, y: 340, hp: 280, maxHp: 280, armor: 34 },
+        { x: 402, y: 356, hp: 260, maxHp: 260, armor: 28 }
+      ]
+    );
+    const windingRun = {
+      ...run,
+      enemies: run.enemies.map((enemy) => ({
+        ...enemy,
+        attackStartedAtMs: 10,
+        attackImpactAtMs: 420,
+        attackRecoverUntilMs: 780,
+        attackSkillId: "ash-ember-spit",
+        attackHitResolved: false,
+        nextAttackAtMs: 20
+      }))
+    };
+
+    const cast = performAction(windingRun, { type: "skill", skillId: "mountain-crack-hammer" });
+    const hammerHits = cast.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mountain-crack-hammer"
+    );
+    const staggerAtMs = Math.min(...hammerHits.map((event) => event.occurredAtMs));
+    const impactAtMs = Math.max(...hammerHits.map((event) => event.occurredAtMs));
+    const beforeStagger = stepCombat(cast, {}, staggerAtMs - 1);
+    const staggerRun = stepCombat(cast, {}, staggerAtMs);
+    const impactRun = stepCombat(staggerRun, {}, impactAtMs - staggerAtMs);
+
+    expect(hammerHits).toHaveLength(4);
+    expect(hammerHits.map((event) => event.hitPhase)).toEqual([
+      "hammer-stagger",
+      "hammer-stagger",
+      "hammer-impact",
+      "hammer-impact"
+    ]);
+    expect(hammerHits.map((event) => event.vfxCue)).toEqual([
+      "mountain-hammer-stagger",
+      "mountain-hammer-stagger",
+      "mountain-crack-impact",
+      "mountain-crack-impact"
+    ]);
+    expect(new Set(hammerHits.map((event) => event.occurredAtMs))).toEqual(new Set([290, 380]));
+    expect(cast.scheduledEnemyHitEffects).toHaveLength(4);
+    expect(cast.enemies.map((enemy) => enemy.hp)).toEqual(windingRun.enemies.map((enemy) => enemy.hp));
+    expect(cast.enemies.every((enemy) => enemy.controlledUntilMs === undefined)).toBe(true);
+    expect(cast.enemies.every((enemy) => enemy.armorBrokenUntilMs === undefined)).toBe(true);
+    expect(cast.enemies.every((enemy) => !enemy.downed)).toBe(true);
+    expect(beforeStagger.enemies.map((enemy) => enemy.hp)).toEqual(windingRun.enemies.map((enemy) => enemy.hp));
+    expect(beforeStagger.enemies.every((enemy) => enemy.attackSkillId === "ash-ember-spit")).toBe(true);
+    expect(staggerRun.enemies.every((enemy) => (enemy.controlledUntilMs ?? 0) > staggerRun.elapsedMs)).toBe(true);
+    expect(staggerRun.enemies.every((enemy) => enemy.statusSourceSkillId === "mountain-crack-hammer")).toBe(true);
+    expect(staggerRun.enemies.every((enemy) => enemy.attackSkillId === undefined)).toBe(true);
+    expect(staggerRun.enemies.every((enemy) => enemy.nextAttackAtMs >= (enemy.controlledUntilMs ?? 0))).toBe(true);
+    expect(impactRun.enemies.every((enemy) => enemy.hp < staggerRun.enemies.find((source) => source.id === enemy.id)!.hp)).toBe(true);
+    expect(impactRun.enemies.every((enemy) => (enemy.armorBrokenUntilMs ?? 0) > impactRun.elapsedMs)).toBe(true);
+    expect(impactRun.enemies.every((enemy) => enemy.downed && (enemy.downedUntilMs ?? 0) > impactRun.elapsedMs)).toBe(true);
+  });
+
+  it("mountain-crack-hammer does not cancel enemy hits that landed before the stagger frame", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)),
+      "mountain-cracking-smith"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 332, y: 340, hp: 280, maxHp: 280, armor: 34 },
+        { x: 402, y: 356, hp: 260, maxHp: 260, armor: 28 }
+      ]
+    );
+    const earlyEnemyHitRun: CombatRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 200,
+              attackRecoverUntilMs: 620,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+
+    const cast = performAction(earlyEnemyHitRun, { type: "skill", skillId: "mountain-crack-hammer" });
+    const jumped = stepCombat(cast, {}, 380);
+    const playerHits = jumped.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.occurredAtMs === 200
+    );
+    const hammerHits = jumped.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mountain-crack-hammer"
+    );
+
+    expect(playerHits).toHaveLength(1);
+    expect(playerHits[0].skillId).toBe("ash-ember-spit");
+    expect(jumped.player.hp).toBeLessThan(cast.player.hp);
+    expect(hammerHits.map((event) => event.hitPhase)).toEqual([
+      "hammer-stagger",
+      "hammer-stagger",
+      "hammer-impact",
+      "hammer-impact"
+    ]);
+    expect(jumped.enemies[0].attackSkillId).toBeUndefined();
+    expect(jumped.enemies[0].controlledUntilMs ?? 0).toBeGreaterThan(jumped.elapsedMs);
+    expect(jumped.enemies[0].downed).toBe(true);
+  });
+
   it("meteor-knuckle resolves as staged fall and impact hits with forced knockdown", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),

@@ -1307,35 +1307,35 @@ p {
 
 .combat-enemy {
   gap: 5px;
-  width: clamp(130px, 10vw, 178px);
+  width: var(--enemy-body-width, 144px);
   filter: drop-shadow(0 16px 18px rgba(2, 6, 23, 0.82));
 }
 
 .combat-enemy-trash {
-  width: clamp(132px, 10vw, 180px);
+  width: var(--enemy-body-width, 144px);
 }
 
 .combat-enemy-elite {
-  width: clamp(154px, 12vw, 216px);
+  width: var(--enemy-body-width, 188px);
 }
 
 .combat-enemy-boss {
-  width: clamp(210px, 17vw, 300px);
+  width: var(--enemy-body-width, 260px);
 }
 
 .enemy-model-frame {
   width: 100%;
-  height: 116px;
+  height: var(--enemy-body-height, 116px);
   display: grid;
   place-items: end center;
 }
 
 .combat-enemy-elite .enemy-model-frame {
-  height: 148px;
+  height: var(--enemy-body-height, 148px);
 }
 
 .combat-enemy-boss .enemy-model-frame {
-  height: 216px;
+  height: var(--enemy-body-height, 216px);
 }
 
 .enemy-art {

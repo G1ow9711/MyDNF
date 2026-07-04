@@ -583,6 +583,47 @@ describe("combat actions and impact feel", () => {
     expect(far.events.at(-1)).toMatchObject({ kind: "miss", action: "heavy" });
   });
 
+  it("uses monster body and hurtbox size so large enemies can be hit at their visible edge", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const trashRun = withPlayerAndEnemies(
+      baseRun,
+      { x: 120, y: 340, facing: 1 },
+      [{ x: 310, y: 340 }]
+    );
+    const bossBaseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const bossRun = withPlayerAndEnemies(
+      bossBaseRun,
+      { x: 120, y: 340, facing: 1 },
+      [{ x: 310, y: 340, hp: 520, maxHp: 520, armor: 0 }]
+    );
+
+    expect(bossRun.enemies[0].kind).toBe("boss");
+    expect(bossRun.enemies[0].body.width).toBeGreaterThan(trashRun.enemies[0].body.width);
+    expect(bossRun.enemies[0].hurtbox.width).toBeGreaterThan(trashRun.enemies[0].hurtbox.width);
+
+    const trashHit = performAction(trashRun, { type: "light" });
+    const bossHit = performAction(bossRun, { type: "light" });
+
+    expect(trashHit.events.at(-1)).toMatchObject({ kind: "miss", action: "light" });
+    expect(lastHitEvent(bossHit).targetId).toBe(bossRun.enemies[0].id);
+  });
+
+  it("uses hurtbox overlap instead of center point for front-facing attacks", () => {
+    const bossRun = withPlayerAndEnemies(
+      reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley")),
+      { x: 120, y: 340, facing: 1 },
+      [{ x: 80, y: 340, hp: 520, maxHp: 520, armor: 0 }]
+    );
+
+    expect(bossRun.enemies[0].kind).toBe("boss");
+    expect(bossRun.enemies[0].position.x).toBeLessThan(bossRun.player.x);
+    expect(bossRun.enemies[0].position.x + bossRun.enemies[0].hurtbox.width / 2).toBeGreaterThan(bossRun.player.x);
+
+    const hit = performAction(bossRun, { type: "light" });
+
+    expect(lastHitEvent(hit).targetId).toBe(bossRun.enemies[0].id);
+  });
+
   it("targets the nearest alive enemy in front inside the attack lane", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(createInitialState(), "cinder-kiln-alley"),
@@ -1097,6 +1138,54 @@ describe("enemy attacks and player defeat", () => {
     expect(impacted.player.hitstopUntilMs).toBe(396);
     expect(impacted.player.hurtLockUntilMs).toBe(780);
     expect(impacted.player.invulnerableUntilMs).toBe(920);
+  });
+
+  it("uses monster hurtbox edges for monster skill attack range boundaries", () => {
+    const bossBaseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const makeBossAttackRun = (xOffset: number) => ({
+      ...bossBaseRun,
+      player: {
+        ...bossBaseRun.player,
+        x: 120,
+        y: 340
+      },
+      enemies: [
+        {
+          ...bossBaseRun.enemies[0],
+          position: {
+            x: 120 + xOffset,
+            y: 340
+          },
+          armor: 0,
+          nextAttackAtMs: 1
+        }
+      ]
+    });
+    const atEdge = makeBossAttackRun(425);
+    const outsideEdge = makeBossAttackRun(426);
+
+    const edgeImpact = stepCombat(stepCombat(atEdge, {}, 80), {}, 420);
+    const outsideImpact = stepCombat(stepCombat(outsideEdge, {}, 80), {}, 420);
+
+    expect(atEdge.enemies[0].hurtbox.width).toBe(190);
+    expect(edgeImpact.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "taotie-flame-breath"
+        })
+      ])
+    );
+    expect(outsideImpact.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-flame-breath")).toBe(false);
+    expect(outsideImpact.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          skillId: "taotie-flame-breath",
+          phase: "miss"
+        })
+      ])
+    );
   });
 
   it("makes taotie flame breath a sustained multi-hit boss skill", () => {

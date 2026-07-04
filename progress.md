@@ -1414,3 +1414,32 @@
   - `git diff --check`: pass with Windows line-ending warnings only.
   - Browser DOM validation on `http://127.0.0.1:5174/`: clicked real `后跳 C` button, player moved from `--actor-x: 16.67%` to `--actor-x: 8.96%`, `data-player-motion="dodge"`, `data-evade-active="true"`, `actor-model-dodge`, and existing skill hotkeys remained present.
   - Browser screenshot saved at `.codex-local/tmp/backstep-dodge-check.png`.
+
+## Task 51 Monster Body and Hurtbox Scale
+- Started while continuing the full DNF-like offline action RPG goal. This slice targets monster model credibility: visible monster size should match combat reach and hit feel.
+- Used two read-only parallel agents:
+  - `019f2ed6-7808-79b1-81bb-8d5d57d6639a` audited monster size/hurtbox gaps and confirmed combat used center-point range checks while CSS used visual tier widths.
+  - `019f2ed6-640a-7f52-adc8-20535146699c` audited remaining generic skill scripts and recommended `night-mark-detonation` as a next slice after the current hurtbox work.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires monsters to carry body/hurtbox sizes and lets a large boss be hit at its visible edge while a small trash enemy at the same center distance still misses.
+  - `src/tests/ui-smoke.test.ts` requires enemy DOM to expose body/hurtbox dimensions and CSS variables for browser-scale verification.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts` initially failed because `body/hurtbox` were undefined and DOM had no `data-enemy-body-*` / `data-enemy-hurtbox-*` attributes.
+- Implemented:
+  - Added `body` and `hurtbox` dimensions to `CombatEnemy` for trash, elite, and boss tiers.
+  - Updated player hitbox selection, target sorting, `prism-step` path overlap, and enemy attack range checks to consume hurtbox edges instead of only center points.
+  - Updated combat enemy DOM to expose body/hurtbox data attributes and CSS variables.
+  - Updated enemy actor width and frame height CSS to use those variables, keeping visual size and combat size linked.
+  - Tuned trash vertical hurtbox height so lane movement at arena edges can still dodge basic monster skills.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts`: pass, 71 tests.
+  - Browser DOM validation on `http://127.0.0.1:5174/.codex-local/tmp/hurtbox-check.html`: confirmed three rendered enemies with body sizes `144x116`, `188x148`, `260x216`; hurtbox sizes `82x52`, `132x96`, `190x128`; computed actor widths/heights increase from trash to elite to boss.
+  - Browser screenshot saved at `.codex-local/tmp/hurtbox-check.png`.
+  - Project instruction update: `AGENTS.md` now records that character/monster modeling can stay lightweight for the current prototype, but attack motion, hurt motion, movement transitions, player/enemy skill VFX, hitstop, and feedback remain strict acceptance items.
+- Code review follow-up:
+  - Read-only review caught a real front-only hitbox bug: large monster hurtboxes could overlap the player's front attack region while the monster center stayed behind the player, causing an incorrect miss.
+  - Added RED coverage for front-facing hurtbox overlap; initial `npm test -- src/tests/combat.test.ts` failed with `Expected last combat event to be a hit`.
+  - Added monster skill range boundary coverage at `range + hurtbox half width`, and strengthened UI tests to use production elite/boss rooms instead of mismatched `kind` mocks.
+  - Fixed front-facing attacks to check attack-interval and hurtbox-interval overlap.
+  - `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts`: pass, 73 tests.
+  - Browser DOM re-validation on `http://127.0.0.1:5174/.codex-local/tmp/hurtbox-check.html`: reconfirmed trash/elite/boss rendered dimensions `144x116`, `188x148`, `260x216`, hurtboxes `82x52`, `132x96`, `190x128`, and ascending computed actor sizes after the review fix.

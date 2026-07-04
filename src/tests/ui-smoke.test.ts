@@ -2,7 +2,16 @@
 
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { createCombatRun, performAction, stepCombat, type CombatEnemy, type CombatHitEvent, type CombatRun } from "../game/combat";
+import {
+  applyHit,
+  createCombatRun,
+  finishRoom,
+  performAction,
+  stepCombat,
+  type CombatEnemy,
+  type CombatHitEvent,
+  type CombatRun
+} from "../game/combat";
 import { createAudioState, setVolume } from "../systems/audio";
 import { createInitialState, createOwnedGear } from "../game/state";
 import { selectBaseClass } from "../systems/classes";
@@ -44,6 +53,37 @@ function withSingleReadyEnemy(run: CombatRun, enemyPatch: Partial<CombatEnemy>):
       }
     ]
   };
+}
+
+function defeatAll(run: CombatRun): CombatRun {
+  return run.enemies.reduce(
+    (next, enemy) =>
+      applyHit(next, {
+        id: `ui-test-kill-${enemy.id}`,
+        targetId: enemy.id,
+        damage: 9999,
+        hitstopMs: 1,
+        knockback: 0,
+        juggle: false
+      }),
+    run
+  );
+}
+
+function reachCombatRoom(run: CombatRun, roomIndex: number): CombatRun {
+  let next = run;
+  let guard = 0;
+
+  while (next.roomIndex < roomIndex) {
+    if (next.completed || guard > 8) {
+      throw new Error(`Unable to reach combat room ${roomIndex}`);
+    }
+
+    next = finishRoom(defeatAll(next));
+    guard += 1;
+  }
+
+  return next;
 }
 
 function countOccurrences(text: string, pattern: string): number {
@@ -149,32 +189,8 @@ describe("town app shell", () => {
   it("renders Shan Hai Jing inspired bitmap monster models by enemy tier", () => {
     const state = createInitialState();
     const trashRun = createCombatRun(state, "cinder-kiln-alley");
-    const eliteRun = {
-      ...trashRun,
-      enemies: [
-        {
-          ...trashRun.enemies[0],
-          kind: "elite" as const,
-          displayName: "窑狰卫",
-          hp: 180,
-          maxHp: 180,
-          armor: 30
-        }
-      ]
-    };
-    const bossRun = {
-      ...trashRun,
-      enemies: [
-        {
-          ...trashRun.enemies[0],
-          kind: "boss" as const,
-          displayName: "饕餮监工",
-          hp: 520,
-          maxHp: 520,
-          armor: 80
-        }
-      ]
-    };
+    const eliteRun = reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 1);
+    const bossRun = reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 2);
 
     expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain("/assets/monster-ash-rat.png");
     expect(renderAppHtml({ state, mode: "combat", combatRun: eliteRun })).toContain("/assets/monster-zheng-guard.png");
@@ -184,13 +200,27 @@ describe("town app shell", () => {
     );
   });
 
+  it("renders monster body and hurtbox dimensions so combat scale matches the model", () => {
+    const state = createInitialState();
+    const bossRun = reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 2);
+    const html = renderAppHtml({ state, mode: "combat", combatRun: bossRun });
+
+    expect(html).toContain('data-enemy-body-width="260"');
+    expect(html).toContain('data-enemy-body-height="216"');
+    expect(html).toContain('data-enemy-hurtbox-width="190"');
+    expect(html).toContain('data-enemy-hurtbox-height="128"');
+    expect(html).toMatch(/style="[^"]*--enemy-body-width: 260px;[^"]*--enemy-body-height: 216px;[^"]*--enemy-hurtbox-width: 190px;[^"]*--enemy-hurtbox-height: 128px;/);
+  });
+
   it("renders monster skill effects for trash, elite, and boss attack events", () => {
     const state = createInitialState();
     const baseRun = createCombatRun(state, "cinder-kiln-alley");
     const quietHtml = renderAppHtml({ state, mode: "combat", combatRun: baseRun });
-    const trashRun = stepCombat(withSingleReadyEnemy(baseRun, { kind: "trash" }), {}, 80);
-    const eliteRun = stepCombat(withSingleReadyEnemy(baseRun, { kind: "elite" }), {}, 80);
-    const bossRun = stepCombat(withSingleReadyEnemy(baseRun, { kind: "boss" }), {}, 80);
+    const eliteBaseRun = reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 1);
+    const bossBaseRun = reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 2);
+    const trashRun = stepCombat(withSingleReadyEnemy(baseRun, {}), {}, 80);
+    const eliteRun = stepCombat(withSingleReadyEnemy(eliteBaseRun, {}), {}, 80);
+    const bossRun = stepCombat(withSingleReadyEnemy(bossBaseRun, {}), {}, 80);
     const activeTrashRun = stepCombat(trashRun, {}, 500);
     const activeEliteRun = stepCombat(eliteRun, {}, 500);
     const activeBossRun = stepCombat(bossRun, {}, 500);

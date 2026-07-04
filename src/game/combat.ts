@@ -20,6 +20,16 @@ export interface CombatVector {
   y: number;
 }
 
+export interface CombatBodySize {
+  width: number;
+  height: number;
+}
+
+export interface CombatHurtboxSize {
+  width: number;
+  height: number;
+}
+
 export interface CombatEnemy {
   id: string;
   displayName: string;
@@ -27,6 +37,8 @@ export interface CombatEnemy {
   hp: number;
   maxHp: number;
   armor: number;
+  body: CombatBodySize;
+  hurtbox: CombatHurtboxSize;
   marks: number;
   position: CombatVector;
   airborne: boolean;
@@ -350,16 +362,37 @@ function getDungeon(dungeonId: string) {
   return catalog.dungeons.find((dungeon) => dungeon.id === dungeonId);
 }
 
-function enemyStats(kind: EnemyKind): Pick<CombatEnemy, "displayName" | "hp" | "maxHp" | "armor"> {
+function enemyStats(kind: EnemyKind): Pick<CombatEnemy, "displayName" | "hp" | "maxHp" | "armor" | "body" | "hurtbox"> {
   if (kind === "boss") {
-    return { displayName: "琉璃监工", hp: 520, maxHp: 520, armor: 80 };
+    return {
+      displayName: "琉璃监工",
+      hp: 520,
+      maxHp: 520,
+      armor: 80,
+      body: { width: 260, height: 216 },
+      hurtbox: { width: 190, height: 128 }
+    };
   }
 
   if (kind === "elite") {
-    return { displayName: "窑巷卫士", hp: 180, maxHp: 180, armor: 30 };
+    return {
+      displayName: "窑巷卫士",
+      hp: 180,
+      maxHp: 180,
+      armor: 30,
+      body: { width: 188, height: 148 },
+      hurtbox: { width: 132, height: 96 }
+    };
   }
 
-  return { displayName: "灰烬小妖", hp: 80, maxHp: 80, armor: 0 };
+  return {
+    displayName: "灰烬小妖",
+    hp: 80,
+    maxHp: 80,
+    armor: 0,
+    body: { width: 144, height: 116 },
+    hurtbox: { width: 82, height: 52 }
+  };
 }
 
 function enemyAttackDefinition(kind: EnemyKind): EnemyAttackDefinition {
@@ -470,10 +503,26 @@ function eventHitstop(enemy: CombatEnemy, hitstopMs: number): number {
 }
 
 function enemyDistanceScore(run: CombatRun, enemy: CombatEnemy): number {
-  const xDistance = Math.abs(enemy.position.x - run.player.x);
-  const yDistance = Math.abs(enemy.position.y - run.player.y);
+  const xDistance = Math.max(0, Math.abs(enemy.position.x - run.player.x) - enemy.hurtbox.width / 2);
+  const yDistance = Math.max(0, Math.abs(enemy.position.y - run.player.y) - enemy.hurtbox.height / 2);
 
   return xDistance * 10 + yDistance;
+}
+
+function axisDistanceOutsideHalfSize(distance: number, halfSize: number): number {
+  return Math.max(0, Math.abs(distance) - halfSize);
+}
+
+function enemyOverlapsFrontHitbox(run: CombatRun, enemy: CombatEnemy, hitbox: PlayerHitboxDefinition): boolean {
+  const halfWidth = enemy.hurtbox.width / 2;
+  const enemyMinX = enemy.position.x - halfWidth;
+  const enemyMaxX = enemy.position.x + halfWidth;
+
+  if (run.player.facing >= 0) {
+    return enemyMaxX >= run.player.x && enemyMinX <= run.player.x + hitbox.rangeX;
+  }
+
+  return enemyMinX <= run.player.x && enemyMaxX >= run.player.x - hitbox.rangeX;
 }
 
 function enemyInPlayerHitbox(run: CombatRun, enemy: CombatEnemy, hitbox: PlayerHitboxDefinition): boolean {
@@ -481,13 +530,11 @@ function enemyInPlayerHitbox(run: CombatRun, enemy: CombatEnemy, hitbox: PlayerH
     return false;
   }
 
-  const facingDistance = (enemy.position.x - run.player.x) * run.player.facing;
-  const xDistance = Math.abs(enemy.position.x - run.player.x);
-  const yDistance = Math.abs(enemy.position.y - run.player.y);
-  const inFront = hitbox.frontOnly ? facingDistance >= 0 : true;
-  const inRange = hitbox.frontOnly ? facingDistance <= hitbox.rangeX : xDistance <= hitbox.rangeX;
+  const xDistance = axisDistanceOutsideHalfSize(enemy.position.x - run.player.x, enemy.hurtbox.width / 2);
+  const yDistance = axisDistanceOutsideHalfSize(enemy.position.y - run.player.y, enemy.hurtbox.height / 2);
+  const inRange = hitbox.frontOnly ? enemyOverlapsFrontHitbox(run, enemy, hitbox) : xDistance <= hitbox.rangeX;
 
-  return inFront && inRange && yDistance <= hitbox.laneRange;
+  return inRange && yDistance <= hitbox.laneRange;
 }
 
 function selectPlayerTargets(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatEnemy[] {
@@ -866,7 +913,11 @@ function selectPrismStepTargets(run: CombatRun, scriptedRun: CombatRun, skill: C
         return false;
       }
 
-      return enemy.position.x >= minX && enemy.position.x <= maxX && Math.abs(enemy.position.y - run.player.y) <= laneRange;
+      const enemyMinX = enemy.position.x - enemy.hurtbox.width / 2;
+      const enemyMaxX = enemy.position.x + enemy.hurtbox.width / 2;
+      const yDistance = axisDistanceOutsideHalfSize(enemy.position.y - run.player.y, enemy.hurtbox.height / 2);
+
+      return enemyMaxX >= minX && enemyMinX <= maxX && yDistance <= laneRange;
     })
     .sort((left, right) => (left.position.x - right.position.x) * run.player.facing)
     .slice(0, 2);
@@ -1281,8 +1332,8 @@ function beginEnemyAttack(enemy: CombatEnemy, elapsedMs: number): { enemy: Comba
 }
 
 function playerInEnemyAttackRange(enemy: CombatEnemy, player: CombatPlayer, attack: EnemyAttackDefinition): boolean {
-  const xDistance = Math.abs(enemy.position.x - player.x);
-  const yDistance = Math.abs(enemy.position.y - player.y);
+  const xDistance = axisDistanceOutsideHalfSize(enemy.position.x - player.x, enemy.hurtbox.width / 2);
+  const yDistance = axisDistanceOutsideHalfSize(enemy.position.y - player.y, enemy.hurtbox.height / 2);
 
   return xDistance <= attack.rangeX && yDistance <= attack.laneRange;
 }

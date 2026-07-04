@@ -347,6 +347,10 @@ function combatActorStyle(run: CombatRun, x: number, y: number): string {
   return `--actor-x: ${xPercent}%; --actor-y: ${yPercent}%;`;
 }
 
+function enemyActorStyle(run: CombatRun, enemy: CombatEnemy): string {
+  return `${combatActorStyle(run, enemy.position.x, enemy.position.y)} --enemy-body-width: ${enemy.body.width}px; --enemy-body-height: ${enemy.body.height}px; --enemy-hurtbox-width: ${enemy.hurtbox.width}px; --enemy-hurtbox-height: ${enemy.hurtbox.height}px;`;
+}
+
 function playerModelMotionStyle(run: CombatRun, animation?: SkillAnimationDefinition): string {
   const facing = run.player.facing;
   const skillLunge = animation?.lungePx ?? 30;
@@ -810,7 +814,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const armorState = enemyArmorState(enemy, run.elapsedMs);
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" style="${enemyActorStyle(run, enemy)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
             <img class="enemy-art actor-model actor-model-${motion}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />

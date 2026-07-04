@@ -261,3 +261,12 @@
 - Existing `dodge` presentation hooks are sufficient for the first backstep slice: `data-player-motion="dodge"`, `data-evade-active="true"`, and `actor-model-dodge` already drive player model motion.
 - Implementation note: backstep is a pure defensive combat action. It moves opposite the current facing, keeps facing unchanged, opens a short evade/invulnerability window, starts an action lock, clears combo/cancel state, and emits no hit or miss events.
 - Agent review confirmed the minimal hook set: extend `CombatActionInput`, route `KeyC` before skill lookup, add a `data-combat-action="backstep"` button, and keep Space flowing through skill lookup for advanced classes.
+
+## Monster Body and Hurtbox Findings
+- Current monster art had visible size tiers, but combat still treated enemies as center points. This made large Shan Hai Jing monsters feel like tiny targets and weakened model/action credibility.
+- Read-only agent audit confirmed `CombatEnemy` lacked body/hurtbox dimensions, while player hitboxes, prism dash path checks, and enemy attack range checks all used center distance only.
+- Implementation note: monster body size now drives rendered actor width/height through CSS variables, while hurtbox size drives player-to-enemy hit tests, prism dash path overlap, target sorting, and enemy attack reach.
+- Balance note: trash enemies use a smaller vertical hurtbox than their full visual body so lane movement still dodges basic monster skills at the belt-scroll arena edges.
+- Verification hook note: enemy DOM now exposes `data-enemy-body-width`, `data-enemy-body-height`, `data-enemy-hurtbox-width`, `data-enemy-hurtbox-height`, plus matching CSS variables for browser checks.
+- Review follow-up: front-only player attacks must test overlap between the attack interval and the monster hurtbox interval, not only the monster center point. Otherwise large monsters whose center is behind the player but whose hurtbox crosses the attack origin can incorrectly miss.
+- Test helper note: `cinder-kiln-alley` currently has three rooms; elite is room `1` and boss is room `2`. UI tests now use production room progression with a guard instead of hand-mutating `kind` without matching dimensions.

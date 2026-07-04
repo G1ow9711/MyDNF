@@ -351,6 +351,41 @@ describe("playable app integration actions", () => {
     expect(cast.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "skill-burst" }]));
   });
 
+  it("disables cooling skill buttons and filters cooling skill hotkeys", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 80)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "anvil-crash" });
+
+    const coolingHtml = renderAppHtml(model);
+
+    expect(coolingHtml).toContain('data-combat-skill-id="anvil-crash"');
+    expect(coolingHtml).toContain('data-skill-cooldown-remaining="5200"');
+    expect(coolingHtml).toContain('data-cooldown-state="cooling"');
+    expect(coolingHtml).toContain("冷却 5.2s");
+    expect(combatActionForKeyCode(model.state, "KeyU", model.combatRun?.player.heat, false, model.combatRun)).toBeUndefined();
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const readyRun = {
+      ...model.combatRun,
+      elapsedMs: model.combatRun.elapsedMs + 5300
+    };
+    const readyHtml = renderAppHtml({ ...model, combatRun: readyRun });
+
+    expect(readyHtml).toContain('data-skill-cooldown-remaining="0"');
+    expect(combatActionForKeyCode(model.state, "KeyU", readyRun.player.heat, false, readyRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "anvil-crash"
+    });
+  });
+
   it("renders player skill burst VFX after casting a combat skill", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

@@ -22,6 +22,16 @@ function unlockLiuli(state: GameState): GameState {
   );
 }
 
+function withHeat(state: GameState, heat: number): GameState {
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      heat
+    }
+  };
+}
+
 function advanceTime(run: CombatRun, dtMs = 220): CombatRun {
   return stepCombat(run, {}, dtMs);
 }
@@ -140,6 +150,41 @@ describe("combat actions and impact feel", () => {
     });
     expect(canceled.player.actionLockUntilMs).toBeGreaterThan(light.player.actionLockUntilMs);
     expect(canceled.enemies[0].hp).toBeLessThan(light.enemies[0].hp);
+  });
+
+  it("tracks per-skill cooldowns and blocks recasting until the timer expires", () => {
+    const run = createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley");
+    const cast = performAction(run, { type: "skill", skillId: "anvil-crash" });
+    const blockedBase = stepCombat(cast, {}, 600);
+    const blockedReady = {
+      ...blockedBase,
+      player: {
+        ...blockedBase.player,
+        heat: 80,
+        actionLockUntilMs: 0
+      }
+    };
+
+    expect(cast.player.skillCooldowns["anvil-crash"]).toBe(run.elapsedMs + 5200);
+    expect(() => performAction(blockedReady, { type: "skill", skillId: "anvil-crash" })).toThrow(/cooldown/i);
+
+    const readyBase = stepCombat(cast, {}, 5300);
+    const ready = {
+      ...readyBase,
+      player: {
+        ...readyBase.player,
+        heat: 80,
+        actionLockUntilMs: 0
+      }
+    };
+    const recast = performAction(ready, { type: "skill", skillId: "anvil-crash" });
+
+    expect(lastHitEvent(recast)).toMatchObject({
+      kind: "hit",
+      action: "skill",
+      skillId: "anvil-crash"
+    });
+    expect(recast.player.skillCooldowns["anvil-crash"]).toBe(ready.elapsedMs + 5200);
   });
 
   it("uses stronger hitstop for heavy hits and reduced hitstop against boss armor", () => {

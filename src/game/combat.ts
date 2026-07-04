@@ -42,6 +42,7 @@ export interface CombatPlayer {
   invulnerableUntilMs: number;
   hurtLockUntilMs: number;
   defeated: boolean;
+  skillCooldowns: Record<string, number>;
 }
 
 export interface CombatArena {
@@ -292,7 +293,8 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       hitstopUntilMs: 0,
       invulnerableUntilMs: 0,
       hurtLockUntilMs: 0,
-      defeated: false
+      defeated: false,
+      skillCooldowns: {}
     },
     enemies: createRoomEnemies(dungeon.id, 0),
     events: [],
@@ -604,6 +606,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     throw new Error(`Insufficient class resource for skill: ${action.skillId}`);
   }
 
+  if (skillCooldownRemaining(run, action.skillId) > 0) {
+    throw new Error(`Skill on cooldown: ${action.skillId}`);
+  }
+
   const hitRun = applyHit(run, {
     id: `hit-${run.elapsedMs}-skill-${action.skillId}`,
     targetId: target.id,
@@ -624,9 +630,17 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       heat: clamp(hitRun.player.heat - skill.resourceCost + skill.resourceGain, 0, 100),
       comboStep: 0,
       actionLockUntilMs: run.elapsedMs + 420,
-      cancelWindowUntilMs: 0
+      cancelWindowUntilMs: 0,
+      skillCooldowns: {
+        ...hitRun.player.skillCooldowns,
+        [skill.id]: run.elapsedMs + skill.cooldownMs
+      }
     }
   };
+}
+
+export function skillCooldownRemaining(run: CombatRun, skillId: string): number {
+  return Math.max(0, (run.player.skillCooldowns[skillId] ?? 0) - run.elapsedMs);
 }
 
 function createLootEvent(run: CombatRun): CombatLootEvent {

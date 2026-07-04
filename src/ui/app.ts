@@ -3,6 +3,7 @@ import {
   createCombatRun,
   finishRoom,
   performAction,
+  skillCooldownRemaining,
   stepCombat,
   type CombatEnemy,
   type CombatEnemyAttackEvent,
@@ -172,7 +173,13 @@ function combatSkillsForState(state: GameState): ClassSkillDefinition[] {
   );
 }
 
-export function combatActionForKeyCode(state: GameState, code: string, heat?: number, dash = false): AppAction | undefined {
+export function combatActionForKeyCode(
+  state: GameState,
+  code: string,
+  heat?: number,
+  dash = false,
+  run?: CombatRun
+): AppAction | undefined {
   const movementByCode: Record<string, Pick<Extract<AppAction, { type: "combatMove" }>, "moveX" | "moveY">> = {
     ArrowLeft: { moveX: -1, moveY: 0 },
     KeyA: { moveX: -1, moveY: 0 },
@@ -212,7 +219,11 @@ export function combatActionForKeyCode(state: GameState, code: string, heat?: nu
 
   const skill = combatSkillsForState(state).find((item) => item.key === key);
 
-  if (!skill || (heat !== undefined && heat < skill.resourceCost)) {
+  if (
+    !skill ||
+    (heat !== undefined && heat < skill.resourceCost) ||
+    (run !== undefined && skillCooldownRemaining(run, skill.id) > 0)
+  ) {
     return undefined;
   }
 
@@ -457,9 +468,12 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const objective = roomFailed ? "failed" : roomCleared ? "cleared" : "active";
   const skillButtons = combatSkillsForState(state)
     .map((skill) => {
-      const disabled = roomCleared || roomFailed || run.player.heat < skill.resourceCost;
+      const cooldownRemaining = skillCooldownRemaining(run, skill.id);
+      const cooldownLabel = cooldownRemaining > 0 ? ` · 冷却 ${(cooldownRemaining / 1000).toFixed(1)}s` : "";
+      const cooldownState = cooldownRemaining > 0 ? "cooling" : "ready";
+      const disabled = roomCleared || roomFailed || run.player.heat < skill.resourceCost || cooldownRemaining > 0;
 
-      return `<button data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-skill-cost="${skill.resourceCost}" ${disabled ? "disabled" : ""}>${skill.displayName}<span>${skill.key} · ${skill.resourceCost}</span></button>`;
+      return `<button data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-skill-cost="${skill.resourceCost}" data-skill-cooldown-remaining="${cooldownRemaining}" data-cooldown-state="${cooldownState}" ${disabled ? "disabled" : ""}>${skill.displayName}<span>${skill.key} · ${skill.resourceCost}${cooldownLabel}</span></button>`;
     })
     .join("");
   const enemies = run.enemies
@@ -731,14 +745,25 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         };
       }
 
-      if (action.action === "light") {
-        combatRun = performAction(readyRun, { type: "light" });
-      } else if (action.action === "heavy") {
-        combatRun = performAction(readyRun, { type: "heavy" });
-      } else if (action.action === "skill") {
-        combatRun = performAction(readyRun, { type: "skill", skillId: action.skillId });
-      } else {
-        return model;
+      try {
+        if (action.action === "light") {
+          combatRun = performAction(readyRun, { type: "light" });
+        } else if (action.action === "heavy") {
+          combatRun = performAction(readyRun, { type: "heavy" });
+        } else if (action.action === "skill") {
+          combatRun = performAction(readyRun, { type: "skill", skillId: action.skillId });
+        } else {
+          return model;
+        }
+      } catch (error) {
+        const message = error instanceof Error && /cooldown/i.test(error.message) ? "技能冷却中" : error instanceof Error ? error.message : String(error);
+
+        return {
+          ...model,
+          combatRun: readyRun,
+          message,
+          audio: playSfx(model.audio, "ui-select")
+        };
       }
 
       return {
@@ -1106,7 +1131,13 @@ export function mountApp(root: HTMLDivElement): () => void {
         return;
       }
 
-      const action = combatActionForKeyCode(model.state, event.code, model.combatRun?.player.heat, event.shiftKey);
+      const action = combatActionForKeyCode(
+        model.state,
+        event.code,
+        model.combatRun?.player.heat,
+        event.shiftKey,
+        model.combatRun
+      );
 
       if (!action) {
         return;

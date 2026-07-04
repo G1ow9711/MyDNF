@@ -92,6 +92,7 @@ Phase 5 - Verification and Delivery
 - Current stricter continuation goal: move closer to DNF-style keyboard-controlled room combat; do not treat the current prototype as final until keyboard movement, combat gating, room flow, enemy behavior, and player-side acceptance are verified.
 - Current visual-combat continuation goal: combat actors must not be static; player strikes, player skills, monster hit reactions, and monster skill telegraphs need visible motion/effect states.
 - Current combat-loop continuation goal: monster skills must be real attacks with windup, hit/miss, player HP loss, defeat state, automatic combat ticking, and model motion for both attacker and target.
+- Current strict-DNF continuation gap after cooldown: gear/set/reinforcement/amplification stats must affect combat formulas, and class resources should stop being a generic heat-only model.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

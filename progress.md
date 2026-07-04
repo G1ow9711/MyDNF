@@ -812,3 +812,25 @@
   - `npm run build`: pass.
   - Edge headless browser check on `http://127.0.0.1:5174/`: initial combat had 2 monster bitmap models and no permanent enemy skill VFX; after moving into range and waiting for the combat tick, DOM showed 2 attacking monsters, enemy `actor-model-attack`, `ash-ember-spit` VFX in `active`/`miss` phases, and HP reduced to 972/1000.
   - Browser screenshot saved at `.codex-local/tmp/monster-browser-check.png`.
+
+## Task 27 Skill Cooldowns
+- Started after strict-DNF audit identified missing per-skill cooldowns as the next combat-feel gap.
+- Used parallel explorer agent `019f2c1c-ba47-7e12-90c3-fa4bccf4435d` for read-only gameplay gap review while implementing locally.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` verifies a class skill writes a cooldown ready timestamp, rejects recast during cooldown, and allows recast after the timer expires.
+  - `src/tests/app-integration.test.ts` verifies cooling skills render disabled with remaining time and hotkeys are filtered while a skill is cooling.
+- Implemented:
+  - `CombatPlayer.skillCooldowns` stores per-skill ready times.
+  - `performAction()` checks `skillCooldownRemaining()` before casting and writes `run.elapsedMs + skill.cooldownMs` on cast.
+  - Combat skill buttons expose `data-skill-cooldown-remaining`, `data-cooldown-state`, disabled state, and a `冷却 Ns` label.
+  - Keyboard skill mapping now receives the current `CombatRun` and refuses cooling skill hotkeys.
+  - Reducer catches stale cooldown casts and shows `技能冷却中` instead of throwing to the player.
+- Verification:
+  - RED confirmed: focused tests failed because `skillCooldowns` and cooldown button metadata were missing.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts`: pass, 39 tests.
+  - `npm test`: pass, 12 files and 138 tests.
+  - `npm run build`: pass.
+  - Edge headless browser check on `http://127.0.0.1:5174/`: after casting `furnace-step`, the button showed `data-cooldown-state="cooling"`, was disabled, had remaining cooldown `3460`, and displayed `冷却 3.5s`.
+- Explorer follow-up found the next highest-priority gaps after this task:
+  - P0: equipment, reinforcement, amplification, set bonuses, and build tags still do not enter combat damage/HP/cooldown formulas.
+  - P0: class resources are still represented as generic heat in combat even though class data defines heat/prism/ink/guard.

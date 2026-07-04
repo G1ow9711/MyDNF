@@ -76,6 +76,17 @@ export interface CombatArena {
   maxY: number;
 }
 
+export type CombatRoomGateState = "locked" | "open" | "boss" | "complete";
+
+export interface CombatRoomGate {
+  state: CombatRoomGateState;
+  x: number;
+  y: number;
+  roomIndex: number;
+  targetRoomIndex?: number;
+  label: string;
+}
+
 export interface CombatHitEvent {
   kind: "hit";
   id: string;
@@ -220,6 +231,12 @@ const arena: CombatArena = {
   minY: 260,
   maxY: 430
 };
+const roomEntranceX = 160;
+const roomEntranceY = 345;
+const roomGateX = 900;
+const roomGateY = 345;
+const roomGateEnterRangeX = 34;
+const roomGateEnterRangeY = 76;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -1247,6 +1264,56 @@ function createLootEvent(run: CombatRun): CombatLootEvent {
   };
 }
 
+function roomIsCleared(run: CombatRun): boolean {
+  return run.enemies.length === 0 || run.enemies.every((enemy) => enemy.hp <= 0);
+}
+
+export function roomGateForRun(run: CombatRun): CombatRoomGate {
+  const dungeon = getDungeon(run.dungeonId);
+
+  if (!dungeon) {
+    throw new Error(`Unknown dungeon: ${run.dungeonId}`);
+  }
+
+  const targetRoomIndex = run.roomIndex + 1;
+  const cleared = roomIsCleared(run);
+  const state: CombatRoomGateState =
+    run.failed || run.player.defeated || !cleared
+      ? "locked"
+      : run.completed || targetRoomIndex >= dungeon.rooms
+        ? "complete"
+        : targetRoomIndex === dungeon.rooms - 1
+          ? "boss"
+          : "open";
+
+  return {
+    state,
+    x: roomGateX,
+    y: roomGateY,
+    roomIndex: run.roomIndex,
+    targetRoomIndex: state === "open" || state === "boss" ? targetRoomIndex : undefined,
+    label: state === "complete" ? "通关出口" : state === "boss" ? "首领房门" : state === "open" ? "下一房门" : "封印房门"
+  };
+}
+
+export function canEnterRoomGate(run: CombatRun): boolean {
+  const gate = roomGateForRun(run);
+
+  return (
+    (gate.state === "open" || gate.state === "boss" || gate.state === "complete") &&
+    run.player.x >= gate.x - roomGateEnterRangeX &&
+    Math.abs(run.player.y - gate.y) <= roomGateEnterRangeY
+  );
+}
+
+export function enterRoomGate(run: CombatRun): CombatRun {
+  if (!canEnterRoomGate(run)) {
+    throw new Error("Room gate is not open or the player is not close enough to enter");
+  }
+
+  return finishRoom(run);
+}
+
 export function finishRoom(run: CombatRun): CombatRun {
   if (run.failed || run.player.defeated) {
     throw new Error("Cannot finish failed combat run");
@@ -1276,6 +1343,16 @@ export function finishRoom(run: CombatRun): CombatRun {
     roomIndex: completed ? run.roomIndex : nextRoomIndex,
     comboCount: 0,
     comboExpiresAtMs: 0,
+    player: {
+      ...run.player,
+      x: roomEntranceX,
+      y: roomEntranceY,
+      facing: 1,
+      comboStep: 0,
+      actionLockUntilMs: 0,
+      cancelWindowUntilMs: 0,
+      hitstopUntilMs: 0
+    },
     enemies: completed ? [] : createRoomEnemies(run.dungeonId, nextRoomIndex),
     events: [clearedEvent],
     lootEvents: [...run.lootEvents, lootEvent],

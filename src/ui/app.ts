@@ -1,8 +1,11 @@
 import { catalog } from "../data/catalog";
 import {
+  canEnterRoomGate,
   createCombatRun,
+  enterRoomGate,
   finishRoom,
   performAction,
+  roomGateForRun,
   skillCooldownRemaining,
   stepCombat,
   type CombatEnemy,
@@ -744,6 +747,22 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const roomCleared = run.enemies.length === 0 || run.enemies.every((enemy) => enemy.hp <= 0);
   const roomFailed = run.failed || run.player.defeated;
   const objective = roomFailed ? "failed" : roomCleared ? "cleared" : "active";
+  const roomGate = roomGateForRun(run);
+  const roomGateMarkup = `
+    <div class="room-gate room-gate-${roomGate.state}" data-room-gate="true" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" style="${combatActorStyle(run, roomGate.x, roomGate.y)}" aria-label="${roomGate.label}">
+      <span class="room-gate-core"></span>
+      <span class="room-gate-label">${roomGate.label}</span>
+    </div>
+  `;
+  const doorStatusLabel =
+    roomGate.state === "locked"
+      ? "房门封印"
+      : roomGate.state === "boss"
+        ? "前往首领房"
+        : roomGate.state === "complete"
+          ? "离开副本"
+          : "前往下一房";
+  const doorStatus = `<div class="door-status-button" data-door-state="${roomGate.state}" data-room-gate-state="${roomGate.state}">${doorStatusLabel}</div>`;
   const skillButtons = combatSkillsForState(state)
     .map((skill) => {
       const cooldownRemaining = skillCooldownRemaining(run, skill.id);
@@ -769,17 +788,18 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
     : `<div class="combo-meter is-idle" data-combo-active="false" data-combo-count="0"><strong>0</strong><span>CHAIN</span></div>`;
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
       </div>
       ${renderCombatActors(run, state)}
+      ${roomGateMarkup}
       ${renderCombatVfx(run)}
       ${comboMeter}
       ${
         roomCleared
-          ? `<div class="room-clear-banner"><strong>房间已清理</strong><span>点击“结算房间”进入下一段战斗</span></div>`
+          ? `<div class="room-clear-banner"><strong>房间已清理</strong><span>前往右侧房门进入下一段战斗</span></div>`
           : ""
       }
       ${
@@ -792,7 +812,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         <button data-combat-action="light" data-hotkey="J" ${roomCleared || roomFailed ? "disabled" : ""}>轻击<span>X/J</span></button>
         <button data-combat-action="heavy" data-hotkey="K" ${roomCleared || roomFailed ? "disabled" : ""}>重击<span>Z/K</span></button>
         ${skillButtons}
-        <button class="settle-button${roomCleared ? " is-ready" : ""}" data-combat-action="finish" ${roomFailed ? "disabled" : ""}>结算房间</button>
+        ${doorStatus}
         <button data-mode="town">返回</button>
       </div>
       <div class="combat-status">
@@ -911,6 +931,48 @@ function syncCombatResourceToState(state: GameState, run: CombatRun): GameState 
   };
 }
 
+function applyFinishedRoom(model: AppModel, finishedRun: CombatRun, roomMessage: string): AppModel {
+  const latestLoot = finishedRun.lootEvents[finishedRun.lootEvents.length - 1];
+  const resourceState = syncCombatResourceToState(model.state, finishedRun);
+  let nextState = latestLoot ? applyCombatLoot(resourceState, latestLoot) : resourceState;
+
+  if (finishedRun.completed) {
+    nextState = applyQuestEvent(nextState, { type: "dungeonCleared", dungeonId: finishedRun.dungeonId });
+
+    return {
+      ...model,
+      state: nextState,
+      mode: "town",
+      combatRun: undefined,
+      message: "副本通关，战利品已入账",
+      audio: playSfx(playBgm(model.audio, chooseMusicLayer({ mode: "town" }).trackId), "loot-drop")
+    };
+  }
+
+  return {
+    ...model,
+    state: nextState,
+    combatRun: {
+      ...finishedRun,
+      state: nextState
+    },
+    message: roomMessage,
+    audio: playSfx(model.audio, "loot-drop")
+  };
+}
+
+function enterGateIfReady(model: AppModel, run: CombatRun): AppModel | undefined {
+  if (!canEnterRoomGate(run)) {
+    return undefined;
+  }
+
+  const gate = roomGateForRun(run);
+  const finishedRun = enterRoomGate(run);
+  const message = gate.state === "boss" ? "进入首领房间" : "进入下一房间";
+
+  return applyFinishedRoom(model, finishedRun, message);
+}
+
 export function createAppModel(options: CreateAppModelOptions = {}): AppModel {
   const townMusic = chooseMusicLayer({ mode: "town" });
   const storage = options.storage ?? defaultStorage();
@@ -986,6 +1048,11 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           },
           160
         );
+        const gateTransition = enterGateIfReady({ ...model, combatRun }, combatRun);
+
+        if (gateTransition) {
+          return gateTransition;
+        }
 
         return {
           ...model,
@@ -1017,40 +1084,13 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           };
         }
 
-        const finishedRun = finishRoom(model.combatRun);
-        const latestLoot = finishedRun.lootEvents[finishedRun.lootEvents.length - 1];
-        const resourceState = syncCombatResourceToState(model.state, finishedRun);
-        let nextState = latestLoot ? applyCombatLoot(resourceState, latestLoot) : resourceState;
-
-        if (finishedRun.completed) {
-          nextState = applyQuestEvent(nextState, { type: "dungeonCleared", dungeonId: finishedRun.dungeonId });
-
-          return {
-            ...model,
-            state: nextState,
-            mode: "town",
-            combatRun: undefined,
-            message: "副本通关，战利品已入账",
-            audio: playSfx(playBgm(model.audio, chooseMusicLayer({ mode: "town" }).trackId), "loot-drop")
-          };
-        }
-
-        return {
-          ...model,
-          state: nextState,
-          combatRun: {
-            ...finishedRun,
-            state: nextState
-          },
-          message: "房间结算完成",
-          audio: playSfx(model.audio, "loot-drop")
-        };
+        return applyFinishedRoom(model, finishRoom(model.combatRun), "房间结算完成");
       }
 
       if (model.combatRun.enemies.every((enemy) => enemy.hp <= 0)) {
         return {
           ...model,
-          message: "房间已清理，请点击结算房间",
+          message: "房间已清理，请前往右侧房门",
           audio: playSfx(model.audio, "ui-select")
         };
       }

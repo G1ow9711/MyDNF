@@ -230,8 +230,11 @@ describe("town app shell", () => {
     const html = renderAppHtml({ state, mode: "combat", combatRun: clearedRun });
 
     expect(html).toContain('data-combat-objective="cleared"');
+    expect(html).toContain('data-room-gate-state="open"');
+    expect(html).toContain('data-room-gate-target-room="1"');
     expect(html).toContain('class="room-clear-banner"');
     expect(html).toContain('data-enemy-state="defeated"');
+    expect(html).not.toContain("settle-button");
   });
 
   it("renders the playable town as the first screen instead of a landing page", () => {

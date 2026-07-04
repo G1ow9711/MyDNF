@@ -148,8 +148,24 @@ function defeatCurrentRoom(model: ReturnType<typeof createAppModel>): ReturnType
   return next;
 }
 
+function walkThroughOpenGate(model: ReturnType<typeof createAppModel>): ReturnType<typeof createAppModel> {
+  let next = model;
+
+  for (
+    let attempt = 0;
+    attempt < 20 &&
+    next.mode === "combat" &&
+    next.combatRun?.enemies.every((enemy) => enemy.hp <= 0);
+    attempt += 1
+  ) {
+    next = reduceAppAction(next, { type: "combatMove", moveX: 1, moveY: 0, dash: true });
+  }
+
+  return next;
+}
+
 function settleClearedRoom(model: ReturnType<typeof createAppModel>): ReturnType<typeof createAppModel> {
-  return reduceAppAction(defeatCurrentRoom(model), { type: "combatAction", action: "finish" });
+  return walkThroughOpenGate(defeatCurrentRoom(model));
 }
 
 function readyFirstEnemyAttack(model: ReturnType<typeof createAppModel>): ReturnType<typeof createAppModel> {
@@ -301,6 +317,30 @@ describe("playable app integration actions", () => {
     expect(refused.message).toContain("击败所有怪物");
   });
 
+  it("opens a visible room gate and enters the next room by walking into it", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+    const goldBefore = model.state.player.currencies.gold;
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = defeatCurrentRoom(model);
+
+    const clearedHtml = renderAppHtml(model);
+
+    expect(clearedHtml).toContain('data-room-gate-state="open"');
+    expect(clearedHtml).toContain('data-room-gate-target-room="1"');
+    expect(clearedHtml).not.toContain("settle-button");
+
+    for (let attempt = 0; attempt < 20 && model.combatRun?.roomIndex === 0; attempt += 1) {
+      model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: true });
+    }
+
+    expect(model.combatRun?.roomIndex).toBe(1);
+    expect(model.combatRun?.player.x).toBeLessThan(220);
+    expect(model.state.player.currencies.gold).toBeGreaterThan(goldBefore);
+    expect(model.message).toContain("进入下一房间");
+    expect(renderAppHtml(model)).toContain('data-room-gate-state="locked"');
+  });
+
   it("maps PC movement keys to combat movement actions", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 
@@ -342,7 +382,7 @@ describe("playable app integration actions", () => {
     expect(html).toContain("冷却");
   });
 
-  it("prompts settlement instead of attacking an already cleared combat room", () => {
+  it("prompts gate entry instead of attacking an already cleared combat room", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 
     model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
@@ -362,7 +402,7 @@ describe("playable app integration actions", () => {
 
     const next = reduceAppAction(model, { type: "combatAction", action: "light" });
 
-    expect(next.message).toContain("结算房间");
+    expect(next.message).toContain("右侧房门");
     expect(next.combatRun).toEqual(model.combatRun);
   });
 
@@ -590,7 +630,7 @@ describe("playable app integration actions", () => {
     const clearedHtml = renderAppHtml(model);
     expect(clearedHtml).toContain('data-player-motion="heavy"');
 
-    model = reduceAppAction(model, { type: "combatAction", action: "finish" });
+    model = walkThroughOpenGate(model);
 
     const nextRoomHtml = renderAppHtml(model);
     expect(model.combatRun?.roomIndex).toBe(1);
@@ -864,10 +904,10 @@ describe("playable app integration actions", () => {
     model = defeatCurrentRoom(model);
 
     const resourceBeforeSettlement = model.combatRun?.player.resource.current;
-    const settled = reduceAppAction(model, { type: "combatAction", action: "finish" });
+    const settled = walkThroughOpenGate(model);
 
     expect(resourceBeforeSettlement).toBeGreaterThan(20);
-    expect(settled.state.player.heat).toBe(resourceBeforeSettlement);
+    expect(settled.state.player.heat).toBe(settled.combatRun?.player.resource.current);
   });
 
   it("disables cooling skill buttons and filters cooling skill hotkeys", () => {

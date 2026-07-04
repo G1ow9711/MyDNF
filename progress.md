@@ -1172,3 +1172,29 @@
   - `git diff --check`: pass with Windows line-ending warnings only.
   - Browser validation on `http://127.0.0.1:5174/`: `furnace-step` moved the player from 23.67% to 36.58% X and rendered `furnace-trail`; `heat-bloom` pulled both enemies closer to center and rendered `heat-bloom`; `black-rain-volley` rendered `ink-volley` / `black-rain` with 6 damage numbers and 6 impact sparks; `anvil-guard` rendered `actor-model-shield`, `data-shield-active="true"`, and `guard-rune`.
   - Browser screenshot saved at `.codex-local/tmp/skill-script-v1-check.png`.
+
+## Task 42 DNF-Style Room Gate Flow
+- Started after the user clarified that simple character models are acceptable for now only as a modeling-fidelity compromise; combat motion, hit feel, skill VFX, monster skills, and action changes remain strict acceptance items.
+- Used two read-only parallel agents:
+  - `019f2dbb-fffe-7f71-a616-77f702648f5b` audited combat room completion and identified the lack of gate state and player-position-gated room entry.
+  - `019f2dbc-1403-78e1-a19d-c7df437fba55` audited UI/CSS and recommended replacing the settlement button with a right-side room gate plus DOM state attributes.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires cleared rooms to open a gate, block entry until the player reaches it, reset player position in the next room, mark boss doors distinctly, and mark final clear as complete.
+  - `src/tests/app-integration.test.ts` requires the app to render the visible open gate, remove `settle-button`, and enter the next room by walking right.
+  - `src/tests/ui-smoke.test.ts` requires cleared combat rooms to expose gate state and target room attributes.
+- RED evidence:
+  - Focused tests first failed because `roomGateForRun` did not exist and the UI still rendered the old clear banner plus `settle-button`.
+- Implemented:
+  - Added `CombatRoomGate`, `roomGateForRun()`, `canEnterRoomGate()`, and `enterRoomGate()` to combat.
+  - Reset player position/facing/action locks when entering a new room.
+  - Reworked app movement so `combatMove` enters the gate when close enough, applies loot/XP/quest progress, and returns to town on final completion.
+  - Rendered locked/open/boss/complete room-gate states and replaced the settlement button with a door status indicator.
+  - Added CSS for the visible gate, open/boss/complete glow states, and gate pulse animation.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 97 tests.
+  - `npm test`: pass, 13 files and 193 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Browser validation on `http://127.0.0.1:5174/`: entered `灰窑巷`, defeated two room-1 enemies through keyboard/buttons, verified `data-room-gate-state="open"` and clear banner, walked right through the gate, reached room 2 with player reset near entrance, new enemies spawned, `data-room-gate-state="locked"`, and toast `进入下一房间`.
+  - Browser console error log: empty.
+  - Browser screenshot saved at `.codex-local/tmp/room-gate-flow-check.png`.

@@ -198,3 +198,10 @@
 - Browser validation on `http://127.0.0.1:5174/` confirmed `furnace-step` moved the player from 23.67% to 36.58% X while showing `furnace-trail`, `heat-bloom` pulled both enemies closer to its center and showed `heat-bloom` VFX, `black-rain-volley` showed `ink-volley` / `black-rain` with 6 damage numbers and 6 impact sparks, and `anvil-guard` rendered `actor-model-shield` with `data-shield-active="true"` and `guard-rune` VFX.
 - Live browser validation exposed a playability gap: J/K class skills were filtered from the skill button bar, so `anvil-guard` was test-callable but not clickable. The UI now renders J/K class skills as mouse-clickable skill buttons while keyboard J/K remain light/heavy attack shortcuts.
 - Screenshot evidence for the skill-script browser pass is saved at `.codex-local/tmp/skill-script-v1-check.png`.
+
+## Room Gate Flow Findings
+- User clarified the acceptance rule again: character models may stay lightweight while the prototype is being made playable, but combat motion smoothness, hit feel, skill VFX, monster skills, and action-state changes stay strict.
+- Read-only room-flow audit found the old room finish flow was not DNF-like because clearing enemies exposed a UI settlement action instead of opening a physical room gate. The new flow keeps `finishRoom()` for compatibility but routes player-facing progress through `roomGateForRun()` and `enterRoomGate()`.
+- Room gate state is now explicit: active rooms show `locked`, cleared normal rooms show `open`, the pre-boss transition shows `boss`, and the final cleared room shows `complete`.
+- App integration now requires walking right into the gate before loot and the next room are applied. This preserves keyboard movement as part of the dungeon loop instead of converting clear-room into a menu action.
+- UI no longer renders `settle-button`; the combat scene renders a visible right-side room gate plus a non-clickable door status indicator, so the player reads the goal as movement-based progression.

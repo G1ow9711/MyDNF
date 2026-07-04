@@ -101,7 +101,8 @@ Phase 5 - Verification and Delivery
 - Current strict-combat presentation progress: skill hit frames now drive real impact event timing, hitstop/sparks/screen shake start on the hit frame, player cast motion starts at input, monster windup telegraphs are separated from active/miss monster skill VFX, and CSS consumes catalog skill duration through `--skill-duration`.
 - Current per-skill script progress: `furnace-step` now applies startup dash movement before resolving hitbox, `heat-bloom` pulls enemies toward a skill center, `black-rain-volley` emits staggered multi-hit events, and `anvil-guard` opens a real guard mitigation window with shield motion in UI.
 - Current playable-skill accessibility progress: J/K class skills such as `anvil-guard` now render as clickable skill buttons while keyboard J/K remain basic light/heavy attacks.
-- Remaining strict-DNF combat gaps: deeper scripts for remaining skills, class-specific animation timelines, enemy hurtbox sizing, multi-target VFX placement per enemy, weapon atlas/frame animation beyond static SVG assets, DNF-style clear-room gate/door progression, and a formal save migration from `heat` alias to class-resource storage.
+- Current DNF-style room-flow progress: clearing a room now opens a right-side gate/door, walking to the gate enters the next room or boss room, and final gate completion returns to town with loot/quest progress.
+- Remaining strict-DNF combat gaps: deeper scripts for remaining skills, class-specific animation timelines, enemy hurtbox sizing, multi-target VFX placement per enemy, weapon atlas/frame animation beyond static SVG assets, stronger room-transition staging, and a formal save migration from `heat` alias to class-resource storage.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

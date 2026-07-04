@@ -1778,6 +1778,137 @@ p {
   background: linear-gradient(90deg, rgba(252, 211, 77, 0.9), rgba(239, 68, 68, 0.62), transparent);
 }
 
+.room-gate {
+  position: absolute;
+  left: var(--actor-x);
+  top: var(--actor-y);
+  z-index: 3;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 118px;
+  min-height: 150px;
+  pointer-events: none;
+  transform: translate(-50%, -96%) scale(var(--depth-scale, 1));
+  transform-origin: center bottom;
+  filter: drop-shadow(0 20px 24px rgba(2, 6, 23, 0.78));
+}
+
+.room-gate-core {
+  position: relative;
+  width: 74px;
+  height: 124px;
+  border: 2px solid rgba(148, 163, 184, 0.5);
+  border-radius: 46% 46% 12px 12px;
+  background:
+    radial-gradient(ellipse at 50% 28%, rgba(148, 163, 184, 0.26), transparent 42%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.95));
+  box-shadow:
+    inset 0 0 24px rgba(2, 6, 23, 0.8),
+    0 0 20px rgba(148, 163, 184, 0.22);
+}
+
+.room-gate-core::before,
+.room-gate-core::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.room-gate-core::before {
+  left: 50%;
+  top: 15%;
+  width: 44px;
+  height: 74px;
+  border: 1px solid rgba(248, 250, 252, 0.18);
+  border-radius: 50% 50% 10px 10px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.36), rgba(2, 6, 23, 0.76));
+}
+
+.room-gate-core::after {
+  left: 50%;
+  bottom: -7px;
+  width: 112px;
+  height: 18px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse, rgba(2, 6, 23, 0.78), transparent 72%);
+}
+
+.room-gate-label {
+  padding: 3px 8px;
+  border: 1px solid rgba(248, 250, 252, 0.2);
+  border-radius: 999px;
+  color: #dbeafe;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  background: rgba(2, 6, 23, 0.82);
+}
+
+.room-gate-locked {
+  opacity: 0.58;
+  filter: grayscale(0.45) drop-shadow(0 20px 24px rgba(2, 6, 23, 0.78));
+}
+
+.room-gate-open .room-gate-core,
+.room-gate-boss .room-gate-core,
+.room-gate-complete .room-gate-core {
+  animation: gate-pulse 1.25s ease-in-out infinite;
+}
+
+.room-gate-open .room-gate-core {
+  border-color: rgba(103, 232, 249, 0.72);
+  background:
+    radial-gradient(ellipse at 50% 28%, rgba(125, 211, 252, 0.52), transparent 46%),
+    linear-gradient(180deg, rgba(8, 47, 73, 0.94), rgba(15, 23, 42, 0.96));
+  box-shadow:
+    inset 0 0 28px rgba(14, 165, 233, 0.34),
+    0 0 26px rgba(103, 232, 249, 0.34);
+}
+
+.room-gate-boss .room-gate-core {
+  border-color: rgba(251, 191, 36, 0.86);
+  background:
+    radial-gradient(ellipse at 50% 28%, rgba(251, 191, 36, 0.58), transparent 46%),
+    linear-gradient(180deg, rgba(120, 53, 15, 0.95), rgba(15, 23, 42, 0.96));
+  box-shadow:
+    inset 0 0 30px rgba(251, 146, 60, 0.38),
+    0 0 32px rgba(250, 204, 21, 0.38);
+}
+
+.room-gate-complete .room-gate-core {
+  border-color: rgba(167, 139, 250, 0.86);
+  background:
+    radial-gradient(ellipse at 50% 28%, rgba(167, 139, 250, 0.6), transparent 46%),
+    linear-gradient(180deg, rgba(49, 46, 129, 0.94), rgba(15, 23, 42, 0.96));
+  box-shadow:
+    inset 0 0 32px rgba(167, 139, 250, 0.4),
+    0 0 34px rgba(196, 181, 253, 0.38);
+}
+
+.door-status-button {
+  display: inline-grid;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-weight: 700;
+  background: rgba(15, 23, 42, 0.82);
+}
+
+.door-status-button[data-door-state="open"],
+.door-status-button[data-door-state="boss"],
+.door-status-button[data-door-state="complete"] {
+  border-color: rgba(250, 204, 21, 0.76);
+  color: #fef3c7;
+  background: rgba(120, 53, 15, 0.9);
+  box-shadow: 0 0 18px rgba(250, 204, 21, 0.2);
+}
+
 .room-clear-banner {
   position: absolute;
   left: 50%;
@@ -2152,6 +2283,17 @@ p {
 @keyframes telegraph-scan {
   0%, 100% { opacity: 0.18; transform: translateX(-50%) scaleX(0.62); }
   50% { opacity: 0.9; transform: translateX(-50%) scaleX(1.05); }
+}
+
+@keyframes gate-pulse {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.04);
+    filter: brightness(1.18);
+  }
 }
 
 @media (max-width: 860px) {

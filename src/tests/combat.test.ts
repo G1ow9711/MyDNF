@@ -8,8 +8,10 @@ import { applyQuestEvent, claimQuestReward } from "../systems/quests";
 import {
   applyHit,
   createCombatRun,
+  enterRoomGate,
   finishRoom,
   performAction,
+  roomGateForRun,
   stepCombat,
   type CombatEnemy,
   type CombatHitEvent,
@@ -878,6 +880,64 @@ describe("enemy attacks and player defeat", () => {
 });
 
 describe("room completion", () => {
+  it("opens a room gate after clear and requires walking to it before entering the next room", () => {
+    const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const defeated = defeatAll(run);
+    const gate = roomGateForRun(defeated);
+
+    expect(roomGateForRun(run).state).toBe("locked");
+    expect(gate.state).toBe("open");
+    expect(gate.x).toBeGreaterThan(850);
+    expect(() => enterRoomGate(defeated)).toThrow(/gate/i);
+
+    const atGate = {
+      ...defeated,
+      player: {
+        ...defeated.player,
+        x: gate.x,
+        y: gate.y
+      }
+    };
+    const next = enterRoomGate(atGate);
+
+    expect(next.roomIndex).toBe(1);
+    expect(next.player.x).toBeLessThan(220);
+    expect(next.enemies.length).toBeGreaterThan(0);
+    expect(next.lootEvents.at(-1)).toMatchObject({
+      dungeonId: "cinder-kiln-alley",
+      roomIndex: 0,
+      gold: 120,
+      ironDust: 6
+    });
+    expect(next.events.at(-1)?.kind).toBe("room-cleared");
+  });
+
+  it("marks the boss door and final clear gate distinctly", () => {
+    const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const roomOne = enterRoomGate({
+      ...defeatAll(run),
+      player: {
+        ...run.player,
+        x: roomGateForRun(defeatAll(run)).x,
+        y: roomGateForRun(defeatAll(run)).y
+      }
+    });
+    const bossGateRun = defeatAll(roomOne);
+    const bossGate = roomGateForRun(bossGateRun);
+    const bossRoom = enterRoomGate({
+      ...bossGateRun,
+      player: {
+        ...bossGateRun.player,
+        x: bossGate.x,
+        y: bossGate.y
+      }
+    });
+    const finalClear = defeatAll(bossRoom);
+
+    expect(bossGate.state).toBe("boss");
+    expect(roomGateForRun(finalClear).state).toBe("complete");
+  });
+
   it("emits loot when a room is cleared and spawns the next room", () => {
     const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
     const defeated = defeatAll(run);

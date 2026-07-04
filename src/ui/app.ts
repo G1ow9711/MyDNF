@@ -33,6 +33,7 @@ import { applyQuestEvent, claimQuestReward, getActiveQuestText } from "../system
 import { loadGame, saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 import { buyShopItem, openRandomBox } from "../systems/shop";
 import { amplify, reinforce } from "../systems/upgrades";
+import { equippedWeaponAppearanceFor, type EquippedWeaponAppearance } from "../systems/weapon-appearance";
 import { heroAssetForClass } from "./assets";
 import {
   renderAuctionPanel,
@@ -232,6 +233,30 @@ export function combatActionForKeyCode(
   return { type: "combatAction", action: "skill", skillId: skill.id };
 }
 
+function weaponLayerStyle(equipped: EquippedWeaponAppearance, layer: "town" | "combat"): string {
+  const anchor = layer === "town" ? equipped.appearance.townAnchor : equipped.appearance.combatAnchor;
+
+  return `--weapon-primary: ${equipped.appearance.palette.primary}; --weapon-secondary: ${equipped.appearance.palette.secondary}; --weapon-glow: ${equipped.appearance.palette.glow}; --weapon-anchor-x: ${anchor.x}%; --weapon-anchor-y: ${anchor.y}%; --weapon-scale: ${anchor.scale}; --weapon-rotation: ${anchor.rotation}deg;`;
+}
+
+function weaponLayerMarkup(state: GameState, layer: "town" | "combat"): string {
+  const equipped = equippedWeaponAppearanceFor(state);
+
+  if (!equipped) {
+    return "";
+  }
+
+  const appearance = equipped.appearance;
+  const layerClass = layer === "town" ? "town-weapon" : "combat-weapon";
+  const combatAttr = layer === "combat" ? ` data-combat-weapon-appearance-id="${appearance.id}"` : "";
+
+  return `
+    <div class="${layerClass} weapon-layer weapon-layer-${appearance.rarity}" data-weapon-appearance-id="${appearance.id}"${combatAttr} data-equipped-weapon-id="${equipped.owned.instanceId}" data-weapon-class-id="${appearance.classId}" data-weapon-type="${appearance.weaponType}" data-weapon-tier="${appearance.tier}" data-weapon-rarity="${appearance.rarity}" data-weapon-level="${equipped.gear.level}" style="${weaponLayerStyle(equipped, layer)}" aria-label="${appearance.displayName}">
+      <span class="weapon-shape weapon-shape-${appearance.silhouette}" aria-hidden="true"></span>
+    </div>
+  `;
+}
+
 function renderTownScene(model: AppViewModel): string {
   const state = model.state;
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
@@ -249,6 +274,7 @@ function renderTownScene(model: AppViewModel): string {
       </div>
       <div class="hero-portrait" aria-label="${classDef?.displayName ?? state.player.classId}">
         <img class="hero-art" data-hero-class-id="${state.player.classId}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
+        ${weaponLayerMarkup(state, "town")}
       </div>
       <div class="town-hud">
         <h1>烬璃纪元</h1>
@@ -574,6 +600,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
     <div class="combat-actors" data-last-hit-target="${lastHit?.targetId ?? ""}">
       <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
         <img class="combat-player-art actor-model actor-model-${playerMotionName}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
+        ${weaponLayerMarkup(state, "combat")}
         <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>
       </div>
       ${enemyActors}

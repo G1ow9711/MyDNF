@@ -283,6 +283,38 @@ describe("town app shell", () => {
     expect(html).toContain("赤矿机括");
   });
 
+  it("mounts the equipped weapon layer on town and combat player models", () => {
+    const mythicWeapon = catalog.gear.find((item) => item.id === "mythic-liuli-flow-weapon");
+
+    if (!mythicWeapon) {
+      throw new Error("Expected mythic weapon gear");
+    }
+
+    const baseState = selectBaseClass(createInitialState(), "liuli-blademage");
+    const owned = createOwnedGear(mythicWeapon.id, "mythic-weapon");
+    const state = {
+      ...baseState,
+      player: {
+        ...baseState.player,
+        inventory: [owned],
+        equipment: {
+          weapon: owned.instanceId
+        }
+      }
+    };
+    const townHtml = renderAppHtml({ state, mode: "town" });
+    const combatHtml = renderAppHtml({ state, mode: "combat", combatRun: createCombatRun(state, "cinder-kiln-alley") });
+
+    expect(townHtml).toContain('class="town-weapon weapon-layer weapon-layer-mythic"');
+    expect(townHtml).toContain('data-weapon-appearance-id="weapon-liuli-blademage-mythic"');
+    expect(townHtml).toContain('data-weapon-type="liuli-blade"');
+    expect(townHtml).toContain('data-equipped-weapon-id="owned-mythic-liuli-flow-weapon-mythic-weapon"');
+    expect(combatHtml).toContain('class="combat-weapon weapon-layer weapon-layer-mythic"');
+    expect(combatHtml).toContain('data-combat-weapon-appearance-id="weapon-liuli-blademage-mythic"');
+    expect(combatHtml).toContain('data-weapon-type="liuli-blade"');
+    expect(combatHtml).toContain('weapon-shape-heaven-mirror-sword');
+  });
+
   it("renders four base classes and advancement choices in the class panel", () => {
     const html = renderClassPanel(createInitialState());
 

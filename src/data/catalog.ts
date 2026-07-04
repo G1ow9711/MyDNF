@@ -9,7 +9,10 @@ import type {
   Rarity,
   SkillDef,
   TownDef,
-  WeaponAppearanceDefinition
+  WeaponAppearanceDefinition,
+  WeaponAppearanceTier,
+  WeaponAnchor,
+  WeaponType
 } from "../game/types";
 
 const slots: readonly GearSlot[] = [
@@ -339,7 +342,68 @@ const mythicGear: GearItem[] = epicSets.flatMap((set) =>
 
 export const gear: GearItem[] = [...nonSetGear, ...epicGear, ...mythicGear];
 
-export const weaponAppearances: WeaponAppearanceDefinition[] = [
+const weaponTierRarity: Record<WeaponAppearanceTier, Rarity> = {
+  novice: "common",
+  refined: "uncommon",
+  rare: "rare",
+  epic: "epic",
+  mythic: "mythic"
+};
+
+const weaponTypeByClass: Record<ClassDefinition["id"], WeaponType> = {
+  "ember-warden": "furnace-gauntlet",
+  "liuli-blademage": "liuli-blade",
+  "ink-shadow-ranger": "mechanism-crossbow",
+  "iron-forge-guardian": "forge-shield"
+};
+
+const weaponFlavorByClass: Record<ClassDefinition["id"], string> = {
+  "ember-warden": "炉火拳刃强调近身爆发、浮空追击和炽热炉芯。",
+  "liuli-blademage": "琉璃镜剑强调折光连击、元素剑痕和轻盈剑舞。",
+  "ink-shadow-ranger": "墨影机关弩强调机关连射、契印标记和暗色陷阱。",
+  "iron-forge-guardian": "玄甲炉盾强调重盾压制、破甲震击和山岳守势。"
+};
+
+const weaponTierIndex: Record<WeaponAppearanceTier, number> = {
+  novice: 0,
+  refined: 1,
+  rare: 2,
+  epic: 3,
+  mythic: 4
+};
+
+const baseWeaponAnchors: Record<ClassDefinition["id"], { town: WeaponAnchor; combat: WeaponAnchor }> = {
+  "ember-warden": {
+    town: { x: 47, y: 58, scale: 1.08, rotation: -10 },
+    combat: { x: 58, y: 54, scale: 1.16, rotation: -8 }
+  },
+  "liuli-blademage": {
+    town: { x: 63, y: 49, scale: 1.18, rotation: -28 },
+    combat: { x: 66, y: 45, scale: 1.26, rotation: -30 }
+  },
+  "ink-shadow-ranger": {
+    town: { x: 59, y: 53, scale: 1.08, rotation: -4 },
+    combat: { x: 64, y: 50, scale: 1.15, rotation: -3 }
+  },
+  "iron-forge-guardian": {
+    town: { x: 38, y: 57, scale: 1.2, rotation: 5 },
+    combat: { x: 38, y: 55, scale: 1.28, rotation: 4 }
+  }
+};
+
+function weaponAnchorFor(classId: ClassDefinition["id"], tier: WeaponAppearanceTier, kind: "town" | "combat"): WeaponAnchor {
+  const anchor = baseWeaponAnchors[classId][kind];
+  const tierScale = 1 + weaponTierIndex[tier] * 0.08;
+
+  return {
+    ...anchor,
+    scale: Number((anchor.scale * tierScale).toFixed(2))
+  };
+}
+
+const weaponAppearanceBase: Array<
+  Omit<WeaponAppearanceDefinition, "rarity" | "weaponType" | "roleFlavor" | "townAnchor" | "combatAnchor">
+> = [
   {
     id: "weapon-ember-warden-novice",
     classId: "ember-warden",
@@ -541,6 +605,15 @@ export const weaponAppearances: WeaponAppearanceDefinition[] = [
     palette: { primary: "#1c1917", secondary: "#f97316", glow: "#fff7ed" }
   }
 ];
+
+export const weaponAppearances: WeaponAppearanceDefinition[] = weaponAppearanceBase.map((appearance) => ({
+  ...appearance,
+  rarity: weaponTierRarity[appearance.tier],
+  weaponType: weaponTypeByClass[appearance.classId],
+  roleFlavor: weaponFlavorByClass[appearance.classId],
+  townAnchor: weaponAnchorFor(appearance.classId, appearance.tier, "town"),
+  combatAnchor: weaponAnchorFor(appearance.classId, appearance.tier, "combat")
+}));
 
 export const dungeons: DungeonDef[] = [
   {

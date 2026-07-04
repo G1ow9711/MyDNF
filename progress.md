@@ -1022,3 +1022,25 @@
   - `npm run build`: pass.
   - `git diff --check`: pass with Windows line-ending warnings only.
   - Edge headless browser check via `.codex-local/tmp/combo-air-check.mjs`: heavy hit rendered combo `1`, `data-enemy-motion="airborne"`, `actor-model-airborne`, and `monster-airborne-float`; after state aging, the enemy rendered `data-enemy-motion="knockdown"`, `actor-model-knockdown`, and `monster-knockdown-drop`.
+
+## Task 36 Equipped Weapon Layers and Class Weapon Types
+- Started after the user required character weapons to be designed by class identity and level.
+- Used two read-only parallel agents:
+  - `019f2cfc-d736-7620-966b-ea212b90d837` audited weapon data/model insertion points.
+  - `019f2cfd-49ca-7782-8457-7e419272cc0c` audited UI/CSS/render and browser-verification insertion points.
+- Added RED coverage:
+  - `src/tests/catalog.test.ts` verifies every class weapon appearance has rarity, weapon type, role flavor, town anchor, and combat anchor.
+  - `src/tests/weapon-appearance.test.ts` verifies class/rarity weapon selection and the equipped-weapon helper.
+  - `src/tests/ui-smoke.test.ts` verifies equipped weapons render as visible town and combat player layers.
+- RED evidence:
+  - Focused tests failed because weapon appearance rows had undefined `rarity`/`weaponType`, `equippedWeaponAppearanceFor()` did not exist, and town/combat markup lacked `.town-weapon` / `.combat-weapon`.
+- Implemented:
+  - Added `WeaponType` and `WeaponAnchor` plus rarity, weapon type, role flavor, and town/combat anchors to weapon appearances.
+  - Added `equippedWeaponAppearanceFor(state)` to resolve the current equipped weapon instance, catalog gear, and class appearance.
+  - Added `.town-weapon` and `.combat-weapon` actor layers with browser-stable data attributes.
+  - Added CSS mount positioning, tier glow, class weapon silhouettes, and attack-following weapon swing animations.
+- Verification:
+  - `npm test -- src/tests/weapon-appearance.test.ts src/tests/catalog.test.ts src/tests/ui-smoke.test.ts`: pass, 24 tests.
+  - `npm test`: pass, 13 files and 175 tests.
+  - `npm run build`: pass.
+  - Edge headless browser check via `.codex-local/tmp/weapon-layer-check.mjs`: town layer rendered `weapon-liuli-blademage-mythic`, combat layer rendered the same equipped weapon, and light attack triggered `weapon-light-swing`.

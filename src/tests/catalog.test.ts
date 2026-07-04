@@ -122,12 +122,24 @@ describe("catalog", () => {
       tier: string;
       minLevel: number;
       displayName: string;
+      weaponType?: string;
+      rarity?: string;
+      roleFlavor?: string;
       silhouette: string;
       materials: string[];
       palette: { primary: string; glow: string };
+      townAnchor?: { x: number; y: number; scale: number; rotation: number };
+      combatAnchor?: { x: number; y: number; scale: number; rotation: number };
     }> }).weaponAppearances;
     const expectedClassIds = ["ember-warden", "liuli-blademage", "ink-shadow-ranger", "iron-forge-guardian"];
     const expectedTiers = ["novice", "refined", "rare", "epic", "mythic"];
+    const expectedRarities = ["common", "uncommon", "rare", "epic", "mythic"];
+    const expectedWeaponTypes: Record<string, string> = {
+      "ember-warden": "furnace-gauntlet",
+      "liuli-blademage": "liuli-blade",
+      "ink-shadow-ranger": "mechanism-crossbow",
+      "iron-forge-guardian": "forge-shield"
+    };
 
     expect(weaponAppearances).toHaveLength(expectedClassIds.length * expectedTiers.length);
 
@@ -136,14 +148,29 @@ describe("catalog", () => {
 
       expect(rows.map((item) => item.tier)).toEqual(expectedTiers);
       expect(rows.map((item) => item.minLevel)).toEqual([1, 8, 16, 28, 50]);
+      expect(rows.map((item) => item.rarity)).toEqual(expectedRarities);
       expect(new Set(rows.map((item) => item.displayName)).size).toBe(expectedTiers.length);
 
       for (const row of rows) {
         expect(row.id).toMatch(new RegExp(`^weapon-${classId}-`));
+        expect(row.weaponType).toBe(expectedWeaponTypes[classId]);
+        expect(row.roleFlavor?.length).toBeGreaterThan(3);
         expect(row.silhouette.length).toBeGreaterThan(0);
         expect(row.materials.length).toBeGreaterThanOrEqual(2);
         expect(row.palette.primary).toMatch(/^#/);
         expect(row.palette.glow).toMatch(/^#/);
+        expect(row.townAnchor).toEqual({
+          x: expect.any(Number),
+          y: expect.any(Number),
+          scale: expect.any(Number),
+          rotation: expect.any(Number)
+        });
+        expect(row.combatAnchor).toEqual({
+          x: expect.any(Number),
+          y: expect.any(Number),
+          scale: expect.any(Number),
+          rotation: expect.any(Number)
+        });
       }
     }
   });

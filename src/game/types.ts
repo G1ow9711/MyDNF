@@ -86,12 +86,24 @@ export interface GearItem {
 
 export type WeaponAppearanceTier = "novice" | "refined" | "rare" | "epic" | "mythic";
 
+export type WeaponType = "furnace-gauntlet" | "liuli-blade" | "mechanism-crossbow" | "forge-shield";
+
+export interface WeaponAnchor {
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+}
+
 export interface WeaponAppearanceDefinition {
   id: string;
   classId: ClassId;
   tier: WeaponAppearanceTier;
+  rarity: Rarity;
+  weaponType: WeaponType;
   minLevel: number;
   displayName: string;
+  roleFlavor: string;
   silhouette: string;
   materials: string[];
   palette: {
@@ -99,6 +111,8 @@ export interface WeaponAppearanceDefinition {
     secondary: string;
     glow: string;
   };
+  townAnchor: WeaponAnchor;
+  combatAnchor: WeaponAnchor;
 }
 
 export interface OwnedGearItem {

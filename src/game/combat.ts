@@ -464,7 +464,7 @@ function applyEnemyImpact(
     facing: nextFacing,
     hitstopUntilMs: Math.max(player.hitstopUntilMs, elapsedMs + attack.hitstopMs),
     invulnerableUntilMs: elapsedMs + 560,
-    hurtLockUntilMs: elapsedMs + attack.hitstopMs,
+    hurtLockUntilMs: elapsedMs + Math.max(attack.hitstopMs, 420),
     defeated: nextHp <= 0
   };
 
@@ -554,6 +554,10 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
 
 export function performAction(run: CombatRun, action: CombatActionInput): CombatRun {
   if (run.failed || run.player.defeated) {
+    return run;
+  }
+
+  if (run.elapsedMs < run.player.hurtLockUntilMs) {
     return run;
   }
 

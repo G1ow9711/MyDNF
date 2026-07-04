@@ -269,6 +269,18 @@ function combatActorStyle(run: CombatRun, x: number, y: number): string {
   return `--actor-x: ${xPercent}%; --actor-y: ${yPercent}%;`;
 }
 
+function playerModelMotionStyle(run: CombatRun): string {
+  const facing = run.player.facing;
+
+  return `--model-scale-x: ${facing}; --light-lunge-x: ${24 * facing}px; --heavy-lunge-x: ${34 * facing}px; --skill-lunge-x: ${30 * facing}px; --hit-react-x: ${-18 * facing}px;`;
+}
+
+function enemyModelMotionStyle(run: CombatRun, enemy: CombatEnemy): string {
+  const directionToPlayer = enemy.position.x >= run.player.x ? -1 : 1;
+
+  return `--model-scale-x: ${directionToPlayer}; --enemy-lunge-x: ${28 * directionToPlayer}px; --hit-react-x: ${18 * run.player.facing}px;`;
+}
+
 function enemyHpPercent(enemy: CombatEnemy): number {
   if (enemy.maxHp <= 0) {
     return 0;
@@ -347,7 +359,7 @@ function playerState(run: CombatRun): string {
 function enemyMotion(
   enemy: CombatEnemy,
   lastHitTargetId: string | undefined,
-  attackEvent: CombatEnemyAttackEvent | undefined
+  elapsedMs: number
 ): string {
   if (enemy.hp <= 0) {
     return "defeated";
@@ -357,7 +369,11 @@ function enemyMotion(
     return "hit";
   }
 
-  return attackEvent ? "attack" : "idle";
+  if (enemy.attackSkillId && enemy.attackRecoverUntilMs !== undefined && elapsedMs < enemy.attackRecoverUntilMs) {
+    return "attack";
+  }
+
+  return "idle";
 }
 
 function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { id: string; label: string } {
@@ -428,19 +444,18 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
   const lastHit = latestHitEvent(run);
   const playerMotionName = playerMotion(run);
-  const attackByEnemy = new Map(recentEnemyAttackEvents(run).map((event) => [event.enemyId, event]));
   const enemyActors = run.enemies
     .map((enemy) => {
       const enemyState = enemy.hp > 0 ? "alive" : "defeated";
       const hpPercent = enemyHpPercent(enemy);
-      const motion = enemyMotion(enemy, lastHit?.targetId, attackByEnemy.get(enemy.id));
+      const motion = enemyMotion(enemy, lastHit?.targetId, run.elapsedMs);
       const hitRecent = enemy.id === lastHit?.targetId;
 
       return `
         <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-hit-recent="${hitRecent ? "true" : "false"}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
-            <img class="enemy-art actor-model actor-model-${motion}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
+            <img class="enemy-art actor-model actor-model-${motion}" style="${enemyModelMotionStyle(run, enemy)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
           </div>
           <div class="enemy-health" aria-label="${enemy.displayName} HP ${enemy.hp}/${enemy.maxHp}">
             <span class="enemy-health-fill" style="--hp: ${hpPercent}%;"></span>
@@ -453,7 +468,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   return `
     <div class="combat-actors" data-last-hit-target="${lastHit?.targetId ?? ""}">
       <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
-        <img class="combat-player-art actor-model actor-model-${playerMotionName}" src="/assets/hero-ember-warden.png" alt="${classDef?.displayName ?? state.player.classId}" />
+        <img class="combat-player-art actor-model actor-model-${playerMotionName}" style="${playerModelMotionStyle(run)}" src="/assets/hero-ember-warden.png" alt="${classDef?.displayName ?? state.player.classId}" />
         <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>
       </div>
       ${enemyActors}

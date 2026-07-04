@@ -857,3 +857,26 @@
   - `npm test`: pass, 12 files and 141 tests.
   - `npm run build`: pass.
   - Edge headless browser check on `http://127.0.0.1:5174/`: combat status showed `攻击 9 · 防御 0 · 冷却 0%`, monster attacks and skill cooldown VFX still rendered correctly, and screenshot was refreshed at `.codex-local/tmp/monster-browser-check.png`.
+
+## Task 29 Directional Model Motion and Hurt-Lock Sync
+- Started after the user clarified that character and monster attack models must move with actions.
+- Used a parallel read-only explorer agent `019f2c3b-e3eb-7092-be89-3092411d0a69` to audit model-motion binding risks while implementing locally.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` verifies left-facing player strikes put directional lunge and hurt-reaction variables on the player/enemy bitmap `<img>` nodes.
+  - `src/tests/app-integration.test.ts` verifies monster attack direction and player hurt knockback variables are attached to bitmap `<img>` nodes.
+  - `src/tests/combat.test.ts` verifies player attacks are blocked while monster-hit hurt lock is active.
+  - `src/tests/app-integration.test.ts` verifies monster `actor-model-attack` stops after the real attack recovery ends.
+- Implemented:
+  - Player and monster bitmap models now receive CSS variables for facing scale, attack lunge direction, and hurt knockback direction.
+  - CSS keyframes now consume those variables, so flips and action transforms are composed on the same bitmap node instead of fighting each other.
+  - Monster model motion now uses real attack recovery state rather than only the recent VFX event window.
+  - Enemy hits now create a longer hurt lock, and `performAction()` blocks player attacks during that lock.
+  - Rewrote `AGENTS.md` as readable Chinese while preserving the project rule to use multiple agents in parallel where feasible.
+- Verification:
+  - RED confirmed: focused tests failed because bitmap nodes lacked motion variables, player attacks still landed during hurt lock, and recovered monsters kept `data-enemy-motion="attack"`.
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 31 tests after directional CSS variables.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts`: pass, 45 tests.
+  - `npm test`: pass, 12 files and 145 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Edge headless browser check via `.codex-local/tmp/motion-check.mjs`: player left-facing light attack rendered `combat-player-art actor-model actor-model-light` with `--model-scale-x: -1` and `--light-lunge-x: -24px`; hit monster rendered `enemy-art actor-model actor-model-hit` with hurt knockback variables; live monster attack rendered `enemy-art actor-model actor-model-attack` with `--enemy-lunge-x: -28px`.

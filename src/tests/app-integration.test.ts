@@ -309,6 +309,103 @@ describe("playable app integration actions", () => {
     expect(recoveredHtml).not.toContain('class="hit-impact');
   });
 
+  it("binds player strike direction to the bitmap model node", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 380,
+      y: 340,
+      facing: -1 as const
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: {
+                  x: player.x - 92,
+                  y: player.y
+                },
+                nextAttackAtMs: 9999
+              }
+            : {
+                ...enemy,
+                hp: 0
+              }
+        )
+      }
+    };
+
+    model = reduceAppAction(model, { type: "combatAction", action: "light" });
+
+    const html = renderAppHtml(model);
+
+    expect(html).toContain('data-player-facing="-1"');
+    expect(html).toMatch(
+      /class="combat-player-art actor-model actor-model-light"[^>]+style="[^"]*--model-scale-x: -1;[^"]*--light-lunge-x: -24px;[^"]*--hit-react-x: 18px;/
+    );
+    expect(html).toMatch(
+      /class="enemy-art actor-model actor-model-hit"[^>]+style="[^"]*--hit-react-x: -18px;/
+    );
+  });
+
+  it("binds monster attack direction and player hurt direction to bitmap model nodes", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = readyFirstEnemyAttack(model);
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        enemies: model.combatRun.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: {
+                  x: model.combatRun?.player.x ?? enemy.position.x,
+                  y: model.combatRun?.player.y ?? enemy.position.y
+                }
+              }
+            : enemy
+        )
+      }
+    };
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const windupHtml = renderAppHtml(model);
+
+    expect(windupHtml).toMatch(
+      /class="enemy-art actor-model actor-model-attack"[^>]+style="[^"]*--enemy-lunge-x: -28px;/
+    );
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const hitHtml = renderAppHtml(model);
+
+    expect(hitHtml).toMatch(
+      /class="combat-player-art actor-model actor-model-hit"[^>]+style="[^"]*--hit-react-x: -18px;/
+    );
+  });
+
   it("does not carry old hit VFX into the next combat room", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 
@@ -443,6 +540,27 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('data-player-state="hit"');
     expect(hitHtml).toContain('class="combat-player-art actor-model actor-model-hit"');
     expect(hitHtml).toContain('data-enemy-attack-phase="active"');
+  });
+
+  it("stops monster attack model motion after the attack recovery ends", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = readyFirstEnemyAttack(model);
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    expect(renderAppHtml(model)).toContain('data-enemy-motion="attack"');
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const recoveredHtml = renderAppHtml(model);
+
+    expect(model.combatRun?.enemies[0].attackRecoverUntilMs).toBeUndefined();
+    expect(recoveredHtml).not.toContain('data-enemy-motion="attack"');
+    expect(recoveredHtml).not.toContain('class="enemy-art actor-model actor-model-attack"');
   });
 
   it("shows failed combat state after monster attacks defeat the player", () => {

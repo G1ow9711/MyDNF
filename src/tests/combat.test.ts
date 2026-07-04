@@ -306,6 +306,20 @@ describe("enemy attacks and player defeat", () => {
     );
   });
 
+  it("blocks player attacks while monster-hit hurt lock is active", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const telegraph = stepCombat(run, {}, 80);
+    const impacted = stepCombat(telegraph, {}, 360);
+    const hitEventsBefore = impacted.events.filter((event) => event.kind === "hit").length;
+    const hpBefore = impacted.enemies[0].hp;
+    const attempted = performAction(impacted, { type: "light" });
+
+    expect(impacted.player.hurtLockUntilMs).toBeGreaterThan(impacted.elapsedMs);
+    expect(attempted.enemies[0].hp).toBe(hpBefore);
+    expect(attempted.events.filter((event) => event.kind === "hit")).toHaveLength(hitEventsBefore);
+    expect(attempted.player.comboStep).toBe(impacted.player.comboStep);
+  });
+
   it("lets the player dodge monster skills by leaving the attack lane", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"));
     const telegraph = stepCombat(run, {}, 80);

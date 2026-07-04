@@ -61,7 +61,25 @@ describe("skill visual effects", () => {
 
 describe("render plan", () => {
   it("orders background, combat actors, VFX, and HUD without shaking the UI layer", () => {
-    const run = performAction(createCombatRun(createInitialState(), "cinder-kiln-alley"), { type: "light" });
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const run = performAction(
+      {
+        ...baseRun,
+        enemies: baseRun.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: {
+                  x: baseRun.player.x + 96,
+                  y: baseRun.player.y
+                },
+                nextAttackAtMs: 9999
+              }
+            : enemy
+        )
+      },
+      { type: "light" }
+    );
     const plan = createRenderPlan(run, "cinder-kiln-alley");
 
     expect(plan.sceneId).toBe("cinder-kiln-alley");

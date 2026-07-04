@@ -9,6 +9,7 @@ import {
   type CombatEnemyAttackEvent,
   type CombatHitEvent,
   type CombatLootEvent,
+  type CombatMissEvent,
   type CombatPlayerHitEvent,
   type CombatRun
 } from "../game/combat";
@@ -313,6 +314,15 @@ function latestHitEvent(run: CombatRun): CombatHitEvent | undefined {
     );
 }
 
+function latestMissEvent(run: CombatRun): CombatMissEvent | undefined {
+  return [...run.events]
+    .reverse()
+    .find(
+      (event): event is CombatMissEvent =>
+        event.kind === "miss" && run.elapsedMs - event.occurredAtMs <= recentHitWindowMs
+    );
+}
+
 function latestPlayerHitEvent(run: CombatRun): CombatPlayerHitEvent | undefined {
   return [...run.events]
     .reverse()
@@ -344,8 +354,10 @@ function playerMotion(run: CombatRun): string {
   }
 
   const hit = latestHitEvent(run);
+  const miss = latestMissEvent(run);
+  const action = hit ?? miss;
 
-  return hit?.action === "skill" ? "skill" : hit?.action ?? "idle";
+  return action?.action === "skill" ? "skill" : action?.action ?? "idle";
 }
 
 function playerState(run: CombatRun): string {

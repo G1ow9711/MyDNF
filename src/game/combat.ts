@@ -66,6 +66,16 @@ export interface CombatHitEvent {
   canceledFromCombo: boolean;
 }
 
+export interface CombatMissEvent {
+  kind: "miss";
+  id: string;
+  action: "light" | "heavy" | "skill";
+  skillId?: string;
+  occurredAtMs: number;
+  inputToHitMs: number;
+  canceledFromCombo: boolean;
+}
+
 export interface CombatRoomClearedEvent {
   kind: "room-cleared";
   dungeonId: DungeonId;
@@ -92,7 +102,7 @@ export interface CombatPlayerHitEvent {
   hitstopMs: number;
 }
 
-export type CombatEvent = CombatHitEvent | CombatRoomClearedEvent | CombatEnemyAttackEvent | CombatPlayerHitEvent;
+export type CombatEvent = CombatHitEvent | CombatMissEvent | CombatRoomClearedEvent | CombatEnemyAttackEvent | CombatPlayerHitEvent;
 
 export interface CombatLootEvent {
   dungeonId: DungeonId;
@@ -141,6 +151,21 @@ interface EnemyAttackDefinition {
   cooldownMs: number;
   hitstopMs: number;
   knockback: number;
+}
+
+interface PlayerHitboxDefinition {
+  action: CombatMissEvent["action"];
+  skillId?: string;
+  rangeX: number;
+  laneRange: number;
+  targetCap: number;
+  frontOnly: boolean;
+  damage: number;
+  hitstopMs: number;
+  knockback: number;
+  juggle: boolean;
+  inputToHitMs: number;
+  canceledFromCombo: boolean;
 }
 
 const arena: CombatArena = {
@@ -247,22 +272,130 @@ function createRoomEnemies(dungeonId: DungeonId, roomIndex: number): CombatEnemy
   return [createEnemy(dungeonId, roomIndex, 0, "trash"), createEnemy(dungeonId, roomIndex, 1, "trash")];
 }
 
-function firstAliveEnemy(run: CombatRun): CombatEnemy {
-  const enemy = run.enemies.find((item) => item.hp > 0);
-
-  if (!enemy) {
-    throw new Error("No alive enemy target");
-  }
-
-  return enemy;
-}
-
 function eventHitstop(enemy: CombatEnemy, hitstopMs: number): number {
   if (enemy.kind === "boss" && enemy.armor > 0) {
     return Math.min(hitstopMs, 25);
   }
 
   return hitstopMs;
+}
+
+function enemyDistanceScore(run: CombatRun, enemy: CombatEnemy): number {
+  const xDistance = Math.abs(enemy.position.x - run.player.x);
+  const yDistance = Math.abs(enemy.position.y - run.player.y);
+
+  return xDistance * 10 + yDistance;
+}
+
+function enemyInPlayerHitbox(run: CombatRun, enemy: CombatEnemy, hitbox: PlayerHitboxDefinition): boolean {
+  if (enemy.hp <= 0) {
+    return false;
+  }
+
+  const facingDistance = (enemy.position.x - run.player.x) * run.player.facing;
+  const xDistance = Math.abs(enemy.position.x - run.player.x);
+  const yDistance = Math.abs(enemy.position.y - run.player.y);
+  const inFront = hitbox.frontOnly ? facingDistance >= 0 : true;
+  const inRange = hitbox.frontOnly ? facingDistance <= hitbox.rangeX : xDistance <= hitbox.rangeX;
+
+  return inFront && inRange && yDistance <= hitbox.laneRange;
+}
+
+function selectPlayerTargets(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatEnemy[] {
+  return run.enemies
+    .filter((enemy) => enemyInPlayerHitbox(run, enemy, hitbox))
+    .sort((left, right) => enemyDistanceScore(run, left) - enemyDistanceScore(run, right))
+    .slice(0, hitbox.targetCap);
+}
+
+function applyMiss(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatRun {
+  const event: CombatMissEvent = {
+    kind: "miss",
+    id: `miss-${run.elapsedMs}-${hitbox.action}${hitbox.skillId ? `-${hitbox.skillId}` : ""}`,
+    action: hitbox.action,
+    skillId: hitbox.skillId,
+    occurredAtMs: run.elapsedMs,
+    inputToHitMs: hitbox.inputToHitMs,
+    canceledFromCombo: hitbox.canceledFromCombo
+  };
+
+  return {
+    ...run,
+    events: [...run.events, event]
+  };
+}
+
+function applyPlayerHitbox(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatRun {
+  const targets = selectPlayerTargets(run, hitbox);
+
+  if (targets.length === 0) {
+    return applyMiss(run, hitbox);
+  }
+
+  return targets.reduce(
+    (next, target) =>
+      applyHit(next, {
+        id: `hit-${run.elapsedMs}-${hitbox.action}${hitbox.skillId ? `-${hitbox.skillId}` : ""}-${target.id}`,
+        targetId: target.id,
+        damage: hitbox.damage,
+        hitstopMs: hitbox.hitstopMs,
+        knockback: hitbox.knockback,
+        juggle: hitbox.juggle,
+        action: hitbox.action,
+        skillId: hitbox.skillId,
+        inputToHitMs: hitbox.inputToHitMs,
+        canceledFromCombo: hitbox.canceledFromCombo
+      }),
+    run
+  );
+}
+
+function skillTargetCap(tags: string[]): number {
+  if (tags.includes("ultimate") || tags.includes("area") || tags.includes("trap") || tags.includes("pull")) {
+    return 3;
+  }
+
+  if (tags.includes("burst") || tags.includes("slam") || tags.includes("range") || tags.includes("control")) {
+    return 2;
+  }
+
+  return 1;
+}
+
+function skillRangeX(tags: string[]): number {
+  if (tags.includes("range") || tags.includes("ultimate")) {
+    return 380;
+  }
+
+  if (tags.includes("area") || tags.includes("trap") || tags.includes("pull")) {
+    return 280;
+  }
+
+  if (tags.includes("dash")) {
+    return 210;
+  }
+
+  if (tags.includes("slam") || tags.includes("burst")) {
+    return 190;
+  }
+
+  return 150;
+}
+
+function skillLaneRange(tags: string[]): number {
+  if (tags.includes("area") || tags.includes("trap") || tags.includes("ultimate") || tags.includes("pull")) {
+    return 96;
+  }
+
+  if (tags.includes("range")) {
+    return 72;
+  }
+
+  return 58;
+}
+
+function skillIsFrontOnly(tags: string[]): boolean {
+  return !(tags.includes("area") || tags.includes("trap") || tags.includes("ultimate"));
 }
 
 function playerDamage(run: CombatRun, baseDamage: number): number {
@@ -568,49 +701,55 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     return run;
   }
 
-  const target = firstAliveEnemy(run);
-
   if (action.type === "light") {
-    const hitRun = applyHit(run, {
-      id: `hit-${run.elapsedMs}-light-${run.player.comboStep + 1}`,
-      targetId: target.id,
+    const hitRun = applyPlayerHitbox(run, {
+      action: "light",
+      rangeX: 132,
+      laneRange: 50,
+      targetCap: 1,
+      frontOnly: true,
       damage: playerDamage(run, 24),
       hitstopMs: 42,
       knockback: 22,
       juggle: false,
-      action: "light",
-      inputToHitMs: 55
+      inputToHitMs: 55,
+      canceledFromCombo
     });
+    const hitConnected = hitRun.events.at(-1)?.kind === "hit";
 
     return {
       ...hitRun,
       player: {
         ...hitRun.player,
-        heat: clamp(hitRun.player.heat + playerResourceGain(run, 8), 0, 100),
-        comboStep: (run.player.comboStep % 3) + 1,
+        heat: hitConnected ? clamp(hitRun.player.heat + playerResourceGain(run, 8), 0, 100) : hitRun.player.heat,
+        comboStep: hitConnected ? (run.player.comboStep % 3) + 1 : 0,
         actionLockUntilMs: run.elapsedMs + 180,
-        cancelWindowUntilMs: run.elapsedMs + 180
+        cancelWindowUntilMs: hitConnected ? run.elapsedMs + 180 : 0
       }
     };
   }
 
   if (action.type === "heavy") {
-    const hitRun = applyHit(run, {
-      id: `hit-${run.elapsedMs}-heavy`,
-      targetId: target.id,
+    const hitRun = applyPlayerHitbox(run, {
+      action: "heavy",
+      rangeX: 158,
+      laneRange: 58,
+      targetCap: 1,
+      frontOnly: true,
       damage: playerDamage(run, 48),
       hitstopMs: 72,
       knockback: 60,
       juggle: true,
-      action: "heavy",
-      inputToHitMs: 85
+      inputToHitMs: 85,
+      canceledFromCombo
     });
+    const hitConnected = hitRun.events.at(-1)?.kind === "hit";
 
     return {
       ...hitRun,
       player: {
         ...hitRun.player,
-        heat: clamp(hitRun.player.heat + playerResourceGain(run, 4), 0, 100),
+        heat: hitConnected ? clamp(hitRun.player.heat + playerResourceGain(run, 4), 0, 100) : hitRun.player.heat,
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + 260,
         cancelWindowUntilMs: 0
@@ -632,15 +771,17 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     throw new Error(`Skill on cooldown: ${action.skillId}`);
   }
 
-  const hitRun = applyHit(run, {
-    id: `hit-${run.elapsedMs}-skill-${action.skillId}`,
-    targetId: target.id,
+  const hitRun = applyPlayerHitbox(run, {
+    action: "skill",
+    skillId: action.skillId,
+    rangeX: skillRangeX(skill.tags),
+    laneRange: skillLaneRange(skill.tags),
+    targetCap: skillTargetCap(skill.tags),
+    frontOnly: skillIsFrontOnly(skill.tags),
     damage: playerDamage(run, 38 + Math.round(skill.resourceCost / 4)),
     hitstopMs: 82,
     knockback: 48,
     juggle: skill.tags.includes("launcher") || skill.tags.includes("pull"),
-    action: "skill",
-    skillId: action.skillId,
     inputToHitMs: 70,
     canceledFromCombo
   });

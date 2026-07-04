@@ -880,3 +880,25 @@
   - `npm run build`: pass.
   - `git diff --check`: pass with Windows line-ending warnings only.
   - Edge headless browser check via `.codex-local/tmp/motion-check.mjs`: player left-facing light attack rendered `combat-player-art actor-model actor-model-light` with `--model-scale-x: -1` and `--light-lunge-x: -24px`; hit monster rendered `enemy-art actor-model actor-model-hit` with hurt knockback variables; live monster attack rendered `enemy-art actor-model actor-model-attack` with `--enemy-lunge-x: -28px`.
+
+## Task 30 Player Hitboxes, Miss Events, and Targeted Model Motion
+- Started after the user required character and monster attack models to follow the action, with attacks no longer feeling like static first-target clicks.
+- Used a parallel read-only explorer agent `019f2c4d-16c9-7eb0-8b6b-dc62e72319fb`; it confirmed the biggest current risk was that player attacks ignored facing, distance, lane, and nearest target.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` verifies behind, out-of-range, and off-lane enemies are missed without HP loss.
+  - `src/tests/combat.test.ts` verifies the nearest valid enemy in front is selected.
+  - `src/tests/combat.test.ts` verifies area skills can hit multiple enemies inside the hitbox.
+  - App/render tests now place enemies deliberately in range when the assertion expects hit motion or VFX.
+- Implemented:
+  - Added player hitbox selection for light, heavy, and skill actions.
+  - Added `CombatMissEvent` so whiffed player actions still drive bitmap model motion without fake damage.
+  - Light/heavy attacks now require correct facing, X range, Y lane range, and an alive target.
+  - Skill tags now influence range, lane width, target cap, and front-only behavior.
+  - App motion logic now reads recent hit or miss events, so player bitmap models animate on both hits and whiffs.
+- Verification:
+  - `npm test -- src/tests/combat.test.ts`: pass, 16 tests.
+  - `npm test -- src/tests/app-integration.test.ts src/tests/render-audio.test.ts src/tests/ui-smoke.test.ts`: pass, 55 tests.
+  - `npm test`: pass, 12 files and 148 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Edge headless browser check via `.codex-local/tmp/hitbox-check.mjs`: far light attack kept both enemies at `80/80`, rendered player `light` motion, and produced no hit/impact; refreshed near-range light attack moved the player from left `123.796875` to `414.0625`, reduced the first enemy to `54/80`, rendered one enemy hit motion, one impact, and a concrete target id.

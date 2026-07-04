@@ -93,6 +93,8 @@ Phase 5 - Verification and Delivery
 - Current visual-combat continuation goal: combat actors must not be static; player strikes, player skills, monster hit reactions, monster skill telegraphs, facing flips, lunge direction, and hurt knockback need visible motion on the bitmap model nodes themselves.
 - Current combat-loop continuation goal: monster skills must be real attacks with windup, hit/miss, player HP loss, defeat state, automatic combat ticking, and model motion for both attacker and target.
 - Current strict-DNF continuation gap after equipment formula: class resources should stop being a generic heat-only model, and skill tags should produce differentiated behavior beyond first-target fixed hits.
+- Current hitbox continuation progress: player light/heavy attacks now respect facing, X range, Y lane range, nearest valid target, and miss events. Area/range skill tags now drive wider or multi-target hitboxes, and whiffed attacks still move the player model.
+- Remaining strict-DNF combat gaps: per-class resource names/formulas, richer per-skill behaviors beyond broad tag hitboxes, enemy hurtbox sizing, and multi-target VFX per enemy.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

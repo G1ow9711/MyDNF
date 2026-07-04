@@ -116,7 +116,26 @@ function withEnemyInRange(run: CombatRun, enemyPatch: Partial<CombatEnemy> = {})
             ...enemyPatch
           }
         : enemy
-    )
+      )
+  };
+}
+
+function withPlayerAndEnemies(run: CombatRun, playerPatch: Partial<CombatRun["player"]>, enemyPositions: Array<{ x: number; y: number; hp?: number }>): CombatRun {
+  return {
+    ...run,
+    player: {
+      ...run.player,
+      ...playerPatch
+    },
+    enemies: run.enemies.map((enemy, index) => ({
+      ...enemy,
+      hp: enemyPositions[index]?.hp ?? enemy.hp,
+      position: {
+        x: enemyPositions[index]?.x ?? enemy.position.x,
+        y: enemyPositions[index]?.y ?? enemy.position.y
+      },
+      nextAttackAtMs: 9999
+    }))
   };
 }
 
@@ -143,7 +162,7 @@ describe("combat run setup and movement", () => {
 
 describe("combat actions and impact feel", () => {
   it("lands light attacks inside the 80 ms input-to-hit target and advances combo state", () => {
-    const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), { nextAttackAtMs: 9999 });
     const first = performAction(run, { type: "light" });
     const second = performAction(advanceTime(first), { type: "light" });
     const firstHit = lastHitEvent(first);
@@ -161,7 +180,7 @@ describe("combat actions and impact feel", () => {
   });
 
   it("allows a class skill cancel during the hit-confirm window", () => {
-    const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), { nextAttackAtMs: 9999 });
     const light = performAction(run, { type: "light" });
     const canceled = performAction(light, { type: "skill", skillId: "spark-combo" });
     const skillHit = lastHitEvent(canceled);
@@ -177,7 +196,9 @@ describe("combat actions and impact feel", () => {
   });
 
   it("tracks per-skill cooldowns and blocks recasting until the timer expires", () => {
-    const run = createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley");
+    const run = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"), {
+      nextAttackAtMs: 9999
+    });
     const cast = performAction(run, { type: "skill", skillId: "anvil-crash" });
     const blockedBase = stepCombat(cast, {}, 600);
     const blockedReady = {
@@ -212,7 +233,9 @@ describe("combat actions and impact feel", () => {
   });
 
   it("uses equipped attack stats and cooldown stats in combat formulas", () => {
-    const plainRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const plainRun = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      nextAttackAtMs: 9999
+    });
     const plainHit = performAction(plainRun, { type: "light" });
     let gearedState = withEquippedOwnedGear(
       createInitialState(),
@@ -225,7 +248,9 @@ describe("combat actions and impact feel", () => {
     gearedState = withEquippedOwnedGear(gearedState, createOwnedGear(gearId("liuli-flow", "sigil"), "combat-sigil"));
     gearedState = withEquippedOwnedGear(gearedState, createOwnedGear(gearId("liuli-flow", "charm"), "combat-charm"));
 
-    const gearedRun = createCombatRun(withHeat(gearedState, 80), "cinder-kiln-alley");
+    const gearedRun = withEnemyInRange(createCombatRun(withHeat(gearedState, 80), "cinder-kiln-alley"), {
+      nextAttackAtMs: 9999
+    });
     const gearedHit = performAction(gearedRun, { type: "light" });
     const gearedSkill = performAction(gearedRun, { type: "skill", skillId: "anvil-crash" });
 
@@ -267,6 +292,82 @@ describe("combat actions and impact feel", () => {
     expect(lastHitEvent(heavy).hitstopMs).toBe(72);
     expect(lastHitEvent(bossArmorHit).hitstopMs).toBe(25);
     expect(lastHitEvent(bossArmorHit).hitstopMs).toBeLessThan(lastHitEvent(light).hitstopMs);
+  });
+
+  it("misses basic attacks when enemies are behind, out of range, or outside the lane", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const behindRun = withPlayerAndEnemies(
+      baseRun,
+      { x: 420, y: 340, facing: 1 },
+      [
+        { x: 330, y: 340 },
+        { x: 360, y: 340 }
+      ]
+    );
+    const farRun = withPlayerAndEnemies(
+      baseRun,
+      { x: 120, y: 340, facing: 1 },
+      [
+        { x: 420, y: 340 },
+        { x: 460, y: 340 }
+      ]
+    );
+    const laneRun = withPlayerAndEnemies(
+      baseRun,
+      { x: 220, y: 300, facing: 1 },
+      [
+        { x: 300, y: 420 },
+        { x: 340, y: 430 }
+      ]
+    );
+
+    const behind = performAction(behindRun, { type: "light" });
+    const far = performAction(farRun, { type: "heavy" });
+    const wrongLane = performAction(laneRun, { type: "light" });
+
+    expect(behind.enemies.map((enemy) => enemy.hp)).toEqual(behindRun.enemies.map((enemy) => enemy.hp));
+    expect(far.enemies.map((enemy) => enemy.hp)).toEqual(farRun.enemies.map((enemy) => enemy.hp));
+    expect(wrongLane.enemies.map((enemy) => enemy.hp)).toEqual(laneRun.enemies.map((enemy) => enemy.hp));
+    expect(behind.events.some((event) => event.kind === "hit")).toBe(false);
+    expect(far.events.some((event) => event.kind === "hit")).toBe(false);
+    expect(wrongLane.events.some((event) => event.kind === "hit")).toBe(false);
+    expect(behind.events.at(-1)).toMatchObject({ kind: "miss", action: "light" });
+    expect(far.events.at(-1)).toMatchObject({ kind: "miss", action: "heavy" });
+  });
+
+  it("targets the nearest alive enemy in front inside the attack lane", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 380, y: 340 },
+        { x: 305, y: 342 }
+      ]
+    );
+    const hit = performAction(run, { type: "light" });
+    const event = lastHitEvent(hit);
+
+    expect(event.targetId).toBe(run.enemies[1].id);
+    expect(hit.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+    expect(hit.enemies[0].hp).toBe(run.enemies[0].hp);
+  });
+
+  it("lets area skills hit multiple enemies inside the skill hitbox", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 315, y: 340 },
+        { x: 390, y: 356 }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "heat-bloom" });
+    const hitEvents = cast.events.filter((event) => event.kind === "hit");
+
+    expect(hitEvents).toHaveLength(2);
+    expect(new Set(hitEvents.map((event) => event.targetId))).toEqual(new Set(run.enemies.map((enemy) => enemy.id)));
+    expect(cast.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(cast.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
   });
 });
 

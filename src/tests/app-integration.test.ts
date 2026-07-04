@@ -70,10 +70,57 @@ function readyForAdvancement(state: GameState): GameState {
   };
 }
 
+function placeAliveEnemiesInFront(model: ReturnType<typeof createAppModel>): ReturnType<typeof createAppModel> {
+  if (!model.combatRun) {
+    throw new Error("Expected active combat run");
+  }
+
+  const player = {
+    ...model.combatRun.player,
+    x: 260,
+    y: 340,
+    facing: 1 as const,
+    actionLockUntilMs: 0,
+    hurtLockUntilMs: 0
+  };
+  let aliveIndex = 0;
+
+  return {
+    ...model,
+    combatRun: {
+      ...model.combatRun,
+      player,
+      enemies: model.combatRun.enemies.map((enemy) => {
+        if (enemy.hp <= 0) {
+          return enemy;
+        }
+
+        const nextIndex = aliveIndex;
+        aliveIndex += 1;
+
+        return {
+          ...enemy,
+          position: {
+            x: player.x + 76 + nextIndex * 58,
+            y: player.y + nextIndex * 8
+          },
+          nextAttackAtMs: 9999,
+          attackStartedAtMs: undefined,
+          attackImpactAtMs: undefined,
+          attackRecoverUntilMs: undefined,
+          attackSkillId: undefined,
+          attackHitResolved: undefined
+        };
+      })
+    }
+  };
+}
+
 function defeatCurrentRoom(model: ReturnType<typeof createAppModel>): ReturnType<typeof createAppModel> {
   let next = model;
 
   for (let attempt = 0; attempt < 40 && next.combatRun?.enemies.some((enemy) => enemy.hp > 0); attempt += 1) {
+    next = placeAliveEnemiesInFront(next);
     next = reduceAppAction(next, { type: "combatAction", action: "heavy" });
   }
 
@@ -284,6 +331,7 @@ describe("playable app integration actions", () => {
     expect(idleHtml).toContain('data-player-motion="idle"');
     expect(idleHtml).toContain('data-enemy-motion="idle"');
 
+    model = placeAliveEnemiesInFront(model);
     model = reduceAppAction(model, { type: "combatAction", action: "light" });
 
     const hitHtml = renderAppHtml(model);
@@ -452,6 +500,7 @@ describe("playable app integration actions", () => {
       throw new Error("Expected KeyU to map to a combat skill");
     }
 
+    model = placeAliveEnemiesInFront(model);
     const cast = reduceAppAction(model, action);
     const lastEvent = cast.combatRun?.events.at(-1);
 
@@ -467,6 +516,7 @@ describe("playable app integration actions", () => {
     });
 
     model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
     model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "anvil-crash" });
 
     const coolingHtml = renderAppHtml(model);
@@ -502,6 +552,7 @@ describe("playable app integration actions", () => {
     });
 
     model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
     model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "anvil-crash" });
 
     const html = renderAppHtml(model);
@@ -627,6 +678,8 @@ describe("playable app integration actions", () => {
       }
     } as unknown as HTMLDivElement;
 
+    saveGame(storage, withHeat(createInitialState(), 80));
+
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
       value: storage
@@ -654,16 +707,13 @@ describe("playable app integration actions", () => {
 
       clickHandler?.({ target: enterButton } as unknown as Event);
 
-      const lightButton = {
-        dataset: { combatAction: "light" },
-        classList: { contains: (className: string) => classList.has(className) },
-        closest: () => lightButton
-      };
-
-      clickHandler?.({ target: lightButton } as unknown as Event);
-      clickHandler?.({ target: lightButton } as unknown as Event);
-      clickHandler?.({ target: lightButton } as unknown as Event);
-      clickHandler?.({ target: lightButton } as unknown as Event);
+      for (let i = 0; i < 5; i += 1) {
+        (listeners.get("keydown") as ((event: KeyboardEvent) => void) | undefined)?.({
+          code: "ArrowRight",
+          shiftKey: true,
+          preventDefault: () => undefined
+        } as KeyboardEvent);
+      }
 
       const skillButton = {
         dataset: { combatAction: "skill", combatSkillId: "anvil-crash" },
@@ -679,7 +729,7 @@ describe("playable app integration actions", () => {
 
       expect(root.innerHTML).toContain('class="combat-vfx-layer"');
       expect(root.innerHTML).toContain('data-player-skill-vfx="anvil-crash"');
-      expect(root.innerHTML).toContain("热能 7");
+      expect(root.innerHTML).toContain("热能 55");
       expect(listeners.has("keydown")).toBe(true);
 
       cleanup();

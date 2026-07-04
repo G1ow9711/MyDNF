@@ -923,3 +923,31 @@
   - `npm run build`: pass.
   - `git diff --check`: pass with Windows line-ending warnings only.
   - Edge headless browser check via `.codex-local/tmp/resource-check.mjs`: after selecting Liuli Blademage and setting saved resource to 40, combat HUD showed `璃息 40/100`, `liuli-rain` button had `data-resource-id="prism"` and was enabled, casting it changed HUD to `璃息 16/100`, player motion became `skill`, and VFX id was `liuli-rain`.
+
+## Task 32 First-Pass Class Resource Mechanics
+- Started after Task 31 proved resource identity in combat but left the four classes sharing the same gain/spend curve.
+- Used two read-only parallel agents:
+  - `019f2c7b-f6f5-79a1-9fcf-c1cd4ca75440` reviewed the safest combat-layer insertion points.
+  - `019f2c7c-2518-78c1-baea-7658aac608b0` reviewed DOM hooks and browser verification strategy.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` verifies Ember high-heat burst skills deal more damage.
+  - `src/tests/combat.test.ts` verifies Liuli prism cycling refunds resource, sets `prismChain`, remembers `lastSkillId`, and shortens cooldown.
+  - `src/tests/combat.test.ts` verifies Ink mark skills add marks and detonation skills clear marks while adding bonus damage.
+  - `src/tests/combat.test.ts` verifies Iron Guardian gains guard resource when hit by a monster.
+  - `src/tests/app-integration.test.ts` verifies structured DOM data for class id, resource id/current, prism chain, last skill, and ink marks.
+- Implemented:
+  - Added `CombatEnemy.marks`.
+  - Added `CombatPlayer.lastSkillId` and `CombatPlayer.prismChain`.
+  - Added high-heat Ember burst damage scaling for burst/ultimate skills.
+  - Added Liuli alternate-skill prism refund and cooldown reduction.
+  - Added Ink mark application and mark detonation bonus damage.
+  - Added Iron Guardian guard gain on player-hit impact.
+  - Added browser-stable data attributes to `.combat-scene`, `.combat-player`, and `.combat-enemy`.
+- Verification:
+  - RED confirmed: `npm test -- src/tests/combat.test.ts` initially failed on missing prism refund, burst damage, marks, and guard gain.
+  - `npm test -- src/tests/combat.test.ts`: pass, 22 tests.
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 35 tests.
+  - `npm test`: pass, 12 files and 157 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Edge headless browser check via `.codex-local/tmp/mechanics-check.mjs`: Liuli `mirror-arc` showed resource `prism`, current `34`, chain `1`, and last skill `mirror-arc`; Ink `marking-bolt` showed resource `ink`, hit enemy marks `2`, and VFX `marking-bolt`; Iron Guardian showed resource `guard`, current `12`, and player motion `hit`.

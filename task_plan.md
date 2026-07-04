@@ -92,9 +92,9 @@ Phase 5 - Verification and Delivery
 - Current stricter continuation goal: move closer to DNF-style keyboard-controlled room combat; do not treat the current prototype as final until keyboard movement, combat gating, room flow, enemy behavior, and player-side acceptance are verified.
 - Current visual-combat continuation goal: combat actors must not be static; player strikes, player skills, monster hit reactions, monster skill telegraphs, facing flips, lunge direction, and hurt knockback need visible motion on the bitmap model nodes themselves.
 - Current combat-loop continuation goal: monster skills must be real attacks with windup, hit/miss, player HP loss, defeat state, automatic combat ticking, and model motion for both attacker and target.
-- Current strict-DNF continuation gap after resource identity: class resources now show/use the selected class identity in combat, but class-specific resource rules still need unique mechanics beyond the shared gain/spend curve.
+- Current strict-DNF continuation gap after class-resource mechanics: class resources now have first-pass unique rules in combat, but skill kits still need deeper per-skill behavior, better class-specific art, and clearer long-term resource persistence.
 - Current hitbox continuation progress: player light/heavy attacks now respect facing, X range, Y lane range, nearest valid target, and miss events. Area/range skill tags now drive wider or multi-target hitboxes, and whiffed attacks still move the player model.
-- Remaining strict-DNF combat gaps: per-class resource formulas and special mechanics, richer per-skill behaviors beyond broad tag hitboxes, enemy hurtbox sizing, and multi-target VFX per enemy.
+- Remaining strict-DNF combat gaps: richer per-skill behavior beyond broad tag hitboxes, class-specific player art and animation sets, enemy hurtbox sizing, multi-target VFX per enemy, and a formal save migration from `heat` alias to class-resource storage.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

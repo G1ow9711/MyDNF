@@ -531,6 +531,40 @@ describe("playable app integration actions", () => {
     expect(html).not.toContain("热能 40");
   });
 
+  it("renders structured class mechanic state for browser verification", () => {
+    let liuliModel = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40)
+    });
+
+    liuliModel = reduceAppAction(liuliModel, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    liuliModel = placeAliveEnemiesInFront(liuliModel);
+    liuliModel = reduceAppAction(liuliModel, { type: "combatAction", action: "skill", skillId: "mirror-arc" });
+
+    const liuliHtml = renderAppHtml(liuliModel);
+
+    expect(liuliHtml).toContain('data-class-id="liuli-blademage"');
+    expect(liuliHtml).toContain('data-resource-id="prism"');
+    expect(liuliHtml).toContain('data-resource-current="34"');
+    expect(liuliHtml).toContain('data-prism-chain="1"');
+    expect(liuliHtml).toContain('data-last-skill-id="mirror-arc"');
+
+    let inkModel = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90)
+    });
+
+    inkModel = reduceAppAction(inkModel, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    inkModel = placeAliveEnemiesInFront(inkModel);
+    inkModel = reduceAppAction(inkModel, { type: "combatAction", action: "skill", skillId: "marking-bolt" });
+
+    const inkHtml = renderAppHtml(inkModel);
+
+    expect(inkHtml).toContain('data-class-id="ink-shadow-ranger"');
+    expect(inkHtml).toContain('data-resource-id="ink"');
+    expect(inkHtml).toContain('data-ink-marks="2"');
+  });
+
   it("filters combat skill hotkeys and settlement persistence by selected class resource", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

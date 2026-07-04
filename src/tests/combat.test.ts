@@ -71,6 +71,16 @@ function lastHitEvent(run: CombatRun): CombatHitEvent {
   return event;
 }
 
+function latestHitForSkill(run: CombatRun, skillId: string): CombatHitEvent {
+  const event = [...run.events].reverse().find((item): item is CombatHitEvent => item.kind === "hit" && item.skillId === skillId);
+
+  if (!event) {
+    throw new Error(`Expected hit event for ${skillId}`);
+  }
+
+  return event;
+}
+
 function defeatAll(run: CombatRun): CombatRun {
   return run.enemies.reduce(
     (next, enemy) =>
@@ -397,8 +407,78 @@ describe("combat actions and impact feel", () => {
     const cast = performAction(run, { type: "skill", skillId: "mirror-arc" });
 
     expect(cast.player.resource.id).toBe("prism");
-    expect(cast.player.resource.current).toBe(26);
+    expect(cast.player.resource.current).toBe(34);
     expect(cast.player.heat).toBe(cast.player.resource.current);
+  });
+
+  it("adds heat burst damage for ember burst skills at high heat", () => {
+    const lowHeat = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 40), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 315, y: 340 },
+        { x: 390, y: 356 }
+      ]
+    );
+    const highHeat = {
+      ...lowHeat,
+      player: {
+        ...lowHeat.player,
+        heat: 90,
+        resource: {
+          ...lowHeat.player.resource,
+          current: 90
+        }
+      }
+    };
+
+    const normal = performAction(lowHeat, { type: "skill", skillId: "anvil-crash" });
+    const burst = performAction(highHeat, { type: "skill", skillId: "anvil-crash" });
+
+    expect(latestHitForSkill(burst, "anvil-crash").damage).toBeGreaterThan(latestHitForSkill(normal, "anvil-crash").damage);
+  });
+
+  it("rewards liuli prism cycling with resource refund and shorter cooldown", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 315, y: 340 },
+        { x: 390, y: 356 }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "mirror-arc" });
+
+    expect(cast.player.resource.current).toBe(34);
+    expect(cast.player.prismChain).toBe(1);
+    expect(cast.player.lastSkillId).toBe("mirror-arc");
+    expect(cast.player.skillCooldowns["mirror-arc"]).toBeLessThan(run.elapsedMs + 3600);
+  });
+
+  it("lets ink marking skills stack marks and detonate them for bonus damage", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 315, y: 340 },
+        { x: 390, y: 356 }
+      ]
+    );
+    const marked = performAction(run, { type: "skill", skillId: "marking-bolt" });
+    const ready = {
+      ...stepCombat(marked, {}, 500),
+      player: {
+        ...stepCombat(marked, {}, 500).player,
+        actionLockUntilMs: 0
+      }
+    };
+    const detonated = performAction(ready, { type: "skill", skillId: "night-mark-detonation" });
+
+    expect(marked.enemies[0].marks).toBe(2);
+    expect(detonated.enemies[0].marks).toBe(0);
+    expect(latestHitForSkill(detonated, "night-mark-detonation").damage).toBeGreaterThan(50);
   });
 });
 
@@ -436,6 +516,17 @@ describe("enemy attacks and player defeat", () => {
         })
       ])
     );
+  });
+
+  it("builds iron guard resource when the guardian is hit", () => {
+    const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
+    const run = withEnemyInRange(createCombatRun(state, "cinder-kiln-alley"));
+    const telegraph = stepCombat(run, {}, 80);
+    const impacted = stepCombat(telegraph, {}, 360);
+
+    expect(impacted.player.resource.id).toBe("guard");
+    expect(impacted.player.resource.current).toBeGreaterThan(run.player.resource.current);
+    expect(impacted.player.heat).toBe(impacted.player.resource.current);
   });
 
   it("blocks player attacks while monster-hit hurt lock is active", () => {

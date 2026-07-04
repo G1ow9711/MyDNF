@@ -464,7 +464,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const hitRecent = enemy.id === lastHit?.targetId;
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-hit-recent="${hitRecent ? "true" : "false"}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
             <img class="enemy-art actor-model actor-model-${motion}" style="${enemyModelMotionStyle(run, enemy)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
@@ -479,7 +479,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   return `
     <div class="combat-actors" data-last-hit-target="${lastHit?.targetId ?? ""}">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
         <img class="combat-player-art actor-model actor-model-${playerMotionName}" style="${playerModelMotionStyle(run)}" src="/assets/hero-ember-warden.png" alt="${classDef?.displayName ?? state.player.classId}" />
         <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>
       </div>
@@ -514,7 +514,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const cooldownValue = Math.round(combatStats.cooldown ?? 0);
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>

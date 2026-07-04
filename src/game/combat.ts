@@ -18,6 +18,7 @@ export interface CombatEnemy {
   hp: number;
   maxHp: number;
   armor: number;
+  marks: number;
   position: CombatVector;
   airborne: boolean;
   downed: boolean;
@@ -45,6 +46,8 @@ export interface CombatPlayer {
   hurtLockUntilMs: number;
   defeated: boolean;
   skillCooldowns: Record<string, number>;
+  lastSkillId?: string;
+  prismChain: number;
 }
 
 export interface CombatResource {
@@ -147,6 +150,9 @@ export interface HitDefinition {
   skillId?: string;
   inputToHitMs?: number;
   canceledFromCombo?: boolean;
+  marksApplied?: number;
+  consumeMarks?: boolean;
+  bonusDamagePerMark?: number;
 }
 
 interface EnemyAttackDefinition {
@@ -172,6 +178,9 @@ interface PlayerHitboxDefinition {
   hitstopMs: number;
   knockback: number;
   juggle: boolean;
+  marksApplied?: number;
+  consumeMarks?: boolean;
+  bonusDamagePerMark?: number;
   inputToHitMs: number;
   canceledFromCombo: boolean;
 }
@@ -252,6 +261,7 @@ function createEnemy(dungeonId: DungeonId, roomIndex: number, enemyIndex: number
     id: `${dungeonId}-room-${roomIndex}-enemy-${enemyIndex}`,
     kind,
     ...stats,
+    marks: 0,
     position: {
       x: 520 + enemyIndex * 74,
       y: 320 + (enemyIndex % 2) * 34
@@ -352,7 +362,10 @@ function applyPlayerHitbox(run: CombatRun, hitbox: PlayerHitboxDefinition): Comb
         action: hitbox.action,
         skillId: hitbox.skillId,
         inputToHitMs: hitbox.inputToHitMs,
-        canceledFromCombo: hitbox.canceledFromCombo
+        canceledFromCombo: hitbox.canceledFromCombo,
+        marksApplied: hitbox.marksApplied,
+        consumeMarks: hitbox.consumeMarks,
+        bonusDamagePerMark: hitbox.bonusDamagePerMark
       }),
     run
   );
@@ -418,6 +431,18 @@ function playerCooldownMs(run: CombatRun, baseCooldownMs: number): number {
   return Math.max(250, Math.round(baseCooldownMs * run.combatProfile.cooldownMultiplier));
 }
 
+function skillDamage(run: CombatRun, skill: { resourceCost: number; tags: string[] }): number {
+  const baseDamage = 38 + Math.round(skill.resourceCost / 4);
+  const heatBurstMultiplier =
+    run.player.resource.id === "heat" &&
+    run.player.resource.current >= 70 &&
+    (skill.tags.includes("burst") || skill.tags.includes("ultimate"))
+      ? 1.25
+      : 1;
+
+  return playerDamage(run, Math.round(baseDamage * heatBurstMultiplier));
+}
+
 function classResource(state: GameState): Omit<CombatResource, "current"> {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
   const resource = classDef?.resource ?? { id: "heat", displayName: "热能", max: 100 };
@@ -455,8 +480,42 @@ function gainPlayerResource(player: CombatPlayer, run: CombatRun, baseGain: numb
   return syncPlayerResource(player, player.resource.current + playerResourceGain(run, baseGain));
 }
 
+function gainFlatPlayerResource(player: CombatPlayer, gain: number): CombatPlayer {
+  return syncPlayerResource(player, player.resource.current + gain);
+}
+
 function spendAndGainPlayerResource(player: CombatPlayer, run: CombatRun, cost: number, baseGain: number): CombatPlayer {
   return syncPlayerResource(player, player.resource.current - cost + playerResourceGain(run, baseGain));
+}
+
+function prismCycleGain(run: CombatRun, skillId: string): number {
+  return run.player.resource.id === "prism" && run.player.lastSkillId !== skillId ? 8 : 0;
+}
+
+function prismCooldownMs(run: CombatRun, skillId: string, baseCooldownMs: number): number {
+  const base = playerCooldownMs(run, baseCooldownMs);
+
+  return run.player.resource.id === "prism" && run.player.lastSkillId !== skillId ? Math.round(base * 0.88) : base;
+}
+
+function nextPrismChain(run: CombatRun, skillId: string): number {
+  if (run.player.resource.id !== "prism") {
+    return 0;
+  }
+
+  return run.player.lastSkillId !== skillId ? Math.min(3, run.player.prismChain + 1) : 1;
+}
+
+function markCountForSkill(skill: { tags: string[] }): number {
+  return skill.tags.includes("mark") ? 2 : 0;
+}
+
+function consumesMarksForSkill(skill: { id: string; tags: string[] }): boolean {
+  return skill.id.includes("detonation") || skill.tags.includes("detonate");
+}
+
+function bonusDamagePerMarkForSkill(skill: { id: string; tags: string[] }): number {
+  return consumesMarksForSkill(skill) ? 18 : 0;
 }
 
 export function createCombatRun(state: GameState, dungeonId: string): CombatRun {
@@ -494,7 +553,8 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       invulnerableUntilMs: 0,
       hurtLockUntilMs: 0,
       defeated: false,
-      skillCooldowns: {}
+      skillCooldowns: {},
+      prismChain: 0
     },
     enemies: createRoomEnemies(dungeon.id, 0),
     events: [],
@@ -641,7 +701,7 @@ function applyEnemyImpact(
     occurredAtMs: elapsedMs,
     hitstopMs: attack.hitstopMs
   };
-  const nextPlayer: CombatPlayer = {
+  const damagedPlayer: CombatPlayer = {
     ...player,
     hp: nextHp,
     x: clamp(player.x - nextFacing * attack.knockback, 0, arena.width),
@@ -651,6 +711,7 @@ function applyEnemyImpact(
     hurtLockUntilMs: elapsedMs + Math.max(attack.hitstopMs, 420),
     defeated: nextHp <= 0
   };
+  const nextPlayer = damagedPlayer.resource.id === "guard" ? gainFlatPlayerResource(damagedPlayer, 12) : damagedPlayer;
 
   return { enemy: resolvedEnemy, player: nextPlayer, events: [attackEvent, hitEvent], failed: nextHp <= 0 };
 }
@@ -691,19 +752,23 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     throw new Error(`Unknown combat target: ${hit.targetId}`);
   }
 
+  const bonusDamage = hit.consumeMarks ? target.marks * (hit.bonusDamagePerMark ?? 0) : 0;
+  const effectiveDamage = hit.damage + bonusDamage;
   const hitstopMs = eventHitstop(target, hit.hitstopMs);
   const nextEnemies = run.enemies.map((enemy) => {
     if (enemy.id !== hit.targetId) {
       return enemy;
     }
 
-    const armorDamage = Math.min(enemy.armor, hit.damage);
-    const hpDamage = hit.damage - armorDamage;
+    const armorDamage = Math.min(enemy.armor, effectiveDamage);
+    const hpDamage = effectiveDamage - armorDamage;
+    const nextMarks = hit.consumeMarks ? 0 : clamp(enemy.marks + (hit.marksApplied ?? 0), 0, 9);
 
     return {
       ...enemy,
       hp: Math.max(0, enemy.hp - hpDamage),
       armor: Math.max(0, enemy.armor - armorDamage),
+      marks: nextMarks,
       position: {
         ...enemy.position,
         x: enemy.position.x + hit.knockback * run.player.facing
@@ -718,7 +783,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     action: hit.action ?? "test",
     skillId: hit.skillId,
     targetId: hit.targetId,
-    damage: hit.damage,
+    damage: effectiveDamage,
     occurredAtMs: run.elapsedMs,
     inputToHitMs: hit.inputToHitMs ?? 0,
     hitstopMs,
@@ -827,25 +892,31 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     laneRange: skillLaneRange(skill.tags),
     targetCap: skillTargetCap(skill.tags),
     frontOnly: skillIsFrontOnly(skill.tags),
-    damage: playerDamage(run, 38 + Math.round(skill.resourceCost / 4)),
+    damage: skillDamage(run, skill),
     hitstopMs: 82,
     knockback: 48,
     juggle: skill.tags.includes("launcher") || skill.tags.includes("pull"),
+    marksApplied: markCountForSkill(skill),
+    consumeMarks: consumesMarksForSkill(skill),
+    bonusDamagePerMark: bonusDamagePerMarkForSkill(skill),
     inputToHitMs: 70,
     canceledFromCombo
   });
+  const prismGain = prismCycleGain(run, skill.id);
 
   return {
     ...hitRun,
     player: {
       ...hitRun.player,
-      ...spendAndGainPlayerResource(hitRun.player, run, skill.resourceCost, skill.resourceGain),
+      ...spendAndGainPlayerResource(hitRun.player, run, skill.resourceCost, skill.resourceGain + prismGain),
       comboStep: 0,
       actionLockUntilMs: run.elapsedMs + 420,
       cancelWindowUntilMs: 0,
+      lastSkillId: skill.id,
+      prismChain: nextPrismChain(run, skill.id),
       skillCooldowns: {
         ...hitRun.player.skillCooldowns,
-        [skill.id]: run.elapsedMs + playerCooldownMs(run, skill.cooldownMs)
+        [skill.id]: run.elapsedMs + prismCooldownMs(run, skill.id, skill.cooldownMs)
       }
     }
   };

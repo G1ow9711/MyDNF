@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { createCombatRun, stepCombat, type CombatEnemy, type CombatRun } from "../game/combat";
+import { createCombatRun, performAction, stepCombat, type CombatEnemy, type CombatHitEvent, type CombatRun } from "../game/combat";
 import { createAudioState, setVolume } from "../systems/audio";
 import { createInitialState, createOwnedGear } from "../game/state";
 import { selectBaseClass } from "../systems/classes";
@@ -44,6 +44,10 @@ function withSingleReadyEnemy(run: CombatRun, enemyPatch: Partial<CombatEnemy>):
       }
     ]
   };
+}
+
+function countOccurrences(text: string, pattern: string): number {
+  return text.split(pattern).length - 1;
 }
 
 describe("town app shell", () => {
@@ -214,6 +218,46 @@ describe("town app shell", () => {
     expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain(
       'data-telegraph-phase="windup"'
     );
+  });
+
+  it("renders target-bound skill impact bursts for multi-hit player skills", () => {
+    const inkState = selectBaseClass(createInitialState(), "ink-shadow-ranger");
+    const state = {
+      ...inkState,
+      player: {
+        ...inkState.player,
+        heat: 90
+      }
+    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          position: { x: player.x + 86 + index * 58, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "black-rain-volley" }
+    );
+    const volleyHits = castRun.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "black-rain-volley"
+    );
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: {
+        ...castRun,
+        elapsedMs: Math.max(...volleyHits.map((event) => event.occurredAtMs))
+      }
+    });
+
+    expect(countOccurrences(html, 'data-skill-impact-vfx="black-rain-volley"')).toBe(6);
+    expect(html).toContain('data-impact-vfx-shape="black-rain"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-black-rain"');
   });
 
   it("makes cleared combat rooms obvious before settlement", () => {

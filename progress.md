@@ -1198,3 +1198,28 @@
   - Browser validation on `http://127.0.0.1:5174/`: entered `灰窑巷`, defeated two room-1 enemies through keyboard/buttons, verified `data-room-gate-state="open"` and clear banner, walked right through the gate, reached room 2 with player reset near entrance, new enemies spawned, `data-room-gate-state="locked"`, and toast `进入下一房间`.
   - Browser console error log: empty.
   - Browser screenshot saved at `.codex-local/tmp/room-gate-flow-check.png`.
+
+## Task 43 Target-Bound Skill Impact VFX
+- Started while continuing the strict DNF-like combat feel goal. Current user acceptance still allows lightweight character/monster modeling, but skill effects, impact readability, and actor/VFX state changes must remain strict.
+- Used two read-only parallel agents:
+  - `019f2dd5-adc0-7c20-b5cc-776c7e4e5e92` audited UI/VFX and identified the P0 gap that player skill VFX was single-point while multi-target skills lacked target-bound burst nodes.
+  - `019f2dd5-455a-76e1-afce-2a49655777ad` audited skill scripting and recommended `meteor-knuckle` staged ultimate as a future high-value slice after the current VFX layer.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` requires `black-rain-volley` to render `data-skill-impact-vfx="black-rain-volley"` on every target hit and across all six staggered hit events.
+- RED evidence:
+  - `npm test -- src/tests/app-integration.test.ts` failed because the new selector count was `0` instead of `2` on the first wave.
+- Implemented:
+  - Added a `skill-impact-burst` node for every active skill `hit` event.
+  - Each burst is target-bound and exposes `data-skill-impact-vfx`, `data-impact-vfx-shape`, `data-impact-target-id`, `data-hit-event-id`, and `data-impact-hit-index`.
+  - Added generic skill impact CSS plus a black-rain-specific impact burst with animated core/ring/shards.
+  - Added UI smoke coverage for `black-rain-volley` target-bound impact bursts.
+- Verification so far:
+  - `npm test -- src/tests/app-integration.test.ts`: pass, 46 tests.
+  - `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 63 tests.
+  - `npm test`: pass, 13 files and 195 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Browser validation on `http://127.0.0.1:5174/.codex-local/tmp/target-vfx-check.html`: rendered the black-rain hit frame with 6 `data-skill-impact-vfx="black-rain-volley"` nodes, 6 damage numbers, 6 black-rain impact shapes, 2 distinct target ids, `data-hitstop-active="true"`, and `data-screen-shake="skill"`.
+  - Browser console error log: empty.
+  - Browser screenshot saved at `.codex-local/tmp/target-vfx-check.png`.
+  - The browser was restored to `http://127.0.0.1:5174/` after validation.

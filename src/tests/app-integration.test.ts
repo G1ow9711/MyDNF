@@ -1047,6 +1047,51 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(hitFrameHtml, 'data-damage-number="true"')).toBe(2);
   });
 
+  it("renders skill-specific impact bursts on every target hit of a multi-hit skill", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "black-rain-volley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const volleyHits = model.combatRun.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "black-rain-volley"
+    );
+    const firstWaveAtMs = Math.min(...volleyHits.map((event) => event.occurredAtMs));
+    const finalWaveAtMs = Math.max(...volleyHits.map((event) => event.occurredAtMs));
+    const targetIds = [...new Set(volleyHits.map((event) => event.targetId))];
+    const firstWaveHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs: firstWaveAtMs
+      }
+    });
+    const finalWaveHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs: finalWaveAtMs
+      }
+    });
+
+    expect(volleyHits).toHaveLength(6);
+    expect(targetIds).toHaveLength(2);
+    expect(countOccurrences(firstWaveHtml, 'data-skill-impact-vfx="black-rain-volley"')).toBe(2);
+    expect(countOccurrences(finalWaveHtml, 'data-skill-impact-vfx="black-rain-volley"')).toBe(6);
+    expect(finalWaveHtml).toContain('data-impact-vfx-shape="black-rain"');
+    expect(finalWaveHtml).toContain('class="skill-impact-burst skill-impact-shape-black-rain"');
+    expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[0]}"`);
+    expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[1]}"`);
+  });
+
   it("keeps skill-specific VFX metadata when a class skill misses", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

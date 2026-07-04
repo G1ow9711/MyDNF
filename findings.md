@@ -205,3 +205,9 @@
 - Room gate state is now explicit: active rooms show `locked`, cleared normal rooms show `open`, the pre-boss transition shows `boss`, and the final cleared room shows `complete`.
 - App integration now requires walking right into the gate before loot and the next room are applied. This preserves keyboard movement as part of the dungeon loop instead of converting clear-room into a menu action.
 - UI no longer renders `settle-button`; the combat scene renders a visible right-side room gate plus a non-clickable door status indicator, so the player reads the goal as movement-based progression.
+
+## Target-Bound Skill Impact Findings
+- Follow-up visual audit found that player skill VFX had a main cast node, but target impact presentation still looked generic: each hit showed the same `hit-impact` ring and damage number without skill-specific per-target burst data.
+- The gap is most obvious on multi-hit skills such as `black-rain-volley`: combat already emits six staggered hit events across two targets, but the UI previously had no `data-skill-impact-vfx` nodes to prove every target and every wave received a skill-shaped impact.
+- The next reusable VFX layer should separate cast VFX from target-bound impact VFX. Cast VFX shows the skill being released, while impact VFX attaches to the target position and inherits the catalog `vfxShape`.
+- `meteor-knuckle` remains a high-value next combat-script slice: it should become a staged ultimate with stronger hitstop/knockdown/ground-crack VFX instead of another generic ultimate hitbox.

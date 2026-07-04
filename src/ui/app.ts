@@ -626,14 +626,28 @@ function renderCombatVfx(run: CombatRun): string {
   const hitstopActive = Boolean(hit && run.elapsedMs < hit.occurredAtMs + hit.hitstopMs) || Boolean(playerHit && run.elapsedMs < run.player.hitstopUntilMs);
   const screenShake = hit ? hit.action ?? "test" : playerHit ? "enemy" : "none";
   const hitVfx = hits
-    .map((hitEvent) => {
+    .map((hitEvent, hitIndex) => {
       const target = run.enemies.find((enemy) => enemy.id === hitEvent.targetId);
 
       if (!target) {
         return "";
       }
 
+      const skillImpactAnimation =
+        hitEvent.action === "skill" && hitEvent.skillId ? classSkillById(hitEvent.skillId)?.animation : undefined;
+      const skillImpactVfx =
+        hitEvent.action === "skill" && hitEvent.skillId && skillImpactAnimation
+          ? `
+        <div class="skill-impact-burst skill-impact-shape-${skillImpactAnimation.vfxShape}" data-skill-impact-vfx="${hitEvent.skillId}" data-impact-vfx-shape="${skillImpactAnimation.vfxShape}" data-impact-target-id="${target.id}" data-hit-event-id="${hitEvent.id}" data-impact-hit-index="${hitIndex}" style="${combatActorStyle(run, target.position.x, target.position.y)} --skill-duration: ${skillImpactAnimation.durationMs}ms; --impact-hit-index: ${hitIndex};">
+          <span class="skill-impact-core"></span>
+          <span class="skill-impact-ring"></span>
+          <span class="skill-impact-shards"></span>
+        </div>
+      `
+          : "";
+
       return `
+        ${skillImpactVfx}
         <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}" data-impact-spark="true" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, target.position.x, target.position.y)}">
           <span class="hit-ring"></span>
           <span class="hit-slash"></span>

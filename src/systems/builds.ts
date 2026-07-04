@@ -1,5 +1,6 @@
 import { catalog } from "../data/catalog";
 import type { EpicSet, EpicSetBonus, GameState, GearItem, OwnedGearItem, StatBlock, StatKey } from "../game/types";
+import { getAmplifiedEquippedStats } from "./upgrades";
 
 export interface BuildSetSummary {
   setId: string;
@@ -15,6 +16,15 @@ export interface EquipmentBuildSummary {
   activeBonuses: Array<EpicSetBonus & { setId: string; setName: string }>;
   totalStats: StatBlock;
   buildTags: string[];
+}
+
+export interface CombatProfile {
+  stats: StatBlock;
+  maxHp: number;
+  damageMultiplier: number;
+  cooldownMultiplier: number;
+  resourceGainMultiplier: number;
+  damageTakenMultiplier: number;
 }
 
 function gearFor(owned: OwnedGearItem): GearItem | undefined {
@@ -76,5 +86,73 @@ export function evaluateEquipmentBuild(state: GameState): EquipmentBuildSummary 
     activeBonuses,
     totalStats,
     buildTags: sets.filter((set) => set.activeBonuses.length > 0).map((set) => set.theme)
+  };
+}
+
+function equippedOwnedGear(state: GameState): OwnedGearItem[] {
+  const equippedIds = new Set(Object.values(state.player.equipment));
+
+  return state.player.inventory.filter((item) => equippedIds.has(item.instanceId));
+}
+
+function reinforceStats(owned: OwnedGearItem, gear: GearItem): StatBlock {
+  if (owned.reinforceLevel <= 0) {
+    return {};
+  }
+
+  if (gear.slot === "weapon" || gear.slot === "core") {
+    return { attack: owned.reinforceLevel * 3 };
+  }
+
+  return { defense: owned.reinforceLevel * 2 };
+}
+
+function equippedGearStats(state: GameState): StatBlock {
+  return equippedOwnedGear(state).reduce((total, owned) => {
+    const gear = gearFor(owned);
+
+    if (!gear) {
+      return total;
+    }
+
+    return addStats(addStats(total, gear.stats), reinforceStats(owned, gear));
+  }, {});
+}
+
+function amplifiedStats(state: GameState): StatBlock {
+  return getAmplifiedEquippedStats(state);
+}
+
+function advancementStats(state: GameState): StatBlock {
+  const classDef = catalog.classes.find((item) => item.id === state.player.classId);
+  const advancement = classDef?.advancements.find((item) => item.id === state.player.advancementId);
+
+  return advancement?.passiveBonuses ?? {};
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+export function evaluateCombatProfile(state: GameState): CombatProfile {
+  const build = evaluateEquipmentBuild(state);
+  const stats = [equippedGearStats(state), build.totalStats, amplifiedStats(state), advancementStats(state)].reduce(
+    (total, block) => addStats(total, block),
+    {}
+  );
+  const attack = stats.attack ?? 0;
+  const defense = stats.defense ?? 0;
+  const crit = stats.crit ?? 0;
+  const cooldown = stats.cooldown ?? 0;
+  const element = stats.element ?? 0;
+  const heatGain = stats.heatGain ?? 0;
+
+  return {
+    stats,
+    maxHp: 1000 + Math.round(defense * 8),
+    damageMultiplier: Math.max(1, 1 + attack / 100 + element / 200 + crit / 250),
+    cooldownMultiplier: clamp(1 - cooldown / 100, 0.55, 1),
+    resourceGainMultiplier: Math.max(1, 1 + heatGain / 100),
+    damageTakenMultiplier: clamp(100 / (100 + defense), 0.35, 1)
   };
 }

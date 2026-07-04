@@ -834,3 +834,26 @@
 - Explorer follow-up found the next highest-priority gaps after this task:
   - P0: equipment, reinforcement, amplification, set bonuses, and build tags still do not enter combat damage/HP/cooldown formulas.
   - P0: class resources are still represented as generic heat in combat even though class data defines heat/prism/ink/guard.
+
+## Task 28 Equipment Combat Formula
+- Started after the cooldown follow-up audit identified equipment and build stats not entering combat formulas as the next P0 gap.
+- Added RED coverage:
+  - `src/tests/builds.test.ts` requires a combat profile that combines equipped gear stats, reinforcement, amplification, and active Epic set bonuses.
+  - `src/tests/combat.test.ts` requires geared runs to gain higher max HP, deal higher hit damage, and receive reduced skill cooldowns.
+  - `src/tests/app-integration.test.ts` requires the dungeon HUD to show attack, defense, and cooldown stats.
+- Implemented:
+  - Added `evaluateCombatProfile()` in `src/systems/builds.ts`.
+  - Combat profile now folds in equipped gear base stats, active set bonuses, reinforcement attack/defense, amplified equipped stats, and class advancement passives.
+  - `createCombatRun()` now snapshots combat profile and uses it for player max HP.
+  - Player light/heavy/skill damage now scales from combat attack/element/crit.
+  - Player skill cooldowns now use combat cooldown reduction.
+  - Player resource gain uses heat-gain stats.
+  - Enemy damage now applies defense-based damage reduction.
+  - Combat HUD now displays attack, defense, and cooldown values.
+- Verification:
+  - RED confirmed: focused tests failed because `evaluateCombatProfile()` did not exist and combat HP stayed fixed at 1000.
+  - `npm test -- src/tests/builds.test.ts src/tests/combat.test.ts`: pass, 15 tests.
+  - `npm test -- src/tests/builds.test.ts src/tests/combat.test.ts src/tests/app-integration.test.ts`: pass, 44 tests.
+  - `npm test`: pass, 12 files and 141 tests.
+  - `npm run build`: pass.
+  - Edge headless browser check on `http://127.0.0.1:5174/`: combat status showed `攻击 9 · 防御 0 · 冷却 0%`, monster attacks and skill cooldown VFX still rendered correctly, and screenshot was refreshed at `.codex-local/tmp/monster-browser-check.png`.

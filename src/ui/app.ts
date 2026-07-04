@@ -481,6 +481,10 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
     .join("");
   const sparks = plan.commands.filter((command) => command.kind === "hit-spark").length;
   const activeQuest = getActiveQuestText(state);
+  const combatStats = run.combatProfile.stats;
+  const attackValue = Math.round(combatStats.attack ?? 0);
+  const defenseValue = Math.round(combatStats.defense ?? 0);
+  const cooldownValue = Math.round(combatStats.cooldown ?? 0);
 
   return `
     <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}">
@@ -509,7 +513,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         <button data-mode="town">返回</button>
       </div>
       <div class="combat-status">
-        <p>房间 ${run.roomIndex + 1} · HP ${run.player.hp}/${run.player.maxHp} · 热能 ${run.player.heat} · 连段 ${run.player.comboStep}</p>
+        <p>房间 ${run.roomIndex + 1} · HP ${run.player.hp}/${run.player.maxHp} · 热能 ${run.player.heat} · 连段 ${run.player.comboStep} · 攻击 ${attackValue} · 防御 ${defenseValue} · 冷却 ${cooldownValue}%</p>
         <ul>${enemies}</ul>
       </div>
       <aside class="quest-tracker quest-tracker-prominent" aria-label="任务追踪">

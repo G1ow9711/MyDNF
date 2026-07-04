@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { createInitialState } from "../game/state";
-import type { GameState } from "../game/types";
+import { createInitialState, createOwnedGear } from "../game/state";
+import type { GameState, GearSlot, OwnedGearItem } from "../game/types";
+import { equipItem } from "../systems/inventory";
 import { applyQuestEvent, claimQuestReward } from "../systems/quests";
 import {
   applyHit,
@@ -30,6 +31,29 @@ function withHeat(state: GameState, heat: number): GameState {
       heat
     }
   };
+}
+
+function gearId(setId: string, slot: GearSlot): string {
+  const gear = catalog.gear.find((item) => item.setId === setId && item.slot === slot && item.rarity === "epic");
+
+  if (!gear) {
+    throw new Error(`Missing ${setId} ${slot}`);
+  }
+
+  return gear.id;
+}
+
+function withEquippedOwnedGear(state: GameState, ownedGear: OwnedGearItem): GameState {
+  return equipItem(
+    {
+      ...state,
+      player: {
+        ...state.player,
+        inventory: [...state.player.inventory, ownedGear]
+      }
+    },
+    ownedGear.instanceId
+  );
 }
 
 function advanceTime(run: CombatRun, dtMs = 220): CombatRun {
@@ -185,6 +209,29 @@ describe("combat actions and impact feel", () => {
       skillId: "anvil-crash"
     });
     expect(recast.player.skillCooldowns["anvil-crash"]).toBe(ready.elapsedMs + 5200);
+  });
+
+  it("uses equipped attack stats and cooldown stats in combat formulas", () => {
+    const plainRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const plainHit = performAction(plainRun, { type: "light" });
+    let gearedState = withEquippedOwnedGear(
+      createInitialState(),
+      {
+        ...createOwnedGear(gearId("ember-artisan", "weapon"), "combat-weapon"),
+        reinforceLevel: 6
+      }
+    );
+
+    gearedState = withEquippedOwnedGear(gearedState, createOwnedGear(gearId("liuli-flow", "sigil"), "combat-sigil"));
+    gearedState = withEquippedOwnedGear(gearedState, createOwnedGear(gearId("liuli-flow", "charm"), "combat-charm"));
+
+    const gearedRun = createCombatRun(withHeat(gearedState, 80), "cinder-kiln-alley");
+    const gearedHit = performAction(gearedRun, { type: "light" });
+    const gearedSkill = performAction(gearedRun, { type: "skill", skillId: "anvil-crash" });
+
+    expect(gearedRun.player.maxHp).toBeGreaterThan(plainRun.player.maxHp);
+    expect(lastHitEvent(gearedHit).damage).toBeGreaterThan(lastHitEvent(plainHit).damage);
+    expect(gearedSkill.player.skillCooldowns["anvil-crash"]).toBeLessThan(gearedRun.elapsedMs + 5200);
   });
 
   it("uses stronger hitstop for heavy hits and reduced hitstop against boss armor", () => {

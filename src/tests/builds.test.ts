@@ -3,7 +3,7 @@ import { catalog } from "../data/catalog";
 import { createInitialState, createOwnedGear } from "../game/state";
 import type { GearSlot, GameState } from "../game/types";
 import { equipItem } from "../systems/inventory";
-import { evaluateEquipmentBuild } from "../systems/builds";
+import { evaluateCombatProfile, evaluateEquipmentBuild } from "../systems/builds";
 import { renderInventoryPanel } from "../ui/panels";
 
 function gearId(setId: string, slot: GearSlot): string {
@@ -62,5 +62,38 @@ describe("equipment build evaluation", () => {
     expect(html).toContain("未激活");
     expect(html).toContain("炉心回火");
     expect(html).toContain("宗匠焰纹");
+  });
+
+  it("folds equipped gear, upgrades, amplification, and set bonuses into combat stats", () => {
+    let state = createInitialState();
+    const weapon = {
+      ...createOwnedGear(gearId("ember-artisan", "weapon"), "combat-weapon"),
+      reinforceLevel: 4
+    };
+    const sigil = {
+      ...createOwnedGear(gearId("liuli-flow", "sigil"), "combat-sigil"),
+      amplifyLevel: 3,
+      amplifyStat: "cooldown" as const
+    };
+    const charm = createOwnedGear(gearId("liuli-flow", "charm"), "combat-charm");
+
+    for (const owned of [weapon, sigil, charm]) {
+      state = {
+        ...state,
+        player: {
+          ...state.player,
+          inventory: [...state.player.inventory, owned]
+        }
+      };
+      state = equipItem(state, owned.instanceId);
+    }
+
+    const profile = evaluateCombatProfile(state);
+
+    expect(profile.stats.attack).toBeGreaterThan(40);
+    expect(profile.stats.cooldown).toBeGreaterThanOrEqual(15);
+    expect(profile.maxHp).toBeGreaterThan(1000);
+    expect(profile.damageMultiplier).toBeGreaterThan(1);
+    expect(profile.cooldownMultiplier).toBeLessThan(1);
   });
 });

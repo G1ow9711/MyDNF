@@ -239,6 +239,18 @@ describe("playable app integration actions", () => {
     expect(html).toContain("清理灰窑巷");
   });
 
+  it("renders combat profile stats in the dungeon HUD", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    const html = renderAppHtml(model);
+
+    expect(html).toContain("攻击");
+    expect(html).toContain("防御");
+    expect(html).toContain("冷却");
+  });
+
   it("prompts settlement instead of attacking an already cleared combat room", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

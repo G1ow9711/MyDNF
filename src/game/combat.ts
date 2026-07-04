@@ -1,6 +1,7 @@
 import { catalog } from "../data/catalog";
 import type { DungeonId, GameState } from "./types";
 import type { CombatInput } from "./input";
+import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
 
 export type EnemyKind = "trash" | "elite" | "boss";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "skill"; skillId: string };
@@ -109,6 +110,7 @@ export interface CombatRun {
   elapsedMs: number;
   arena: CombatArena;
   player: CombatPlayer;
+  combatProfile: CombatProfile;
   enemies: CombatEnemy[];
   events: CombatEvent[];
   lootEvents: CombatLootEvent[];
@@ -263,8 +265,21 @@ function eventHitstop(enemy: CombatEnemy, hitstopMs: number): number {
   return hitstopMs;
 }
 
+function playerDamage(run: CombatRun, baseDamage: number): number {
+  return Math.max(1, Math.round(baseDamage * run.combatProfile.damageMultiplier));
+}
+
+function playerResourceGain(run: CombatRun, baseGain: number): number {
+  return Math.max(0, Math.round(baseGain * run.combatProfile.resourceGainMultiplier));
+}
+
+function playerCooldownMs(run: CombatRun, baseCooldownMs: number): number {
+  return Math.max(250, Math.round(baseCooldownMs * run.combatProfile.cooldownMultiplier));
+}
+
 export function createCombatRun(state: GameState, dungeonId: string): CombatRun {
   const dungeon = getDungeon(dungeonId);
+  const combatProfile = evaluateCombatProfile(state);
 
   if (!dungeon) {
     throw new Error(`Unknown dungeon: ${dungeonId}`);
@@ -280,12 +295,13 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
     roomIndex: 0,
     elapsedMs: 0,
     arena,
+    combatProfile,
     player: {
       x: 160,
       y: 345,
       facing: 1,
-      hp: 1000,
-      maxHp: 1000,
+      hp: combatProfile.maxHp,
+      maxHp: combatProfile.maxHp,
       heat: state.player.heat,
       comboStep: 0,
       actionLockUntilMs: 0,
@@ -396,7 +412,8 @@ function playerInEnemyAttackRange(enemy: CombatEnemy, player: CombatPlayer, atta
 function applyEnemyImpact(
   enemy: CombatEnemy,
   player: CombatPlayer,
-  elapsedMs: number
+  elapsedMs: number,
+  combatProfile: CombatProfile
 ): { enemy: CombatEnemy; player: CombatPlayer; events: CombatEvent[]; failed: boolean } {
   if (
     enemy.hp <= 0 ||
@@ -428,14 +445,15 @@ function applyEnemyImpact(
     return { enemy: resolvedEnemy, player, events: [attackEvent], failed: player.defeated };
   }
 
-  const nextHp = Math.max(0, player.hp - attack.damage);
+  const damage = Math.max(1, Math.round(attack.damage * combatProfile.damageTakenMultiplier));
+  const nextHp = Math.max(0, player.hp - damage);
   const nextFacing: 1 | -1 = enemy.position.x >= player.x ? 1 : -1;
   const hitEvent: CombatPlayerHitEvent = {
     kind: "player-hit",
     id: `player-hit-${elapsedMs}-${enemy.id}`,
     enemyId: enemy.id,
     skillId: attack.skillId,
-    damage: attack.damage,
+    damage,
     occurredAtMs: elapsedMs,
     hitstopMs: attack.hitstopMs
   };
@@ -464,7 +482,7 @@ function advanceEnemyAttacks(run: CombatRun): CombatRun {
       events.push(started.event);
     }
 
-    const impacted = applyEnemyImpact(started.enemy, player, run.elapsedMs);
+    const impacted = applyEnemyImpact(started.enemy, player, run.elapsedMs, run.combatProfile);
 
     player = impacted.player;
     failed = failed || impacted.failed;
@@ -552,7 +570,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     const hitRun = applyHit(run, {
       id: `hit-${run.elapsedMs}-light-${run.player.comboStep + 1}`,
       targetId: target.id,
-      damage: 24,
+      damage: playerDamage(run, 24),
       hitstopMs: 42,
       knockback: 22,
       juggle: false,
@@ -564,7 +582,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       ...hitRun,
       player: {
         ...hitRun.player,
-        heat: clamp(hitRun.player.heat + 8, 0, 100),
+        heat: clamp(hitRun.player.heat + playerResourceGain(run, 8), 0, 100),
         comboStep: (run.player.comboStep % 3) + 1,
         actionLockUntilMs: run.elapsedMs + 180,
         cancelWindowUntilMs: run.elapsedMs + 180
@@ -576,7 +594,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     const hitRun = applyHit(run, {
       id: `hit-${run.elapsedMs}-heavy`,
       targetId: target.id,
-      damage: 48,
+      damage: playerDamage(run, 48),
       hitstopMs: 72,
       knockback: 60,
       juggle: true,
@@ -588,7 +606,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       ...hitRun,
       player: {
         ...hitRun.player,
-        heat: clamp(hitRun.player.heat + 4, 0, 100),
+        heat: clamp(hitRun.player.heat + playerResourceGain(run, 4), 0, 100),
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + 260,
         cancelWindowUntilMs: 0
@@ -613,7 +631,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   const hitRun = applyHit(run, {
     id: `hit-${run.elapsedMs}-skill-${action.skillId}`,
     targetId: target.id,
-    damage: 38 + Math.round(skill.resourceCost / 4),
+    damage: playerDamage(run, 38 + Math.round(skill.resourceCost / 4)),
     hitstopMs: 82,
     knockback: 48,
     juggle: skill.tags.includes("launcher") || skill.tags.includes("pull"),
@@ -627,13 +645,13 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     ...hitRun,
     player: {
       ...hitRun.player,
-      heat: clamp(hitRun.player.heat - skill.resourceCost + skill.resourceGain, 0, 100),
+      heat: clamp(hitRun.player.heat - skill.resourceCost + playerResourceGain(run, skill.resourceGain), 0, 100),
       comboStep: 0,
       actionLockUntilMs: run.elapsedMs + 420,
       cancelWindowUntilMs: 0,
       skillCooldowns: {
         ...hitRun.player.skillCooldowns,
-        [skill.id]: run.elapsedMs + skill.cooldownMs
+        [skill.id]: run.elapsedMs + playerCooldownMs(run, skill.cooldownMs)
       }
     }
   };

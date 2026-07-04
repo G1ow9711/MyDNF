@@ -147,3 +147,4 @@
 - Mounted gameplay now has a 140 ms combat tick, so monster AI advances while the player pauses instead of only progressing on click/key actions.
 - Class skill cooldowns now use the catalog `cooldownMs` field in combat state. Skill buttons expose remaining cooldown, hotkeys filter cooling skills, and reducer-level protection prevents stale DOM clicks from recasting.
 - Latest read-only gameplay audit after cooldown found the next P0 gaps are equipment/set/build stats not entering combat formulas and class resources still sharing a generic heat model.
+- Equipment is now part of combat math: equipped gear stats, active Epic set bonuses, reinforcement levels, amplification stats, and advancement passives feed max HP, outgoing damage, incoming damage reduction, cooldown speed, and resource gain.

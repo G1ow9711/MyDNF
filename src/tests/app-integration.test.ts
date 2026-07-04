@@ -3,7 +3,7 @@ import { catalog } from "../data/catalog";
 import { performAction, stepCombat, type CombatHitEvent } from "../game/combat";
 import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
-import { selectBaseClass } from "../systems/classes";
+import { advanceClass, selectBaseClass } from "../systems/classes";
 import { saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 import { combatActionForKeyCode, createAppModel, mountApp, reduceAppAction, renderAppHtml } from "../ui/app";
 
@@ -915,6 +915,49 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-evade-active="true"');
     expect(html).toContain('data-dodge-result="missed"');
     expect(html).toContain('data-player-motion="dodge"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-dodge"');
+  });
+
+  it("maps KeyC to a universal backstep and renders dodge motion without hiding skill hotkeys", () => {
+    const advancedState = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90)),
+      "flowing-light-swordmaster"
+    );
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: advancedState
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+
+    const action = combatActionForKeyCode(model.state, "KeyC", model.combatRun?.player.resource.current, false, model.combatRun);
+    expect(action).toEqual({ type: "combatAction", action: "backstep" });
+    expect(combatActionForKeyCode(model.state, "KeyU", model.combatRun?.player.resource.current, false, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "liuli-rain"
+    });
+    expect(combatActionForKeyCode(model.state, "Space", model.combatRun?.player.resource.current, false, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "flowing-light-chain"
+    });
+
+    const xBefore = model.combatRun?.player.x ?? 0;
+    model = reduceAppAction(model, { type: "combatAction", action: "backstep" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const html = renderAppHtml(model);
+
+    expect(model.combatRun.player.x).toBeLessThan(xBefore);
+    expect(html).toContain('data-player-motion="dodge"');
+    expect(html).toContain('data-evade-active="true"');
+    expect(html).toContain('data-combat-action="backstep"');
+    expect(html).toContain('data-hotkey="C"');
     expect(html).toContain('class="combat-player-art actor-model actor-model-dodge"');
   });
 

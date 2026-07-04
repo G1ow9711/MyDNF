@@ -1392,3 +1392,25 @@
   - Final `npm run build`: pass.
   - Final `git diff --check`: pass with Windows line-ending warnings only.
   - Final browser DOM check reconfirmed `[26,33,41]` normal combo damage, `[55,65,78]` hit frames, third-step launcher, enemy airborne, and `actor-model-light-3`.
+
+## Task 50 Universal Backstep Dodge
+- Started after user clarified that character/monster model detail can stay simple only for now; combat motion, action changes, hit feel, and skill/monster VFX remain strict.
+- Used one read-only parallel agent:
+  - `019f2ecd-d507-7e70-bdf8-ba7b987a70d8` audited combat/input/UI/CSS insertion points and confirmed `KeyC` should be routed before skill lookup while Space remains skill-bound.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires every class to backstep without resource cost, move opposite facing, keep facing unchanged, open evade/action-lock windows, emit no hit/miss events, and make an incoming monster skill miss.
+  - `src/tests/app-integration.test.ts` requires `KeyC` to map to `backstep`, requires base and advancement skill hotkeys to remain available, and requires dodge DOM hooks plus the backstep button.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts` initially failed because `backstep` fell through to skill lookup and `KeyC` was unmapped.
+- Implemented:
+  - Extended `CombatActionInput` and `AppAction` with `backstep`.
+  - Added a pure defensive backstep in `performAction()` with 74 px reverse movement, short evade/invulnerability windows, 260 ms action lock, and no hit/miss event output.
+  - Added `KeyC` keyboard mapping, a `后跳` combat button, and updated the combat control hint.
+  - Kept Space mapped through class skill lookup; advanced Liuli still maps Space to `flowing-light-chain`.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts`: pass, 102 tests.
+  - `npm test`: pass, 13 files and 218 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Browser DOM validation on `http://127.0.0.1:5174/`: clicked real `后跳 C` button, player moved from `--actor-x: 16.67%` to `--actor-x: 8.96%`, `data-player-motion="dodge"`, `data-evade-active="true"`, `actor-model-dodge`, and existing skill hotkeys remained present.
+  - Browser screenshot saved at `.codex-local/tmp/backstep-dodge-check.png`.

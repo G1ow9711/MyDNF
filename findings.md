@@ -254,3 +254,10 @@
 - UI audit found player motion already came from hit/miss events, but combat DOM exposed only `data-player-motion="light"` and HUD text. Browser verification needed stable `data-player-combo-step`, `data-player-normal-combo-step`, and `actor-model-light-N` hooks.
 - Implementation note: light attacks now use three normal-combo step definitions. Step 1 is quick, step 2 has later impact and stronger stagger, and step 3 has the longest startup/lock plus `launcher` feedback and airborne target state.
 - Expiration note: when the hit chain expires, `stepCombat()` now clears `player.comboStep` along with `comboCount`, so stale UI state cannot show a later normal attack step after a pause.
+
+## Universal Backstep Findings
+- Current DNF-like control gap after normal combo: the player had skill-specific evade windows, but no universal defensive backstep available to every class without resource cost.
+- Space is already reserved for advancement skills, so the safer keyboard binding is `KeyC`; this preserves base skill hotkeys and later Space advancement skills.
+- Existing `dodge` presentation hooks are sufficient for the first backstep slice: `data-player-motion="dodge"`, `data-evade-active="true"`, and `actor-model-dodge` already drive player model motion.
+- Implementation note: backstep is a pure defensive combat action. It moves opposite the current facing, keeps facing unchanged, opens a short evade/invulnerability window, starts an action lock, clears combo/cancel state, and emits no hit or miss events.
+- Agent review confirmed the minimal hook set: extend `CombatActionInput`, route `KeyC` before skill lookup, add a `data-combat-action="backstep"` button, and keep Space flowing through skill lookup for advanced classes.

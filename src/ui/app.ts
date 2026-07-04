@@ -72,7 +72,7 @@ export type AppAction =
   | { type: "enterDungeon"; dungeonId: DungeonId }
   | { type: "combatTick" }
   | { type: "combatMove"; moveX: number; moveY: number; dash: boolean }
-  | { type: "combatAction"; action: "light" | "heavy" | "finish" }
+  | { type: "combatAction"; action: "light" | "heavy" | "backstep" | "finish" }
   | { type: "combatAction"; action: "skill"; skillId: string }
   | { type: "claimQuest"; questId: string }
   | { type: "selectBaseClass"; classId: ClassId }
@@ -210,6 +210,10 @@ export function combatActionForKeyCode(
     return { type: "combatAction", action: "heavy" };
   }
 
+  if (code === "KeyC") {
+    return { type: "combatAction", action: "backstep" };
+  }
+
   const keyByCode: Record<string, string> = {
     KeyL: "L",
     KeyU: "U",
@@ -243,6 +247,10 @@ function toCombatActionInput(action: Extract<AppAction, { type: "combatAction" }
 
   if (action.action === "heavy") {
     return { type: "heavy" };
+  }
+
+  if (action.action === "backstep") {
+    return { type: "backstep" };
   }
 
   if (action.action === "skill") {
@@ -903,9 +911,10 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
           : ""
       }
       <div class="combat-actions">
-        <div class="combat-control-hint">方向键/WASD 移动 · Shift 冲刺 · X/J 轻击 · Z/K 重击</div>
+        <div class="combat-control-hint">方向键/WASD 移动 · Shift 冲刺 · X/J 轻击 · Z/K 重击 · C 后跳</div>
         <button data-combat-action="light" data-hotkey="J" ${roomCleared || roomFailed ? "disabled" : ""}>轻击<span>X/J</span></button>
         <button data-combat-action="heavy" data-hotkey="K" ${roomCleared || roomFailed ? "disabled" : ""}>重击<span>Z/K</span></button>
+        <button data-combat-action="backstep" data-hotkey="C" ${roomCleared || roomFailed ? "disabled" : ""}>后跳<span>C</span></button>
         ${skillButtons}
         ${doorStatus}
         <button data-mode="town">返回</button>
@@ -1231,6 +1240,8 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           combatRun = performAction(readyRun, { type: "light" });
         } else if (action.action === "heavy") {
           combatRun = performAction(readyRun, { type: "heavy" });
+        } else if (action.action === "backstep") {
+          combatRun = performAction(readyRun, { type: "backstep" });
         } else if (action.action === "skill") {
           combatRun = performAction(readyRun, { type: "skill", skillId: action.skillId });
         } else {
@@ -1503,7 +1514,7 @@ export function mountApp(root: HTMLDivElement): () => void {
 
       const mode = target.dataset.mode as AppMode | undefined;
       const dungeonId = target.dataset.enterDungeon as DungeonId | undefined;
-      const combatAction = target.dataset.combatAction as "light" | "heavy" | "skill" | "finish" | undefined;
+      const combatAction = target.dataset.combatAction as "light" | "heavy" | "backstep" | "skill" | "finish" | undefined;
       const combatSkillId = target.dataset.combatSkillId;
       const appAction = target.dataset.appAction;
       const gearId = target.dataset.gearId;

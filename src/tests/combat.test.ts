@@ -766,6 +766,42 @@ describe("combat actions and impact feel", () => {
     expect(dodged.events.some((event) => event.kind === "player-hit")).toBe(false);
   });
 
+  it("lets every class backstep into a short dodge window without spending resources", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1 },
+      [{ x: 322, y: 340 }]
+    );
+    const resourceBefore = run.player.resource.current;
+    const backstep = performAction(run, { type: "backstep" });
+    const telegraph = stepCombat(
+      withEnemyInRange(backstep, {
+        position: { x: backstep.player.x + 20, y: backstep.player.y },
+        nextAttackAtMs: backstep.elapsedMs + 1
+      }),
+      {},
+      80
+    );
+    const dodged = stepCombat(telegraph, {}, 360);
+
+    expect(backstep.player.x).toBeLessThan(run.player.x);
+    expect(backstep.player.facing).toBe(run.player.facing);
+    expect(backstep.player.evadeUntilMs).toBeGreaterThan(backstep.elapsedMs);
+    expect(backstep.player.actionLockUntilMs).toBeGreaterThan(backstep.elapsedMs);
+    expect(backstep.player.resource.current).toBe(resourceBefore);
+    expect(backstep.events.filter((event) => event.kind === "hit" || event.kind === "miss")).toHaveLength(0);
+    expect(dodged.player.hp).toBe(run.player.hp);
+    expect(dodged.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          phase: "miss"
+        })
+      ])
+    );
+    expect(dodged.events.some((event) => event.kind === "player-hit")).toBe(false);
+  });
+
   it("turns reflect skills into a counter window against monster attacks", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
     const run = withPlayerAndEnemies(

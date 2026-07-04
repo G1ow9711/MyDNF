@@ -4,7 +4,7 @@ import type { CombatInput } from "./input";
 import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
 
 export type EnemyKind = "trash" | "elite" | "boss";
-export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "skill"; skillId: string };
+export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "backstep" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
 export type CombatHitPhase = "fall" | "impact" | "rain" | "pierce";
@@ -270,6 +270,10 @@ const roomGateY = 345;
 const roomGateEnterRangeX = 34;
 const roomGateEnterRangeY = 76;
 export const actionBufferWindowMs = 180;
+const backstepDistancePx = 74;
+const backstepEvadeMs = 420;
+const backstepInvulnerableMs = 240;
+const backstepActionLockMs = 260;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -1696,6 +1700,24 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + 260,
         cancelWindowUntilMs: 0,
+        bufferedAction: undefined,
+        bufferedActionQueuedAtMs: undefined,
+        bufferedActionExecuteAtMs: undefined
+      }
+    };
+  }
+
+  if (action.type === "backstep") {
+    return {
+      ...run,
+      player: {
+        ...run.player,
+        x: clamp(run.player.x - run.player.facing * backstepDistancePx, 0, run.arena.width),
+        comboStep: 0,
+        actionLockUntilMs: run.elapsedMs + backstepActionLockMs,
+        cancelWindowUntilMs: 0,
+        evadeUntilMs: Math.max(run.player.evadeUntilMs, run.elapsedMs + backstepEvadeMs),
+        invulnerableUntilMs: Math.max(run.player.invulnerableUntilMs, run.elapsedMs + backstepInvulnerableMs),
         bufferedAction: undefined,
         bufferedActionQueuedAtMs: undefined,
         bufferedActionExecuteAtMs: undefined

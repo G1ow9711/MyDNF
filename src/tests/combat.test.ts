@@ -203,6 +203,66 @@ describe("combat actions and impact feel", () => {
     expect(second.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
   });
 
+  it("tracks a dungeon-fighter style hit combo counter and expires it after a pause", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 200,
+      maxHp: 200,
+      nextAttackAtMs: 9999
+    });
+    const first = performAction(run, { type: "light" });
+    const second = performAction(advanceTime(first), { type: "light" });
+    const expired = stepCombat(second, {}, 1300);
+
+    expect(first.comboCount).toBe(1);
+    expect(lastHitEvent(first).comboCount).toBe(1);
+    expect(second.comboCount).toBe(2);
+    expect(lastHitEvent(second).comboCount).toBe(2);
+    expect(second.comboExpiresAtMs).toBeGreaterThan(second.elapsedMs);
+    expect(expired.comboCount).toBe(0);
+    expect(expired.comboExpiresAtMs).toBe(0);
+  });
+
+  it("keeps launched enemies airborne, blocks their attacks, and then drops them into knockdown", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 200,
+      maxHp: 200,
+      nextAttackAtMs: 1
+    });
+    const launched = performAction(run, { type: "heavy" });
+    const airborne = stepCombat(launched, {}, 500);
+    const knockedDown = stepCombat(airborne, {}, 650);
+
+    expect(launched.enemies[0].airborne).toBe(true);
+    expect(launched.enemies[0].airborneUntilMs).toBeGreaterThan(launched.elapsedMs);
+    expect(airborne.enemies[0].airborne).toBe(true);
+    expect(airborne.events.some((event) => event.kind === "enemy-attack")).toBe(false);
+    expect(knockedDown.enemies[0].airborne).toBe(false);
+    expect(knockedDown.enemies[0].downed).toBe(true);
+    expect(knockedDown.enemies[0].downedUntilMs).toBeGreaterThan(knockedDown.elapsedMs);
+  });
+
+  it("lets slam skills knock airborne enemies down without waiting for natural fall", () => {
+    const run = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 90), "cinder-kiln-alley"), {
+      hp: 220,
+      maxHp: 220,
+      nextAttackAtMs: 9999
+    });
+    const launched = performAction(run, { type: "heavy" });
+    const ready = {
+      ...stepCombat(launched, {}, 300),
+      player: {
+        ...stepCombat(launched, {}, 300).player,
+        actionLockUntilMs: 0
+      }
+    };
+    const slammed = performAction(ready, { type: "skill", skillId: "anvil-crash" });
+
+    expect(slammed.enemies[0].airborne).toBe(false);
+    expect(slammed.enemies[0].downed).toBe(true);
+    expect(slammed.enemies[0].downedUntilMs).toBeGreaterThan(slammed.elapsedMs);
+    expect(latestHitForSkill(slammed, "anvil-crash").comboCount).toBeGreaterThan(1);
+  });
+
   it("allows a class skill cancel during the hit-confirm window", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), { nextAttackAtMs: 9999 });
     const light = performAction(run, { type: "light" });

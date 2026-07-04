@@ -713,6 +713,42 @@ p {
   background: rgba(2, 6, 23, 0.66);
 }
 
+.combo-meter {
+  position: absolute;
+  right: 28px;
+  top: 92px;
+  z-index: 4;
+  display: grid;
+  justify-items: center;
+  min-width: 92px;
+  padding: 8px 12px;
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  border-radius: 8px;
+  color: #fde68a;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(251, 191, 36, 0.34), transparent 58%),
+    rgba(2, 6, 23, 0.76);
+  box-shadow: 0 0 22px rgba(251, 191, 36, 0.22);
+}
+
+.combo-meter strong {
+  font-size: 34px;
+  line-height: 0.9;
+}
+
+.combo-meter span {
+  color: #bfdbfe;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.combo-meter.is-idle {
+  opacity: 0.5;
+  border-color: rgba(148, 163, 184, 0.28);
+  color: #cbd5e1;
+  box-shadow: none;
+}
+
 .combat-actors {
   position: absolute;
   inset: 0;
@@ -870,6 +906,18 @@ p {
 .combat-enemy[data-enemy-motion="guard-break"] .enemy-art {
   animation: monster-guard-break 620ms cubic-bezier(0.2, 0.82, 0.2, 1) both;
   filter: drop-shadow(0 0 18px rgba(248, 113, 113, 0.7)) brightness(1.22);
+}
+
+.actor-model-airborne,
+.combat-enemy[data-enemy-motion="airborne"] .enemy-art {
+  animation: monster-airborne-float 780ms ease-in-out infinite;
+  filter: drop-shadow(0 20px 20px rgba(14, 165, 233, 0.36)) brightness(1.14);
+}
+
+.actor-model-knockdown,
+.combat-enemy[data-enemy-motion="knockdown"] .enemy-art {
+  animation: monster-knockdown-drop 460ms cubic-bezier(0.2, 0.82, 0.18, 1) both;
+  filter: saturate(0.88) brightness(0.88);
 }
 
 .actor-model-idle,
@@ -1351,6 +1399,17 @@ p {
   20% { transform: translateX(var(--hit-react-x, 18px)) translateY(4px) rotate(5deg) scale(1.03) scaleX(var(--model-scale-x, 1)); filter: brightness(1.9) saturate(0.82); }
   50% { transform: translateX(calc(var(--hit-react-x, 18px) * -0.44)) translateY(8px) rotate(-4deg) scale(0.96) scaleX(var(--model-scale-x, 1)); }
   100% { transform: translateX(0) translateY(3px) rotate(0deg) scale(0.98) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08) saturate(0.9); }
+}
+
+@keyframes monster-airborne-float {
+  0%, 100% { transform: translateY(-22px) rotate(-1deg) scale(0.98) scaleX(var(--model-scale-x, 1)); }
+  50% { transform: translateY(-36px) rotate(2deg) scale(1.02) scaleX(var(--model-scale-x, 1)); }
+}
+
+@keyframes monster-knockdown-drop {
+  0% { transform: translateY(-18px) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); opacity: 1; }
+  48% { transform: translateY(12px) rotate(9deg) scale(0.94) scaleX(var(--model-scale-x, 1)); opacity: 0.92; }
+  100% { transform: translateY(18px) rotate(12deg) scale(0.88) scaleX(var(--model-scale-x, 1)); opacity: 0.82; }
 }
 
 @keyframes monster-hit-react {

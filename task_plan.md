@@ -94,7 +94,8 @@ Phase 5 - Verification and Delivery
 - Current combat-loop continuation goal: monster skills must be real attacks with windup, hit/miss, player HP loss, defeat state, automatic combat ticking, and model motion for both attacker and target.
 - Current strict-DNF continuation gap after class-resource mechanics: class resources now have first-pass unique rules in combat, but skill kits still need deeper per-skill behavior, better class-specific art, and clearer long-term resource persistence.
 - Current hitbox continuation progress: player light/heavy attacks now respect facing, X range, Y lane range, nearest valid target, and miss events. Area/range skill tags now drive wider or multi-target hitboxes, and whiffed attacks still move the player model.
-- Remaining strict-DNF combat gaps: richer per-skill behavior beyond broad tag hitboxes, class-specific player art and animation sets, enemy hurtbox sizing, multi-target VFX per enemy, and a formal save migration from `heat` alias to class-resource storage.
+- Current combo/air-state progress: hit combo counter now tracks total chain separately from light-chain `comboStep`, launcher/heavy hits create timed airborne state, airborne enemies cannot attack, and slam skills can force knockdown.
+- Remaining strict-DNF combat gaps: richer per-skill behavior beyond broad tag hitboxes, class-specific animation timelines, enemy hurtbox sizing, multi-target VFX per enemy, and a formal save migration from `heat` alias to class-resource storage.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

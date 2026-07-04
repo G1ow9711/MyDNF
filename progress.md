@@ -998,3 +998,27 @@
   - `git diff --check`: pass with Windows line-ending warnings only.
   - Edge headless browser check via `.codex-local/tmp/class-weapon-check.mjs`: Ink Shadow Ranger town hero loaded `/assets/hero-ink-shadow-ranger.png` at `864x1821`, the class panel loaded 4/4 class art images and 20 weapon tier chips, and the inventory rendered `weapon-ink-shadow-ranger-rare` with `weapon-shape-raven-crossbow`, `玄墨机关弩`, and `赤矿机括`.
   - Browser screenshots saved at `.codex-local/tmp/class-weapon-panel-check.png` and `.codex-local/tmp/class-weapon-check.png`; after visual review, the weapon progression chips were adjusted so level and weapon names remain visible in the class panel.
+
+## Task 35 Combo, Airborne, and Knockdown Combat Feel
+- Started after the continuation audit identified that skills still lacked DNF-like combo/launch/knockdown feel beyond damage tags.
+- Used two read-only parallel agents:
+  - `019f2ce1-9d37-7150-983c-a7df0b958b86` audited the combat-layer insertion points for hit flow, combo, launcher, and slam tags.
+  - `019f2ce1-e203-7432-9d6f-cb474fd30d80` audited the UI/CSS/browser verification insertion points for motion classes and combo HUD.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` verifies hit combo counter increments on consecutive hits and expires after a pause.
+  - `src/tests/combat.test.ts` verifies launched enemies stay airborne, cannot attack while airborne, and naturally drop into knockdown.
+  - `src/tests/combat.test.ts` verifies slam skills knock airborne enemies down immediately.
+  - `src/tests/app-integration.test.ts` verifies combo HUD, `data-airborne-state`, `actor-model-airborne`, and `actor-model-knockdown`.
+- Implemented:
+  - Added `CombatRun.comboCount` and `comboExpiresAtMs`, separate from the existing light-chain `comboStep`.
+  - Added timed `airborneUntilMs` and `downedUntilMs` states to enemies.
+  - Added action tags for launcher, pull, and slam so skill tags can drive launch/down-smash behavior without mixing with status tags.
+  - `stepCombat()` now ages combo and enemy air states; airborne/downed enemies cannot begin attacks.
+  - UI now exposes combo count, airborne/knockdown data attributes, and enemy motion classes, with CSS animations for airborne float and knockdown drop.
+- Verification:
+  - RED confirmed: focused tests failed on missing `comboCount`, missing `airborneUntilMs`, missing `downedUntilMs`, and missing UI state.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts`: pass, 67 tests.
+  - `npm test`: pass, 12 files and 171 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Edge headless browser check via `.codex-local/tmp/combo-air-check.mjs`: heavy hit rendered combo `1`, `data-enemy-motion="airborne"`, `actor-model-airborne`, and `monster-airborne-float`; after state aging, the enemy rendered `data-enemy-motion="knockdown"`, `actor-model-knockdown`, and `monster-knockdown-drop`.

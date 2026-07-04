@@ -427,6 +427,14 @@ function enemyMotion(
     return "guard-break";
   }
 
+  if (enemy.airborne) {
+    return "airborne";
+  }
+
+  if (enemy.downed) {
+    return "knockdown";
+  }
+
   if (enemy.id === lastHitTargetId) {
     return "hit";
   }
@@ -452,6 +460,18 @@ function enemyControlState(enemy: CombatEnemy, elapsedMs: number): string {
   }
 
   return "none";
+}
+
+function enemyAirborneState(enemy: CombatEnemy): string {
+  if (enemy.airborne) {
+    return "airborne";
+  }
+
+  if (enemy.downed) {
+    return "downed";
+  }
+
+  return "grounded";
 }
 
 function enemyArmorState(enemy: CombatEnemy, elapsedMs: number): string {
@@ -533,10 +553,11 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const motion = enemyMotion(enemy, lastHit?.targetId, run.elapsedMs);
       const hitRecent = enemy.id === lastHit?.targetId;
       const controlState = enemyControlState(enemy, run.elapsedMs);
+      const airborneState = enemyAirborneState(enemy);
       const armorState = enemyArmorState(enemy, run.elapsedMs);
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-armor-state="${armorState}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
             <img class="enemy-art actor-model actor-model-${motion}" style="${enemyModelMotionStyle(run, enemy)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
@@ -584,15 +605,20 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const attackValue = Math.round(combatStats.attack ?? 0);
   const defenseValue = Math.round(combatStats.defense ?? 0);
   const cooldownValue = Math.round(combatStats.cooldown ?? 0);
+  const comboActive = run.comboCount > 0 && run.elapsedMs <= run.comboExpiresAtMs;
+  const comboMeter = comboActive
+    ? `<div class="combo-meter" data-combo-active="true" data-combo-count="${run.comboCount}"><strong>${run.comboCount}</strong><span>CHAIN</span></div>`
+    : `<div class="combo-meter is-idle" data-combo-active="false" data-combo-count="0"><strong>0</strong><span>CHAIN</span></div>`;
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
       </div>
       ${renderCombatActors(run, state)}
       ${renderCombatVfx(run)}
+      ${comboMeter}
       ${
         roomCleared
           ? `<div class="room-clear-banner"><strong>房间已清理</strong><span>点击“结算房间”进入下一段战斗</span></div>`

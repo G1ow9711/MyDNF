@@ -359,6 +359,60 @@ describe("playable app integration actions", () => {
     expect(recoveredHtml).not.toContain('class="hit-impact');
   });
 
+  it("renders combo HUD plus enemy airborne and knockdown model states", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            enemies: model.combatRun.enemies.map((enemy, index) =>
+              index === 0
+                ? {
+                    ...enemy,
+                    hp: 220,
+                    maxHp: 220,
+                    nextAttackAtMs: 9999
+                  }
+                : {
+                    ...enemy,
+                    hp: 0
+                  }
+            )
+          }
+        : undefined
+    };
+
+    model = reduceAppAction(model, { type: "combatAction", action: "heavy" });
+
+    const airborneHtml = renderAppHtml(model);
+
+    expect(model.combatRun?.comboCount).toBe(1);
+    expect(airborneHtml).toContain('data-combo-count="1"');
+    expect(airborneHtml).toContain('class="combo-meter"');
+    expect(airborneHtml).toContain('data-airborne-state="airborne"');
+    expect(airborneHtml).toContain('data-enemy-motion="airborne"');
+    expect(airborneHtml).toContain('class="enemy-art actor-model actor-model-airborne"');
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const downedHtml = renderAppHtml(model);
+
+    expect(downedHtml).toContain('data-airborne-state="downed"');
+    expect(downedHtml).toContain('data-enemy-motion="knockdown"');
+    expect(downedHtml).toContain('class="enemy-art actor-model actor-model-knockdown"');
+  });
+
   it("binds player strike direction to the bitmap model node", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

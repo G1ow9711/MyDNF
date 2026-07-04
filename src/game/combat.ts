@@ -6,6 +6,7 @@ import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
 export type EnemyKind = "trash" | "elite" | "boss";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
+export type CombatActionTag = "launcher" | "slam" | "pull";
 
 export interface CombatVector {
   x: number;
@@ -23,6 +24,8 @@ export interface CombatEnemy {
   position: CombatVector;
   airborne: boolean;
   downed: boolean;
+  airborneUntilMs?: number;
+  downedUntilMs?: number;
   nextAttackAtMs: number;
   attackStartedAtMs?: number;
   attackImpactAtMs?: number;
@@ -84,7 +87,9 @@ export interface CombatHitEvent {
   inputToHitMs: number;
   hitstopMs: number;
   canceledFromCombo: boolean;
+  comboCount?: number;
   statusTags?: CombatSkillStatusTag[];
+  actionTags?: CombatActionTag[];
 }
 
 export interface CombatMissEvent {
@@ -96,6 +101,7 @@ export interface CombatMissEvent {
   inputToHitMs: number;
   canceledFromCombo: boolean;
   statusTags?: CombatSkillStatusTag[];
+  actionTags?: CombatActionTag[];
 }
 
 export interface CombatRoomClearedEvent {
@@ -140,6 +146,8 @@ export interface CombatRun {
   dungeonId: DungeonId;
   roomIndex: number;
   elapsedMs: number;
+  comboCount: number;
+  comboExpiresAtMs: number;
   arena: CombatArena;
   player: CombatPlayer;
   combatProfile: CombatProfile;
@@ -165,6 +173,7 @@ export interface HitDefinition {
   consumeMarks?: boolean;
   bonusDamagePerMark?: number;
   statusTags?: CombatSkillStatusTag[];
+  actionTags?: CombatActionTag[];
 }
 
 interface EnemyAttackDefinition {
@@ -196,6 +205,7 @@ interface PlayerHitboxDefinition {
   inputToHitMs: number;
   canceledFromCombo: boolean;
   statusTags?: CombatSkillStatusTag[];
+  actionTags?: CombatActionTag[];
 }
 
 const arena: CombatArena = {
@@ -348,11 +358,14 @@ function applyMiss(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatRun {
     occurredAtMs: run.elapsedMs,
     inputToHitMs: hitbox.inputToHitMs,
     canceledFromCombo: hitbox.canceledFromCombo,
-    statusTags: hitbox.statusTags
+    statusTags: hitbox.statusTags,
+    actionTags: hitbox.actionTags
   };
 
   return {
     ...run,
+    comboCount: 0,
+    comboExpiresAtMs: 0,
     events: [...run.events, event]
   };
 }
@@ -380,7 +393,8 @@ function applyPlayerHitbox(run: CombatRun, hitbox: PlayerHitboxDefinition): Comb
         marksApplied: hitbox.marksApplied,
         consumeMarks: hitbox.consumeMarks,
         bonusDamagePerMark: hitbox.bonusDamagePerMark,
-        statusTags: hitbox.statusTags
+        statusTags: hitbox.statusTags,
+        actionTags: hitbox.actionTags
       }),
     run
   );
@@ -574,6 +588,47 @@ function bonusDamagePerMarkForSkill(skill: { id: string; tags: string[] }): numb
   return consumesMarksForSkill(skill) ? 18 : 0;
 }
 
+function actionTagsForSkill(tags: string[]): CombatActionTag[] {
+  return tags.filter((tag): tag is CombatActionTag => tag === "launcher" || tag === "slam" || tag === "pull");
+}
+
+function updateEnemyAirStates(run: CombatRun): CombatRun {
+  return {
+    ...run,
+    enemies: run.enemies.map((enemy) => {
+      if (enemy.hp <= 0) {
+        return enemy;
+      }
+
+      if (enemy.airborne && enemy.airborneUntilMs !== undefined && run.elapsedMs >= enemy.airborneUntilMs) {
+        return {
+          ...enemy,
+          airborne: false,
+          airborneUntilMs: undefined,
+          downed: true,
+          downedUntilMs: Math.max(enemy.downedUntilMs ?? 0, run.elapsedMs + 700),
+          nextAttackAtMs: Math.max(enemy.nextAttackAtMs, run.elapsedMs + 700),
+          attackStartedAtMs: undefined,
+          attackImpactAtMs: undefined,
+          attackRecoverUntilMs: undefined,
+          attackSkillId: undefined,
+          attackHitResolved: undefined
+        };
+      }
+
+      if (enemy.downed && enemy.downedUntilMs !== undefined && run.elapsedMs >= enemy.downedUntilMs) {
+        return {
+          ...enemy,
+          downed: false,
+          downedUntilMs: undefined
+        };
+      }
+
+      return enemy;
+    })
+  };
+}
+
 export function createCombatRun(state: GameState, dungeonId: string): CombatRun {
   const dungeon = getDungeon(dungeonId);
   const combatProfile = evaluateCombatProfile(state);
@@ -592,6 +647,8 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
     dungeonId: dungeon.id,
     roomIndex: 0,
     elapsedMs: 0,
+    comboCount: 0,
+    comboExpiresAtMs: 0,
     arena,
     combatProfile,
     player: {
@@ -635,6 +692,8 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
   const movedRun: CombatRun = {
     ...run,
     elapsedMs,
+    comboCount: run.comboCount > 0 && elapsedMs <= run.comboExpiresAtMs ? run.comboCount : 0,
+    comboExpiresAtMs: run.comboCount > 0 && elapsedMs <= run.comboExpiresAtMs ? run.comboExpiresAtMs : 0,
     player: {
       ...run.player,
       x: nextX,
@@ -647,7 +706,7 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
     return movedRun;
   }
 
-  return advanceEnemyAttacks(movedRun);
+  return advanceEnemyAttacks(updateEnemyAirStates(movedRun));
 }
 
 function hasActiveEnemyAttack(enemy: CombatEnemy, elapsedMs: number): boolean {
@@ -679,6 +738,8 @@ function beginEnemyAttack(enemy: CombatEnemy, elapsedMs: number): { enemy: Comba
 
   if (
     recovered.hp <= 0 ||
+    recovered.airborne ||
+    recovered.downed ||
     hasActiveEnemyAttack(recovered, elapsedMs) ||
     elapsedMs < recovered.nextAttackAtMs ||
     elapsedMs < (recovered.controlledUntilMs ?? 0)
@@ -860,7 +921,10 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
   const bonusDamage = hit.consumeMarks ? target.marks * (hit.bonusDamagePerMark ?? 0) : 0;
   const effectiveDamage = hit.damage + bonusDamage;
   const statusTags = hit.statusTags ?? [];
+  const actionTags = hit.actionTags ?? [];
   const hitstopMs = eventHitstop(target, hit.hitstopMs);
+  const comboCount = run.comboCount > 0 && run.elapsedMs <= run.comboExpiresAtMs ? run.comboCount + 1 : 1;
+  const comboExpiresAtMs = run.elapsedMs + 1200;
   const nextEnemies = run.enemies.map((enemy) => {
     if (enemy.id !== hit.targetId) {
       return enemy;
@@ -875,8 +939,23 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     const armorBrokenUntilMs = hasStatus(statusTags, "guard-break")
       ? Math.max(enemy.armorBrokenUntilMs ?? 0, run.elapsedMs + 1800)
       : enemy.armorBrokenUntilMs;
-    const statusInterruptsAttack = Boolean(controlledUntilMs && controlledUntilMs > run.elapsedMs) || hasStatus(statusTags, "guard-break");
-    const delayedUntil = Math.max(enemy.nextAttackAtMs, controlledUntilMs ?? 0, hasStatus(statusTags, "guard-break") ? run.elapsedMs + 680 : 0);
+    const slamDown = actionTags.includes("slam") && enemy.airborne;
+    const lethalDown = !hit.juggle && enemy.hp - hpDamage <= 0;
+    const airborne = hit.juggle && !slamDown;
+    const downed = slamDown || lethalDown;
+    const airborneUntilMs = airborne ? Math.max(enemy.airborneUntilMs ?? 0, run.elapsedMs + 1000) : undefined;
+    const downedUntilMs = downed ? Math.max(enemy.downedUntilMs ?? 0, run.elapsedMs + 760) : airborne ? undefined : enemy.downedUntilMs;
+    const airControlUntil = Math.max(airborneUntilMs ?? 0, downedUntilMs ?? 0) || undefined;
+    const statusInterruptsAttack =
+      Boolean(controlledUntilMs && controlledUntilMs > run.elapsedMs) ||
+      Boolean(airControlUntil && airControlUntil > run.elapsedMs) ||
+      hasStatus(statusTags, "guard-break");
+    const delayedUntil = Math.max(
+      enemy.nextAttackAtMs,
+      controlledUntilMs ?? 0,
+      airControlUntil ?? 0,
+      hasStatus(statusTags, "guard-break") ? run.elapsedMs + 680 : 0
+    );
 
     return {
       ...enemy,
@@ -896,8 +975,10 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
         ...enemy.position,
         x: enemy.position.x + hit.knockback * run.player.facing
       },
-      airborne: hit.juggle,
-      downed: !hit.juggle && enemy.hp - hpDamage <= 0
+      airborne,
+      downed,
+      airborneUntilMs,
+      downedUntilMs
     };
   });
   const event: CombatHitEvent = {
@@ -911,11 +992,15 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     inputToHitMs: hit.inputToHitMs ?? 0,
     hitstopMs,
     canceledFromCombo: hit.canceledFromCombo ?? false,
-    statusTags: hit.statusTags
+    comboCount,
+    statusTags: hit.statusTags,
+    actionTags: hit.actionTags
   };
 
   return {
     ...run,
+    comboCount,
+    comboExpiresAtMs,
     enemies: nextEnemies,
     events: [...run.events, event],
     player: {
@@ -980,7 +1065,8 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       knockback: 60,
       juggle: true,
       inputToHitMs: 85,
-      canceledFromCombo
+      canceledFromCombo,
+      actionTags: ["launcher"]
     });
     const hitConnected = hitRun.events.at(-1)?.kind === "hit";
 
@@ -1010,6 +1096,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   }
 
   const statusTags = skillStatusTags(skill.tags);
+  const actionTags = actionTagsForSkill(skill.tags);
   const hitRun = applyPlayerHitbox(run, {
     action: "skill",
     skillId: action.skillId,
@@ -1026,7 +1113,8 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     bonusDamagePerMark: bonusDamagePerMarkForSkill(skill),
     inputToHitMs: 70,
     canceledFromCombo,
-    statusTags
+    statusTags,
+    actionTags
   });
   const prismGain = prismCycleGain(run, skill.id);
   const resourcePlayer = spendAndGainPlayerResource(hitRun.player, run, skill.resourceCost, skill.resourceGain + prismGain);
@@ -1093,6 +1181,8 @@ export function finishRoom(run: CombatRun): CombatRun {
   return {
     ...run,
     roomIndex: completed ? run.roomIndex : nextRoomIndex,
+    comboCount: 0,
+    comboExpiresAtMs: 0,
     enemies: completed ? [] : createRoomEnemies(run.dungeonId, nextRoomIndex),
     events: [clearedEvent],
     lootEvents: [...run.lootEvents, lootEvent],

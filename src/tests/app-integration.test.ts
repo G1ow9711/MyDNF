@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { catalog } from "../data/catalog";
 import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
+import { selectBaseClass } from "../systems/classes";
 import { saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 import { combatActionForKeyCode, createAppModel, mountApp, reduceAppAction, renderAppHtml } from "../ui/app";
 
@@ -507,6 +509,69 @@ describe("playable app integration actions", () => {
     expect(lastEvent).toMatchObject({ kind: "hit", action: "skill", skillId: "anvil-crash" });
     expect(cast.combatRun?.player.heat).toBeLessThan(model.combatRun?.player.heat ?? 0);
     expect(cast.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "skill-burst" }]));
+  });
+
+  it("renders selected class resource identity in combat HUD and skill buttons", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40);
+    const resource = catalog.classes.find((item) => item.id === "liuli-blademage")?.resource;
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: state
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    const html = renderAppHtml(model);
+
+    expect(resource).toBeDefined();
+    expect(html).toContain(`${resource?.displayName} 40/${resource?.max}`);
+    expect(html).toContain('data-combat-skill-id="liuli-rain"');
+    expect(html).toContain('data-resource-id="prism"');
+    expect(html).toContain('data-skill-cost="24"');
+    expect(html).not.toContain("热能 40");
+  });
+
+  it("filters combat skill hotkeys and settlement persistence by selected class resource", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 20)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    expect(combatActionForKeyCode(model.state, "KeyU", model.combatRun?.player.resource.current, false, model.combatRun)).toBeUndefined();
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const readyRun = {
+      ...model.combatRun,
+      player: {
+        ...model.combatRun.player,
+        resource: {
+          ...model.combatRun.player.resource,
+          current: 30
+        }
+      }
+    };
+
+    expect(combatActionForKeyCode(model.state, "KeyU", readyRun.player.resource.current, false, readyRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "liuli-rain"
+    });
+
+    model = {
+      ...model,
+      combatRun: readyRun
+    };
+    model = defeatCurrentRoom(model);
+
+    const resourceBeforeSettlement = model.combatRun?.player.resource.current;
+    const settled = reduceAppAction(model, { type: "combatAction", action: "finish" });
+
+    expect(resourceBeforeSettlement).toBeGreaterThan(20);
+    expect(settled.state.player.heat).toBe(resourceBeforeSettlement);
   });
 
   it("disables cooling skill buttons and filters cooling skill hotkeys", () => {

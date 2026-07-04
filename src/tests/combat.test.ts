@@ -3,6 +3,7 @@ import { catalog } from "../data/catalog";
 import { createInitialState, createOwnedGear } from "../game/state";
 import type { GameState, GearSlot, OwnedGearItem } from "../game/types";
 import { equipItem } from "../systems/inventory";
+import { selectBaseClass } from "../systems/classes";
 import { applyQuestEvent, claimQuestReward } from "../systems/quests";
 import {
   applyHit,
@@ -157,6 +158,19 @@ describe("combat run setup and movement", () => {
   it("rejects entering locked or unknown dungeons", () => {
     expect(() => createCombatRun(createInitialState(), "liuli-furnace")).toThrow(/locked dungeon/i);
     expect(() => createCombatRun(createInitialState(), "missing-dungeon")).toThrow(/unknown dungeon/i);
+  });
+
+  it("uses the selected class resource identity and max instead of a generic heat bar", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 140);
+    const classDef = catalog.classes.find((item) => item.id === "liuli-blademage");
+    const run = createCombatRun(state, "cinder-kiln-alley");
+
+    expect(run.player.resource).toEqual({
+      id: classDef?.resource.id,
+      displayName: classDef?.resource.displayName,
+      current: classDef?.resource.max,
+      max: classDef?.resource.max
+    });
   });
 });
 
@@ -368,6 +382,23 @@ describe("combat actions and impact feel", () => {
     expect(new Set(hitEvents.map((event) => event.targetId))).toEqual(new Set(run.enemies.map((enemy) => enemy.id)));
     expect(cast.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
     expect(cast.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
+  it("spends and updates the selected class resource when a non-ember class casts", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 315, y: 340 },
+        { x: 390, y: 356 }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "mirror-arc" });
+
+    expect(cast.player.resource.id).toBe("prism");
+    expect(cast.player.resource.current).toBe(26);
+    expect(cast.player.heat).toBe(cast.player.resource.current);
   });
 });
 

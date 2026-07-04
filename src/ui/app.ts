@@ -177,7 +177,7 @@ function combatSkillsForState(state: GameState): ClassSkillDefinition[] {
 export function combatActionForKeyCode(
   state: GameState,
   code: string,
-  heat?: number,
+  resourceValue?: number,
   dash = false,
   run?: CombatRun
 ): AppAction | undefined {
@@ -222,7 +222,7 @@ export function combatActionForKeyCode(
 
   if (
     !skill ||
-    (heat !== undefined && heat < skill.resourceCost) ||
+    (resourceValue !== undefined && resourceValue < skill.resourceCost) ||
     (run !== undefined && skillCooldownRemaining(run, skill.id) > 0)
   ) {
     return undefined;
@@ -498,9 +498,9 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
       const cooldownRemaining = skillCooldownRemaining(run, skill.id);
       const cooldownLabel = cooldownRemaining > 0 ? ` · 冷却 ${(cooldownRemaining / 1000).toFixed(1)}s` : "";
       const cooldownState = cooldownRemaining > 0 ? "cooling" : "ready";
-      const disabled = roomCleared || roomFailed || run.player.heat < skill.resourceCost || cooldownRemaining > 0;
+      const disabled = roomCleared || roomFailed || run.player.resource.current < skill.resourceCost || cooldownRemaining > 0;
 
-      return `<button data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-skill-cost="${skill.resourceCost}" data-skill-cooldown-remaining="${cooldownRemaining}" data-cooldown-state="${cooldownState}" ${disabled ? "disabled" : ""}>${skill.displayName}<span>${skill.key} · ${skill.resourceCost}${cooldownLabel}</span></button>`;
+      return `<button data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-resource-id="${run.player.resource.id}" data-skill-cost="${skill.resourceCost}" data-skill-cooldown-remaining="${cooldownRemaining}" data-cooldown-state="${cooldownState}" ${disabled ? "disabled" : ""}>${skill.displayName}<span>${skill.key} · ${skill.resourceCost}${cooldownLabel}</span></button>`;
     })
     .join("");
   const enemies = run.enemies
@@ -540,7 +540,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         <button data-mode="town">返回</button>
       </div>
       <div class="combat-status">
-        <p>房间 ${run.roomIndex + 1} · HP ${run.player.hp}/${run.player.maxHp} · 热能 ${run.player.heat} · 连段 ${run.player.comboStep} · 攻击 ${attackValue} · 防御 ${defenseValue} · 冷却 ${cooldownValue}%</p>
+        <p>房间 ${run.roomIndex + 1} · HP ${run.player.hp}/${run.player.maxHp} · ${run.player.resource.displayName} ${run.player.resource.current}/${run.player.resource.max} · 连段 ${run.player.comboStep} · 攻击 ${attackValue} · 防御 ${defenseValue} · 冷却 ${cooldownValue}%</p>
         <ul>${enemies}</ul>
       </div>
       <aside class="quest-tracker quest-tracker-prominent" aria-label="任务追踪">
@@ -619,6 +619,16 @@ function applyCombatLoot(state: GameState, loot: CombatLootEvent): GameState {
   }
 
   return next;
+}
+
+function syncCombatResourceToState(state: GameState, run: CombatRun): GameState {
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      heat: run.player.resource.current
+    }
+  };
 }
 
 export function createAppModel(options: CreateAppModelOptions = {}): AppModel {
@@ -729,7 +739,8 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
 
         const finishedRun = finishRoom(model.combatRun);
         const latestLoot = finishedRun.lootEvents[finishedRun.lootEvents.length - 1];
-        let nextState = latestLoot ? applyCombatLoot(model.state, latestLoot) : model.state;
+        const resourceState = syncCombatResourceToState(model.state, finishedRun);
+        let nextState = latestLoot ? applyCombatLoot(resourceState, latestLoot) : resourceState;
 
         if (finishedRun.completed) {
           nextState = applyQuestEvent(nextState, { type: "dungeonCleared", dungeonId: finishedRun.dungeonId });
@@ -1165,7 +1176,7 @@ export function mountApp(root: HTMLDivElement): () => void {
       const action = combatActionForKeyCode(
         model.state,
         event.code,
-        model.combatRun?.player.heat,
+        model.combatRun?.player.resource.current,
         event.shiftKey,
         model.combatRun
       );

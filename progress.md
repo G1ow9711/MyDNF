@@ -902,3 +902,24 @@
   - `npm run build`: pass.
   - `git diff --check`: pass with Windows line-ending warnings only.
   - Edge headless browser check via `.codex-local/tmp/hitbox-check.mjs`: far light attack kept both enemies at `80/80`, rendered player `light` motion, and produced no hit/impact; refreshed near-range light attack moved the player from left `123.796875` to `414.0625`, reduced the first enemy to `54/80`, rendered one enemy hit motion, one impact, and a concrete target id.
+
+## Task 31 Class Resource Identity in Combat
+- Started after the continuation audit found four classes had catalog resource identities, but combat still displayed and processed every class as generic `heat`.
+- Used parallel read-only explorer agent `019f2c64-9874-7533-b6d3-6b12685287e8`; it confirmed the main path still used `PlayerState.heat`, `CombatPlayer.heat`, hardcoded combat HUD text, and heat-based hotkey filtering.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` verifies a Liuli run creates `CombatPlayer.resource` with `prism` / `璃息`, clamps current value to class max, and spends that resource on Liuli skills.
+  - `src/tests/app-integration.test.ts` verifies the combat HUD shows the selected class resource name/max, skill buttons carry `data-resource-id`, hotkeys filter by that resource, and room settlement persists the current resource value.
+- Implemented:
+  - Added `CombatResource` and `CombatPlayer.resource`.
+  - `createCombatRun()` now snapshots the active class resource metadata from catalog data.
+  - Light/heavy gain, skill cost, skill gain, and skill affordability now use `run.player.resource.current`.
+  - `run.player.heat` remains synchronized as a save-compatibility alias.
+  - Combat HUD and skill buttons now display selected resource identity instead of hardcoded `热能`.
+  - Room settlement writes combat resource current value back to `GameState.player.heat` before loot/quest updates.
+- Verification:
+  - RED confirmed: focused tests failed because `run.player.resource` was undefined and the HUD still showed `热能 40`.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts`: pass, 52 tests.
+  - `npm test`: pass, 12 files and 152 tests.
+  - `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Edge headless browser check via `.codex-local/tmp/resource-check.mjs`: after selecting Liuli Blademage and setting saved resource to 40, combat HUD showed `璃息 40/100`, `liuli-rain` button had `data-resource-id="prism"` and was enabled, casting it changed HUD to `璃息 16/100`, player motion became `skill`, and VFX id was `liuli-rain`.

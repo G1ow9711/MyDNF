@@ -36,6 +36,7 @@ export interface CombatPlayer {
   hp: number;
   maxHp: number;
   heat: number;
+  resource: CombatResource;
   comboStep: number;
   actionLockUntilMs: number;
   cancelWindowUntilMs: number;
@@ -44,6 +45,13 @@ export interface CombatPlayer {
   hurtLockUntilMs: number;
   defeated: boolean;
   skillCooldowns: Record<string, number>;
+}
+
+export interface CombatResource {
+  id: string;
+  displayName: string;
+  current: number;
+  max: number;
 }
 
 export interface CombatArena {
@@ -410,9 +418,51 @@ function playerCooldownMs(run: CombatRun, baseCooldownMs: number): number {
   return Math.max(250, Math.round(baseCooldownMs * run.combatProfile.cooldownMultiplier));
 }
 
+function classResource(state: GameState): Omit<CombatResource, "current"> {
+  const classDef = catalog.classes.find((item) => item.id === state.player.classId);
+  const resource = classDef?.resource ?? { id: "heat", displayName: "热能", max: 100 };
+
+  return {
+    id: resource.id,
+    displayName: resource.displayName,
+    max: resource.max
+  };
+}
+
+function createCombatResource(state: GameState): CombatResource {
+  const resource = classResource(state);
+
+  return {
+    ...resource,
+    current: clamp(Math.round(state.player.heat), 0, resource.max)
+  };
+}
+
+function syncPlayerResource(player: CombatPlayer, current: number): CombatPlayer {
+  const nextCurrent = clamp(Math.round(current), 0, player.resource.max);
+
+  return {
+    ...player,
+    heat: nextCurrent,
+    resource: {
+      ...player.resource,
+      current: nextCurrent
+    }
+  };
+}
+
+function gainPlayerResource(player: CombatPlayer, run: CombatRun, baseGain: number): CombatPlayer {
+  return syncPlayerResource(player, player.resource.current + playerResourceGain(run, baseGain));
+}
+
+function spendAndGainPlayerResource(player: CombatPlayer, run: CombatRun, cost: number, baseGain: number): CombatPlayer {
+  return syncPlayerResource(player, player.resource.current - cost + playerResourceGain(run, baseGain));
+}
+
 export function createCombatRun(state: GameState, dungeonId: string): CombatRun {
   const dungeon = getDungeon(dungeonId);
   const combatProfile = evaluateCombatProfile(state);
+  const resource = createCombatResource(state);
 
   if (!dungeon) {
     throw new Error(`Unknown dungeon: ${dungeonId}`);
@@ -435,7 +485,8 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       facing: 1,
       hp: combatProfile.maxHp,
       maxHp: combatProfile.maxHp,
-      heat: state.player.heat,
+      heat: resource.current,
+      resource,
       comboStep: 0,
       actionLockUntilMs: 0,
       cancelWindowUntilMs: 0,
@@ -720,8 +771,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     return {
       ...hitRun,
       player: {
-        ...hitRun.player,
-        heat: hitConnected ? clamp(hitRun.player.heat + playerResourceGain(run, 8), 0, 100) : hitRun.player.heat,
+        ...(hitConnected ? gainPlayerResource(hitRun.player, run, 8) : hitRun.player),
         comboStep: hitConnected ? (run.player.comboStep % 3) + 1 : 0,
         actionLockUntilMs: run.elapsedMs + 180,
         cancelWindowUntilMs: hitConnected ? run.elapsedMs + 180 : 0
@@ -748,8 +798,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     return {
       ...hitRun,
       player: {
-        ...hitRun.player,
-        heat: hitConnected ? clamp(hitRun.player.heat + playerResourceGain(run, 4), 0, 100) : hitRun.player.heat,
+        ...(hitConnected ? gainPlayerResource(hitRun.player, run, 4) : hitRun.player),
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + 260,
         cancelWindowUntilMs: 0
@@ -763,8 +812,8 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     throw new Error(`Unknown class skill: ${action.skillId}`);
   }
 
-  if (run.player.heat < skill.resourceCost) {
-    throw new Error(`Insufficient class resource for skill: ${action.skillId}`);
+  if (run.player.resource.current < skill.resourceCost) {
+    throw new Error(`Insufficient ${run.player.resource.displayName} for skill: ${action.skillId}`);
   }
 
   if (skillCooldownRemaining(run, action.skillId) > 0) {
@@ -790,7 +839,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     ...hitRun,
     player: {
       ...hitRun.player,
-      heat: clamp(hitRun.player.heat - skill.resourceCost + playerResourceGain(run, skill.resourceGain), 0, 100),
+      ...spendAndGainPlayerResource(hitRun.player, run, skill.resourceCost, skill.resourceGain),
       comboStep: 0,
       actionLockUntilMs: run.elapsedMs + 420,
       cancelWindowUntilMs: 0,

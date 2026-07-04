@@ -278,3 +278,11 @@
 - Implementation note: `night-mark-detonation` now selects marked enemies inside a wider hitbox, emits `mark-lock` hits at the catalog hit frame, emits stronger `detonate` hits 180 ms later, consumes marks only on final burst, and applies stagger/knockdown feedback.
 - Presentation note: target-bound night detonation VFX has distinct lock and burst cue styling, while player model and equipped weapon get dedicated cast and detonation arc keyframes.
 - Code review follow-up found that future-stamped staged hits must not mutate enemy state at cast time. Night detonation now queues enemy hit effects and resolves them through `stepCombat()`, so cast keeps marks, the 310 ms lock frame keeps targets standing, and the 490 ms burst frame clears marks and applies knockdown.
+
+## Mechanism Shadow Net Findings
+- User's latest priority split remains active: keep model mesh/detail simple for now, but treat combat action timing, motion, hit feedback, skill effects, enemy action changes, and monster/skill VFX as strict.
+- Read-only combat audit found `mechanism-shadow-net` was the strongest next slice because its advancement fantasy is a delayed field/trap, but the previous implementation used generic single-frame range hits.
+- Read-only UI/CSS audit found the app already passed catalog animation metadata through DOM (`ink-shadow-net`, `net-cast`, `mechanism-net`) and rendered target-bound impact nodes, so the missing work was dedicated staged combat logic plus CSS animations.
+- Implementation note: `mechanism-shadow-net` now schedules its hit effects instead of mutating enemy state at cast time. The bind frame applies trap/control and attack delay; the snap frame adds stronger damage/stagger and pulls enemies toward the net center.
+- Presentation note: mechanism net uses separate player cast animation, equipped weapon net-cast arc, player-side cast field, and target-bound bind/snap impact styling. Browser computed styles confirmed the actual animation names, not only static DOM attributes.
+- Review follow-up: skill cast VFX position must match the combat mechanic center. `mechanism-shadow-net` now anchors its cast field at the same player-relative net center used by the snap pull, and tests cover the frame just before bind to prevent premature VFX/damage/control regressions.

@@ -7,14 +7,16 @@ export type EnemyKind = "trash" | "elite" | "boss";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "backstep" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
-export type CombatHitPhase = "fall" | "impact" | "rain" | "pierce" | "mark-lock" | "detonate";
+export type CombatHitPhase = "fall" | "impact" | "rain" | "pierce" | "mark-lock" | "detonate" | "trap-bind" | "trap-snap";
 export type CombatVfxCue =
   | "meteor-fall"
   | "meteor-impact"
   | "glass-rain-fall"
   | "prism-pierce"
   | "night-mark-lock"
-  | "night-mark-burst";
+  | "night-mark-burst"
+  | "mechanism-net-bind"
+  | "mechanism-net-snap";
 export type CombatEnemyVfxCue =
   | "ash-ember-spit-impact"
   | "zheng-shockwave-impact"
@@ -1083,6 +1085,91 @@ function applyNightMarkDetonation(run: CombatRun, skill: ClassSkillDefinition, c
   }, scriptedRun);
 }
 
+function mechanismShadowNetCenter(run: CombatRun): CombatVector {
+  return {
+    x: clamp(run.player.x + 150 * run.player.facing, 0, arena.width),
+    y: run.player.y
+  };
+}
+
+function applyMechanismShadowNet(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const scriptedRun = applySkillStartupMovement(run, skill);
+  const netCenter = mechanismShadowNetCenter(scriptedRun);
+  const targetingHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 340,
+    laneRange: 110,
+    targetCap: 3,
+    frontOnly: false,
+    damage: skillDamage(run, skill),
+    hitstopMs: 52,
+    knockback: 0,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo
+  };
+  const targets = selectPlayerTargets(scriptedRun, targetingHitbox);
+
+  if (targets.length === 0) {
+    return applyMiss(scriptedRun, targetingHitbox);
+  }
+
+  const baseDamage = skillDamage(run, skill);
+  const stages: Array<{
+    phase: CombatHitPhase;
+    vfxCue: CombatVfxCue;
+    delayMs: number;
+    damageMultiplier: number;
+    hitstopMs: number;
+    statusTags: CombatSkillStatusTag[];
+    pullCenter?: CombatVector;
+    vfxWindowMs: number;
+  }> = [
+    {
+      phase: "trap-bind",
+      vfxCue: "mechanism-net-bind",
+      delayMs: skill.animation.hitFrameMs,
+      damageMultiplier: 0.32,
+      hitstopMs: 54,
+      statusTags: ["trap", "control"],
+      vfxWindowMs: 420
+    },
+    {
+      phase: "trap-snap",
+      vfxCue: "mechanism-net-snap",
+      delayMs: skill.animation.hitFrameMs + 180,
+      damageMultiplier: 0.72,
+      hitstopMs: 82,
+      statusTags: ["trap", "control", "stagger"],
+      pullCenter: netCenter,
+      vfxWindowMs: 560
+    }
+  ];
+
+  return stages.reduce((nextRun, stage) => {
+    return targets.reduce((stageRun, target) => {
+      return scheduleEnemyHitEffect(stageRun, {
+        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${target.id}`,
+        targetId: target.id,
+        damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
+        hitstopMs: stage.hitstopMs,
+        knockback: 0,
+        juggle: false,
+        action: "skill",
+        skillId: skill.id,
+        inputToHitMs: stage.delayMs,
+        canceledFromCombo,
+        pullCenter: stage.pullCenter,
+        statusTags: stage.statusTags,
+        hitPhase: stage.phase,
+        vfxCue: stage.vfxCue,
+        vfxWindowMs: stage.vfxWindowMs
+      });
+    }, nextRun);
+  }, scriptedRun);
+}
+
 function classResource(state: GameState): Omit<CombatResource, "current"> {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
   const resource = classDef?.resource ?? { id: "heat", displayName: "热能", max: 100 };
@@ -2075,6 +2162,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "night-mark-detonation") {
     return completeSkillAction(run, applyNightMarkDetonation(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "mechanism-shadow-net") {
+    return completeSkillAction(run, applyMechanismShadowNet(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   const scriptedRun = applySkillStartupMovement(run, skill);

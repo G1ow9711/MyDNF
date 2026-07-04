@@ -1469,3 +1469,30 @@
   - Final `npm test`: pass, 13 files and 228 tests.
   - Final `npm run build`: pass.
   - Final `git diff --check`: pass with Windows line-ending warnings only.
+
+## Task 53 Mechanism Shadow Net Skill Feel
+- Started after user clarified again that character/monster modeling may stay lightweight only while core playability is being completed; combat animation flow, hit feel, skill VFX, enemy motion changes, and monster/skill effects remain strict.
+- Used two read-only parallel agents:
+  - `019f2f08-cb14-7612-a4fe-777a6e31ebec` audited combat/data and recommended `mechanism-shadow-net` because it was still a generic field/trap skill despite having advancement identity and animation metadata.
+  - `019f2f08-cc45-7543-bc95-35ff9b884f6b` audited UI/CSS and confirmed DOM hooks existed, but dedicated `ink-shadow-net`, `net-cast`, and `mechanism-net` CSS/keyframes were missing.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `mechanism-shadow-net` to emit two stages across two targets, keep HP/control unchanged at cast time, bind on the hit frame, delay enemy attacks, then snap enemies inward on the second frame.
+  - `src/tests/app-integration.test.ts` requires advanced Ink Space to map to `mechanism-shadow-net`, render `ink-shadow-net`, `net-cast`, `mechanism-net`, show bind/snap phases, enemy controlled motion, hitstop, screen shake, and damage numbers.
+  - `src/tests/ui-smoke.test.ts` requires static render coverage for target-bound mechanism-net impacts plus dedicated CSS selectors/keyframes.
+- RED evidence:
+  - Focused tests initially failed because the generic path emitted 2 hits instead of 4 and CSS lacked `ink-shadow-net`, `net-cast`, and `mechanism-net` presentation.
+- Implemented:
+  - Added `trap-bind` and `trap-snap` hit phases plus `mechanism-net-bind` and `mechanism-net-snap` VFX cues.
+  - Added a dedicated `mechanism-shadow-net` combat script with delayed scheduled enemy hit effects, first-frame bind/control, second-frame snap damage, pull-to-net-center movement, and stagger/control attack interruption.
+  - Added dedicated CSS for player shadow-net cast motion, weapon net-cast arc, player-side mechanism net field VFX, and target-bound bind/snap mechanism-net impacts.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 136 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/mechanism-shadow-net-check.html`: confirmed `mechanism-shadow-net`, `ink-shadow-net`, `net-cast`, `mechanism-net`, player animation `player-ink-shadow-net-cast`, weapon animation `weapon-net-cast`, cast VFX `mechanism-net-cast-core`, bind phase count `2`, bind cue `mechanism-net-bind`, bind impact animation `mechanism-net-bind-core`, controlled enemy motion count `2`, snap impact count `4`, snap cue `mechanism-net-snap`, snap damage numbers `4`, hitstop active `true`, screen shake `skill`, and snap impact animation `mechanism-net-snap-core`.
+  - Browser console error log: empty.
+  - Browser screenshot saved at `.codex-local/tmp/mechanism-shadow-net-check.png`.
+- Code review follow-up:
+  - Read-only review found that generic area VFX anchoring could display the cast field between player and a target rather than at the actual net pull center.
+  - Updated `playerSkillVfxStyle()` with a `mechanism-shadow-net` anchor path that matches combat's net center formula.
+  - Strengthened tests so the pre-bind frame has no bind VFX, no damage numbers, and no controlled enemy motion.
+  - Corrected the center assertion to use the actual runtime player position and arena width instead of a hard-coded visual lunge assumption.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 136 tests.

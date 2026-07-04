@@ -422,6 +422,63 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes night-mark-burst-core");
   });
 
+  it("renders mechanism-shadow-net with staged target-bound mechanism net impacts", () => {
+    const inkState = advanceClass(
+      readyForAdvancement({
+        ...selectBaseClass(createInitialState(), "ink-shadow-ranger"),
+        player: {
+          ...selectBaseClass(createInitialState(), "ink-shadow-ranger").player,
+          heat: 100
+        }
+      }),
+      "mechanism-shadow-weaver"
+    );
+    const baseRun = createCombatRun(inkState, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 260,
+          maxHp: 260,
+          position: { x: player.x + 86 + index * 58, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "mechanism-shadow-net" }
+    );
+    const netHits = castRun.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mechanism-shadow-net"
+    );
+    const bindAtMs = Math.min(...netHits.map((event) => event.occurredAtMs));
+    const snapAtMs = Math.max(...netHits.map((event) => event.occurredAtMs));
+    const html = renderAppHtml({
+      state: inkState,
+      mode: "combat",
+      combatRun: stepCombat(stepCombat(castRun, {}, bindAtMs), {}, snapAtMs - bindAtMs)
+    });
+
+    expect(netHits).toHaveLength(4);
+    expect(countOccurrences(html, 'data-skill-impact-vfx="mechanism-shadow-net"')).toBe(4);
+    expect(html).toContain('data-impact-vfx-shape="mechanism-net"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-mechanism-net"');
+    expect(html).toContain('data-hit-phase="trap-snap"');
+    expect(html).toContain('data-vfx-cue="mechanism-net-snap"');
+    expect(html).toContain('data-enemy-motion="controlled"');
+  });
+
+  it("defines dedicated mechanism net player, weapon, cast, and impact animations", () => {
+    expect(stylesCss).toContain('[data-skill-animation-preset="ink-shadow-net"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="net-cast"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-mechanism-net");
+    expect(stylesCss).toContain(".skill-impact-shape-mechanism-net");
+    expect(stylesCss).toContain("@keyframes player-ink-shadow-net-cast");
+    expect(stylesCss).toContain("@keyframes weapon-net-cast");
+    expect(stylesCss).toContain("@keyframes mechanism-net-snap-core");
+  });
+
   it("renders prism-step as a prism-afterimage path pierce impact", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const state = {

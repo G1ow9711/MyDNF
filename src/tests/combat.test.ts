@@ -1119,6 +1119,57 @@ describe("combat actions and impact feel", () => {
     expect(step.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
   });
 
+  it("mechanism-shadow-net binds enemies on delayed net frames before snapping them inward", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 100)),
+      "mechanism-shadow-weaver"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 332, y: 340, hp: 260, maxHp: 260, armor: 12 },
+        { x: 418, y: 356, hp: 240, maxHp: 240, armor: 8 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "mechanism-shadow-net" });
+    const netHits = cast.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mechanism-shadow-net"
+    );
+    const bindAtMs = Math.min(...netHits.map((event) => event.occurredAtMs));
+    const snapAtMs = Math.max(...netHits.map((event) => event.occurredAtMs));
+    const beforeBindRun = stepCombat(cast, {}, bindAtMs - 1);
+    const bindRun = stepCombat(cast, {}, bindAtMs);
+    const snapRun = stepCombat(bindRun, {}, snapAtMs - bindAtMs);
+    const netCenterX = run.player.x + 150;
+
+    expect(netHits).toHaveLength(4);
+    expect(netHits.map((event) => event.hitPhase)).toEqual(["trap-bind", "trap-bind", "trap-snap", "trap-snap"]);
+    expect(netHits.map((event) => event.vfxCue)).toEqual([
+      "mechanism-net-bind",
+      "mechanism-net-bind",
+      "mechanism-net-snap",
+      "mechanism-net-snap"
+    ]);
+    expect(cast.scheduledEnemyHitEffects).toHaveLength(4);
+    expect(cast.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(cast.enemies.every((enemy) => enemy.controlledUntilMs === undefined)).toBe(true);
+    expect(beforeBindRun.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(beforeBindRun.enemies.every((enemy) => enemy.controlledUntilMs === undefined)).toBe(true);
+    expect(bindRun.enemies.every((enemy) => (enemy.controlledUntilMs ?? 0) > bindRun.elapsedMs)).toBe(true);
+    expect(bindRun.enemies.every((enemy) => enemy.nextAttackAtMs >= (enemy.controlledUntilMs ?? 0))).toBe(true);
+    expect(bindRun.enemies.every((enemy) => enemy.hp < run.enemies.find((source) => source.id === enemy.id)!.hp)).toBe(true);
+    expect(snapRun.enemies.every((enemy) => enemy.hp < bindRun.enemies.find((source) => source.id === enemy.id)!.hp)).toBe(true);
+    expect(
+      snapRun.enemies.every((enemy) => {
+        const before = bindRun.enemies.find((source) => source.id === enemy.id)!;
+
+        return Math.abs(enemy.position.x - netCenterX) < Math.abs(before.position.x - netCenterX);
+      })
+    ).toBe(true);
+  });
+
   it("meteor-knuckle resolves as staged fall and impact hits with forced knockdown", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),

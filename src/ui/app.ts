@@ -662,9 +662,14 @@ function playerTrailMarkup(
 function playerSkillVfxStyle(
   run: CombatRun,
   animation: SkillAnimationDefinition | undefined,
-  target: CombatEnemy | undefined
+  target: CombatEnemy | undefined,
+  skillId?: string
 ): string {
   const durationStyle = ` --skill-duration: ${animation?.durationMs ?? 520}ms;`;
+
+  if (skillId === "mechanism-shadow-net") {
+    return `${combatActorStyle(run, run.player.x + 150 * run.player.facing, run.player.y)}${durationStyle}`;
+  }
 
   if (animation?.vfxAnchor === "self") {
     return `${combatActorStyle(run, run.player.x, run.player.y)}${durationStyle}`;
@@ -730,7 +735,7 @@ function renderCombatVfx(run: CombatRun): string {
   const skillVfx =
     playerAction?.action === "skill"
       ? `
-        <div class="player-skill-vfx skill-vfx-${playerAction.skillId ?? "unknown"} skill-vfx-shape-${skillAnimation?.vfxShape ?? "generic"}" data-player-skill-vfx="${playerAction.skillId ?? "unknown"}" data-skill-vfx-shape="${skillAnimation?.vfxShape ?? ""}" data-vfx-anchor="${skillAnimation?.vfxAnchor ?? "front"}" data-weapon-arc="${skillAnimation?.weaponArc ?? ""}" data-vfx-action="skill" style="${playerSkillVfxStyle(run, skillAnimation, skillTarget)}">
+        <div class="player-skill-vfx skill-vfx-${playerAction.skillId ?? "unknown"} skill-vfx-shape-${skillAnimation?.vfxShape ?? "generic"}" data-player-skill-vfx="${playerAction.skillId ?? "unknown"}" data-skill-vfx-shape="${skillAnimation?.vfxShape ?? ""}" data-vfx-anchor="${skillAnimation?.vfxAnchor ?? "front"}" data-weapon-arc="${skillAnimation?.weaponArc ?? ""}" data-vfx-action="skill" style="${playerSkillVfxStyle(run, skillAnimation, skillTarget, playerAction.skillId)}">
           <span class="skill-core"></span>
           <span class="skill-wave"></span>
           <span class="skill-sparks"></span>

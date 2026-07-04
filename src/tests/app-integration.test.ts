@@ -1410,6 +1410,94 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-skill-cooldown-remaining="');
   });
 
+  it("renders mechanism-shadow-net as a delayed binding field with enemy control motion", () => {
+    const advancedState = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 100)),
+      "mechanism-shadow-weaver"
+    );
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: advancedState
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            enemies: model.combatRun.enemies.map((enemy) => ({
+              ...enemy,
+              hp: 260,
+              maxHp: 260
+            }))
+          }
+        : undefined
+    };
+
+    expect(combatActionForKeyCode(model.state, "Space", model.combatRun?.player.resource.current, false, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "mechanism-shadow-net"
+    });
+
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "mechanism-shadow-net" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const netHits = model.combatRun.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mechanism-shadow-net"
+    );
+    const bindAtMs = Math.min(...netHits.map((event) => event.occurredAtMs));
+    const snapAtMs = Math.max(...netHits.map((event) => event.occurredAtMs));
+    const expectedNetActorX = (((model.combatRun.player.x + 150 * model.combatRun.player.facing) / model.combatRun.arena.width) * 100).toFixed(2);
+    const castHtml = renderAppHtml(model);
+    const beforeBindRun = stepCombat(model.combatRun, {}, bindAtMs - 1);
+    const beforeBindHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeBindRun
+    });
+    const bindRun = stepCombat(model.combatRun, {}, bindAtMs);
+    const bindHtml = renderAppHtml({
+      ...model,
+      combatRun: bindRun
+    });
+    const snapRun = stepCombat(bindRun, {}, snapAtMs - bindAtMs);
+    const snapHtml = renderAppHtml({
+      ...model,
+      combatRun: snapRun
+    });
+
+    expect(netHits).toHaveLength(4);
+    expect(castHtml).toContain('data-advancement-id="mechanism-shadow-weaver"');
+    expect(castHtml).toContain('data-active-skill-id="mechanism-shadow-net"');
+    expect(castHtml).toContain('data-skill-animation-preset="ink-shadow-net"');
+    expect(castHtml).toContain('data-skill-weapon-arc="net-cast"');
+    expect(castHtml).toContain('data-skill-vfx-shape="mechanism-net"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-mechanism-shadow-net skill-vfx-shape-mechanism-net"');
+    expect(castHtml).not.toContain('data-hit-phase="trap-bind"');
+    expect(castHtml).toContain(`--actor-x: ${expectedNetActorX}%`);
+    expect(beforeBindHtml).not.toContain('data-hit-phase="trap-bind"');
+    expect(beforeBindHtml).not.toContain('data-skill-impact-vfx="mechanism-shadow-net"');
+    expect(beforeBindHtml).not.toContain('data-damage-number="true"');
+    expect(beforeBindHtml).not.toContain('data-enemy-motion="controlled"');
+    expect(bindHtml).toContain('data-hit-phase="trap-bind"');
+    expect(bindHtml).toContain('data-vfx-cue="mechanism-net-bind"');
+    expect(bindHtml).toContain('data-enemy-motion="controlled"');
+    expect(countOccurrences(bindHtml, 'data-skill-impact-vfx="mechanism-shadow-net"')).toBe(2);
+    expect(bindHtml).not.toContain('data-hit-phase="trap-snap"');
+    expect(snapHtml).toContain('data-hitstop-active="true"');
+    expect(snapHtml).toContain('data-screen-shake="skill"');
+    expect(snapHtml).toContain('data-hit-phase="trap-snap"');
+    expect(snapHtml).toContain('data-vfx-cue="mechanism-net-snap"');
+    expect(snapHtml).toContain('data-impact-vfx-shape="mechanism-net"');
+    expect(countOccurrences(snapHtml, 'data-skill-impact-vfx="mechanism-shadow-net"')).toBe(4);
+    expect(countOccurrences(snapHtml, 'data-damage-number="true"')).toBe(4);
+  });
+
   it("renders meteor-knuckle as a staged ultimate with screen flash and ground impact", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

@@ -135,6 +135,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current Iron starter progress: `iron-palm` now uses a strict 150 ms forward shield-jab timeline, model-following movement, endpoint-based dynamic hitbox, left-facing weapon mirroring, target-bound iron-spark impact VFX, and interruption-safe scheduled damage.
 - Current DNF hotbar progress: combat movement now prioritizes arrow keys, while `A/S/D/F/G/H` map to the first six current-class skill slots with a fixed six-slot UI bar, visible hotkey badges, slot state hooks, and preserved legacy `L/U/I/O/Space` skill mappings.
 - Current DNF command-input progress: six hotbar slots now have manual command sequences, `Z` command matching runs before heavy fallback, command casts carry `inputMethod: "command"`, pay 88% resource cost, receive 92% cooldown duration, preserve metadata through action buffering, and expose command chips/toast/UI hooks.
+- Current Ink control progress: `ink-snare` now uses strict delayed 250 ms bind and 430 ms snap hit frames, live target recheck, delayed MISS, monster-interruption cancellation, target pull/control, and dedicated player/weapon/cast/bind/snap VFX hooks. Review fixes now require snap targets to have been bound by the same `ink-snare` cast and align the cast VFX field to the combat snare center.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

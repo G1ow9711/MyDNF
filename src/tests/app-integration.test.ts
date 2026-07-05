@@ -1102,8 +1102,18 @@ describe("playable app integration actions", () => {
     controlModel = placeAliveEnemiesInFront(controlModel);
     controlModel = reduceAppAction(controlModel, { type: "combatAction", action: "skill", skillId: "ink-snare" });
 
-    const controlHtml = renderAppHtml(controlModel);
+    if (!controlModel.combatRun) {
+      throw new Error("Expected active combat run after ink-snare");
+    }
 
+    const immediateControlHtml = renderAppHtml(controlModel);
+    const [bindAtMs] = scheduledSkillTimes(controlModel.combatRun, "ink-snare");
+    const controlHtml = renderAppHtml({
+      ...controlModel,
+      combatRun: stepToElapsed(controlModel.combatRun, bindAtMs)
+    });
+
+    expect(immediateControlHtml).not.toContain('data-control-state="controlled"');
     expect(controlHtml).toContain('data-control-state="controlled"');
     expect(controlHtml).toContain('data-enemy-motion="controlled"');
     expect(controlHtml).toContain('class="enemy-art actor-model actor-model-controlled"');
@@ -2419,6 +2429,51 @@ describe("playable app integration actions", () => {
     expect(finalWaveHtml).toContain('class="skill-impact-burst skill-impact-shape-black-rain"');
     expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[0]}"`);
     expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[1]}"`);
+  });
+
+  it("renders ink-snare as delayed bind and snap target VFX", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "ink-snare" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const [bindAtMs, snapAtMs] = scheduledSkillTimes(model.combatRun, "ink-snare");
+    const castHtml = renderAppHtml(model);
+    const castVfxStyle = playerSkillVfxStyleFor(castHtml, "ink-snare");
+    const beforeBindHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, bindAtMs - 1)
+    });
+    const snapRun = stepToElapsed(stepToElapsed(model.combatRun, bindAtMs), snapAtMs);
+    const hits = skillHitEvents(snapRun, "ink-snare");
+    const html = renderAppHtml({
+      ...model,
+      combatRun: snapRun
+    });
+
+    expect(skillHitEvents(model.combatRun, "ink-snare")).toHaveLength(0);
+    expect(hits.map((event) => event.hitPhase)).toEqual(["trap-bind", "trap-bind", "trap-snap", "trap-snap"]);
+    expect(castHtml).toContain('data-active-skill-id="ink-snare"');
+    expect(castHtml).toContain('data-skill-animation-preset="ink-snare"');
+    expect(castHtml).toContain('data-skill-weapon-arc="trap-cast"');
+    expect(castHtml).toContain('data-skill-vfx-shape="ink-snare"');
+    expect(castHtml).toContain('data-player-skill-vfx="ink-snare"');
+    expect(castVfxStyle).toContain("--actor-x: 38.75%");
+    expect(beforeBindHtml).not.toContain('data-skill-impact-vfx="ink-snare"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="ink-snare"')).toBe(4);
+    expect(html).toContain('data-impact-vfx-shape="ink-snare"');
+    expect(html).toContain('data-hit-phase="trap-snap"');
+    expect(html).toContain('data-vfx-cue="ink-snare-snap"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-ink-snare"');
+    expect(html).toContain('data-enemy-motion="controlled"');
   });
 
   it("renders night-mark-detonation as staged marked-target bursts", () => {

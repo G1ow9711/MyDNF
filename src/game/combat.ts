@@ -72,6 +72,8 @@ export type CombatVfxCue =
   | "earth-furnace-crack"
   | "earth-furnace-eruption"
   | "ink-shot-pierce"
+  | "ink-snare-bind"
+  | "ink-snare-snap"
   | "glass-slash-cut"
   | "ember-jab-chain"
   | "iron-shield-jab"
@@ -536,6 +538,7 @@ interface PlayerHitboxDefinition {
   canceledFromCombo: boolean;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
+  requiresStatusSourceSkillId?: string;
 }
 
 const arena: CombatArena = {
@@ -1358,7 +1361,17 @@ function enemyInPlayerHitbox(run: CombatRun, enemy: CombatEnemy, hitbox: PlayerH
 
 function selectPlayerTargets(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatEnemy[] {
   return run.enemies
-    .filter((enemy) => enemyInPlayerHitbox(run, enemy, hitbox))
+    .filter((enemy) => {
+      if (!enemyInPlayerHitbox(run, enemy, hitbox)) {
+        return false;
+      }
+
+      if (!hitbox.requiresStatusSourceSkillId) {
+        return true;
+      }
+
+      return enemy.statusSourceSkillId === hitbox.requiresStatusSourceSkillId && (enemy.controlledUntilMs ?? 0) > run.elapsedMs;
+    })
     .sort((left, right) => enemyDistanceScore(run, left) - enemyDistanceScore(run, right))
     .slice(0, hitbox.targetCap);
 }
@@ -2314,6 +2327,78 @@ function applyInkShot(run: CombatRun, skill: ClassSkillDefinition, canceledFromC
     hitPhase: "ink-bolt",
     vfxCue: "ink-shot-pierce",
     vfxWindowMs: 260
+  });
+}
+
+const inkSnareBindDelayMs = 250;
+const inkSnareSnapDelayMs = 430;
+
+function inkSnareCenter(run: CombatRun): CombatVector {
+  return {
+    x: clamp(run.player.x + 112 * run.player.facing, 0, arena.width),
+    y: run.player.y
+  };
+}
+
+function applyInkSnare(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const facing = run.player.facing;
+  const center = inkSnareCenter(run);
+  const endPosition = {
+    x: clamp(run.player.x + skill.animation.lungePx * facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const castingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + inkSnareSnapDelayMs),
+    skill,
+    canceledFromCombo
+  );
+  const baseDamage = skillDamage(run, skill);
+  const bindHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 170,
+    laneRange: 82,
+    targetCap: 3,
+    frontOnly: false,
+    damage: Math.max(1, Math.round(baseDamage * 0.34)),
+    hitstopMs: 48,
+    knockback: 0,
+    juggle: false,
+    inputToHitMs: inkSnareBindDelayMs,
+    canceledFromCombo,
+    statusTags: ["trap", "control"]
+  };
+  const snapHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 190,
+    laneRange: 90,
+    targetCap: 3,
+    frontOnly: false,
+    damage: Math.max(1, Math.round(baseDamage * 0.78)),
+    hitstopMs: 76,
+    knockback: 0,
+    juggle: false,
+    inputToHitMs: inkSnareSnapDelayMs,
+    canceledFromCombo,
+    pullCenter: center,
+    statusTags: ["trap", "control", "stagger"],
+    actionTags: ["pull"],
+    requiresStatusSourceSkillId: skill.id
+  };
+  const boundRun = schedulePlayerHitboxEffect(castingRun, bindHitbox, center, facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-bind`,
+    hitPhase: "trap-bind",
+    vfxCue: "ink-snare-bind",
+    vfxWindowMs: 360
+  });
+
+  return schedulePlayerHitboxEffect(boundRun, snapHitbox, center, facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-snap`,
+    hitPhase: "trap-snap",
+    vfxCue: "ink-snare-snap",
+    vfxWindowMs: 520,
+    missOnEmpty: false
   });
 }
 
@@ -4911,6 +4996,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "ink-shot") {
     return finishSkillAction(applyInkShot(run, skill, canceledFromCombo));
+  }
+
+  if (skill.id === "ink-snare") {
+    return finishSkillAction(applyInkSnare(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "heat-bloom") {

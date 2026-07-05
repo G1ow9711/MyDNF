@@ -1634,9 +1634,13 @@ describe("combat actions and impact feel", () => {
       ]
     );
     const trapped = performAction(trapRun, { type: "skill", skillId: "ink-snare" });
+    const [bindAtMs] = scheduledSkillTimes(trapped, "ink-snare");
+    const bound = stepToElapsed(trapped, bindAtMs);
 
-    expect(trapped.enemies[0].controlledUntilMs).toBeGreaterThan(trapped.elapsedMs);
-    expect(trapped.enemies[0].nextAttackAtMs).toBeGreaterThanOrEqual(trapped.enemies[0].controlledUntilMs ?? 0);
+    expect(skillHitEvents(trapped, "ink-snare")).toHaveLength(0);
+    expect(trapped.enemies[0].controlledUntilMs).toBeUndefined();
+    expect(bound.enemies[0].controlledUntilMs).toBeGreaterThan(bound.elapsedMs);
+    expect(bound.enemies[0].nextAttackAtMs).toBeGreaterThanOrEqual(bound.enemies[0].controlledUntilMs ?? 0);
 
     const breakState = withHeat(createInitialState(), 90);
     const breakRun = withPlayerAndEnemies(
@@ -2334,6 +2338,256 @@ describe("combat actions and impact feel", () => {
     expect(skillHitEvents(interrupted, "ink-shot")).toHaveLength(0);
     expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
     expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "ink-shot")).toHaveLength(0);
+  });
+
+  it("delays ink-snare into bind and snap hit frames before controlling targets", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 318, y: 340, hp: 180, maxHp: 180 },
+        { x: 382, y: 348, hp: 180, maxHp: 180 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "ink-snare" });
+    const [bindAtMs, snapAtMs] = scheduledSkillTimes(cast, "ink-snare");
+    const beforeBind = stepToElapsed(cast, bindAtMs - 1);
+    const bound = stepToElapsed(cast, bindAtMs);
+    const snapped = stepToElapsed(bound, snapAtMs);
+    const hits = skillHitEvents(snapped, "ink-snare");
+
+    expect(bindAtMs).toBe(250);
+    expect(snapAtMs).toBe(430);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("ink-snare");
+    expect(skillHitEvents(cast, "ink-snare")).toHaveLength(0);
+    expect(cast.enemies[0].controlledUntilMs).toBeUndefined();
+    expect(beforeBind.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(beforeBind.enemies[0].controlledUntilMs).toBeUndefined();
+    expect(skillHitEvents(beforeBind, "ink-snare")).toHaveLength(0);
+    expect(bound.enemies[0].controlledUntilMs).toBeGreaterThan(bound.elapsedMs);
+    expect(hits.map((event) => event.hitPhase)).toEqual(["trap-bind", "trap-bind", "trap-snap", "trap-snap"]);
+    expect(hits.map((event) => event.vfxCue)).toEqual(["ink-snare-bind", "ink-snare-bind", "ink-snare-snap", "ink-snare-snap"]);
+    expect(snapped.enemies[0].hp).toBeLessThan(bound.enemies[0].hp);
+    expect(snapped.enemies[0].position.x).toBeGreaterThan(bound.enemies[0].position.x);
+  });
+
+  it("rechecks ink-snare targets at the bind frame instead of locking cast-time targets", () => {
+    const inRangeRun = withPlayerAndEnemies(
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 318, y: 340, hp: 180, maxHp: 180 },
+        { x: 382, y: 348, hp: 180, maxHp: 180 }
+      ]
+    );
+    const castWithTarget = performAction(inRangeRun, { type: "skill", skillId: "ink-snare" });
+    const [bindAtMs] = scheduledSkillTimes(castWithTarget, "ink-snare");
+    const movedOutBeforeBind = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: castWithTarget.enemies.map((enemy) => ({
+          ...enemy,
+          position: { x: 760, y: 500 }
+        }))
+      },
+      bindAtMs
+    );
+
+    expect(skillHitEvents(movedOutBeforeBind, "ink-snare")).toHaveLength(0);
+    expect(skillMissEvents(movedOutBeforeBind, "ink-snare")).toHaveLength(1);
+    expect(movedOutBeforeBind.enemies[0].controlledUntilMs).toBeUndefined();
+
+    const outOfRangeRun = withPlayerAndEnemies(
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 760, y: 500, hp: 180, maxHp: 180 },
+        { x: 820, y: 500, hp: 180, maxHp: 180 }
+      ]
+    );
+    const castWithoutTarget = performAction(outOfRangeRun, { type: "skill", skillId: "ink-snare" });
+    const [lateBindAtMs] = scheduledSkillTimes(castWithoutTarget, "ink-snare");
+    const movedInBeforeBind = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: castWithoutTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 318, y: 340 }
+              }
+            : enemy
+        )
+      },
+      lateBindAtMs
+    );
+    const [lateHit] = skillHitEvents(movedInBeforeBind, "ink-snare");
+
+    expect(lateHit).toMatchObject({
+      targetId: outOfRangeRun.enemies[0].id,
+      hitPhase: "trap-bind",
+      vfxCue: "ink-snare-bind"
+    });
+    expect(skillMissEvents(movedInBeforeBind, "ink-snare")).toHaveLength(0);
+    expect(movedInBeforeBind.enemies[0].controlledUntilMs).toBeGreaterThan(movedInBeforeBind.elapsedMs);
+  });
+
+  it("does not let ink-snare snap hit targets that were not bound first", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 760, y: 500, hp: 180, maxHp: 180 },
+        { x: 820, y: 500, hp: 180, maxHp: 180 }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "ink-snare" });
+    const [bindAtMs, snapAtMs] = scheduledSkillTimes(cast, "ink-snare");
+    const missedBind = stepToElapsed(cast, bindAtMs);
+    const movedInBeforeSnap = stepToElapsed(
+      {
+        ...missedBind,
+        enemies: missedBind.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 318, y: 340 }
+              }
+            : enemy
+        )
+      },
+      snapAtMs
+    );
+
+    expect(skillMissEvents(missedBind, "ink-snare")).toHaveLength(1);
+    expect(skillHitEvents(missedBind, "ink-snare")).toHaveLength(0);
+    expect(skillHitEvents(movedInBeforeSnap, "ink-snare")).toHaveLength(0);
+    expect(movedInBeforeSnap.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(movedInBeforeSnap.enemies[0].controlledUntilMs).toBeUndefined();
+  });
+
+  it("lets same-frame monster impacts interrupt ink-snare before bind or snap resolves", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 300, y: 340, hp: 180, maxHp: 180 }]
+    );
+
+    const bindCast = performAction(run, { type: "skill", skillId: "ink-snare" });
+    const [bindAtMs, snapAtMs] = scheduledSkillTimes(bindCast, "ink-snare");
+    const bindInterrupted = stepCombat(
+      {
+        ...bindCast,
+        enemies: [
+          {
+            ...bindCast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: bindAtMs,
+            attackRecoverUntilMs: bindAtMs + 220,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      bindAtMs
+    );
+
+    expect(bindInterrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          occurredAtMs: bindAtMs
+        })
+      ])
+    );
+    expect(skillHitEvents(bindInterrupted, "ink-snare")).toHaveLength(0);
+    expect(bindInterrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "ink-snare")).toHaveLength(0);
+
+    const snapRun = withPlayerAndEnemies(
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [
+        { x: 318, y: 340, hp: 180, maxHp: 180 },
+        { x: 80, y: 340, hp: 180, maxHp: 180 }
+      ]
+    );
+    const snapCast = performAction(snapRun, { type: "skill", skillId: "ink-snare" });
+    const snapInterrupted = stepCombat(
+      {
+        ...snapCast,
+        enemies: snapCast.enemies.map((enemy, index) =>
+          index === 1
+            ? {
+                ...enemy,
+                attackSkillId: "ash-ember-spit",
+                attackStartedAtMs: 0,
+                attackImpactAtMs: snapAtMs,
+                attackRecoverUntilMs: snapAtMs + 220,
+                attackHitResolved: false,
+                attackResolvedHits: 0
+              }
+            : enemy
+        )
+      },
+      {},
+      snapAtMs
+    );
+
+    expect(snapInterrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          occurredAtMs: snapAtMs
+        })
+      ])
+    );
+    expect(skillHitEvents(snapInterrupted, "ink-snare").filter((event) => event.hitPhase === "trap-snap")).toHaveLength(0);
+    expect(snapInterrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "ink-snare")).toHaveLength(0);
+  });
+
+  it("cancels ink-snare bind and snap when monster damage interrupts the cast", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 300, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "ink-snare" });
+    const [bindAtMs] = scheduledSkillTimes(cast, "ink-snare");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 80,
+            attackRecoverUntilMs: 300,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      bindAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 80
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(skillHitEvents(interrupted, "ink-snare")).toHaveLength(0);
+    expect(interrupted.enemies[0].controlledUntilMs).toBeUndefined();
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "ink-snare")).toHaveLength(0);
   });
 
   it("moves shadow-roll backward before firing the roll-shot hit frame", () => {

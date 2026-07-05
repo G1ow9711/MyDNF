@@ -863,6 +863,20 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes ink-shot-pierce-core");
   });
 
+  it("defines dedicated ink-snare player, weapon, cast, bind, and snap animations", () => {
+    expect(stylesCss).toContain('[data-skill-animation-preset="ink-snare"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="trap-cast"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-ink-snare");
+    expect(stylesCss).toContain(".skill-impact-shape-ink-snare");
+    expect(stylesCss).toContain('[data-vfx-cue="ink-snare-bind"]');
+    expect(stylesCss).toContain('[data-vfx-cue="ink-snare-snap"]');
+    expect(stylesCss).toContain("@keyframes player-ink-snare-cast");
+    expect(stylesCss).toContain("@keyframes weapon-trap-cast");
+    expect(stylesCss).toContain("@keyframes ink-snare-cast-core");
+    expect(stylesCss).toContain("@keyframes ink-snare-bind-core");
+    expect(stylesCss).toContain("@keyframes ink-snare-snap-core");
+  });
+
   it("defines dedicated glass-cut player, weapon, slash, and impact animations", () => {
     const state = selectBaseClass(createInitialState(), "liuli-blademage");
     const baseRun = createCombatRun(state, "cinder-kiln-alley");

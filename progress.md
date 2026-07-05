@@ -2192,3 +2192,33 @@
   - Full suite passed: `npm test`, 13 files / 375 tests.
   - Production build passed: `npm run build`.
   - `git diff --check` passed with line-ending warnings only.
+
+## Task 79 Ink Snare Strict Control Timeline
+- Continued under the latest user clarification: character and monster modeling can stay lighter for now, but combat action smoothness, strict hit frames, model-following attacks, hit feedback, player/enemy action changes, and skill VFX remain hard acceptance criteria.
+- Used parallel read-only agents:
+  - Combat explorer confirmed `ink-snare` still fell through the generic instant `applyPlayerHitbox()` branch, mutating HP/control at cast time while only writing a future `occurredAtMs`.
+  - UI/CSS explorer confirmed player, weapon, and cast hooks existed, but target impact CSS and `ink-snare`-specific VFX cues were missing.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires no cast-frame damage/control, scheduled 250 ms bind and 430 ms snap frames, dynamic target recheck, delayed MISS, monster-interruption cancellation, and target pull/control on snap.
+  - `src/tests/app-integration.test.ts` requires cast VFX before bind, no target impact before bind, bind/snap target VFX metadata, and controlled enemy DOM only after the bind frame.
+  - `src/tests/ui-smoke.test.ts` requires dedicated `ink-snare` player, weapon, cast, bind, and snap CSS hooks/keyframes.
+- RED evidence:
+  - Focused `ink-snare` suite failed before implementation because no scheduled effects existed and `.skill-impact-shape-ink-snare` was absent.
+- Implemented:
+  - Added `applyInkSnare()` with a real 250 ms dynamic bind hitbox and 430 ms dynamic snap hitbox around a fixed ink-snare center.
+  - The cast starts active skill movement until the snap frame so monster hits before snap cancel the remaining control effects.
+  - Bind applies `trap/control` only at the hit frame; snap applies stronger damage, `trap/control/stagger`, and pulls targets toward the snare center.
+  - Added `ink-snare-bind` and `ink-snare-snap` VFX cues, plus dedicated cast/target CSS animations.
+- Code review follow-up:
+  - Read-only review found no Critical issues and flagged two Important risks: snap could hit a target that was never bound first, and the cast VFX field needed a fixed center anchor matching combat logic.
+  - Added regressions for bind-miss-then-snap, same-frame monster interruption at bind, and same-frame monster interruption at snap.
+  - Snap now requires `statusSourceSkillId === "ink-snare"` from the bind frame before it can apply pull/damage, so late-entering unbound targets stay safe.
+  - `ink-snare` cast VFX now anchors at player X + 112 px, matching the combat snare center; browser DOM confirmed `--actor-x: 38.75%` for the fixed 260 px player test position.
+- Final verification:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "ink-snare"`, 5 tests.
+  - Review-fix focused suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts -t "ink-snare"`, 6 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 286 tests.
+  - Full suite passed: `npm test`, 13 files / 382 tests.
+  - Production build passed: `npm run build`.
+  - Browser DOM/CSS validation on a temporary worktree-served page confirmed 0 pre-bind target impacts, two bind impacts at 250 ms, two snap impacts at 430 ms, two controlled enemies, no snap impacts after a bind MISS, cast VFX anchor `--actor-x: 38.75%`, computed animations `player-ink-snare-cast`, `weapon-trap-cast`, `ink-snare-cast-core`, `ink-snare-cast-ring`, `ink-snare-bind-core`, and `ink-snare-snap-core`, plus empty warning/error console output. Temporary check page was deleted and the temporary dev server was stopped.
+  - `git diff --check` passed with line-ending warnings only.

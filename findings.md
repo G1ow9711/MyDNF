@@ -500,3 +500,14 @@
 - Review follow-up: generic fallback skills still need `skill-cast` events, otherwise command casts on non-scripted class skills lose manual release metadata even though cost/cooldown reductions apply.
 - Review follow-up: command matching can return a buffered action when cooldown will recover before the current action lock ends; immediate cooldown bypass is still blocked.
 - Review follow-up: `available-by-command` visual styling must be ordered after locked-slot styling because the same button can be direct-locked but command-available.
+
+## Ink Snare Strict Control Findings
+- Current user clarification: character/monster geometry can stay simple while the playable loop is completed, but combat action smoothness, strict hit frames, player/enemy action changes, hit feedback, skill VFX, and monster VFX remain mandatory.
+- Parallel read-only audits found `ink-snare` still used the generic instant skill branch: cast-frame target selection, immediate HP/control mutation, and empty skill-specific target VFX cues.
+- RED evidence: focused combat/app/UI tests failed because `ink-snare` had no scheduled effects, no delayed bind/snap frames, no delayed MISS, and no `.skill-impact-shape-ink-snare` target animation hooks.
+- Implementation note: `ink-snare` now starts a short active skill movement and schedules a 250 ms dynamic `trap-bind` hitbox plus a 430 ms dynamic `trap-snap` hitbox around a fixed snare center.
+- Combat note: bind applies `trap/control` only at the bind frame; snap applies stronger damage, stagger/control, and pulls targets toward the snare center. Monster damage before snap cancels remaining pending effects through the shared scheduled-combat queue.
+- Dynamic targeting note: bind uses live hit-frame target selection, so targets leaving before bind create delayed MISS, while targets entering before bind can be caught.
+- Presentation note: `ink-snare-bind` and `ink-snare-snap` VFX cues now drive dedicated target impact bursts, with browser validation confirming player, weapon, cast, bind, and snap animation names and no warning/error console output.
+- Review follow-up: snap must only affect targets that the bind frame actually controlled. The snap hitbox now filters by `statusSourceSkillId`, so a target entering after a bind MISS does not receive late snap damage or pull.
+- Presentation follow-up: the `ink-snare` cast field now uses the same fixed center as combat (`player.x + 112 * facing`) instead of drifting with generic player-skill VFX placement; browser validation confirmed the expected `--actor-x: 38.75%` anchor in the regression fixture.

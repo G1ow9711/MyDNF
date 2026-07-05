@@ -96,6 +96,37 @@ describe("render plan", () => {
     expect(plan.commands.some((command) => command.kind === "enemy")).toBe(true);
     expect(plan.commands.some((command) => command.kind === "hit-spark")).toBe(true);
     expect(plan.commands.at(-1)?.kind).toBe("hud");
+
+    const heavyCast = performAction(
+      {
+        ...baseRun,
+        enemies: baseRun.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: {
+                  x: baseRun.player.x + 96,
+                  y: baseRun.player.y
+                },
+                nextAttackAtMs: 9999
+              }
+            : enemy
+        )
+      },
+      { type: "heavy" }
+    );
+    const heavyInputPlan = createRenderPlan(heavyCast, "cinder-kiln-alley");
+    const [heavyAtMs] = heavyCast.scheduledEnemyHitEffects
+      .filter((effect) => effect.action === "heavy" && !effect.skillId && !effect.hitPhase)
+      .map((effect) => effect.applyAtMs);
+    if (heavyAtMs === undefined) {
+      throw new Error("Expected scheduled ground-heavy effect");
+    }
+    const heavyRun: CombatRun = stepCombat(heavyCast, {}, Math.max(0, heavyAtMs - heavyCast.elapsedMs));
+    const heavyPlan = createRenderPlan(heavyRun, "cinder-kiln-alley");
+
+    expect(heavyInputPlan.commands.some((command) => command.kind === "hit-spark")).toBe(false);
+    expect(heavyPlan.commands.some((command) => command.kind === "hit-spark")).toBe(true);
   });
 });
 

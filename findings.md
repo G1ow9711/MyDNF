@@ -580,3 +580,11 @@
 - Presentation note: a separate normal-attack action window keeps `data-player-motion="light"` and the weapon swing visible before impact, while hit VFX and enemy `data-enemy-motion="hit"` still wait for the scheduled hit event.
 - Buffer/cancel note: buffered actions now release from the advanced frame state, so the first scheduled light hit can confirm combo before a buffered second light or command skill releases. Combo cancel now requires `cancelWindowUntilMs > elapsedMs`, so an empty zero window cannot unlock skills.
 - Browser validation note: the temporary page on `http://127.0.0.1:5178/.codex-local/tmp/ground-light-check.html` confirmed input-frame no-damage/no-spark state, 55 ms impact HP/resource/cancel changes, pre-hit cancel buffering, post-hit cancel release, `playerMotion="skill"` on cancel, and empty warning/error console output.
+
+## DNF-Style Ground-Heavy Hit Frame Findings
+- Current priority remains strict combat feel over heavier model detail: the launcher can use a simple model, but its windup, impact frame, enemy airborne transition, hitstop, resource gain, and VFX must align with real combat timing.
+- Parallel read-only audits found grounded heavy still used `applyPlayerHitbox` at input time, immediately mutating HP/airborne/resource while writing a future `occurredAtMs: input + 85`.
+- Combat note: grounded heavy now uses the scheduled dynamic hitbox queue with an 85 ms hit frame, live target recheck, delayed MISS, `launcher` action tag, and hit-only resource gain.
+- Cancellation note: the existing scheduled normal-attack interruption guard now covers both ground light and ground heavy, so monster damage or bound lock before/on the launcher frame cancels pending heavy damage and prevents ghost airborne hits.
+- Presentation note: a `normalAttackType` field keeps the player and weapon in `heavy` windup motion before impact while hit sparks, damage numbers, enemy airborne state, and `hit-impact-heavy` wait for the real hit event.
+- Integration note: room-clear helpers that spam heavy now resolve the heavy hit frame before judging enemy HP, then advance only between hits when more enemies remain. This preserves final-room VFX for the “no stale VFX in next room” regression.

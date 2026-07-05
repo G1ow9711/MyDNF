@@ -190,6 +190,7 @@ export interface CombatPlayer {
   normalAttackStartedAtMs: number;
   normalAttackUntilMs: number;
   normalAttackComboStep: number;
+  normalAttackType: "none" | "light" | "heavy";
   dashAttackReadyUntilMs: number;
   dashAttackStartedAtMs: number;
   dashAttackUntilMs: number;
@@ -696,7 +697,8 @@ function clearCompletedNormalAttack(player: CombatPlayer, elapsedMs: number): Co
     ...player,
     normalAttackStartedAtMs: 0,
     normalAttackUntilMs: 0,
-    normalAttackComboStep: 0
+    normalAttackComboStep: 0,
+    normalAttackType: "none"
   };
 }
 
@@ -1588,12 +1590,6 @@ function applyPlayerHitbox(run: CombatRun, hitbox: PlayerHitboxDefinition): Comb
 
     return next;
   }, run);
-}
-
-function actionAddedHitEvent(before: CombatRun, after: CombatRun, action: CombatHitEvent["action"]): boolean {
-  const existingEventIds = new Set(before.events.filter((event): event is CombatHitEvent => event.kind === "hit").map((event) => event.id));
-
-  return after.events.some((event): event is CombatHitEvent => event.kind === "hit" && event.action === action && !existingEventIds.has(event.id));
 }
 
 function skillTargetCap(tags: string[]): number {
@@ -3489,6 +3485,7 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       normalAttackStartedAtMs: 0,
       normalAttackUntilMs: 0,
       normalAttackComboStep: 0,
+      normalAttackType: "none",
       dashAttackReadyUntilMs: 0,
       dashAttackStartedAtMs: 0,
       dashAttackUntilMs: 0,
@@ -4340,7 +4337,11 @@ function applyScheduledPlayerHitboxEffect(
     return run;
   }
 
-  if (!effect.skillId && hitbox.action === "light" && (effect.applyAtMs < run.player.hurtLockUntilMs || effect.applyAtMs < run.player.boundUntilMs)) {
+  if (
+    !effect.skillId &&
+    (hitbox.action === "light" || hitbox.action === "heavy") &&
+    (effect.applyAtMs < run.player.hurtLockUntilMs || effect.applyAtMs < run.player.boundUntilMs)
+  ) {
     return {
       ...run,
       player: {
@@ -4349,7 +4350,8 @@ function applyScheduledPlayerHitboxEffect(
         cancelWindowUntilMs: 0,
         normalAttackUntilMs: 0,
         normalAttackStartedAtMs: 0,
-        normalAttackComboStep: 0
+        normalAttackComboStep: 0,
+        normalAttackType: "none"
       }
     };
   }
@@ -5378,6 +5380,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         normalAttackStartedAtMs: run.elapsedMs,
         normalAttackUntilMs: actionLockUntilMs,
         normalAttackComboStep: comboStep,
+        normalAttackType: "light",
         dashAttackReadyUntilMs: 0,
         quickRecoverReadyUntilMs: 0,
         bufferedAction: undefined,
@@ -5388,29 +5391,43 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   }
 
   if (action.type === "heavy") {
-    const hitRun = applyPlayerHitbox(run, {
-      action: "heavy",
-      rangeX: 158,
-      laneRange: 58,
-      targetCap: 1,
-      frontOnly: true,
-      damage: playerDamage(run, 48),
-      hitstopMs: 72,
-      knockback: 60,
-      juggle: true,
-      inputToHitMs: 85,
-      canceledFromCombo,
-      actionTags: ["launcher"]
-    });
-    const hitConnected = actionAddedHitEvent(run, hitRun, "heavy");
+    const actionLockUntilMs = run.elapsedMs + 260;
+    const scheduledRun = schedulePlayerHitboxEffect(
+      run,
+      {
+        action: "heavy",
+        rangeX: 158,
+        laneRange: 58,
+        targetCap: 1,
+        frontOnly: true,
+        damage: playerDamage(run, 48),
+        hitstopMs: 72,
+        knockback: 60,
+        juggle: true,
+        inputToHitMs: 85,
+        canceledFromCombo,
+        actionTags: ["launcher"]
+      },
+      { x: run.player.x, y: run.player.y },
+      run.player.facing,
+      {
+        id: `ground-heavy-${run.elapsedMs}`,
+        resourceGainOnHit: 4,
+        resetComboStepOnMiss: true
+      }
+    );
 
     return {
-      ...hitRun,
+      ...scheduledRun,
       player: {
-        ...(hitConnected ? gainPlayerResource(hitRun.player, run, 4) : hitRun.player),
+        ...scheduledRun.player,
         comboStep: 0,
-        actionLockUntilMs: run.elapsedMs + 260,
+        actionLockUntilMs,
         cancelWindowUntilMs: 0,
+        normalAttackStartedAtMs: run.elapsedMs,
+        normalAttackUntilMs: actionLockUntilMs,
+        normalAttackComboStep: 0,
+        normalAttackType: "heavy",
         dashAttackReadyUntilMs: 0,
         quickRecoverReadyUntilMs: 0,
         bufferedAction: undefined,
@@ -5714,6 +5731,7 @@ export function finishRoom(run: CombatRun): CombatRun {
       normalAttackStartedAtMs: 0,
       normalAttackUntilMs: 0,
       normalAttackComboStep: 0,
+      normalAttackType: "none",
       dashAttackReadyUntilMs: 0,
       dashAttackStartedAtMs: 0,
       dashAttackUntilMs: 0,

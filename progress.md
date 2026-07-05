@@ -2434,3 +2434,28 @@
   - Production build passed: `npm run build`.
   - `git diff --check` passed.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/ground-light-check.html` confirmed input-frame player motion `light`, no hit event, HP 180, resource 80, cancel window false, and zero hit sparks; at 55 ms it confirmed one light hit, HP 154, resource 88, comboStep 1, cancel state available, enemy motion `hit`, recent hit true, and one hit spark; pre-hit cancel produced no `skill-cast` and buffered the skill; post-hit cancel produced `CANCEL`, `canceledFromCombo=true`, release source `cancel`, player motion `skill`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+
+## Task 87 DNF-Style Ground-Heavy Hit Frame
+- Continued under the latest user clarification: character/monster models can stay lightweight for now, but combat action smoothness, strict hit frames, model-following attacks, hit feedback, skill VFX, and monster VFX stay strict.
+- Used parallel read-only agents:
+  - Combat audit confirmed grounded heavy still used immediate `applyPlayerHitbox`, causing HP/airborne/resource mutation at input time despite future hit metadata.
+  - UI audit confirmed existing heavy player/weapon/impact CSS hooks were already present, but input-frame heavy motion needed a non-hit-event action window once damage became scheduled.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires grounded heavy to schedule an 85 ms hit frame, keep HP/resource/airborne unchanged before that frame, apply launcher/hitstop/resource only on impact, recheck targets live, delay MISS, and cancel pending heavy when a monster hit interrupts before impact.
+  - Existing combat tests now resolve grounded heavy before asserting airborne/knockdown chains, buffered heavy impact, and heavy MISS feedback.
+  - App/UI/render coverage now asserts input-frame `data-player-motion="heavy"` with no enemy airborne or heavy impact, and hit-frame combo/airborne/`hit-impact-heavy`/hit-spark behavior.
+- RED evidence:
+  - Focused RED confirmed: `npm test -- src/tests/combat.test.ts -t "grounded heavy"` failed on missing scheduled ground-heavy effects before implementation.
+- Implemented:
+  - Grounded heavy now schedules a dynamic 85 ms hitbox instead of mutating targets at input time.
+  - Added `normalAttackType` so the UI can render heavy windup while waiting for the hit event.
+  - Heavy damage, launcher airborne state, hitstop, combo count, and +4 resource now occur only on the scheduled hit frame.
+  - Ground light/heavy interruption guard now clears pending normal attack state if hurt/bound before impact.
+  - App room-clear helpers now resolve heavy hit frames before checking room completion.
+- Verification:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts -t "grounded heavy"`, 3 tests.
+  - Related combat/app/UI/render suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 341 tests.
+  - Full suite passed: `npm test`, 13 files / 423 tests.
+  - Production build passed: `npm run build`.
+  - `git diff --check` passed.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/ground-heavy-check.html` confirmed input-frame player motion `heavy`, no hit event, HP 220, resource 40, no airborne, no heavy impact, computed animations `player-heavy-strike` and `weapon-heavy-swing`; at 85 ms it confirmed one heavy hit, HP 168, resource 44, enemy motion/airborne state `airborne`, hitstop until 157 ms, and `hit-impact-heavy` slash animation; monster interruption at 80 ms produced one player-hit, zero heavy hits, unchanged enemy HP/resource, and no airborne ghost hit. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.

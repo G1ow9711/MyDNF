@@ -870,7 +870,7 @@ function playerMotion(run: CombatRun): string {
   }
 
   if (playerNormalAttackActive(run) && !action) {
-    return "light";
+    return run.player.normalAttackType === "heavy" ? "heavy" : "light";
   }
 
   if (playerDodgeResult(run) === "missed" && playerEvadeActive(run)) {

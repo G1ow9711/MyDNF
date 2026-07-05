@@ -71,6 +71,19 @@ function scheduledGroundLightTimes(run: CombatRun): number[] {
   return [...new Set(times)];
 }
 
+function scheduledGroundHeavyTimes(run: CombatRun): number[] {
+  const times = run.scheduledEnemyHitEffects
+    .filter((effect) => effect.action === "heavy" && !effect.skillId && !effect.hitPhase)
+    .map((effect) => effect.applyAtMs)
+    .sort((left, right) => left - right);
+
+  if (times.length === 0) {
+    throw new Error("Expected scheduled ground-heavy effect");
+  }
+
+  return [...new Set(times)];
+}
+
 function stepToElapsed(run: CombatRun, elapsedMs: number): CombatRun {
   return stepCombat(run, {}, Math.max(0, elapsedMs - run.elapsedMs));
 }
@@ -1781,6 +1794,49 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes weapon-air-heavy-slam");
     expect(stylesCss).toContain("@keyframes monster-air-heavy-hit-react");
     expect(stylesCss).toContain("@keyframes air-heavy-impact-slam");
+  });
+
+  it("renders DNF-style grounded heavy launcher windup and hit-frame impact hooks", () => {
+    const state = createInitialState();
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const readyRun = withSingleReadyEnemy(
+      {
+        ...baseRun,
+        player: {
+          ...baseRun.player,
+          x: 260,
+          y: 340,
+          facing: 1,
+          actionLockUntilMs: 0,
+          hurtLockUntilMs: 0
+        }
+      },
+      {
+        position: { x: 334, y: 340 },
+        nextAttackAtMs: 9999
+      }
+    );
+    const windup = performAction(readyRun, { type: "heavy" });
+    const [hitAtMs] = scheduledGroundHeavyTimes(windup);
+    const inputHtml = renderAppHtml({ state, mode: "combat", combatRun: windup });
+    const launcher = stepToElapsed(windup, hitAtMs);
+    const hitHtml = renderAppHtml({ state, mode: "combat", combatRun: launcher });
+
+    expect(inputHtml).toContain('data-player-motion="heavy"');
+    expect(inputHtml).toContain('class="combat-player-art actor-model actor-model-heavy"');
+    expect(inputHtml).not.toContain('data-airborne-state="airborne"');
+    expect(inputHtml).not.toContain('hit-impact-heavy');
+
+    expect(hitHtml).toContain('data-player-motion="heavy"');
+    expect(hitHtml).toContain('data-hit-action="heavy"');
+    expect(hitHtml).toContain('data-airborne-state="airborne"');
+    expect(hitHtml).toContain('data-enemy-motion="airborne"');
+    expect(hitHtml).toContain('hit-impact-heavy');
+    expect(hitHtml).toContain('data-damage-number="true"');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="heavy"] .combat-player-art');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="heavy"] .combat-weapon');
+    expect(stylesCss).toContain("@keyframes player-heavy-strike");
+    expect(stylesCss).toContain("@keyframes weapon-heavy-swing");
   });
 
   it("renders DNF-style dash-light with player, weapon, target, and impact hooks", () => {

@@ -106,12 +106,31 @@ function scheduledGroundLightTimes(run: CombatRun): number[] {
   return [...new Set(times)];
 }
 
+function scheduledGroundHeavyTimes(run: CombatRun): number[] {
+  const times = run.scheduledEnemyHitEffects
+    .filter((effect) => effect.action === "heavy" && !effect.skillId && !effect.hitPhase)
+    .map((effect) => effect.applyAtMs)
+    .sort((left, right) => left - right);
+
+  if (times.length === 0) {
+    throw new Error("Expected scheduled ground-heavy effect");
+  }
+
+  return [...new Set(times)];
+}
+
 function stepToElapsed(run: CombatRun, elapsedMs: number): CombatRun {
   return stepCombat(run, {}, Math.max(0, elapsedMs - run.elapsedMs));
 }
 
 function resolveGroundLight(run: CombatRun): CombatRun {
   const [hitAtMs] = scheduledGroundLightTimes(run);
+
+  return stepToElapsed(run, hitAtMs);
+}
+
+function resolveGroundHeavy(run: CombatRun): CombatRun {
+  const [hitAtMs] = scheduledGroundHeavyTimes(run);
 
   return stepToElapsed(run, hitAtMs);
 }
@@ -194,6 +213,15 @@ function defeatCurrentRoom(model: ReturnType<typeof createAppModel>): ReturnType
   for (let attempt = 0; attempt < 40 && next.combatRun?.enemies.some((enemy) => enemy.hp > 0); attempt += 1) {
     next = placeAliveEnemiesInFront(next);
     next = reduceAppAction(next, { type: "combatAction", action: "heavy" });
+
+    if (next.combatRun) {
+      const hitRun = resolveGroundHeavy(next.combatRun);
+      const hasAliveEnemies = hitRun.enemies.some((enemy) => enemy.hp > 0);
+      next = {
+        ...next,
+        combatRun: hasAliveEnemies ? stepToElapsed(hitRun, hitRun.player.actionLockUntilMs) : hitRun
+      };
+    }
   }
 
   expect(next.combatRun?.enemies.some((enemy) => enemy.hp > 0)).toBe(false);
@@ -634,14 +662,28 @@ describe("playable app integration actions", () => {
 
     model = reduceAppAction(model, { type: "combatAction", action: "heavy" });
 
+    const inputHtml = renderAppHtml(model);
+    expect(model.combatRun?.comboCount).toBe(0);
+    expect(inputHtml).toContain('data-player-motion="heavy"');
+    expect(inputHtml).toContain('class="combat-player-art actor-model actor-model-heavy"');
+    expect(inputHtml).not.toContain('data-airborne-state="airborne"');
+    expect(inputHtml).not.toContain('hit-impact-heavy');
+
+    model = {
+      ...model,
+      combatRun: model.combatRun ? resolveGroundHeavy(model.combatRun) : undefined
+    };
+
     const airborneHtml = renderAppHtml(model);
 
     expect(model.combatRun?.comboCount).toBe(1);
     expect(airborneHtml).toContain('data-combo-count="1"');
     expect(airborneHtml).toContain('class="combo-meter"');
     expect(airborneHtml).toContain('data-airborne-state="airborne"');
+    expect(airborneHtml).toContain('data-hit-action="heavy"');
     expect(airborneHtml).toContain('data-enemy-motion="airborne"');
     expect(airborneHtml).toContain('class="enemy-art actor-model actor-model-airborne"');
+    expect(airborneHtml).toContain('hit-impact-heavy');
 
     model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
     model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });

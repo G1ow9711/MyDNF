@@ -151,8 +151,27 @@ function scheduledGroundLightTimes(run: CombatRun): number[] {
   return [...new Set(times)];
 }
 
+function scheduledGroundHeavyTimes(run: CombatRun): number[] {
+  const times = run.scheduledEnemyHitEffects
+    .filter((effect) => effect.action === "heavy" && !effect.skillId && !effect.hitPhase)
+    .map((effect) => effect.applyAtMs)
+    .sort((left, right) => left - right);
+
+  if (times.length === 0) {
+    throw new Error("Expected scheduled ground-heavy effect");
+  }
+
+  return [...new Set(times)];
+}
+
 function resolveGroundLight(run: CombatRun): CombatRun {
   const [hitAtMs] = scheduledGroundLightTimes(run);
+
+  return stepToElapsed(run, hitAtMs);
+}
+
+function resolveGroundHeavy(run: CombatRun): CombatRun {
+  const [hitAtMs] = scheduledGroundHeavyTimes(run);
 
   return stepToElapsed(run, hitAtMs);
 }
@@ -391,6 +410,149 @@ describe("combat actions and impact feel", () => {
     expect(movedOut.comboCount).toBe(0);
     expect(movedOut.player.comboStep).toBe(0);
     expect(movedOut.player.cancelWindowUntilMs).toBe(0);
+  });
+
+  it("resolves grounded heavy damage, resource, launcher, and hitstop only on the real hit frame", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 220,
+      maxHp: 220,
+      nextAttackAtMs: 9999
+    });
+    const cast = performAction(run, { type: "heavy" });
+    const [hitAtMs] = scheduledGroundHeavyTimes(cast);
+    const beforeHit = stepToElapsed(cast, hitAtMs - 1);
+    const hit = stepToElapsed(cast, hitAtMs);
+    const [heavyHit] = hit.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.action === "heavy");
+
+    expect(cast.events.filter((event) => event.kind === "hit" && event.action === "heavy")).toHaveLength(0);
+    expect(cast.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(cast.enemies[0].airborne).not.toBe(true);
+    expect(cast.player.resource.current).toBe(run.player.resource.current);
+    expect(cast.comboCount).toBe(0);
+    expect(cast.player.comboStep).toBe(0);
+    expect(cast.player.cancelWindowUntilMs).toBe(0);
+    expect(cast.player.actionLockUntilMs).toBe(cast.elapsedMs + 260);
+
+    expect(beforeHit.events.filter((event) => event.kind === "hit" && event.action === "heavy")).toHaveLength(0);
+    expect(beforeHit.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(beforeHit.enemies[0].airborne).not.toBe(true);
+    expect(beforeHit.player.resource.current).toBe(run.player.resource.current);
+
+    expect(heavyHit).toMatchObject({
+      action: "heavy",
+      inputToHitMs: 85,
+      occurredAtMs: hitAtMs,
+      hitstopMs: 72,
+      comboCount: 1,
+      actionTags: expect.arrayContaining(["launcher"])
+    });
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(hit.enemies[0].airborne).toBe(true);
+    expect(hit.player.resource.current).toBe(run.player.resource.current + 4);
+    expect(hit.comboCount).toBe(1);
+    expect(hit.player.comboStep).toBe(0);
+    expect(hit.player.cancelWindowUntilMs).toBe(0);
+    expect(hit.player.hitstopUntilMs).toBe(hitAtMs + 72);
+  });
+
+  it("rechecks grounded heavy targets at the launcher frame and delays misses", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const inRangeRun = withPlayerAndEnemies(baseRun, { x: 240, y: 340, facing: 1 }, [{ x: 304, y: 340, hp: 220, maxHp: 220 }]);
+    const castWithTarget = performAction(inRangeRun, { type: "heavy" });
+    const [heavyAtMs] = scheduledGroundHeavyTimes(castWithTarget);
+    const movedOutBeforeHit = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: castWithTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 120, y: 430 }
+              }
+            : enemy
+        )
+      },
+      heavyAtMs
+    );
+
+    const outOfRangeRun = withPlayerAndEnemies(baseRun, { x: 240, y: 340, facing: 1 }, [{ x: 520, y: 340, hp: 220, maxHp: 220 }]);
+    const castWithoutTarget = performAction(outOfRangeRun, { type: "heavy" });
+    const [lateHeavyAtMs] = scheduledGroundHeavyTimes(castWithoutTarget);
+    const movedInBeforeHit = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: castWithoutTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 304, y: 340 }
+              }
+            : enemy
+        )
+      },
+      lateHeavyAtMs
+    );
+    const [lateHit] = movedInBeforeHit.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.action === "heavy");
+
+    expect(movedOutBeforeHit.events.filter((event) => event.kind === "hit" && event.action === "heavy")).toHaveLength(0);
+    expect(movedOutBeforeHit.events.filter((event) => event.kind === "miss" && event.action === "heavy")).toHaveLength(1);
+    expect(movedOutBeforeHit.enemies[0].hp).toBe(inRangeRun.enemies[0].hp);
+    expect(movedOutBeforeHit.enemies[0].airborne).not.toBe(true);
+    expect(movedOutBeforeHit.player.resource.current).toBe(inRangeRun.player.resource.current);
+    expect(movedOutBeforeHit.comboCount).toBe(0);
+
+    expect(lateHit).toMatchObject({
+      targetId: outOfRangeRun.enemies[0].id,
+      action: "heavy",
+      actionTags: expect.arrayContaining(["launcher"])
+    });
+    expect(movedInBeforeHit.events.filter((event) => event.kind === "miss" && event.action === "heavy")).toHaveLength(0);
+    expect(movedInBeforeHit.enemies[0].hp).toBeLessThan(outOfRangeRun.enemies[0].hp);
+    expect(movedInBeforeHit.enemies[0].airborne).toBe(true);
+  });
+
+  it("cancels pending grounded heavy when monster damage lands before the launcher frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 304, y: 340, hp: 220, maxHp: 220 }]
+    );
+
+    const cast = performAction(run, { type: "heavy" });
+    const [heavyAtMs] = scheduledGroundHeavyTimes(cast);
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 80,
+            attackRecoverUntilMs: 320,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      heavyAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 80
+        })
+      ])
+    );
+    expect(interrupted.events.filter((event) => event.kind === "hit" && event.action === "heavy")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.enemies[0].airborne).not.toBe(true);
+    expect(interrupted.player.resource.current).toBe(run.player.resource.current);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.action === "heavy" && !effect.skillId)).toHaveLength(0);
   });
 
   it("does not let grounded light cancel into skills before hit confirm", () => {
@@ -708,10 +870,15 @@ describe("combat actions and impact feel", () => {
       maxHp: 200,
       nextAttackAtMs: 1
     });
-    const launched = performAction(run, { type: "heavy" });
+    const windup = performAction(run, { type: "heavy" });
+    const [launchAtMs] = scheduledGroundHeavyTimes(windup);
+    const beforeLaunch = stepToElapsed(windup, launchAtMs - 1);
+    const launched = stepToElapsed(windup, launchAtMs);
     const airborne = stepCombat(launched, {}, 500);
     const knockedDown = stepCombat(airborne, {}, 650);
 
+    expect(windup.comboCount).toBe(0);
+    expect(beforeLaunch.enemies[0].airborne).not.toBe(true);
     expect(launched.enemies[0].airborne).toBe(true);
     expect(launched.enemies[0].airborneUntilMs).toBeGreaterThan(launched.elapsedMs);
     expect(airborne.enemies[0].airborne).toBe(true);
@@ -727,7 +894,7 @@ describe("combat actions and impact feel", () => {
       maxHp: 220,
       nextAttackAtMs: 9999
     });
-    const launched = performAction(run, { type: "heavy" });
+    const launched = resolveGroundHeavy(performAction(run, { type: "heavy" }));
     const ready = {
       ...stepCombat(launched, {}, 300),
       player: {
@@ -1223,7 +1390,9 @@ describe("combat actions and impact feel", () => {
       bufferedAction?: { type: string };
       bufferedActionExecuteAtMs?: number;
     };
-    const resolved = stepCombat(queued, {}, queuedPlayer.bufferedActionExecuteAtMs ?? 0);
+    const released = stepToElapsed(queued, queuedPlayer.bufferedActionExecuteAtMs ?? 0);
+    const [heavyAtMs] = scheduledGroundHeavyTimes(released);
+    const resolved = stepToElapsed(released, heavyAtMs);
     const heavyHit = [...resolved.events].reverse().find(
       (event): event is CombatHitEvent => event.kind === "hit" && event.action === "heavy"
     );
@@ -1231,6 +1400,7 @@ describe("combat actions and impact feel", () => {
     expect(queued.events.filter((event) => event.kind === "hit" && event.action === "heavy")).toHaveLength(0);
     expect(queuedPlayer.bufferedAction).toEqual({ type: "heavy" });
     expect(queuedPlayer.bufferedActionExecuteAtMs).toBe(light.player.actionLockUntilMs);
+    expect(released.events.filter((event) => event.kind === "hit" && event.action === "heavy")).toHaveLength(0);
     expect(heavyHit).toMatchObject({
       action: "heavy",
       occurredAtMs: light.player.actionLockUntilMs + 85
@@ -1487,7 +1657,7 @@ describe("combat actions and impact feel", () => {
     );
 
     const behind = resolveGroundLight(performAction(behindRun, { type: "light" }));
-    const far = performAction(farRun, { type: "heavy" });
+    const far = resolveGroundHeavy(performAction(farRun, { type: "heavy" }));
     const wrongLane = resolveGroundLight(performAction(laneRun, { type: "light" }));
 
     expect(behind.enemies.map((enemy) => enemy.hp)).toEqual(behindRun.enemies.map((enemy) => enemy.hp));

@@ -141,6 +141,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current DNF dash-attack progress: recent `Shift + horizontal movement` now opens a short dash-light window; `X/J` triggers a model-following forward slash with a strict 90 ms dynamic hit frame, interrupt cancellation, `dash-light` player/weapon motion, monster dash-hit reaction, and `dash-light-slash` impact VFX.
 - Current DNF combo-cancel presentation progress: grounded light hit-confirm cancel is now visible through scene/player/slot `data-combo-cancel-*` hooks, skill-slot cancel highlighting, `data-skill-release-source="cancel"`, `CANCEL` toast feedback, and a player cancel-flash overlay while preserving normal skill animations.
 - Current DNF ground-light strictness progress: grounded light attacks now animate immediately but apply HP damage, resource gain, hitstop, hit sparks, monster hit reaction, combo count, and cancel-window opening only on the scheduled 55/65/78 ms hit frame, with live target recheck, delayed miss, and interruption-safe pending damage cancellation.
+- Current DNF ground-heavy strictness progress: grounded heavy attacks now animate immediately but apply HP damage, resource gain, hitstop, launcher/airborne state, hit sparks, and heavy impact VFX only on the scheduled 85 ms hit frame, with live target recheck, delayed miss, and interruption-safe pending damage cancellation.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

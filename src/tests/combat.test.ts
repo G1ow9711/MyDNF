@@ -239,11 +239,15 @@ describe("combat run setup and movement", () => {
   it("maps DNF-style skill-slot keys separately from arrow movement", () => {
     const skillInput = mapKeyboardToCombatInput(new Set(["KeyA", "KeyF"]));
     const movementInput = mapKeyboardToCombatInput(new Set(["ArrowLeft", "ArrowDown"]));
+    const actionInput = mapKeyboardToCombatInput(new Set(["KeyX", "KeyZ", "KeyC"]));
 
     expect(skillInput.moveX).toBe(0);
     expect(skillInput.moveY).toBe(0);
     expect(skillInput.skillId).toBe("spark-combo");
     expect(movementInput).toMatchObject({ moveX: -1, moveY: 1 });
+    expect(actionInput.light).toBe(true);
+    expect(actionInput.heavy).toBe(true);
+    expect(actionInput.jump).toBe(true);
   });
 
   it("rejects entering locked or unknown dungeons", () => {
@@ -1590,6 +1594,145 @@ describe("combat actions and impact feel", () => {
       ])
     );
     expect(dodged.events.some((event) => event.kind === "player-hit")).toBe(false);
+  });
+
+  it("lets every class jump into a timed airborne state without moving combat lane height", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1 },
+      [{ x: 322, y: 340 }]
+    );
+    const jumped = performAction(run, { type: "jump" });
+    const midair = stepCombat(jumped, { moveX: 1 }, 220);
+    const landed = stepCombat(jumped, {}, 560);
+
+    expect(jumped.player.airState).toBe("jumping");
+    expect(jumped.player.airborneUntilMs).toBeGreaterThan(jumped.elapsedMs);
+    expect(jumped.player.jumpStartedAtMs).toBe(jumped.elapsedMs);
+    expect(jumped.player.y).toBe(run.player.y);
+    expect(jumped.player.actionLockUntilMs).toBeGreaterThan(jumped.elapsedMs);
+    expect(midair.player.x).toBeGreaterThan(jumped.player.x);
+    expect(midair.player.y).toBe(run.player.y);
+    expect(midair.player.airState).toBe("jumping");
+    expect(landed.player.airState).toBe("grounded");
+    expect(landed.player.airborneUntilMs).toBe(0);
+  });
+
+  it("makes ground monster attacks miss while the player is airborne from jump", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 322, y: 340 }]
+    );
+    const jumped = performAction(run, { type: "jump" });
+    const telegraph = stepCombat(
+      withEnemyInRange(jumped, {
+        attackProfileId: "ash-crawler-burst",
+        position: { x: jumped.player.x + 24, y: jumped.player.y },
+        nextAttackAtMs: jumped.elapsedMs + 1
+      }),
+      {},
+      80
+    );
+    const missed = stepCombat(telegraph, {}, 360);
+
+    expect(telegraph.player.airState).toBe("jumping");
+    expect(missed.player.hp).toBe(run.player.hp);
+    expect(missed.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          phase: "miss"
+        })
+      ])
+    );
+    expect(missed.events.some((event) => event.kind === "player-hit")).toBe(false);
+  });
+
+  it("keeps jump evasion based on hit time when a large frame crosses the landing window", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 322, y: 340 }]
+    );
+    const jumped = performAction(run, { type: "jump" });
+    const telegraph = stepCombat(
+      withEnemyInRange(jumped, {
+        attackProfileId: "ash-crawler-burst",
+        position: { x: jumped.player.x + 24, y: jumped.player.y },
+        nextAttackAtMs: jumped.elapsedMs + 1
+      }),
+      {},
+      80
+    );
+    const crossedLanding = stepCombat(telegraph, {}, 500);
+
+    expect(crossedLanding.elapsedMs).toBeGreaterThan(jumped.player.landingUntilMs);
+    expect(crossedLanding.player.hp).toBe(run.player.hp);
+    expect(crossedLanding.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          phase: "miss"
+        })
+      ])
+    );
+    expect(crossedLanding.events.some((event) => event.kind === "player-hit")).toBe(false);
+    expect(crossedLanding.player.airState).toBe("grounded");
+    expect(crossedLanding.player.airborneUntilMs).toBe(0);
+  });
+
+  it("does not buffer repeated jump during airborne or landing state", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1 },
+      [{ x: 322, y: 340 }]
+    );
+    const jumped = performAction(run, { type: "jump" });
+    const landing = stepCombat(jumped, {}, 500);
+    const attemptedRepeat = performAction(landing, { type: "jump" });
+    const afterLock = stepCombat(attemptedRepeat, {}, 80);
+
+    expect(landing.player.airState).toBe("landing");
+    expect(attemptedRepeat.player.bufferedAction).toBeUndefined();
+    expect(afterLock.player.bufferedAction).toBeUndefined();
+    expect(afterLock.player.airState).toBe("grounded");
+    expect(afterLock.player.airborneUntilMs).toBe(0);
+    expect(afterLock.player.jumpStartedAtMs).toBe(0);
+  });
+
+  it("does not make projectile monster attacks miss just because the player is airborne", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 322, y: 340 }]
+    );
+    const jumped = performAction(run, { type: "jump" });
+    const telegraph = stepCombat(
+      withEnemyInRange(jumped, {
+        attackProfileId: "ash-ember-spit",
+        position: { x: jumped.player.x + 24, y: jumped.player.y },
+        nextAttackAtMs: jumped.elapsedMs + 1
+      }),
+      {},
+      80
+    );
+    const hit = stepCombat(telegraph, {}, 360);
+
+    expect(hit.player.hp).toBeLessThan(run.player.hp);
+    expect(hit.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          phase: "active",
+          skillId: "ash-ember-spit"
+        }),
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit"
+        })
+      ])
+    );
   });
 
   it("turns reflect skills into a counter window against monster attacks", () => {
@@ -5316,6 +5459,51 @@ describe("enemy attacks and player defeat", () => {
     expect(thirdPulse.enemies[0].attackHitResolved).toBe(true);
   });
 
+  it("still lets taotie flame breath hit an airborne player", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 220,
+        y: 340,
+        hp: 999,
+        maxHp: 999,
+        actionLockUntilMs: 0,
+        hurtLockUntilMs: 0
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          attackProfileId: "taotie-flame-breath",
+          attackPatternIds: ["taotie-flame-breath"],
+          nextAttackPatternIndex: 0,
+          position: { x: 350, y: 340 },
+          nextAttackAtMs: 0
+        }
+      ]
+    };
+    const jumped = performAction(run, { type: "jump" });
+    const telegraph = stepCombat(jumped, {}, 1);
+    const impacted = stepCombat(telegraph, {}, 420);
+
+    expect(jumped.player.airborneUntilMs).toBeGreaterThan(impacted.enemies[0].attackImpactAtMs ?? 0);
+    expect(impacted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          skillId: "taotie-flame-breath",
+          phase: "active"
+        }),
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "taotie-flame-breath"
+        })
+      ])
+    );
+    expect(impacted.player.hp).toBeLessThan(run.player.hp);
+  });
+
   it("pulls the player during taotie devour windup before the close bite impact", () => {
     const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
     const run = {
@@ -5373,6 +5561,52 @@ describe("enemy attacks and player defeat", () => {
     });
     expect(playerHit?.damage ?? 0).toBeGreaterThan(50);
     expect(impacted.player.hurtLockUntilMs).toBeGreaterThan(impacted.elapsedMs);
+  });
+
+  it("still lets taotie devour bite hit an airborne player after the pull", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 160,
+        y: 340,
+        hp: 999,
+        maxHp: 999,
+        actionLockUntilMs: 0,
+        hurtLockUntilMs: 0
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          attackProfileId: "taotie-devour-pull",
+          attackPatternIds: ["taotie-devour-pull"],
+          nextAttackPatternIndex: 0,
+          position: { x: 520, y: 340 },
+          nextAttackAtMs: 0
+        }
+      ]
+    };
+    const jumped = performAction(run, { type: "jump" });
+    const telegraph = stepCombat(jumped, {}, 1);
+    const impacted = stepCombat(telegraph, {}, 460);
+
+    expect(jumped.player.airborneUntilMs).toBeGreaterThan(impacted.enemies[0].attackImpactAtMs ?? 0);
+    expect(impacted.player.x).toBeGreaterThan(run.player.x);
+    expect(impacted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          skillId: "taotie-devour-pull",
+          phase: "active"
+        }),
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "taotie-devour-pull"
+        })
+      ])
+    );
+    expect(impacted.player.hp).toBeLessThan(run.player.hp);
   });
 
   it("still applies taotie devour pull when a frame jumps past the bite impact", () => {

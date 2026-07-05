@@ -3,6 +3,7 @@ export interface CombatInput {
   moveY?: number;
   light?: boolean;
   heavy?: boolean;
+  jump?: boolean;
   dash?: boolean;
   skillId?: string;
 }
@@ -30,12 +31,16 @@ export function mapKeyboardToCombatInput(keys: ReadonlySet<string>): CombatInput
     moveY: axis(keys.has("ArrowDown"), keys.has("ArrowUp"))
   };
 
-  if (keys.has("KeyJ")) {
+  if (keys.has("KeyJ") || keys.has("KeyX")) {
     input.light = true;
   }
 
-  if (keys.has("KeyK")) {
+  if (keys.has("KeyK") || keys.has("KeyZ")) {
     input.heavy = true;
+  }
+
+  if (keys.has("KeyC")) {
+    input.jump = true;
   }
 
   if (keys.has("ShiftLeft") || keys.has("ShiftRight")) {

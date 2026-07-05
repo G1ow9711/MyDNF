@@ -511,3 +511,15 @@
 - Presentation note: `ink-snare-bind` and `ink-snare-snap` VFX cues now drive dedicated target impact bursts, with browser validation confirming player, weapon, cast, bind, and snap animation names and no warning/error console output.
 - Review follow-up: snap must only affect targets that the bind frame actually controlled. The snap hitbox now filters by `statusSourceSkillId`, so a target entering after a bind MISS does not receive late snap damage or pull.
 - Presentation follow-up: the `ink-snare` cast field now uses the same fixed center as combat (`player.x + 112 * facing`) instead of drifting with generic player-skill VFX placement; browser validation confirmed the expected `--actor-x: 38.75%` anchor in the regression fixture.
+
+## DNF-Style Player Jump Control Findings
+- Current user clarification: models may stay simple while the full playable loop is connected, but combat flow, action smoothness, hit feedback, skill VFX, monster VFX, and actor state changes stay strict.
+- Read-only input audit found `KeyC` still mapped to `backstep` and the UI still presented `C` as backstep, so the prototype lacked the DNF-style jump key.
+- Read-only combat audit found player vertical motion needs a separate air-state model because existing `y` is lane position; using lane `y` for jump height would break hitbox and room-flow semantics.
+- Implementation note: player jump now has explicit `jumping` / `landing` state, timed airborne and landing windows, stable lane `y`, and dedicated render hooks.
+- Combat note: airborne player state makes close-range ground monster impacts MISS during the airborne window without reusing the backstep evade timer.
+- Input note: `X/J` and `Z/K` remain light/heavy, `C` is now jump, and backstep remains available as a mouse/UI command without claiming the DNF jump key.
+- Presentation note: browser validation confirmed `player-jump-rise` animation, `actor-model-jump`, `data-player-air-state="jumping"`, no stale `C` backstep hook, visible MISS feedback during airborne evasion, and empty warning/error console output.
+- Review follow-up: air timers are now cleared only after enemy impact resolution, so a large frame crossing landing still evaluates jump evasion at the actual hit time.
+- Review follow-up: jump repeat guard runs before action buffering, preventing C from queueing chained jumps during airborne or landing frames.
+- Review follow-up: jump evasion is attack-profile gated through `jumpEvade`; ground-style attacks can miss while airborne, but projectile/spit/breath-style attacks still hit if their normal hitbox connects.

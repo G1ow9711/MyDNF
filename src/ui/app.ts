@@ -78,7 +78,7 @@ export type AppAction =
   | { type: "enterDungeon"; dungeonId: DungeonId }
   | { type: "combatTick" }
   | { type: "combatMove"; moveX: number; moveY: number; dash: boolean }
-  | { type: "combatAction"; action: "light" | "heavy" | "backstep" | "finish" }
+  | { type: "combatAction"; action: "light" | "heavy" | "jump" | "backstep" | "finish" }
   | { type: "combatAction"; action: "skill"; skillId: string; inputMethod?: CombatSkillInputMethod }
   | { type: "claimQuest"; questId: string }
   | { type: "selectBaseClass"; classId: ClassId }
@@ -308,7 +308,7 @@ export function combatActionForKeyCode(
   }
 
   if (code === "KeyC") {
-    return { type: "combatAction", action: "backstep" };
+    return { type: "combatAction", action: "jump" };
   }
 
   const dnfKeyByCode: Record<string, string> = {
@@ -351,6 +351,10 @@ function toCombatActionInput(action: Extract<AppAction, { type: "combatAction" }
 
   if (action.action === "heavy") {
     return { type: "heavy" };
+  }
+
+  if (action.action === "jump") {
+    return { type: "jump" };
   }
 
   if (action.action === "backstep") {
@@ -716,6 +720,22 @@ function playerBoundActive(run: CombatRun): boolean {
   return run.elapsedMs < run.player.boundUntilMs;
 }
 
+function playerAirState(run: CombatRun): "grounded" | "jumping" | "landing" {
+  if (run.elapsedMs < run.player.airborneUntilMs) {
+    return "jumping";
+  }
+
+  if (run.elapsedMs < run.player.landingUntilMs) {
+    return "landing";
+  }
+
+  return "grounded";
+}
+
+function playerAirborneActive(run: CombatRun): boolean {
+  return playerAirState(run) === "jumping";
+}
+
 function playerDodgeResult(run: CombatRun): "missed" | "none" {
   return recentEnemyAttackEvents(run).some((event) => event.phase === "miss") ? "missed" : "none";
 }
@@ -746,6 +766,16 @@ function playerMotion(run: CombatRun): string {
     return "bound";
   }
 
+  const airState = playerAirState(run);
+
+  if (airState === "jumping") {
+    return "jump";
+  }
+
+  if (airState === "landing") {
+    return "landing";
+  }
+
   const action = latestPlayerActionEvent(run);
 
   if (playerDodgeResult(run) === "missed" && playerEvadeActive(run)) {
@@ -774,6 +804,10 @@ function playerState(run: CombatRun): string {
 
   if (playerBoundActive(run)) {
     return "bound";
+  }
+
+  if (playerAirState(run) !== "grounded") {
+    return "airborne";
   }
 
   return latestPlayerHitEvent(run) ? "hit" : "active";
@@ -1186,6 +1220,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   }
 
   const playerMotionName = playerMotion(run);
+  const airState = playerAirState(run);
   const activeSkill = latestPlayerSkillAnimation(run);
   const releaseSource = latestSkillReleaseSource(run);
   const activeSkillMovement = run.player.activeSkillMovement;
@@ -1224,7 +1259,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   return `
     <div class="combat-actors" data-last-hit-target="${[...hitTargetIds].at(-1) ?? ""}">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-release-source="${releaseSource}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-player-air-state="${airState}" data-player-airborne-active="${playerAirborneActive(run) ? "true" : "false"}" data-player-airborne-until-ms="${run.player.airborneUntilMs || ""}" data-player-landing-until-ms="${run.player.landingUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-release-source="${releaseSource}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
         ${playerTrailMarkup(run, playerMotionName, activeSkill)}
         <img class="combat-player-art actor-model actor-model-${playerMotionName}${skillMotionClass}${normalComboMotionClass}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run, activeSkill?.animation)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
         ${weaponLayerMarkup(state, "combat", activeSkill?.animation)}
@@ -1368,10 +1403,11 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
           : ""
       }
       <div class="combat-actions">
-        <div class="combat-control-hint">方向键移动 · Shift 冲刺 · X/J 轻击 · Z/K 重击 · A/S/D/F/G/H 技能 · C 后跳</div>
+        <div class="combat-control-hint">方向键移动 · Shift 冲刺 · X/J 轻击 · Z/K 重击 · C 跳跃 · A/S/D/F/G/H 技能</div>
         <button data-combat-action="light" data-hotkey="J" ${roomCleared || roomFailed ? "disabled" : ""}>轻击<span>X/J</span></button>
         <button data-combat-action="heavy" data-hotkey="K" ${roomCleared || roomFailed ? "disabled" : ""}>重击<span>Z/K</span></button>
-        <button data-combat-action="backstep" data-hotkey="C" ${roomCleared || roomFailed ? "disabled" : ""}>后跳<span>C</span></button>
+        <button data-combat-action="jump" data-hotkey="C" ${roomCleared || roomFailed ? "disabled" : ""}>跳跃<span>C</span></button>
+        <button data-combat-action="backstep" ${roomCleared || roomFailed ? "disabled" : ""}>后跳<span>鼠标</span></button>
         ${skillButtons}
         ${doorStatus}
         <button data-mode="town">返回</button>
@@ -1697,6 +1733,8 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           combatRun = performAction(readyRun, { type: "light" });
         } else if (action.action === "heavy") {
           combatRun = performAction(readyRun, { type: "heavy" });
+        } else if (action.action === "jump") {
+          combatRun = performAction(readyRun, { type: "jump" });
         } else if (action.action === "backstep") {
           combatRun = performAction(readyRun, { type: "backstep" });
         } else if (action.action === "skill") {
@@ -1974,7 +2012,7 @@ export function mountApp(root: HTMLDivElement): () => void {
 
       const mode = target.dataset.mode as AppMode | undefined;
       const dungeonId = target.dataset.enterDungeon as DungeonId | undefined;
-      const combatAction = target.dataset.combatAction as "light" | "heavy" | "backstep" | "skill" | "finish" | undefined;
+      const combatAction = target.dataset.combatAction as "light" | "heavy" | "jump" | "backstep" | "skill" | "finish" | undefined;
       const combatSkillId = target.dataset.combatSkillId;
       const appAction = target.dataset.appAction;
       const gearId = target.dataset.gearId;

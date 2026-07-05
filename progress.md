@@ -2222,3 +2222,36 @@
   - Production build passed: `npm run build`.
   - Browser DOM/CSS validation on a temporary worktree-served page confirmed 0 pre-bind target impacts, two bind impacts at 250 ms, two snap impacts at 430 ms, two controlled enemies, no snap impacts after a bind MISS, cast VFX anchor `--actor-x: 38.75%`, computed animations `player-ink-snare-cast`, `weapon-trap-cast`, `ink-snare-cast-core`, `ink-snare-cast-ring`, `ink-snare-bind-core`, and `ink-snare-snap-core`, plus empty warning/error console output. Temporary check page was deleted and the temporary dev server was stopped.
   - `git diff --check` passed with line-ending warnings only.
+
+## Task 80 DNF-Style Player Jump Control
+- Continued under the latest clarification: character modeling can be lightweight for now, but combat action smoothness, skill VFX, hit feedback, monster skill VFX, and model-following action changes remain strict.
+- Used parallel read-only agents:
+  - Input/UI audit confirmed `KeyC` was still mapped to backstep, the rendered hint still implied `C` backstep, and there was no real player jump state.
+  - Combat audit confirmed enemy `airborne/downed` existed but player had no separate airborne state; `y` is the combat lane and must not be reused for jump height.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `KeyX/KeyZ/KeyC` to map to light/heavy/jump, jump to set timed player airborne state without changing lane `y`, movement during jump to preserve lane height, landing to clear airborne state, and ground monster impacts to MISS while the player is airborne.
+  - `src/tests/app-integration.test.ts` requires `KeyC` to map to `jump`, preserves `KeyX/KeyZ` and legacy/slot skill keys, and renders player jump data attributes and actor model hooks.
+  - `src/tests/ui-smoke.test.ts` requires visible `data-combat-action="jump"` / `data-hotkey="C"`, `data-player-motion="jump"`, `data-player-air-state="jumping"`, and dedicated jump CSS keyframes.
+- RED evidence:
+  - Focused tests failed before implementation because `KeyC` still returned `backstep`, low-level input had no `jump`, and `performAction({ type: "jump" })` was not supported.
+- Implemented:
+  - Added player air state fields (`airState`, `jumpStartedAtMs`, `airborneUntilMs`, `landingUntilMs`) and a 480 ms airborne / 80 ms landing lock jump action.
+  - `performAction()` now supports `jump`, blocks repeated jump while airborne/landing, keeps combat lane `y` stable, allows horizontal air drift through normal frame movement, and clears completed air state through frame advancement.
+  - Ground monster impact resolution now treats player airborne time as an evasion window, so close-range ground attacks emit MISS instead of `player-hit`.
+  - Input now maps `X/J` to light, `Z/K` to heavy, and `C` to jump; backstep remains available only through the mouse/UI button.
+  - Combat UI now renders jump button/hotkey hooks, player air-state attributes, `actor-model-jump` / `actor-model-landing`, and CSS `player-jump-rise` / `player-jump-land` animations.
+- Browser validation:
+  - Temporary worktree page on `http://127.0.0.1:5176/jump-check.html` confirmed two `C` jump controls, zero stale `C` backstep controls, `data-player-motion="jump"`, `data-player-air-state="jumping"`, `data-player-airborne-active="true"`, computed animation `player-jump-rise`, and empty warning/error console output.
+  - The same page confirmed a monster ground attack during jump rendered `MISS`, `data-dodge-result="missed"`, no player-hit markers, and the player stayed in `airborne` state. Temporary check page was deleted and the temporary dev server was stopped.
+- Code review follow-up:
+  - Read-only review found three Important issues: large-frame landing could clear air timers before a midair hit was resolved, jump could be buffered during landing into repeat jumps, and airborne MISS applied to every monster attack profile.
+  - Fixed by preserving completed air timers until after enemy impact resolution, moving the jump repeat guard before generic action buffering, and adding `jumpEvade` only to ground-style monster attacks such as crawler burst, shockwave, horn charge, and forge shackle.
+  - Added regressions for large-frame jump evasion, blocked repeat jump buffering, and projectile attacks still hitting airborne players.
+  - Browser revalidation confirmed three `C` jump controls, zero stale `C` backstep controls, `player-jump-rise`, ground `ash-crawler-burst` MISS with HP 500 unchanged, projectile `ash-ember-spit` active hit with HP 472, and empty warning/error console output. Temporary check page was deleted and the temporary dev server was stopped.
+- Final verification:
+  - Focused jump suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "jump|KeyC|DNF-style skill-slot"`, 7 tests.
+  - Review regression focused suite passed: `npm test -- src/tests/combat.test.ts -t "airborne player|jump|projectile|taotie flame breath|taotie devour"`, 16 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 294 tests.
+  - Full suite passed: `npm test`, 13 files / 390 tests.
+  - Production build passed: `npm run build`.
+  - `git diff --check` passed with line-ending warnings only.

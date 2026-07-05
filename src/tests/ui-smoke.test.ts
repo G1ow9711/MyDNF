@@ -1628,6 +1628,21 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("content: attr(data-dnf-hotkey)");
   });
 
+  it("renders DNF-style jump state with dedicated player motion hooks", () => {
+    const state = createInitialState();
+    const combatRun = performAction(createCombatRun(state, "cinder-kiln-alley"), { type: "jump" });
+    const html = renderAppHtml({ state, mode: "combat", combatRun });
+
+    expect(html).toContain('data-combat-action="jump"');
+    expect(html).toContain('data-hotkey="C"');
+    expect(html).toContain('data-player-motion="jump"');
+    expect(html).toContain('data-player-air-state="jumping"');
+    expect(html).toContain('data-player-airborne-active="true"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-jump"');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="jump"] .combat-player-art');
+    expect(stylesCss).toContain("@keyframes player-jump-rise");
+  });
+
   it("renders DNF-style command inputs and manual-cast reduction hooks on skill slots", () => {
     const state = createInitialState();
     const combatRun = createCombatRun({ ...state, player: { ...state.player, heat: 24 } }, "cinder-kiln-alley");

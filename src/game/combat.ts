@@ -17,6 +17,7 @@ export type CombatSkillInputMethod = "hotkey" | "command";
 export type CombatActionInput =
   | { type: "light" }
   | { type: "heavy" }
+  | { type: "jump" }
   | { type: "backstep" }
   | { type: "skill"; skillId: string; inputMethod?: CombatSkillInputMethod };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
@@ -172,6 +173,10 @@ export interface CombatPlayer {
   invulnerableUntilMs: number;
   hurtLockUntilMs: number;
   boundUntilMs: number;
+  airState: "grounded" | "jumping" | "landing";
+  jumpStartedAtMs: number;
+  airborneUntilMs: number;
+  landingUntilMs: number;
   shieldUntilMs: number;
   shieldReduction: number;
   evadeUntilMs: number;
@@ -511,6 +516,7 @@ interface EnemyAttackDefinition {
   damageMultipliers?: number[];
   knockbackByHit?: number[];
   boundMsByHit?: number[];
+  jumpEvade?: boolean;
   windupRushPx?: number;
   windupPullPx?: number;
   summonProfileIds?: EnemyAttackProfileId[];
@@ -558,6 +564,9 @@ const backstepDistancePx = 74;
 const backstepEvadeMs = 420;
 const backstepInvulnerableMs = 240;
 const backstepActionLockMs = 260;
+const jumpAirborneMs = 480;
+const jumpLandingLockMs = 80;
+const jumpActionLockMs = jumpAirborneMs + jumpLandingLockMs;
 const taotieForgeCollapseSkillId: CombatBossPhaseSkillId = "taotie-forge-collapse";
 const taotieForgeCollapseTelegraphMs = 620;
 const taotieForgeCollapseHazardGapMs = 140;
@@ -597,6 +606,46 @@ function samplePlayerPosition(player: CombatPlayer, elapsedMs: number): CombatVe
   }
 
   return playerSkillMovementPosition(player.activeSkillMovement, elapsedMs);
+}
+
+function playerAirStateAt(player: CombatPlayer, elapsedMs: number): CombatPlayer["airState"] {
+  if (elapsedMs < player.airborneUntilMs) {
+    return "jumping";
+  }
+
+  if (elapsedMs < player.landingUntilMs) {
+    return "landing";
+  }
+
+  return "grounded";
+}
+
+function updatePlayerAirState(player: CombatPlayer, elapsedMs: number): CombatPlayer {
+  const airState = playerAirStateAt(player, elapsedMs);
+
+  return {
+    ...player,
+    airState
+  };
+}
+
+function clearCompletedPlayerAirState(player: CombatPlayer, elapsedMs: number): CombatPlayer {
+  const airState = playerAirStateAt(player, elapsedMs);
+
+  if (airState !== "grounded") {
+    return {
+      ...player,
+      airState
+    };
+  }
+
+  return {
+    ...player,
+    airState,
+    airborneUntilMs: 0,
+    landingUntilMs: 0,
+    jumpStartedAtMs: 0
+  };
 }
 
 function advancePlayerFramePosition(
@@ -1065,7 +1114,8 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       hurtLockMsByHit: [560, 520],
       damageMultipliers: [0.55, 1.45],
       knockbackByHit: [0, 74],
-      boundMsByHit: [360, 0]
+      boundMsByHit: [360, 0],
+      jumpEvade: true
     };
   }
 
@@ -1151,7 +1201,8 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxWindowMs: 420,
       feedbackCue: "player-hurt-heavy",
       invulnerabilityMs: 560,
-      hurtLockMs: 420
+      hurtLockMs: 420,
+      jumpEvade: true
     };
   }
 
@@ -1173,7 +1224,8 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       feedbackCue: "player-hurt-heavy",
       invulnerabilityMs: 560,
       hurtLockMs: 460,
-      windupRushPx: 260
+      windupRushPx: 260,
+      jumpEvade: true
     };
   }
 
@@ -1195,7 +1247,8 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       feedbackCue: "player-hurt-heavy",
       invulnerabilityMs: 560,
       hurtLockMs: 460,
-      windupRushPx: 190
+      windupRushPx: 190,
+      jumpEvade: true
     };
   }
 
@@ -3346,6 +3399,10 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       invulnerableUntilMs: 0,
       hurtLockUntilMs: 0,
       boundUntilMs: 0,
+      airState: "grounded",
+      jumpStartedAtMs: 0,
+      airborneUntilMs: 0,
+      landingUntilMs: 0,
       shieldUntilMs: 0,
       shieldReduction: 0,
       evadeUntilMs: 0,
@@ -3390,7 +3447,7 @@ function advanceCombatFrame(run: CombatRun, input: CombatInput, dtMs: number): C
     comboCount: comboActiveAtElapsed ? run.comboCount : 0,
     comboExpiresAtMs: comboActiveAtElapsed ? run.comboExpiresAtMs : 0,
     player: {
-      ...clearCompletedSkillMovement(run.player, elapsedMs),
+      ...updatePlayerAirState(clearCompletedSkillMovement(run.player, elapsedMs), elapsedMs),
       x: framePosition.x,
       y: framePosition.y,
       facing: framePosition.facing,
@@ -3403,7 +3460,12 @@ function advanceCombatFrame(run: CombatRun, input: CombatInput, dtMs: number): C
     return clearPendingCombatEffectsIfFailed(movedRunWithEffects);
   }
 
-  return advanceEnemyAttacks(updateEnemyAirStates(movedRunWithEffects));
+  const withEnemyAttacks = advanceEnemyAttacks(updateEnemyAirStates(movedRunWithEffects));
+
+  return {
+    ...withEnemyAttacks,
+    player: clearCompletedPlayerAirState(withEnemyAttacks.player, withEnemyAttacks.elapsedMs)
+  };
 }
 
 export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): CombatRun {
@@ -3735,7 +3797,8 @@ function applyEnemyImpact(
     }
 
     const inRange = playerInEnemyAttackRange(nextEnemy, nextPlayer, attack);
-    const evaded = inRange && hitTime < nextPlayer.evadeUntilMs;
+    const airborneEvaded = inRange && attack.jumpEvade === true && hitTime < nextPlayer.airborneUntilMs;
+    const evaded = inRange && (hitTime < nextPlayer.evadeUntilMs || airborneEvaded);
     const phase = inRange && !evaded ? "active" : "miss";
     const attackEvent: CombatEnemyAttackEvent = {
       kind: "enemy-attack",
@@ -4838,6 +4901,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     return run;
   }
 
+  if (action.type === "jump" && (run.elapsedMs < run.player.airborneUntilMs || run.elapsedMs < run.player.landingUntilMs)) {
+    return run;
+  }
+
   const locked = run.elapsedMs < run.player.actionLockUntilMs;
   const canceledFromCombo = action.type === "skill" && run.elapsedMs <= run.player.cancelWindowUntilMs && run.player.comboStep > 0;
 
@@ -4903,6 +4970,25 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         ...(hitConnected ? gainPlayerResource(hitRun.player, run, 4) : hitRun.player),
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + 260,
+        cancelWindowUntilMs: 0,
+        bufferedAction: undefined,
+        bufferedActionQueuedAtMs: undefined,
+        bufferedActionExecuteAtMs: undefined
+      }
+    };
+  }
+
+  if (action.type === "jump") {
+    return {
+      ...run,
+      player: {
+        ...run.player,
+        airState: "jumping",
+        jumpStartedAtMs: run.elapsedMs,
+        airborneUntilMs: run.elapsedMs + jumpAirborneMs,
+        landingUntilMs: run.elapsedMs + jumpActionLockMs,
+        comboStep: 0,
+        actionLockUntilMs: run.elapsedMs + jumpActionLockMs,
         cancelWindowUntilMs: 0,
         bufferedAction: undefined,
         bufferedActionQueuedAtMs: undefined,
@@ -5166,7 +5252,11 @@ export function finishRoom(run: CombatRun): CombatRun {
       actionLockUntilMs: 0,
       cancelWindowUntilMs: 0,
       hitstopUntilMs: 0,
-      boundUntilMs: 0
+      boundUntilMs: 0,
+      airState: "grounded",
+      jumpStartedAtMs: 0,
+      airborneUntilMs: 0,
+      landingUntilMs: 0
     },
     enemies: completed ? [] : createRoomEnemies(run.dungeonId, nextRoomIndex),
     events: [clearedEvent],

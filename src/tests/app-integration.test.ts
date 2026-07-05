@@ -1194,7 +1194,7 @@ describe("playable app integration actions", () => {
     expect(html).toContain('class="combat-player-art actor-model actor-model-dodge"');
   });
 
-  it("maps KeyC to a universal backstep and renders dodge motion without hiding skill hotkeys", () => {
+  it("maps KeyC to DNF-style jump and renders airborne motion without hiding skill hotkeys", () => {
     const advancedState = advanceClass(
       readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90)),
       "flowing-light-swordmaster"
@@ -1208,7 +1208,15 @@ describe("playable app integration actions", () => {
     model = placeAliveEnemiesInFront(model);
 
     const action = combatActionForKeyCode(model.state, "KeyC", model.combatRun?.player.resource.current, false, model.combatRun);
-    expect(action).toEqual({ type: "combatAction", action: "backstep" });
+    expect(action).toEqual({ type: "combatAction", action: "jump" });
+    expect(combatActionForKeyCode(model.state, "KeyX", model.combatRun?.player.resource.current, false, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "light"
+    });
+    expect(combatActionForKeyCode(model.state, "KeyZ", model.combatRun?.player.resource.current, false, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "heavy"
+    });
     expect(combatActionForKeyCode(model.state, "KeyU", model.combatRun?.player.resource.current, false, model.combatRun)).toEqual({
       type: "combatAction",
       action: "skill",
@@ -1220,8 +1228,8 @@ describe("playable app integration actions", () => {
       skillId: "flowing-light-chain"
     });
 
-    const xBefore = model.combatRun?.player.x ?? 0;
-    model = reduceAppAction(model, { type: "combatAction", action: "backstep" });
+    const yBefore = model.combatRun?.player.y ?? 0;
+    model = reduceAppAction(model, { type: "combatAction", action: "jump" });
 
     if (!model.combatRun) {
       throw new Error("Expected active combat run");
@@ -1229,12 +1237,13 @@ describe("playable app integration actions", () => {
 
     const html = renderAppHtml(model);
 
-    expect(model.combatRun.player.x).toBeLessThan(xBefore);
-    expect(html).toContain('data-player-motion="dodge"');
-    expect(html).toContain('data-evade-active="true"');
-    expect(html).toContain('data-combat-action="backstep"');
+    expect(model.combatRun.player.y).toBe(yBefore);
+    expect(html).toContain('data-player-motion="jump"');
+    expect(html).toContain('data-player-air-state="jumping"');
+    expect(html).toContain('data-player-airborne-active="true"');
+    expect(html).toContain('data-combat-action="jump"');
     expect(html).toContain('data-hotkey="C"');
-    expect(html).toContain('class="combat-player-art actor-model actor-model-dodge"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-jump"');
   });
 
   it("filters combat skill hotkeys and settlement persistence by selected class resource", () => {

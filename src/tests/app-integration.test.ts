@@ -1262,6 +1262,81 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(impactHtml, 'data-skill-impact-vfx="furnace-step"')).toBe(1);
   });
 
+  it("renders cinder-uppercut as a timed forward launcher with flame-column impact", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 80)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 64 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "cinder-uppercut" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after cinder-uppercut");
+    }
+
+    const [uppercutAtMs] = scheduledSkillTimes(model.combatRun, "cinder-uppercut");
+    const castHtml = renderAppHtml(model);
+    const beforeHitRun = stepToElapsed(model.combatRun, uppercutAtMs - 1);
+    const beforeHitHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeHitRun
+    });
+    const hitRun = stepToElapsed(model.combatRun, uppercutAtMs);
+    const hitHtml = renderAppHtml({
+      ...model,
+      combatRun: hitRun
+    });
+    const castVfxStyle = playerSkillVfxStyleFor(castHtml, "cinder-uppercut");
+
+    expect(model.combatRun.player.x).toBe(player.x);
+    expect(beforeHitRun.player.x).toBeGreaterThan(player.x);
+    expect(skillHitEvents(model.combatRun, "cinder-uppercut")).toHaveLength(0);
+    expect(skillHitEvents(hitRun, "cinder-uppercut")).toHaveLength(1);
+    expect(castHtml).toContain('data-active-skill-id="cinder-uppercut"');
+    expect(castHtml).toContain('data-skill-animation-preset="ember-uppercut"');
+    expect(castHtml).toContain('data-skill-weapon-arc="uppercut"');
+    expect(castHtml).toContain('data-skill-vfx-shape="flame-column"');
+    expect(castHtml).toContain('data-player-skill-move="cinder-uppercut"');
+    expect(castVfxStyle).toContain("--actor-x: 31.67%");
+    expect(castVfxStyle).not.toContain("--actor-x: 38.33%");
+    expect(beforeHitHtml).not.toContain('data-skill-impact-vfx="cinder-uppercut"');
+    expect(hitHtml).toContain('data-hit-phase="uppercut"');
+    expect(hitHtml).toContain('data-vfx-cue="cinder-uppercut-rise"');
+    expect(hitHtml).toContain('data-impact-vfx-shape="flame-column"');
+    expect(hitHtml).toContain('class="skill-impact-burst skill-impact-shape-flame-column"');
+    expect(hitHtml).toContain('data-enemy-airborne="true"');
+    expect(hitHtml).toContain('data-airborne-state="airborne"');
+    expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="cinder-uppercut"')).toBe(1);
+  });
+
   it("renders shadow-roll as a backward roll with delayed roll-shot impact", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

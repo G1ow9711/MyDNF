@@ -1868,3 +1868,26 @@
   - `shadow-roll` now schedules a dynamic endpoint hitbox and resolves hit/miss on the shot frame. Queued monster miss resolution preserves frame-end player motion unless the player actually takes a hit.
   - Browser re-validation confirmed the dynamic scheduled effect, moved-out miss behavior, 159 ms no-impact roll frame, 160 ms roll-shot impact, computed animation names, and empty warning/error log.
   - Final verification: `npm test` passed with 297 tests, `npm run build` passed, and `git diff --check` passed with Windows line-ending warnings only.
+
+## Task 67 Cinder Uppercut Launcher Timeline
+- Started from the user's latest clarification: character models can stay simple, but fighting action flow, model-following attacks, hit frames, hit feedback, skill VFX, and monster skill VFX remain strict.
+- Used read-only parallel-agent input:
+  - `019f3228-a8be-7820-926e-a52cd6e61319` audited combat scripts and recommended `cinder-uppercut` because it is a default high-frequency launcher still using the generic immediate skill branch.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires cast-frame no damage, forward active skill movement, 180 ms launcher hit frame, delayed whiff feedback, monster-interruption cancellation, and combo-cancel metadata from light attack.
+  - `src/tests/app-integration.test.ts` requires reducer-rendered `cinder-uppercut` movement, no pre-hit target impact, `uppercut` / `cinder-uppercut-rise` metadata, flame-column impact DOM, and airborne enemy state.
+  - `src/tests/ui-smoke.test.ts` requires dedicated player, weapon, cast flame-column, and target impact CSS hooks/keyframes.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "cinder-uppercut"` failed before implementation because no scheduled hit/miss effects existed and CSS lacked flame-column impact selectors.
+- Implemented:
+  - Added `applyCinderUppercut()` with timed 64 px forward movement, dynamic 180 ms hitbox, delayed hit/miss, `uppercut` phase, `cinder-uppercut-rise` VFX cue, launcher action tag, stagger status, and interruption-safe scheduled effect cancellation.
+  - Added CSS for `cinder-uppercut` movement glow, flame-column cast animations, and target-bound uppercut impact core/ring/shards.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "cinder-uppercut"`, 7 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 208 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/cinder-uppercut-check.html`: confirmed cast x 25.00% with zero impacts, 179 ms x 31.67% with zero impacts, 180 ms one `uppercut` / `cinder-uppercut-rise` impact, enemy airborne state, player animation `player-ember-uppercut`, weapon animation `weapon-uppercut-arc`, cast animation `flame-column-cast-core`, impact animation `cinder-uppercut-rise-core`, and empty browser warning/error log. Temporary check page was deleted before commit.
+- Code review follow-up:
+  - Read-only review found no Critical issues and one Important issue: `cinder-uppercut` cast VFX could drift to the generic 128 px front anchor because its catalog VFX anchor is `target` but cast frame has no target.
+  - Added RED app integration coverage for the cast flame-column `--actor-x` anchor and fixed `playerSkillVfxStyle()` to anchor `cinder-uppercut` at the 64 px uppercut endpoint.
+  - Added dynamic hit-frame regressions for target moving out before 180 ms and target moving in before 180 ms.
+  - Focused review regressions passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "cinder-uppercut"`, 8 tests.

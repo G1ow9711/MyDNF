@@ -531,6 +531,66 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes heat-bloom-eruption-core");
   });
 
+  it("renders cinder-uppercut with delayed flame-column launcher impact metadata", () => {
+    const state = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        heat: 80
+      }
+    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 64 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "cinder-uppercut" }
+    );
+    const [uppercutAtMs] = scheduledSkillTimes(castRun, "cinder-uppercut");
+    const beforeHitHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, uppercutAtMs - 1)
+    });
+    const hitRun = stepToElapsed(castRun, uppercutAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: hitRun
+    });
+
+    expect(skillHitEvents(castRun, "cinder-uppercut")).toHaveLength(0);
+    expect(skillHitEvents(hitRun, "cinder-uppercut")).toHaveLength(1);
+    expect(beforeHitHtml).toContain('data-player-skill-move="cinder-uppercut"');
+    expect(beforeHitHtml).not.toContain('data-skill-impact-vfx="cinder-uppercut"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="cinder-uppercut"')).toBe(1);
+    expect(html).toContain('data-impact-vfx-shape="flame-column"');
+    expect(html).toContain('data-vfx-cue="cinder-uppercut-rise"');
+    expect(html).toContain('data-hit-phase="uppercut"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-flame-column"');
+    expect(html).toContain('data-enemy-airborne="true"');
+  });
+
+  it("defines dedicated cinder-uppercut player, weapon, cast, and impact animations", () => {
+    expect(stylesCss).toContain('[data-skill-animation-preset="ember-uppercut"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="uppercut"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-flame-column");
+    expect(stylesCss).toContain(".skill-impact-shape-flame-column");
+    expect(stylesCss).toContain("@keyframes player-ember-uppercut");
+    expect(stylesCss).toContain("@keyframes weapon-uppercut-arc");
+    expect(stylesCss).toContain("@keyframes flame-column-cast-core");
+    expect(stylesCss).toContain("@keyframes cinder-uppercut-rise-core");
+  });
+
   it("renders liuli-rain as staggered glass-rain impact waves", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const state = {

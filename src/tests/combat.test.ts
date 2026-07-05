@@ -1267,6 +1267,183 @@ describe("combat actions and impact feel", () => {
     expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "furnace-step")).toHaveLength(0);
   });
 
+  it("delays cinder-uppercut into a forward rising launcher hit frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 304, y: 340, hp: 180, maxHp: 180 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "cinder-uppercut" });
+    const [uppercutAtMs] = scheduledSkillTimes(cast, "cinder-uppercut");
+    const beforeHit = stepToElapsed(cast, uppercutAtMs - 1);
+    const hit = stepToElapsed(cast, uppercutAtMs);
+    const [uppercutHit] = skillHitEvents(hit, "cinder-uppercut");
+
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("cinder-uppercut");
+    expect(skillHitEvents(cast, "cinder-uppercut")).toHaveLength(0);
+    expect(uppercutAtMs).toBe(180);
+    expect(beforeHit.player.x).toBeGreaterThan(run.player.x);
+    expect(beforeHit.player.x).toBeLessThan(run.player.x + 64);
+    expect(beforeHit.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(uppercutHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "uppercut",
+      vfxCue: "cinder-uppercut-rise",
+      vfxWindowMs: 320,
+      actionTags: ["launcher"]
+    });
+    expect(hit.player.activeSkillMovement).toBeUndefined();
+    expect(hit.enemies[0].airborne).toBe(true);
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("delays cinder-uppercut whiff feedback until the rising hit frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 110, y: 340, hp: 180, maxHp: 180 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "cinder-uppercut" });
+    const [missAtMs] = scheduledSkillTimes(cast, "cinder-uppercut");
+    const beforeMiss = stepToElapsed(cast, missAtMs - 1);
+    const missed = stepToElapsed(cast, missAtMs);
+
+    expect(skillMissEvents(cast, "cinder-uppercut")).toHaveLength(0);
+    expect(skillHitEvents(cast, "cinder-uppercut")).toHaveLength(0);
+    expect(missAtMs).toBe(180);
+    expect(skillMissEvents(beforeMiss, "cinder-uppercut")).toHaveLength(0);
+    expect(skillMissEvents(missed, "cinder-uppercut")).toEqual([
+      expect.objectContaining({
+        occurredAtMs: 180,
+        inputToHitMs: 180,
+        action: "skill",
+        skillId: "cinder-uppercut"
+      })
+    ]);
+  });
+
+  it("rechecks cinder-uppercut targets at the launcher frame instead of locking cast-time targets", () => {
+    const inRangeRun = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 304, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const castWithTarget = performAction(inRangeRun, { type: "skill", skillId: "cinder-uppercut" });
+    const [uppercutAtMs] = scheduledSkillTimes(castWithTarget, "cinder-uppercut");
+    const movedOutBeforeHit = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: castWithTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 110, y: 340 }
+              }
+            : enemy
+        )
+      },
+      uppercutAtMs
+    );
+
+    expect(skillHitEvents(movedOutBeforeHit, "cinder-uppercut")).toHaveLength(0);
+    expect(skillMissEvents(movedOutBeforeHit, "cinder-uppercut")).toHaveLength(1);
+    expect(movedOutBeforeHit.enemies[0].hp).toBe(inRangeRun.enemies[0].hp);
+
+    const outOfRangeRun = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 110, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const castWithoutTarget = performAction(outOfRangeRun, { type: "skill", skillId: "cinder-uppercut" });
+    const [lateUppercutAtMs] = scheduledSkillTimes(castWithoutTarget, "cinder-uppercut");
+    const movedInBeforeHit = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: castWithoutTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 304, y: 340 }
+              }
+            : enemy
+        )
+      },
+      lateUppercutAtMs
+    );
+    const [lateHit] = skillHitEvents(movedInBeforeHit, "cinder-uppercut");
+
+    expect(lateHit).toMatchObject({
+      targetId: outOfRangeRun.enemies[0].id,
+      hitPhase: "uppercut",
+      vfxCue: "cinder-uppercut-rise"
+    });
+    expect(skillMissEvents(movedInBeforeHit, "cinder-uppercut")).toHaveLength(0);
+    expect(movedInBeforeHit.enemies[0].hp).toBeLessThan(outOfRangeRun.enemies[0].hp);
+  });
+
+  it("cancels cinder-uppercut when monster damage lands before the launcher frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 304, y: 340, hp: 180, maxHp: 180 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "cinder-uppercut" });
+    const [uppercutAtMs] = scheduledSkillTimes(cast, "cinder-uppercut");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 90,
+            attackRecoverUntilMs: 360,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      uppercutAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 90
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(skillHitEvents(interrupted, "cinder-uppercut")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "cinder-uppercut")).toHaveLength(0);
+  });
+
+  it("lets cinder-uppercut cancel from a light hit and keep combo timing metadata", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 304, y: 340, hp: 220, maxHp: 220 }]
+    );
+    const light = performAction(run, { type: "light" });
+
+    const cast = performAction(light, { type: "skill", skillId: "cinder-uppercut" });
+    const [uppercutAtMs] = scheduledSkillTimes(cast, "cinder-uppercut");
+    const hit = stepToElapsed(cast, uppercutAtMs);
+    const [uppercutHit] = skillHitEvents(hit, "cinder-uppercut");
+
+    expect(uppercutHit.canceledFromCombo).toBe(true);
+    expect(uppercutHit.comboCount).toBeGreaterThan(1);
+  });
+
   it("moves shadow-roll backward before firing the roll-shot hit frame", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),

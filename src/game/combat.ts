@@ -31,6 +31,7 @@ export type CombatHitPhase =
   | "overdrive-pulse"
   | "overdrive-release"
   | "roll-shot"
+  | "uppercut"
   | "chain-open"
   | "chain-cross"
   | "chain-finish";
@@ -52,6 +53,7 @@ export type CombatVfxCue =
   | "overdrive-core-pulse"
   | "overdrive-core-release"
   | "shadow-roll-shot"
+  | "cinder-uppercut-rise"
   | "flowing-chain-open"
   | "flowing-chain-cross"
   | "flowing-chain-finish";
@@ -1352,6 +1354,10 @@ function skillDamage(run: CombatRun, skill: { resourceCost: number; tags: string
 }
 
 function skillMovementDistance(skill: ClassSkillDefinition): number {
+  if (skill.id === "cinder-uppercut") {
+    return 64;
+  }
+
   if (skill.id === "furnace-step") {
     return 124;
   }
@@ -1518,6 +1524,44 @@ function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, cancele
       });
     }, nextRun);
   }, scriptedRun);
+}
+
+function cinderUppercutHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: Math.max(96, skillRangeX(skill.tags)),
+    laneRange: Math.max(54, skillLaneRange(skill.tags)),
+    targetCap: 1,
+    frontOnly: true,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 1.06)),
+    hitstopMs: 68,
+    knockback: 24,
+    juggle: true,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    statusTags: ["stagger"],
+    actionTags: ["launcher"]
+  };
+}
+
+function applyCinderUppercut(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x + skillMovementDistance(skill) * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+
+  return schedulePlayerHitboxEffect(movingRun, cinderUppercutHitbox(run, skill, canceledFromCombo), endPosition, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-uppercut`,
+    hitPhase: "uppercut",
+    vfxCue: "cinder-uppercut-rise",
+    vfxWindowMs: 320
+  });
 }
 
 function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
@@ -4084,6 +4128,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "liuli-rain") {
     return completeSkillAction(run, applyLiuliRain(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "cinder-uppercut") {
+    return completeSkillAction(run, applyCinderUppercut(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "furnace-step") {

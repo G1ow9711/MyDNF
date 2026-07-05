@@ -774,6 +774,10 @@ function playerSkillVfxStyle(
     return `${combatActorStyle(run, origin.x + 112 * facing, origin.y)}${durationStyle}`;
   }
 
+  if (skillId === "cinder-uppercut") {
+    return `${combatActorStyle(run, origin.x + 64 * facing, origin.y)}${durationStyle}`;
+  }
+
   if (animation?.vfxAnchor === "self") {
     return `${combatActorStyle(run, run.player.x, run.player.y)}${durationStyle}`;
   }

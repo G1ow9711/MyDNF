@@ -41,6 +41,27 @@ const publicWeaponAssetModules = import.meta.glob("../../public/assets/weapons/*
 
 const stylesCss = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
+function skillHitEvents(run: CombatRun, skillId: string): CombatHitEvent[] {
+  return run.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === skillId);
+}
+
+function scheduledSkillTimes(run: CombatRun, skillId: string): number[] {
+  const times = run.scheduledEnemyHitEffects
+    .filter((effect) => effect.skillId === skillId)
+    .map((effect) => effect.applyAtMs)
+    .sort((left, right) => left - right);
+
+  if (times.length === 0) {
+    throw new Error(`Expected scheduled effects for ${skillId}`);
+  }
+
+  return [...new Set(times)];
+}
+
+function stepToElapsed(run: CombatRun, elapsedMs: number): CombatRun {
+  return stepCombat(run, {}, Math.max(0, elapsedMs - run.elapsedMs));
+}
+
 function withSingleReadyEnemy(run: CombatRun, enemyPatch: Partial<CombatEnemy>): CombatRun {
   return {
     ...run,
@@ -556,19 +577,18 @@ describe("town app shell", () => {
       },
       { type: "skill", skillId: "night-mark-detonation" }
     );
-    const detonationHits = castRun.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "night-mark-detonation"
-    );
-    const lockAtMs = Math.min(...detonationHits.map((event) => event.occurredAtMs));
-    const finalAtMs = Math.max(...detonationHits.map((event) => event.occurredAtMs));
-    const lockRun = stepCombat(castRun, {}, lockAtMs);
-    const burstRun = stepCombat(lockRun, {}, finalAtMs - lockAtMs);
+    const [lockAtMs, finalAtMs] = scheduledSkillTimes(castRun, "night-mark-detonation");
+    const immediateDetonationHits = skillHitEvents(castRun, "night-mark-detonation");
+    const lockRun = stepToElapsed(castRun, lockAtMs);
+    const burstRun = stepToElapsed(lockRun, finalAtMs);
+    const detonationHits = skillHitEvents(burstRun, "night-mark-detonation");
     const html = renderAppHtml({
       state,
       mode: "combat",
       combatRun: burstRun
     });
 
+    expect(immediateDetonationHits).toHaveLength(0);
     expect(detonationHits).toHaveLength(4);
     expect(castRun.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
     expect(lockRun.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
@@ -617,17 +637,17 @@ describe("town app shell", () => {
       },
       { type: "skill", skillId: "mechanism-shadow-net" }
     );
-    const netHits = castRun.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mechanism-shadow-net"
-    );
-    const bindAtMs = Math.min(...netHits.map((event) => event.occurredAtMs));
-    const snapAtMs = Math.max(...netHits.map((event) => event.occurredAtMs));
+    const [bindAtMs, snapAtMs] = scheduledSkillTimes(castRun, "mechanism-shadow-net");
+    const immediateNetHits = skillHitEvents(castRun, "mechanism-shadow-net");
+    const resolvedRun = stepToElapsed(stepToElapsed(castRun, bindAtMs), snapAtMs);
+    const netHits = skillHitEvents(resolvedRun, "mechanism-shadow-net");
     const html = renderAppHtml({
       state: inkState,
       mode: "combat",
-      combatRun: stepCombat(stepCombat(castRun, {}, bindAtMs), {}, snapAtMs - bindAtMs)
+      combatRun: resolvedRun
     });
 
+    expect(immediateNetHits).toHaveLength(0);
     expect(netHits).toHaveLength(4);
     expect(countOccurrences(html, 'data-skill-impact-vfx="mechanism-shadow-net"')).toBe(4);
     expect(html).toContain('data-impact-vfx-shape="mechanism-net"');
@@ -675,17 +695,17 @@ describe("town app shell", () => {
       },
       { type: "skill", skillId: "mountain-crack-hammer" }
     );
-    const hammerHits = castRun.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mountain-crack-hammer"
-    );
-    const staggerAtMs = Math.min(...hammerHits.map((event) => event.occurredAtMs));
-    const impactAtMs = Math.max(...hammerHits.map((event) => event.occurredAtMs));
+    const [staggerAtMs, impactAtMs] = scheduledSkillTimes(castRun, "mountain-crack-hammer");
+    const immediateHammerHits = skillHitEvents(castRun, "mountain-crack-hammer");
+    const resolvedRun = stepToElapsed(stepToElapsed(castRun, staggerAtMs), impactAtMs);
+    const hammerHits = skillHitEvents(resolvedRun, "mountain-crack-hammer");
     const html = renderAppHtml({
       state: ironState,
       mode: "combat",
-      combatRun: stepCombat(stepCombat(castRun, {}, staggerAtMs), {}, impactAtMs - staggerAtMs)
+      combatRun: resolvedRun
     });
 
+    expect(immediateHammerHits).toHaveLength(0);
     expect(hammerHits).toHaveLength(4);
     expect(countOccurrences(html, 'data-skill-impact-vfx="mountain-crack-hammer"')).toBe(4);
     expect(html).toContain('data-impact-vfx-shape="mountain-crack"');
@@ -728,21 +748,31 @@ describe("town app shell", () => {
       },
       { type: "skill", skillId: "prism-step" }
     );
-    const stepHits = castRun.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "prism-step");
+    const [, finalImpactAtMs] = scheduledSkillTimes(castRun, "prism-step");
+    const immediateStepHits = skillHitEvents(castRun, "prism-step");
+    const beforeImpactRun = stepCombat(castRun, {}, 82);
+    const beforeImpactHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: beforeImpactRun
+    });
+    const impactRun = stepToElapsed(castRun, finalImpactAtMs);
+    const stepHits = skillHitEvents(impactRun, "prism-step");
     const html = renderAppHtml({
       state,
       mode: "combat",
-      combatRun: {
-        ...castRun,
-        elapsedMs: stepHits.length > 0 ? Math.max(...stepHits.map((event) => event.occurredAtMs)) : castRun.elapsedMs
-      }
+      combatRun: impactRun
     });
 
+    expect(immediateStepHits).toHaveLength(0);
     expect(stepHits).toHaveLength(2);
+    expect(beforeImpactHtml).toContain('data-player-skill-move="prism-step"');
+    expect(beforeImpactHtml).not.toContain('data-skill-impact-vfx="prism-step"');
     expect(countOccurrences(html, 'data-skill-impact-vfx="prism-step"')).toBe(2);
     expect(html).toContain('data-impact-vfx-shape="prism-afterimage"');
     expect(html).toContain('data-vfx-cue="prism-pierce"');
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-prism-afterimage"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="prism-step"]');
   });
 
   it("renders meteor-knuckle with ultimate impact VFX instead of generic skill feedback", () => {

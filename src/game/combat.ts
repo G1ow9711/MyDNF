@@ -130,6 +130,7 @@ export interface CombatPlayer {
   skillCooldowns: Record<string, number>;
   lastSkillId?: string;
   prismChain: number;
+  activeSkillMovement?: CombatPlayerSkillMovement;
 }
 
 export interface CombatResource {
@@ -137,6 +138,16 @@ export interface CombatResource {
   displayName: string;
   current: number;
   max: number;
+}
+
+export interface CombatPlayerSkillMovement {
+  skillId: string;
+  startAtMs: number;
+  endAtMs: number;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
 }
 
 export interface CombatArena {
@@ -181,6 +192,18 @@ export interface CombatMissEvent {
   id: string;
   action: "light" | "heavy" | "skill";
   skillId?: string;
+  occurredAtMs: number;
+  inputToHitMs: number;
+  canceledFromCombo: boolean;
+  statusTags?: CombatSkillStatusTag[];
+  actionTags?: CombatActionTag[];
+}
+
+export interface CombatSkillCastEvent {
+  kind: "skill-cast";
+  id: string;
+  action: "skill";
+  skillId: string;
   occurredAtMs: number;
   inputToHitMs: number;
   canceledFromCombo: boolean;
@@ -254,6 +277,7 @@ export interface CombatArenaHazardEvent {
 export type CombatEvent =
   | CombatHitEvent
   | CombatMissEvent
+  | CombatSkillCastEvent
   | CombatRoomClearedEvent
   | CombatEnemyAttackEvent
   | CombatPlayerHitEvent
@@ -315,6 +339,9 @@ export interface CombatScheduledEnemyHitEffect {
   id: string;
   targetId: string;
   applyAtMs: number;
+  action?: CombatHitEvent["action"];
+  inputToHitMs: number;
+  canceledFromCombo: boolean;
   damage: number;
   hitstopMs: number;
   knockback: number;
@@ -326,6 +353,9 @@ export interface CombatScheduledEnemyHitEffect {
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
   skillId?: string;
+  hitPhase?: CombatHitPhase;
+  vfxCue?: CombatVfxCue;
+  vfxWindowMs?: number;
 }
 
 export interface CombatScheduledArenaHazard {
@@ -351,6 +381,10 @@ interface CombatMovementSample {
   endX: number;
   endY: number;
   facing: 1 | -1;
+  moveX: number;
+  moveY: number;
+  speed: number;
+  skillMovement?: CombatPlayerSkillMovement;
 }
 
 interface EnemyAttackDefinition {
@@ -432,6 +466,115 @@ function clamp(value: number, min: number, max: number): number {
 
 function lerp(start: number, end: number, progress: number): number {
   return start + (end - start) * progress;
+}
+
+function playerSkillMovementPosition(movement: CombatPlayerSkillMovement, elapsedMs: number): CombatVector {
+  const durationMs = Math.max(1, movement.endAtMs - movement.startAtMs);
+  const progress = clamp((elapsedMs - movement.startAtMs) / durationMs, 0, 1);
+  const easedProgress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+  return {
+    x: clamp(lerp(movement.startX, movement.endX, easedProgress), 0, arena.width),
+    y: clamp(lerp(movement.startY, movement.endY, easedProgress), arena.minY, arena.maxY)
+  };
+}
+
+function samplePlayerPosition(player: CombatPlayer, elapsedMs: number): CombatVector {
+  if (!player.activeSkillMovement) {
+    return { x: player.x, y: player.y };
+  }
+
+  return playerSkillMovementPosition(player.activeSkillMovement, elapsedMs);
+}
+
+function advancePlayerFramePosition(
+  run: CombatRun,
+  input: CombatInput,
+  startPosition: CombatVector,
+  elapsedMs: number
+): { x: number; y: number; facing: 1 | -1; movementFinished: boolean; moveX: number; moveY: number; speed: number } {
+  const moveX = input.moveX ?? 0;
+  const moveY = input.moveY ?? 0;
+  const speed = input.dash ? 0.42 : 0.24;
+  const movement = run.player.activeSkillMovement;
+  const skillMovementActive = movement !== undefined && run.elapsedMs < movement.endAtMs;
+
+  if (skillMovementActive && movement) {
+    if (elapsedMs <= movement.endAtMs) {
+      const position = playerSkillMovementPosition(movement, elapsedMs);
+
+      return {
+        ...position,
+        facing: run.player.facing,
+        movementFinished: elapsedMs >= movement.endAtMs,
+        moveX,
+        moveY,
+        speed
+      };
+    }
+
+    const endPosition = playerSkillMovementPosition(movement, movement.endAtMs);
+    const remainingMs = elapsedMs - movement.endAtMs;
+    const facing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
+
+    return {
+      x: clamp(endPosition.x + moveX * speed * remainingMs, 0, run.arena.width),
+      y: clamp(endPosition.y + moveY * speed * remainingMs, run.arena.minY, run.arena.maxY),
+      facing,
+      movementFinished: true,
+      moveX,
+      moveY,
+      speed
+    };
+  }
+
+  return {
+    x: clamp(startPosition.x + moveX * speed * (elapsedMs - run.elapsedMs), 0, run.arena.width),
+    y: clamp(startPosition.y + moveY * speed * (elapsedMs - run.elapsedMs), run.arena.minY, run.arena.maxY),
+    facing: moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1,
+    movementFinished: false,
+    moveX,
+    moveY,
+    speed
+  };
+}
+
+function clearCompletedSkillMovement(player: CombatPlayer, elapsedMs: number): CombatPlayer {
+  if (!player.activeSkillMovement || elapsedMs < player.activeSkillMovement.endAtMs) {
+    return player;
+  }
+
+  return {
+    ...player,
+    activeSkillMovement: undefined
+  };
+}
+
+function interruptedActiveSkillId(before: CombatPlayer, after: CombatPlayer, fallbackSkillId?: string): string | undefined {
+  const skillId = before.activeSkillMovement?.skillId ?? fallbackSkillId;
+
+  if (!skillId || after.activeSkillMovement?.skillId === skillId) {
+    return undefined;
+  }
+
+  const tookHit = after.hp < before.hp || after.hurtLockUntilMs > before.hurtLockUntilMs || after.defeated;
+
+  return tookHit ? skillId : undefined;
+}
+
+function skillMovementIdAt(movement: CombatMovementSample | undefined, elapsedMs: number): string | undefined {
+  if (!movement?.skillMovement || elapsedMs > movement.skillMovement.endAtMs) {
+    return undefined;
+  }
+
+  return movement.skillMovement.skillId;
+}
+
+function cancelScheduledEnemyHitEffectsForSkill(run: CombatRun, skillId: string): CombatRun {
+  return {
+    ...run,
+    scheduledEnemyHitEffects: (run.scheduledEnemyHitEffects ?? []).filter((effect) => effect.skillId !== skillId)
+  };
 }
 
 function clearBufferedAction(player: CombatPlayer): CombatPlayer {
@@ -1006,6 +1149,25 @@ function applyMiss(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatRun {
   };
 }
 
+function appendSkillCastEvent(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const event: CombatSkillCastEvent = {
+    kind: "skill-cast",
+    id: `skill-cast-${run.elapsedMs}-${skill.id}`,
+    action: "skill",
+    skillId: skill.id,
+    occurredAtMs: run.elapsedMs,
+    inputToHitMs: 0,
+    canceledFromCombo,
+    statusTags: skillStatusTags(skill.tags),
+    actionTags: actionTagsForSkill(skill.tags)
+  };
+
+  return {
+    ...run,
+    events: [...run.events, event]
+  };
+}
+
 function applyPlayerHitbox(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatRun {
   const targets = selectPlayerTargets(run, hitbox);
 
@@ -1165,6 +1327,24 @@ function applySkillStartupMovement(run: CombatRun, skill: ClassSkillDefinition):
     player: {
       ...run.player,
       x: clamp(run.player.x + movement * run.player.facing, 0, arena.width)
+    }
+  };
+}
+
+function startPlayerSkillMovement(run: CombatRun, skill: ClassSkillDefinition, endPosition: CombatVector): CombatRun {
+  return {
+    ...run,
+    player: {
+      ...run.player,
+      activeSkillMovement: {
+        skillId: skill.id,
+        startAtMs: run.elapsedMs,
+        endAtMs: run.elapsedMs + skill.animation.hitFrameMs,
+        startX: run.player.x,
+        startY: run.player.y,
+        endX: endPosition.x,
+        endY: endPosition.y
+      }
     }
   };
 }
@@ -1372,6 +1552,7 @@ function selectPrismStepTargets(run: CombatRun, scriptedRun: CombatRun, skill: C
 
 function applyPrismStep(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const scriptedRun = applySkillStartupMovement(run, skill);
+  const movingRun = appendSkillCastEvent(startPlayerSkillMovement(run, skill, scriptedRun.player), skill, canceledFromCombo);
   const targetingHitbox: PlayerHitboxDefinition = {
     action: "skill",
     skillId: skill.id,
@@ -1390,11 +1571,11 @@ function applyPrismStep(run: CombatRun, skill: ClassSkillDefinition, canceledFro
   const targets = selectPrismStepTargets(run, scriptedRun, skill);
 
   if (targets.length === 0) {
-    return applyMiss(scriptedRun, targetingHitbox);
+    return applyMiss(movingRun, targetingHitbox);
   }
 
   return targets.reduce((nextRun, target, targetIndex) => {
-    return applyHit(nextRun, {
+    return scheduleEnemyHitEffect(nextRun, {
       id: `hit-${run.elapsedMs}-skill-${skill.id}-pierce-${targetIndex}-${target.id}`,
       targetId: target.id,
       damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.88)),
@@ -1410,7 +1591,7 @@ function applyPrismStep(run: CombatRun, skill: ClassSkillDefinition, canceledFro
       vfxCue: "prism-pierce",
       vfxWindowMs: 340
     });
-  }, scriptedRun);
+  }, movingRun);
 }
 
 function selectNightMarkDetonationTargets(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatEnemy[] {
@@ -1422,6 +1603,7 @@ function selectNightMarkDetonationTargets(run: CombatRun, hitbox: PlayerHitboxDe
 
 function applyNightMarkDetonation(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const scriptedRun = applySkillStartupMovement(run, skill);
+  const castRun = appendSkillCastEvent(scriptedRun, skill, canceledFromCombo);
   const targetingHitbox: PlayerHitboxDefinition = {
     action: "skill",
     skillId: skill.id,
@@ -1503,7 +1685,7 @@ function applyNightMarkDetonation(run: CombatRun, skill: ClassSkillDefinition, c
         vfxWindowMs: stage.vfxWindowMs
       });
     }, nextRun);
-  }, scriptedRun);
+  }, castRun);
 }
 
 function mechanismShadowNetCenter(run: CombatRun): CombatVector {
@@ -1515,6 +1697,7 @@ function mechanismShadowNetCenter(run: CombatRun): CombatVector {
 
 function applyMechanismShadowNet(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const scriptedRun = applySkillStartupMovement(run, skill);
+  const castRun = appendSkillCastEvent(scriptedRun, skill, canceledFromCombo);
   const netCenter = mechanismShadowNetCenter(scriptedRun);
   const targetingHitbox: PlayerHitboxDefinition = {
     action: "skill",
@@ -1588,11 +1771,12 @@ function applyMechanismShadowNet(run: CombatRun, skill: ClassSkillDefinition, ca
         vfxWindowMs: stage.vfxWindowMs
       });
     }, nextRun);
-  }, scriptedRun);
+  }, castRun);
 }
 
 function applyMountainCrackHammer(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const scriptedRun = applySkillStartupMovement(run, skill);
+  const castRun = appendSkillCastEvent(scriptedRun, skill, canceledFromCombo);
   const targetingHitbox: PlayerHitboxDefinition = {
     action: "skill",
     skillId: skill.id,
@@ -1669,7 +1853,7 @@ function applyMountainCrackHammer(run: CombatRun, skill: ClassSkillDefinition, c
         vfxWindowMs: stage.vfxWindowMs
       });
     }, nextRun);
-  }, scriptedRun);
+  }, castRun);
 }
 
 function classResource(state: GameState): Omit<CombatResource, "current"> {
@@ -1886,6 +2070,46 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
   };
 }
 
+function advanceCombatFrame(run: CombatRun, input: CombatInput, dtMs: number): CombatRun {
+  const elapsedMs = run.elapsedMs + dtMs;
+  const basePosition = samplePlayerPosition(run.player, run.elapsedMs);
+  const framePosition = advancePlayerFramePosition(run, input, basePosition, elapsedMs);
+  const movementSample: CombatMovementSample = {
+    startElapsedMs: run.elapsedMs,
+    endElapsedMs: elapsedMs,
+    startX: basePosition.x,
+    startY: basePosition.y,
+    endX: framePosition.x,
+    endY: framePosition.y,
+    facing: framePosition.facing,
+    moveX: framePosition.moveX,
+    moveY: framePosition.moveY,
+    speed: framePosition.speed,
+    skillMovement: run.player.activeSkillMovement
+  };
+  const comboActiveAtElapsed = comboStillActive(run, elapsedMs);
+  const movedRun: CombatRun = {
+    ...run,
+    elapsedMs,
+    comboCount: comboActiveAtElapsed ? run.comboCount : 0,
+    comboExpiresAtMs: comboActiveAtElapsed ? run.comboExpiresAtMs : 0,
+    player: {
+      ...clearCompletedSkillMovement(run.player, elapsedMs),
+      x: framePosition.x,
+      y: framePosition.y,
+      facing: framePosition.facing,
+      comboStep: comboActiveAtElapsed ? run.player.comboStep : 0
+    }
+  };
+  const movedRunWithEffects = triggerBossPhaseTransitions(resolveScheduledCombatEffects(movedRun, movementSample));
+
+  if (run.completed || run.failed) {
+    return clearPendingCombatEffectsIfFailed(movedRunWithEffects);
+  }
+
+  return advanceEnemyAttacks(updateEnemyAirStates(movedRunWithEffects));
+}
+
 export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): CombatRun {
   const elapsedMs = run.elapsedMs + dtMs;
   const buffer = run.player.bufferedAction;
@@ -1899,91 +2123,43 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
     !run.completed &&
     !run.failed &&
     !run.player.defeated;
-  const moveX = input.moveX ?? 0;
-  const moveY = input.moveY ?? 0;
-  const speed = input.dash ? 0.42 : 0.24;
-  const nextX = clamp(run.player.x + moveX * speed * dtMs, 0, run.arena.width);
-  const nextY = clamp(run.player.y + moveY * speed * dtMs, run.arena.minY, run.arena.maxY);
-  const facing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
-  const movementSample: CombatMovementSample = {
-    startElapsedMs: run.elapsedMs,
-    endElapsedMs: elapsedMs,
-    startX: run.player.x,
-    startY: run.player.y,
-    endX: nextX,
-    endY: nextY,
-    facing
-  };
-  const comboActiveAtElapsed = comboStillActive(run, elapsedMs);
-  const movedRun: CombatRun = {
-    ...run,
-    elapsedMs,
-    comboCount: comboActiveAtElapsed ? run.comboCount : 0,
-    comboExpiresAtMs: comboActiveAtElapsed ? run.comboExpiresAtMs : 0,
-    player: {
-      ...run.player,
-      x: nextX,
-      y: nextY,
-      facing,
-      comboStep: comboActiveAtElapsed ? run.player.comboStep : 0
-    }
-  };
-  const movedRunWithEffects = triggerBossPhaseTransitions(resolveScheduledArenaHazards(resolveScheduledEnemyHitEffects(movedRun), movementSample));
 
   if (shouldReleaseBuffer) {
-    const releaseDtMs = bufferExecuteAtMs - run.elapsedMs;
-    const releaseX = clamp(run.player.x + moveX * speed * releaseDtMs, 0, run.arena.width);
-    const releaseY = clamp(run.player.y + moveY * speed * releaseDtMs, run.arena.minY, run.arena.maxY);
-    const releaseFacing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
+    const beforeRelease = advanceCombatFrame(run, input, bufferExecuteAtMs - run.elapsedMs);
     const comboActiveAtRelease = comboStillActive(run, bufferExecuteAtMs);
     const releaseBase: CombatRun = {
-      ...movedRunWithEffects,
+      ...beforeRelease,
       elapsedMs: bufferExecuteAtMs,
       comboCount: comboActiveAtRelease ? run.comboCount : 0,
       comboExpiresAtMs: comboActiveAtRelease ? run.comboExpiresAtMs : 0,
       player: {
-        ...clearBufferedAction(movedRunWithEffects.player),
-        x: releaseX,
-        y: releaseY,
-        facing: releaseFacing,
+        ...clearBufferedAction(clearCompletedSkillMovement(beforeRelease.player, bufferExecuteAtMs)),
         comboStep: comboActiveAtRelease ? run.player.comboStep : 0,
         actionLockUntilMs: bufferExecuteAtMs
       }
     };
     const released = performAction(releaseBase, buffer);
+    const remainingMs = elapsedMs - bufferExecuteAtMs;
 
-    return advanceEnemyAttacks(
-      updateEnemyAirStates({
-        ...released,
-        elapsedMs,
-        player: {
-          ...released.player,
-          x: nextX,
-          y: nextY,
-          facing
-        }
-      })
-    );
+    return remainingMs > 0 ? stepCombat(released, input, remainingMs) : released;
   }
+
+  const advanced = advanceCombatFrame(run, input, dtMs);
 
   if (buffer !== undefined && bufferExecuteAtMs !== undefined && elapsedMs >= bufferExecuteAtMs) {
     const expiredRun: CombatRun = {
-      ...movedRunWithEffects,
-      player: clearBufferedAction(movedRunWithEffects.player)
+      ...advanced,
+      player: clearBufferedAction(advanced.player)
     };
 
     if (run.completed || run.failed) {
       return clearPendingCombatEffectsIfFailed(expiredRun);
     }
 
-    return advanceEnemyAttacks(updateEnemyAirStates(expiredRun));
+    return expiredRun;
   }
 
-  if (run.completed || run.failed) {
-    return clearPendingCombatEffectsIfFailed(movedRunWithEffects);
-  }
-
-  return advanceEnemyAttacks(updateEnemyAirStates(movedRunWithEffects));
+  return advanced;
 }
 
 function hasActiveEnemyAttack(enemy: CombatEnemy, elapsedMs: number): boolean {
@@ -2305,6 +2481,7 @@ function applyEnemyImpact(
       bufferedAction: undefined,
       bufferedActionQueuedAtMs: undefined,
       bufferedActionExecuteAtMs: undefined,
+      activeSkillMovement: undefined,
       defeated: nextHp <= 0
     };
 
@@ -2324,6 +2501,7 @@ function advanceEnemyAttacks(run: CombatRun): CombatRun {
   let player = run.player;
   let failed = run.failed;
   let phaseTransitionAtMs: number | undefined;
+  const canceledSkillIds = new Set<string>();
   const events: CombatEvent[] = [];
   const enemies = run.enemies.map((enemy) => {
     const started = beginEnemyAttack(enemy, run.elapsedMs, player);
@@ -2333,10 +2511,15 @@ function advanceEnemyAttacks(run: CombatRun): CombatRun {
     }
 
     const advanced = advanceEnemyWindupState(started.enemy, player, run.elapsedMs);
+    const beforeImpactPlayer = player;
     const impacted = applyEnemyImpact(advanced.enemy, advanced.player, run.elapsedMs, run.combatProfile);
+    const interruptedSkillId = interruptedActiveSkillId(beforeImpactPlayer, impacted.player);
 
     player = impacted.player;
     failed = failed || impacted.failed;
+    if (interruptedSkillId) {
+      canceledSkillIds.add(interruptedSkillId);
+    }
     if (impacted.phaseTransitionAtMs !== undefined) {
       phaseTransitionAtMs = Math.min(phaseTransitionAtMs ?? impacted.phaseTransitionAtMs, impacted.phaseTransitionAtMs);
     }
@@ -2351,6 +2534,7 @@ function advanceEnemyAttacks(run: CombatRun): CombatRun {
       ...run,
       player,
       enemies,
+      scheduledEnemyHitEffects: run.scheduledEnemyHitEffects.filter((effect) => !effect.skillId || !canceledSkillIds.has(effect.skillId)),
       events: [...run.events, ...events],
       failed
       },
@@ -2488,27 +2672,13 @@ function scheduleEnemyHitEffect(run: CombatRun, hit: HitDefinition): CombatRun {
   const effectiveDamage = hit.damage + bonusDamage;
   const hitstopMs = eventHitstop(target, hit.hitstopMs);
   const impactAtMs = run.elapsedMs + (hit.inputToHitMs ?? 0);
-  const event: CombatHitEvent = {
-    kind: "hit",
-    id: hit.id,
-    action: hit.action ?? "test",
-    skillId: hit.skillId,
-    targetId: hit.targetId,
-    damage: effectiveDamage,
-    occurredAtMs: impactAtMs,
-    inputToHitMs: hit.inputToHitMs ?? 0,
-    hitstopMs,
-    canceledFromCombo: hit.canceledFromCombo ?? false,
-    statusTags: hit.statusTags,
-    actionTags: hit.actionTags,
-    hitPhase: hit.hitPhase,
-    vfxCue: hit.vfxCue,
-    vfxWindowMs: hit.vfxWindowMs
-  };
   const effect: CombatScheduledEnemyHitEffect = {
     id: hit.id,
     targetId: hit.targetId,
     applyAtMs: impactAtMs,
+    action: hit.action ?? "test",
+    inputToHitMs: hit.inputToHitMs ?? 0,
+    canceledFromCombo: hit.canceledFromCombo ?? false,
     damage: effectiveDamage,
     hitstopMs,
     knockback: hit.knockback,
@@ -2519,12 +2689,14 @@ function scheduleEnemyHitEffect(run: CombatRun, hit: HitDefinition): CombatRun {
     pullCenter: hit.pullCenter,
     statusTags: hit.statusTags,
     actionTags: hit.actionTags,
-    skillId: hit.skillId
+    skillId: hit.skillId,
+    hitPhase: hit.hitPhase,
+    vfxCue: hit.vfxCue,
+    vfxWindowMs: hit.vfxWindowMs
   };
 
   return {
     ...run,
-    events: [...run.events, event],
     scheduledEnemyHitEffects: [...(run.scheduledEnemyHitEffects ?? []), effect],
     player: {
       ...run.player,
@@ -2533,8 +2705,22 @@ function scheduleEnemyHitEffect(run: CombatRun, hit: HitDefinition): CombatRun {
   };
 }
 
-function applyScheduledEnemyHitEffect(run: CombatRun, effect: CombatScheduledEnemyHitEffect): CombatRun {
+function applyScheduledEnemyHitEffect(
+  run: CombatRun,
+  effect: CombatScheduledEnemyHitEffect,
+  activeMovementSkillId?: string
+): CombatRun {
   const impactResolvedRun = resolveTargetEnemyImpactsBeforeScheduledEffect(run, effect);
+  const interruptedSkillId = interruptedActiveSkillId(run.player, impactResolvedRun.player, activeMovementSkillId);
+
+  if (interruptedSkillId && interruptedSkillId === effect.skillId) {
+    return cancelScheduledEnemyHitEffectsForSkill(impactResolvedRun, interruptedSkillId);
+  }
+
+  if (impactResolvedRun.failed || impactResolvedRun.player.defeated) {
+    return clearPendingCombatEffectsIfFailed(impactResolvedRun);
+  }
+
   const statusTags = effect.statusTags ?? [];
   const actionTags = effect.actionTags ?? [];
   const comboCount =
@@ -2542,6 +2728,24 @@ function applyScheduledEnemyHitEffect(run: CombatRun, effect: CombatScheduledEne
       ? impactResolvedRun.comboCount + 1
       : 1;
   const comboExpiresAtMs = effect.applyAtMs + 1200;
+  const event: CombatHitEvent = {
+    kind: "hit",
+    id: effect.id,
+    action: effect.action ?? "test",
+    skillId: effect.skillId,
+    targetId: effect.targetId,
+    damage: effect.damage,
+    occurredAtMs: effect.applyAtMs,
+    inputToHitMs: effect.inputToHitMs,
+    hitstopMs: effect.hitstopMs,
+    canceledFromCombo: effect.canceledFromCombo,
+    comboCount,
+    statusTags: effect.statusTags,
+    actionTags: effect.actionTags,
+    hitPhase: effect.hitPhase,
+    vfxCue: effect.vfxCue,
+    vfxWindowMs: effect.vfxWindowMs
+  };
   const nextEnemies = impactResolvedRun.enemies.map((enemy) => {
     if (enemy.id !== effect.targetId) {
       return enemy;
@@ -2620,7 +2824,12 @@ function applyScheduledEnemyHitEffect(run: CombatRun, effect: CombatScheduledEne
       ...impactResolvedRun,
       comboCount,
       comboExpiresAtMs,
-      enemies: nextEnemies
+      enemies: nextEnemies,
+      events: [...impactResolvedRun.events, event],
+      player: {
+        ...impactResolvedRun.player,
+        hitstopUntilMs: Math.max(impactResolvedRun.player.hitstopUntilMs, effect.applyAtMs + effect.hitstopMs)
+      }
     },
     effect.applyAtMs
   );
@@ -2667,6 +2876,68 @@ function resolveScheduledEnemyHitEffects(run: CombatRun): CombatRun {
   );
 }
 
+type ScheduledCombatEffectItem =
+  | { kind: "enemy-hit"; effect: CombatScheduledEnemyHitEffect; occurredAtMs: number }
+  | { kind: "arena-hazard"; hazard: CombatScheduledArenaHazard; occurredAtMs: number };
+
+function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovementSample): CombatRun {
+  const dueEnemyEffects = (run.scheduledEnemyHitEffects ?? []).filter((effect) => effect.applyAtMs <= run.elapsedMs);
+  const pendingEnemyEffects = (run.scheduledEnemyHitEffects ?? []).filter((effect) => effect.applyAtMs > run.elapsedMs);
+  const dueArenaHazards = (run.scheduledArenaHazards ?? []).filter((hazard) => hazard.impactAtMs <= run.elapsedMs);
+  const pendingArenaHazards = (run.scheduledArenaHazards ?? []).filter((hazard) => hazard.impactAtMs > run.elapsedMs);
+  const queue: ScheduledCombatEffectItem[] = [
+    ...dueEnemyEffects.map((effect) => ({ kind: "enemy-hit" as const, effect, occurredAtMs: effect.applyAtMs })),
+    ...dueArenaHazards.map((hazard) => ({ kind: "arena-hazard" as const, hazard, occurredAtMs: hazard.impactAtMs }))
+  ].sort((left, right) => {
+    if (left.occurredAtMs !== right.occurredAtMs) {
+      return left.occurredAtMs - right.occurredAtMs;
+    }
+
+    return left.kind === right.kind ? 0 : left.kind === "arena-hazard" ? -1 : 1;
+  });
+  let nextRun: CombatRun = {
+    ...run,
+    scheduledEnemyHitEffects: pendingEnemyEffects,
+    scheduledArenaHazards: pendingArenaHazards
+  };
+  const canceledSkillIds = new Set<string>();
+
+  for (const item of queue) {
+    if (nextRun.failed || nextRun.player.defeated) {
+      return clearPendingCombatEffectsIfFailed(nextRun);
+    }
+
+    if (item.kind === "enemy-hit") {
+      if (item.effect.skillId && canceledSkillIds.has(item.effect.skillId)) {
+        continue;
+      }
+
+      const beforePlayer = nextRun.player;
+      const activeMovementSkillId = skillMovementIdAt(movement, item.occurredAtMs);
+      nextRun = applyScheduledEnemyHitEffect(nextRun, item.effect, activeMovementSkillId);
+      const interruptedSkillId = interruptedActiveSkillId(beforePlayer, nextRun.player, activeMovementSkillId);
+
+      if (interruptedSkillId) {
+        canceledSkillIds.add(interruptedSkillId);
+        nextRun = cancelScheduledEnemyHitEffectsForSkill(nextRun, interruptedSkillId);
+      }
+
+      continue;
+    }
+
+    const beforePlayer = nextRun.player;
+    nextRun = applyScheduledArenaHazard(nextRun, item.hazard, movement);
+    const interruptedSkillId = interruptedActiveSkillId(beforePlayer, nextRun.player, skillMovementIdAt(movement, item.occurredAtMs));
+
+    if (interruptedSkillId) {
+      canceledSkillIds.add(interruptedSkillId);
+      nextRun = cancelScheduledEnemyHitEffectsForSkill(nextRun, interruptedSkillId);
+    }
+  }
+
+  return nextRun;
+}
+
 function samplePlayerForMovement(player: CombatPlayer, hazard: CombatScheduledArenaHazard, movement?: CombatMovementSample): CombatPlayer {
   if (!movement) {
     return player;
@@ -2683,6 +2954,30 @@ function samplePlayerForMovement(player: CombatPlayer, hazard: CombatScheduledAr
 
   if (hazard.impactAtMs >= movement.endElapsedMs) {
     return player;
+  }
+
+  if (movement.skillMovement && hazard.impactAtMs <= movement.skillMovement.endAtMs) {
+    const sampled = playerSkillMovementPosition(movement.skillMovement, hazard.impactAtMs);
+
+    return {
+      ...player,
+      x: sampled.x,
+      y: sampled.y,
+      facing: movement.facing
+    };
+  }
+
+  if (movement.skillMovement && hazard.impactAtMs > movement.skillMovement.endAtMs) {
+    const skillEnd = playerSkillMovementPosition(movement.skillMovement, movement.skillMovement.endAtMs);
+    const remainingMs = hazard.impactAtMs - movement.skillMovement.endAtMs;
+    const facing = movement.moveX === 0 ? movement.facing : movement.moveX > 0 ? 1 : -1;
+
+    return {
+      ...player,
+      x: clamp(skillEnd.x + movement.moveX * movement.speed * remainingMs, 0, arena.width),
+      y: clamp(skillEnd.y + movement.moveY * movement.speed * remainingMs, arena.minY, arena.maxY),
+      facing
+    };
   }
 
   const progress = clamp((hazard.impactAtMs - movement.startElapsedMs) / Math.max(1, movement.endElapsedMs - movement.startElapsedMs), 0, 1);
@@ -2757,6 +3052,7 @@ function applyScheduledArenaHazard(run: CombatRun, hazard: CombatScheduledArenaH
     bufferedAction: undefined,
     bufferedActionQueuedAtMs: undefined,
     bufferedActionExecuteAtMs: undefined,
+    activeSkillMovement: undefined,
     defeated: nextHp <= 0
   };
   const nextPlayer = damagedPlayer.resource.id === "guard" ? gainFlatPlayerResource(damagedPlayer, 12) : damagedPlayer;

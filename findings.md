@@ -331,3 +331,13 @@
 - Read-only combat audit recommended phase transition and arena hazard scheduling as separate combat events. The implementation now emits `boss-phase` plus `arena-hazard` events and keeps hazard damage delayed until the impact frame.
 - Phase design note: the first forge-collapse marker locks onto the player's current lane for a clear response test; the other two markers pressure adjacent space, so the mechanic reads as a real arena pattern instead of another point attack.
 - Presentation note: Taotie phase 2 sets boss DOM state, plays a boss model enrage animation, renders a phase-burst ring, renders three ground telegraphs, then resolves active/miss hazard feedback with dedicated forge-collapse animations.
+
+## Prism Step Frame-Motion Findings
+- Latest strict-combat audit found the largest player-side motion gap: monster rush/pull movement is sampled through windup time, but player dash skills still use immediate `applySkillStartupMovement()` position changes.
+- `prism-step` is the best small slice because it is already a path-piercing skill with dedicated afterimage VFX; making it frame-sampled will directly improve model-following movement and pre-hit/impact separation.
+- UI audit also found `black-rain-volley` still needs dedicated caster/weapon/cast VFX styling, but this is secondary to the time-based movement gap for the current "model follows action" requirement.
+- Planned acceptance: casting `prism-step` should not teleport the player to the endpoint immediately; a mid-frame `stepCombat()` should place the actor between start and endpoint with no target impact; the hit frame should land at the endpoint and render existing `prism-pierce` target impacts.
+- Implementation note: player skill movement is now stored as an active timed movement plan and sampled by `stepCombat()`. `prism-step` starts at the cast position, crosses the arena over the catalog hit window, and clears the plan at the impact frame or on interruption.
+- Timing note: delayed enemy hit effects now append `CombatHitEvent` only when `applyAtMs` is reached. This prevents cast-time target VFX/damage from appearing before the model reaches the hit frame.
+- Review follow-up note: large-frame processing now splits buffered input release before later arena hazards, samples hazards against active player skill movement, and clears skill movement when monster or arena damage interrupts the player.
+- Browser note: DOM/computed-style validation confirmed `prism-step` panels at x 240 -> 291 -> 344, no target impacts before the hit frame, two target-bound prism impacts at the endpoint, actor animation `player-liuli-step-dash`, and no browser console errors.

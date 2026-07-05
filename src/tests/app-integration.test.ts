@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { performAction, stepCombat, type CombatEnemy, type CombatHitEvent } from "../game/combat";
+import { performAction, stepCombat, type CombatEnemy, type CombatHitEvent, type CombatRun } from "../game/combat";
 import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
 import { advanceClass, selectBaseClass } from "../systems/classes";
@@ -61,6 +61,27 @@ function withHeat(state: GameState, heat: number): GameState {
 
 function countOccurrences(text: string, pattern: string): number {
   return text.split(pattern).length - 1;
+}
+
+function skillHitEvents(run: CombatRun, skillId: string): CombatHitEvent[] {
+  return run.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === skillId);
+}
+
+function scheduledSkillTimes(run: CombatRun, skillId: string): number[] {
+  const times = run.scheduledEnemyHitEffects
+    .filter((effect) => effect.skillId === skillId)
+    .map((effect) => effect.applyAtMs)
+    .sort((left, right) => left - right);
+
+  if (times.length === 0) {
+    throw new Error(`Expected scheduled effects for ${skillId}`);
+  }
+
+  return [...new Set(times)];
+}
+
+function stepToElapsed(run: CombatRun, elapsedMs: number): CombatRun {
+  return stepCombat(run, {}, Math.max(0, elapsedMs - run.elapsedMs));
 }
 
 function firstHitEvent(model: { combatRun?: { events: Array<unknown> } }): CombatHitEvent {
@@ -1134,20 +1155,29 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run after prism-step");
     }
 
-    const stepHits = model.combatRun.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "prism-step"
-    );
-    const hitFrameMs = stepHits.length > 0 ? Math.max(...stepHits.map((event) => event.occurredAtMs)) : model.combatRun.elapsedMs;
+    const [, finalImpactAtMs] = scheduledSkillTimes(model.combatRun, "prism-step");
+    const immediateStepHits = skillHitEvents(model.combatRun, "prism-step");
+    const castHtml = renderAppHtml(model);
+    const beforeImpactRun = stepCombat(model.combatRun, {}, 82);
+    const beforeImpactHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeImpactRun
+    });
+    const impactRun = stepToElapsed(model.combatRun, finalImpactAtMs);
+    const stepHits = skillHitEvents(impactRun, "prism-step");
     const hitFrameHtml = renderAppHtml({
       ...model,
-      combatRun: {
-        ...model.combatRun,
-        elapsedMs: hitFrameMs
-      }
+      combatRun: impactRun
     });
 
-    expect(model.combatRun.player.x).toBeGreaterThanOrEqual(344);
+    expect(model.combatRun.player.x).toBe(player.x);
+    expect(beforeImpactRun.player.x).toBeGreaterThan(player.x);
+    expect(beforeImpactRun.player.x).toBeLessThan(344);
+    expect(immediateStepHits).toHaveLength(0);
     expect(stepHits).toHaveLength(2);
+    expect(castHtml).toContain('data-player-skill-move="prism-step"');
+    expect(beforeImpactHtml).toContain('data-player-skill-move="prism-step"');
+    expect(beforeImpactHtml).not.toContain('data-skill-impact-vfx="prism-step"');
     expect(hitFrameHtml).toContain('data-active-skill-id="prism-step"');
     expect(hitFrameHtml).toContain('data-skill-animation-preset="liuli-step"');
     expect(hitFrameHtml).toContain('data-skill-weapon-arc="prism-dash"');
@@ -1303,23 +1333,22 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run");
     }
 
-    const detonationHits = model.combatRun.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "night-mark-detonation"
-    );
-    const lockAtMs = Math.min(...detonationHits.map((event) => event.occurredAtMs));
-    const finalBurstAtMs = Math.max(...detonationHits.map((event) => event.occurredAtMs));
+    const [lockAtMs, finalBurstAtMs] = scheduledSkillTimes(model.combatRun, "night-mark-detonation");
+    const immediateDetonationHits = skillHitEvents(model.combatRun, "night-mark-detonation");
     const castHtml = renderAppHtml(model);
-    const lockRun = stepCombat(model.combatRun, {}, lockAtMs);
+    const lockRun = stepToElapsed(model.combatRun, lockAtMs);
     const lockHtml = renderAppHtml({
       ...model,
       combatRun: lockRun
     });
-    const finalRun = stepCombat(lockRun, {}, finalBurstAtMs - lockAtMs);
+    const finalRun = stepToElapsed(lockRun, finalBurstAtMs);
+    const detonationHits = skillHitEvents(finalRun, "night-mark-detonation");
     const finalBurstHtml = renderAppHtml({
       ...model,
       combatRun: finalRun
     });
 
+    expect(immediateDetonationHits).toHaveLength(0);
     expect(detonationHits).toHaveLength(4);
     expect(castHtml).toContain('data-advancement-id="night-contract-hunter"');
     expect(castHtml).toContain('data-active-skill-id="night-mark-detonation"');
@@ -1448,29 +1477,28 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run");
     }
 
-    const netHits = model.combatRun.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mechanism-shadow-net"
-    );
-    const bindAtMs = Math.min(...netHits.map((event) => event.occurredAtMs));
-    const snapAtMs = Math.max(...netHits.map((event) => event.occurredAtMs));
+    const [bindAtMs, snapAtMs] = scheduledSkillTimes(model.combatRun, "mechanism-shadow-net");
+    const immediateNetHits = skillHitEvents(model.combatRun, "mechanism-shadow-net");
     const expectedNetActorX = (((model.combatRun.player.x + 150 * model.combatRun.player.facing) / model.combatRun.arena.width) * 100).toFixed(2);
     const castHtml = renderAppHtml(model);
-    const beforeBindRun = stepCombat(model.combatRun, {}, bindAtMs - 1);
+    const beforeBindRun = stepToElapsed(model.combatRun, bindAtMs - 1);
     const beforeBindHtml = renderAppHtml({
       ...model,
       combatRun: beforeBindRun
     });
-    const bindRun = stepCombat(model.combatRun, {}, bindAtMs);
+    const bindRun = stepToElapsed(model.combatRun, bindAtMs);
     const bindHtml = renderAppHtml({
       ...model,
       combatRun: bindRun
     });
-    const snapRun = stepCombat(bindRun, {}, snapAtMs - bindAtMs);
+    const snapRun = stepToElapsed(bindRun, snapAtMs);
+    const netHits = skillHitEvents(snapRun, "mechanism-shadow-net");
     const snapHtml = renderAppHtml({
       ...model,
       combatRun: snapRun
     });
 
+    expect(immediateNetHits).toHaveLength(0);
     expect(netHits).toHaveLength(4);
     expect(castHtml).toContain('data-advancement-id="mechanism-shadow-weaver"');
     expect(castHtml).toContain('data-active-skill-id="mechanism-shadow-net"');
@@ -1537,27 +1565,26 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run");
     }
 
-    const hammerHits = model.combatRun.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mountain-crack-hammer"
-    );
-    const staggerAtMs = Math.min(...hammerHits.map((event) => event.occurredAtMs));
-    const impactAtMs = Math.max(...hammerHits.map((event) => event.occurredAtMs));
+    const [staggerAtMs, impactAtMs] = scheduledSkillTimes(model.combatRun, "mountain-crack-hammer");
+    const immediateHammerHits = skillHitEvents(model.combatRun, "mountain-crack-hammer");
     const castHtml = renderAppHtml(model);
     const beforeStaggerHtml = renderAppHtml({
       ...model,
-      combatRun: stepCombat(model.combatRun, {}, staggerAtMs - 1)
+      combatRun: stepToElapsed(model.combatRun, staggerAtMs - 1)
     });
-    const staggerRun = stepCombat(model.combatRun, {}, staggerAtMs);
+    const staggerRun = stepToElapsed(model.combatRun, staggerAtMs);
     const staggerHtml = renderAppHtml({
       ...model,
       combatRun: staggerRun
     });
-    const impactRun = stepCombat(staggerRun, {}, impactAtMs - staggerAtMs);
+    const impactRun = stepToElapsed(staggerRun, impactAtMs);
+    const hammerHits = skillHitEvents(impactRun, "mountain-crack-hammer");
     const impactHtml = renderAppHtml({
       ...model,
       combatRun: impactRun
     });
 
+    expect(immediateHammerHits).toHaveLength(0);
     expect(hammerHits).toHaveLength(4);
     expect(castHtml).toContain('data-advancement-id="mountain-cracking-smith"');
     expect(castHtml).toContain('data-active-skill-id="mountain-crack-hammer"');

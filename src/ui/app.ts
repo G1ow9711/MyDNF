@@ -18,7 +18,8 @@ import {
   type CombatLootEvent,
   type CombatMissEvent,
   type CombatPlayerHitEvent,
-  type CombatRun
+  type CombatRun,
+  type CombatSkillCastEvent
 } from "../game/combat";
 import { addOwnedGear, createInitialState } from "../game/state";
 import type { AdvancementId, ClassId, ClassSkillDefinition, DungeonId, GameState, SkillAnimationDefinition } from "../game/types";
@@ -401,7 +402,7 @@ function isActiveHitEvent(run: CombatRun, event: CombatHitEvent): boolean {
   return age >= 0 && age <= vfxWindowMs;
 }
 
-function actionStartedAtMs(event: CombatHitEvent | CombatMissEvent): number {
+function actionStartedAtMs(event: CombatHitEvent | CombatMissEvent | CombatSkillCastEvent): number {
   return event.occurredAtMs - event.inputToHitMs;
 }
 
@@ -508,9 +509,9 @@ function recentArenaHazardEvents(run: CombatRun): CombatArenaHazardEvent[] {
   return [...latestByHazard.values()];
 }
 
-function latestPlayerActionEvent(run: CombatRun): CombatHitEvent | CombatMissEvent | undefined {
-  return [...run.events].reverse().find((event): event is CombatHitEvent | CombatMissEvent => {
-    if (event.kind !== "hit" && event.kind !== "miss") {
+function latestPlayerActionEvent(run: CombatRun): CombatHitEvent | CombatMissEvent | CombatSkillCastEvent | undefined {
+  return [...run.events].reverse().find((event): event is CombatHitEvent | CombatMissEvent | CombatSkillCastEvent => {
+    if (event.kind !== "hit" && event.kind !== "miss" && event.kind !== "skill-cast") {
       return false;
     }
 
@@ -524,7 +525,7 @@ function classSkillById(skillId: string | undefined): ClassSkillDefinition | und
   return skillId ? catalog.classSkills.find((skill) => skill.id === skillId) : undefined;
 }
 
-function playerActionWindowMs(event: CombatHitEvent | CombatMissEvent): number {
+function playerActionWindowMs(event: CombatHitEvent | CombatMissEvent | CombatSkillCastEvent): number {
   if (event.action === "skill") {
     return classSkillById(event.skillId)?.animation.durationMs ?? recentHitWindowMs;
   }
@@ -560,6 +561,19 @@ function playerReflectActive(run: CombatRun): boolean {
 
 function playerDodgeResult(run: CombatRun): "missed" | "none" {
   return recentEnemyAttackEvents(run).some((event) => event.phase === "miss") ? "missed" : "none";
+}
+
+function playerSkillMovementProgress(run: CombatRun): string {
+  const movement = run.player.activeSkillMovement;
+
+  if (!movement) {
+    return "";
+  }
+
+  const durationMs = Math.max(1, movement.endAtMs - movement.startAtMs);
+  const progress = Math.min(1, Math.max(0, (run.elapsedMs - movement.startAtMs) / durationMs));
+
+  return String(Math.round(progress * 100));
 }
 
 function playerMotion(run: CombatRun): string {
@@ -920,6 +934,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   const hitTargetIds = new Set(recentHitEvents(run).map((event) => event.targetId));
   const playerMotionName = playerMotion(run);
   const activeSkill = latestPlayerSkillAnimation(run);
+  const activeSkillMovement = run.player.activeSkillMovement;
   const skillMotionClass =
     playerMotionName === "skill" && activeSkill ? ` actor-skill-${activeSkill.animation.preset}` : "";
   const normalComboStep = playerMotionName === "light" ? Math.min(3, Math.max(1, run.player.comboStep || 1)) : 0;
@@ -954,7 +969,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   return `
     <div class="combat-actors" data-last-hit-target="${[...hitTargetIds].at(-1) ?? ""}">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
         ${playerTrailMarkup(run, playerMotionName, activeSkill)}
         <img class="combat-player-art actor-model actor-model-${playerMotionName}${skillMotionClass}${normalComboMotionClass}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run, activeSkill?.animation)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
         ${weaponLayerMarkup(state, "combat", activeSkill?.animation)}

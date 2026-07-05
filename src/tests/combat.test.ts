@@ -101,6 +101,27 @@ function latestHitForSkill(run: CombatRun, skillId: string): CombatHitEvent {
   return event;
 }
 
+function skillHitEvents(run: CombatRun, skillId: string): CombatHitEvent[] {
+  return run.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === skillId);
+}
+
+function scheduledSkillTimes(run: CombatRun, skillId: string): number[] {
+  const times = run.scheduledEnemyHitEffects
+    .filter((effect) => effect.skillId === skillId)
+    .map((effect) => effect.applyAtMs)
+    .sort((left, right) => left - right);
+
+  if (times.length === 0) {
+    throw new Error(`Expected scheduled effects for ${skillId}`);
+  }
+
+  return [...new Set(times)];
+}
+
+function stepToElapsed(run: CombatRun, elapsedMs: number): CombatRun {
+  return stepCombat(run, {}, Math.max(0, elapsedMs - run.elapsedMs));
+}
+
 function defeatAll(run: CombatRun): CombatRun {
   return run.enemies.reduce(
     (next, enemy) =>
@@ -765,7 +786,8 @@ describe("combat actions and impact feel", () => {
     expect(marked.enemies[0].marks).toBe(2);
     expect(detonated.enemies[0].marks).toBe(2);
     expect(resolved.enemies[0].marks).toBe(0);
-    expect(latestHitForSkill(detonated, "night-mark-detonation").damage).toBeGreaterThan(50);
+    expect(skillHitEvents(detonated, "night-mark-detonation")).toHaveLength(0);
+    expect(latestHitForSkill(resolved, "night-mark-detonation").damage).toBeGreaterThan(50);
   });
 
   it("detonates night marks as staged bursts on every marked target", () => {
@@ -789,9 +811,28 @@ describe("combat actions and impact feel", () => {
       }))
     };
     const detonated = performAction(markedRun, { type: "skill", skillId: "night-mark-detonation" });
-    const detonationHits = detonated.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "night-mark-detonation"
-    );
+    const [lockAtMs, burstAtMs] = scheduledSkillTimes(detonated, "night-mark-detonation");
+
+    expect(skillHitEvents(detonated, "night-mark-detonation")).toHaveLength(0);
+    expect(detonated.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
+    expect(detonated.enemies.some((enemy) => enemy.downed)).toBe(false);
+
+    const beforeLock = stepToElapsed(detonated, lockAtMs - 1);
+
+    expect(beforeLock.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
+    expect(beforeLock.enemies.map((enemy) => enemy.hp)).toEqual([260, 260]);
+    expect(beforeLock.enemies.some((enemy) => enemy.downed)).toBe(false);
+
+    const lockFrame = stepToElapsed(beforeLock, lockAtMs);
+    const lockHp = lockFrame.enemies.map((enemy) => enemy.hp);
+
+    expect(lockFrame.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
+    expect(lockHp[0]).toBeLessThan(260);
+    expect(lockHp[1]).toBeLessThan(260);
+    expect(lockFrame.enemies.some((enemy) => enemy.downed)).toBe(false);
+
+    const burstFrame = stepToElapsed(lockFrame, burstAtMs);
+    const detonationHits = skillHitEvents(burstFrame, "night-mark-detonation");
 
     expect(detonationHits).toHaveLength(4);
     expect(detonationHits.map((event) => event.hitPhase)).toEqual(["mark-lock", "mark-lock", "detonate", "detonate"]);
@@ -805,25 +846,6 @@ describe("combat actions and impact feel", () => {
     expect(new Set(detonationHits.map((event) => event.targetId)).size).toBe(2);
     expect(detonationHits[2].damage).toBeGreaterThan(detonationHits[0].damage);
     expect(detonationHits[2].hitstopMs).toBeGreaterThan(detonationHits[0].hitstopMs);
-    expect(detonated.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
-    expect(detonated.enemies.some((enemy) => enemy.downed)).toBe(false);
-
-    const beforeLock = stepCombat(detonated, {}, 309);
-
-    expect(beforeLock.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
-    expect(beforeLock.enemies.map((enemy) => enemy.hp)).toEqual([260, 260]);
-    expect(beforeLock.enemies.some((enemy) => enemy.downed)).toBe(false);
-
-    const lockFrame = stepCombat(beforeLock, {}, 1);
-    const lockHp = lockFrame.enemies.map((enemy) => enemy.hp);
-
-    expect(lockFrame.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
-    expect(lockHp[0]).toBeLessThan(260);
-    expect(lockHp[1]).toBeLessThan(260);
-    expect(lockFrame.enemies.some((enemy) => enemy.downed)).toBe(false);
-
-    const burstFrame = stepCombat(lockFrame, {}, 180);
-
     expect(burstFrame.enemies.map((enemy) => enemy.marks)).toEqual([0, 0]);
     expect(burstFrame.enemies[0].hp).toBeLessThan(lockHp[0]);
     expect(burstFrame.enemies[1].hp).toBeLessThan(lockHp[1]);
@@ -1112,17 +1134,192 @@ describe("combat actions and impact feel", () => {
     );
 
     const step = performAction(run, { type: "skill", skillId: "prism-step" });
-    const stepHits = step.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "prism-step");
+    const earlyStepHits = step.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "prism-step");
+    const beforeImpact = stepCombat(step, {}, 82);
+    const atFirstImpact = stepCombat(step, {}, 165);
+    const afterFinalImpact = stepCombat(step, {}, 193);
+    const stepHits = afterFinalImpact.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "prism-step");
     const targetIds = [...new Set(stepHits.map((event) => event.targetId))];
 
-    expect(step.player.x).toBeGreaterThanOrEqual(344);
+    expect(step.player.x).toBe(run.player.x);
+    expect(earlyStepHits).toHaveLength(0);
+    expect(beforeImpact.player.x).toBeGreaterThan(run.player.x);
+    expect(beforeImpact.player.x).toBeLessThan(344);
+    expect(beforeImpact.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(beforeImpact.enemies[1].hp).toBe(run.enemies[1].hp);
+    expect(atFirstImpact.player.x).toBeGreaterThanOrEqual(344);
+    expect(atFirstImpact.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
     expect(stepHits).toHaveLength(2);
     expect(targetIds).toHaveLength(2);
     expect(stepHits.every((event) => (event.hitPhase as string | undefined) === "pierce")).toBe(true);
     expect(stepHits.every((event) => (event.vfxCue as string | undefined) === "prism-pierce")).toBe(true);
     expect(stepHits.every((event) => event.statusTags?.includes("stagger"))).toBe(true);
-    expect(step.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
-    expect(step.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+    expect(afterFinalImpact.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(afterFinalImpact.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+    expect((afterFinalImpact.player as typeof afterFinalImpact.player & { activeSkillMovement?: unknown }).activeSkillMovement).toBeUndefined();
+  });
+
+  it("samples prism-step movement for arena hazards inside a large frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [
+        { x: 292, y: 340 },
+        { x: 332, y: 348 }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "prism-step" });
+    const jumped = stepCombat(
+      {
+        ...cast,
+        scheduledArenaHazards: [
+          {
+            hazardId: "test-prism-mid-hazard",
+            enemyId: cast.enemies[0].id,
+            skillId: "taotie-forge-collapse",
+            x: 291,
+            y: 340,
+            radiusX: 3,
+            laneRange: 24,
+            impactAtMs: 82,
+            damage: 40,
+            hitstopMs: 20,
+            knockback: 4,
+            vfxWindowMs: 300
+          }
+        ]
+      },
+      {},
+      193
+    );
+
+    expect(jumped.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "arena-hazard",
+          hazardId: "test-prism-mid-hazard",
+          phase: "active"
+        }),
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "taotie-forge-collapse",
+          occurredAtMs: 82
+        })
+      ])
+    );
+    expect(skillHitEvents(jumped, "prism-step")).toHaveLength(0);
+    expect(jumped.enemies.map((enemy) => enemy.hp)).toEqual(cast.enemies.map((enemy) => enemy.hp));
+    expect(jumped.player.hp).toBeLessThan(cast.player.hp);
+  });
+
+  it("clears active prism-step movement when an enemy hit interrupts the dash", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [
+        {
+          x: 300,
+          y: 340,
+          hp: 160,
+          maxHp: 160
+        }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "prism-step" });
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 82,
+            attackRecoverUntilMs: 360,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      82
+    );
+    const advanced = stepCombat(interrupted, {}, 80);
+    const afterQueuedImpactWindow = stepCombat(interrupted, {}, 111);
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 82
+        })
+      ])
+    );
+    expect((interrupted.player as typeof interrupted.player & { activeSkillMovement?: unknown }).activeSkillMovement).toBeUndefined();
+    expect(advanced.player.x).toBe(interrupted.player.x);
+    expect(skillHitEvents(afterQueuedImpactWindow, "prism-step")).toHaveLength(0);
+    expect(afterQueuedImpactWindow.enemies.map((enemy) => enemy.hp)).toEqual(interrupted.enemies.map((enemy) => enemy.hp));
+  });
+
+  it("releases buffered actions before later arena hazards in the same large frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      {
+        x: 240,
+        y: 340,
+        facing: 1,
+        hp: 45,
+        maxHp: 45,
+        actionLockUntilMs: 100,
+        bufferedAction: { type: "light" },
+        bufferedActionQueuedAtMs: 40,
+        bufferedActionExecuteAtMs: 100
+      },
+      [{ x: 320, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const advanced = stepCombat(
+      {
+        ...run,
+        scheduledArenaHazards: [
+          {
+            hazardId: "test-buffer-after-hazard",
+            enemyId: run.enemies[0].id,
+            skillId: "taotie-forge-collapse",
+            x: 240,
+            y: 340,
+            radiusX: 16,
+            laneRange: 24,
+            impactAtMs: 165,
+            damage: 80,
+            hitstopMs: 20,
+            knockback: 0,
+            vfxWindowMs: 300
+          }
+        ]
+      },
+      {},
+      193
+    );
+
+    expect(advanced.failed).toBe(true);
+    expect(advanced.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "hit",
+          action: "light",
+          occurredAtMs: 155
+        }),
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "taotie-forge-collapse",
+          occurredAtMs: 165
+        })
+      ])
+    );
+    expect(advanced.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
   });
 
   it("mechanism-shadow-net binds enemies on delayed net frames before snapping them inward", () => {
@@ -1140,14 +1337,11 @@ describe("combat actions and impact feel", () => {
     );
 
     const cast = performAction(run, { type: "skill", skillId: "mechanism-shadow-net" });
-    const netHits = cast.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mechanism-shadow-net"
-    );
-    const bindAtMs = Math.min(...netHits.map((event) => event.occurredAtMs));
-    const snapAtMs = Math.max(...netHits.map((event) => event.occurredAtMs));
-    const beforeBindRun = stepCombat(cast, {}, bindAtMs - 1);
-    const bindRun = stepCombat(cast, {}, bindAtMs);
-    const snapRun = stepCombat(bindRun, {}, snapAtMs - bindAtMs);
+    const [bindAtMs, snapAtMs] = scheduledSkillTimes(cast, "mechanism-shadow-net");
+    const beforeBindRun = stepToElapsed(cast, bindAtMs - 1);
+    const bindRun = stepToElapsed(cast, bindAtMs);
+    const snapRun = stepToElapsed(bindRun, snapAtMs);
+    const netHits = skillHitEvents(snapRun, "mechanism-shadow-net");
     const netCenterX = run.player.x + 150;
 
     expect(netHits).toHaveLength(4);
@@ -1203,14 +1397,11 @@ describe("combat actions and impact feel", () => {
     };
 
     const cast = performAction(windingRun, { type: "skill", skillId: "mountain-crack-hammer" });
-    const hammerHits = cast.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mountain-crack-hammer"
-    );
-    const staggerAtMs = Math.min(...hammerHits.map((event) => event.occurredAtMs));
-    const impactAtMs = Math.max(...hammerHits.map((event) => event.occurredAtMs));
-    const beforeStagger = stepCombat(cast, {}, staggerAtMs - 1);
-    const staggerRun = stepCombat(cast, {}, staggerAtMs);
-    const impactRun = stepCombat(staggerRun, {}, impactAtMs - staggerAtMs);
+    const [staggerAtMs, impactAtMs] = scheduledSkillTimes(cast, "mountain-crack-hammer");
+    const beforeStagger = stepToElapsed(cast, staggerAtMs - 1);
+    const staggerRun = stepToElapsed(cast, staggerAtMs);
+    const impactRun = stepToElapsed(staggerRun, impactAtMs);
+    const hammerHits = skillHitEvents(impactRun, "mountain-crack-hammer");
 
     expect(hammerHits).toHaveLength(4);
     expect(hammerHits.map((event) => event.hitPhase)).toEqual([
@@ -1664,6 +1855,8 @@ describe("enemy attacks and player defeat", () => {
           hitstopMs: 1,
           knockback: 0,
           juggle: false,
+          inputToHitMs: 400,
+          canceledFromCombo: false,
           playerFacing: 1
         }
       ],

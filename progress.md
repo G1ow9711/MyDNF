@@ -1672,3 +1672,40 @@
   - Final post-review `npm test`: pass, 13 files and 267 tests.
   - Final post-review `npm run build`: pass.
   - Final post-review `git diff --check`: pass with Windows line-ending warnings only.
+
+## Task 60 Prism Step Frame Motion
+- Started after latest user clarification: model detail may stay lightweight, but combat motion smoothness, model-following attack movement, skill VFX, and monster VFX remain strict.
+- Used two read-only parallel agents:
+  - `019f317d-c03a-79f2-ae5d-c1ae0b4505b1` audited combat timing and identified instant player dash movement as the largest model-following gap.
+  - `019f317d-f90f-77c3-929d-361ba83f776a` audited UI/CSS and identified `black-rain-volley` caster VFX as the next major visual polish gap after movement timing.
+- Selected `prism-step` frame-motion first because it directly addresses "model follows action": cast should begin dash motion, mid-frame should be in transit, and impact frame should resolve endpoint hits and target-bound `prism-pierce` VFX.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `prism-step` to keep the player at the cast x initially, move between start and endpoint mid-frame, delay target damage until the hit frame, sample arena hazards against the dash path, clear dash movement on monster interruption, and release buffered actions before later hazards.
+  - `src/tests/app-integration.test.ts` requires reducer-rendered `data-player-skill-move="prism-step"`, no pre-hit target burst, endpoint prism impact bursts, and skill-specific player/weapon/VFX metadata.
+  - `src/tests/ui-smoke.test.ts` requires target-bound prism afterimage impacts and CSS hooks for skill movement.
+- RED evidence:
+  - Focused tests initially failed because `prism-step` teleported to x 344 at cast time and emitted hit events immediately.
+  - Review-driven regression tests then failed on four timing gaps: cast-time scheduled hit events, arena hazard sampling inside a large dash frame, stale dash movement after player interruption, and buffer release ordering before later hazards.
+- Implemented:
+  - Added timed `activeSkillMovement` for player skill movement and sampled it in `stepCombat()` instead of teleporting dash skills at cast time.
+  - Changed scheduled enemy hit effects to append `CombatHitEvent` only at `applyAtMs`, preserving cast VFX without premature target damage or target bursts.
+  - Split large-frame combat advancement around buffered input release, sampled arena hazards against active skill movement, and cleared active skill movement on monster or arena damage.
+  - Added UI hooks for `data-player-skill-move`, movement progress, endpoint x, and CSS polish for the prism dash trail.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts -t "prism-step|arena hazards inside|enemy hit interrupts|buffered actions before"`: pass, 4 tests.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 174 tests.
+  - Final `npm test`: pass, 13 files and 270 tests.
+  - Final `npm run build`: pass.
+  - `git diff --check`: pass with Windows line-ending warnings only.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/prism-step-frame-motion-check.html`: confirmed x 240 -> 291 -> 344, movement hook present at cast/mid frame, 0 pre-hit prism impacts, 2 endpoint prism impacts, player art animation `player-liuli-step-dash`, prism trail styling, and empty browser console error log.
+  - Browser screenshot capture failed with the current in-app browser screenshot API; DOM and computed-style validation still passed.
+- Final read-only review follow-up:
+  - Agent `019f3198-ebd6-7721-9faf-a04cc15354cb` found two P1 timing issues: earlier hazard/player-hit events could be appended after later scheduled skill hits in a large frame, and player interruption cleared dash movement without clearing pending prism hits.
+  - Added RED assertions requiring arena-hazard interruption at 82 ms to cancel 165/193 ms prism hits, preserve enemy HP, and requiring enemy-hit interruption to prevent later queued prism hits.
+  - Implemented time-ordered mixed scheduled-effect resolution for due arena hazards and enemy hit effects, plus active-skill interruption cancellation for pending scheduled hit effects.
+  - `npm test -- src/tests/combat.test.ts -t "arena hazards inside|enemy hit interrupts"`: failed before the fix, passed after the fix.
+  - `npm test -- src/tests/combat.test.ts -t "prism-step|mountain-crack-hammer|mechanism-shadow-net|night marks"`: pass, 7 tests.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 174 tests.
+  - Final post-review `npm test`: pass, 13 files and 270 tests.
+  - Final post-review `npm run build`: pass.
+  - Final post-review `git diff --check`: pass with Windows line-ending warnings only.

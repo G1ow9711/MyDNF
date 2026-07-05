@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { performAction, stepCombat, type CombatHitEvent } from "../game/combat";
+import { performAction, stepCombat, type CombatEnemy, type CombatHitEvent } from "../game/combat";
 import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
 import { advanceClass, selectBaseClass } from "../systems/classes";
@@ -1848,6 +1848,88 @@ describe("playable app integration actions", () => {
         'class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-flame-breath"'
       );
     }
+  });
+
+  it("renders taotie devour as a pull windup and bite impact instead of boss flame fallback", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+
+    if (!model.combatRun) {
+      throw new Error("Expected boss combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: {
+          ...model.combatRun.player,
+          x: 160,
+          y: 340,
+          hp: 999,
+          maxHp: 999
+        },
+        enemies: [
+          {
+            ...model.combatRun.enemies[0],
+            attackProfileId: "taotie-devour-pull",
+            attackPatternIds: ["taotie-devour-pull"],
+            nextAttackPatternIndex: 0,
+            position: {
+              x: 520,
+              y: 340
+            },
+            nextAttackAtMs: 1
+          } as CombatEnemy
+        ]
+      }
+    };
+    const devourCombatRun = model.combatRun;
+
+    if (!devourCombatRun) {
+      throw new Error("Expected devour combat run");
+    }
+
+    const playerStartX = devourCombatRun.player.x;
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const windupHtml = renderAppHtml(model);
+
+    expect(windupHtml).toContain('data-enemy-telegraph="taotie-devour-pull"');
+    expect(windupHtml).toContain('data-telegraph-shape="circle"');
+    expect(windupHtml).toContain('data-enemy-attack-skill-id="taotie-devour-pull"');
+    expect(windupHtml).toContain('actor-enemy-skill-taotie-devour-pull');
+    expect(windupHtml).not.toContain('data-enemy-telegraph="taotie-flame-breath"');
+    expect(windupHtml).not.toContain('data-enemy-skill-vfx="taotie-devour-pull"');
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    expect(model.combatRun?.player.x).toBeGreaterThan(playerStartX);
+
+    let guard = 0;
+    while (
+      model.combatRun &&
+      !model.combatRun.events.some(
+        (event) => event.kind === "enemy-attack" && event.skillId === "taotie-devour-pull" && event.phase === "active"
+      ) &&
+      guard < 8
+    ) {
+      model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+      guard += 1;
+    }
+
+    const hitHtml = renderAppHtml(model);
+
+    expect(hitHtml).toContain('data-player-motion="hit"');
+    expect(hitHtml).toContain('data-enemy-skill-vfx="taotie-devour-pull"');
+    expect(hitHtml).toContain('data-enemy-vfx-cue="taotie-devour-bite"');
+    expect(hitHtml).toContain('data-combat-feedback="enemy-skill-hit"');
+    expect(hitHtml).toContain('data-feedback-skill-id="taotie-devour-pull"');
+    expect(hitHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-devour-pull"');
+    expect(hitHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
   });
 
   it("renders crawler burst as a rushing monster skill with explosion feedback", () => {

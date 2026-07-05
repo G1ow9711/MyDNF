@@ -9,7 +9,8 @@ export type EnemyAttackProfileId =
   | "ash-crawler-burst"
   | "zheng-shockwave"
   | "zheng-horn-charge"
-  | "taotie-flame-breath";
+  | "taotie-flame-breath"
+  | "taotie-devour-pull";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "backstep" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
@@ -40,8 +41,9 @@ export type CombatEnemyVfxCue =
   | "ash-crawler-burst-explode"
   | "zheng-shockwave-impact"
   | "zheng-horn-charge-impact"
-  | "taotie-flame-breath-sustain";
-export type CombatPlayerFeedbackCue = "player-hurt-light" | "player-hurt-heavy" | "player-hurt-boss-breath";
+  | "taotie-flame-breath-sustain"
+  | "taotie-devour-bite";
+export type CombatPlayerFeedbackCue = "player-hurt-light" | "player-hurt-heavy" | "player-hurt-boss-breath" | "player-hurt-devoured";
 
 export interface CombatVector {
   x: number;
@@ -63,6 +65,8 @@ export interface CombatEnemy {
   displayName: string;
   kind: EnemyKind;
   attackProfileId: EnemyAttackProfileId;
+  attackPatternIds?: EnemyAttackProfileId[];
+  nextAttackPatternIndex?: number;
   hp: number;
   maxHp: number;
   armor: number;
@@ -83,6 +87,8 @@ export interface CombatEnemy {
   attackResolvedHits?: number;
   attackRushStartPosition?: CombatVector;
   attackRushTargetPosition?: CombatVector;
+  attackPullStartPosition?: CombatVector;
+  attackPullTargetPosition?: CombatVector;
   controlledUntilMs?: number;
   armorBrokenUntilMs?: number;
   statusSourceSkillId?: string;
@@ -293,6 +299,7 @@ interface EnemyAttackDefinition {
   invulnerabilityMs: number;
   hurtLockMs: number;
   windupRushPx?: number;
+  windupPullPx?: number;
 }
 
 interface PlayerHitboxDefinition {
@@ -467,12 +474,13 @@ function isEnemyAttackProfileId(value: string | undefined): value is EnemyAttack
     value === "ash-crawler-burst" ||
     value === "zheng-shockwave" ||
     value === "zheng-horn-charge" ||
-    value === "taotie-flame-breath"
+    value === "taotie-flame-breath" ||
+    value === "taotie-devour-pull"
   );
 }
 
 function enemyAttackProfileKind(profileId: EnemyAttackProfileId): EnemyKind {
-  if (profileId === "taotie-flame-breath") {
+  if (profileId === "taotie-flame-breath" || profileId === "taotie-devour-pull") {
     return "boss";
   }
 
@@ -481,6 +489,24 @@ function enemyAttackProfileKind(profileId: EnemyAttackProfileId): EnemyKind {
   }
 
   return "trash";
+}
+
+function nextEnemyAttackProfile(enemy: Pick<CombatEnemy, "kind" | "attackProfileId" | "attackSkillId" | "attackPatternIds" | "nextAttackPatternIndex">): EnemyAttackProfileId {
+  if (isEnemyAttackProfileId(enemy.attackSkillId)) {
+    return enemy.attackSkillId;
+  }
+
+  const patternIds = enemy.attackPatternIds?.filter((profileId) => enemyAttackProfileKind(profileId) === enemy.kind);
+
+  if (patternIds && patternIds.length > 0) {
+    return patternIds[enemy.nextAttackPatternIndex ?? 0] ?? patternIds[0];
+  }
+
+  if (enemyAttackProfileKind(enemy.attackProfileId) === enemy.kind) {
+    return enemy.attackProfileId;
+  }
+
+  return defaultEnemyAttackProfile(enemy.kind);
 }
 
 function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileId" | "attackSkillId"> | EnemyKind): EnemyAttackDefinition {
@@ -492,6 +518,28 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
         : enemyAttackProfileKind(enemy.attackProfileId) === enemy.kind
           ? enemy.attackProfileId
           : defaultEnemyAttackProfile(enemy.kind);
+
+  if (profileId === "taotie-devour-pull") {
+    return {
+      skillId: "taotie-devour-pull",
+      damage: 58,
+      rangeX: 126,
+      laneRange: 24,
+      windupMs: 460,
+      recoveryMs: 420,
+      cooldownMs: 2600,
+      hitstopMs: 76,
+      knockback: 30,
+      hitCount: 1,
+      hitIntervalMs: 0,
+      vfxCue: "taotie-devour-bite",
+      vfxWindowMs: 560,
+      feedbackCue: "player-hurt-devoured",
+      invulnerabilityMs: 520,
+      hurtLockMs: 520,
+      windupPullPx: 180
+    };
+  }
 
   if (profileId === "taotie-flame-breath") {
     return {
@@ -607,6 +655,13 @@ function createEnemy(
   attackProfileId = defaultEnemyAttackProfile(kind)
 ): CombatEnemy {
   const stats = enemyStats(kind);
+  const attackPatternIds: EnemyAttackProfileId[] | undefined =
+    kind === "boss" ? ["taotie-flame-breath", "taotie-devour-pull"] : undefined;
+  const nextAttackPatternIndex = attackPatternIds
+    ? attackPatternIds.includes(attackProfileId)
+      ? attackPatternIds.indexOf(attackProfileId)
+      : 0
+    : undefined;
 
   return {
     id: `${dungeonId}-room-${roomIndex}-enemy-${enemyIndex}`,
@@ -619,6 +674,8 @@ function createEnemy(
           ? "雷角狰"
           : stats.displayName,
     attackProfileId,
+    attackPatternIds,
+    nextAttackPatternIndex,
     marks: 0,
     position: {
       x: 520 + enemyIndex * 74,
@@ -1527,7 +1584,9 @@ function updateEnemyAirStates(run: CombatRun): CombatRun {
           attackHitResolved: undefined,
           attackResolvedHits: undefined,
           attackRushStartPosition: undefined,
-          attackRushTargetPosition: undefined
+          attackRushTargetPosition: undefined,
+          attackPullStartPosition: undefined,
+          attackPullTargetPosition: undefined
         };
       }
 
@@ -1708,7 +1767,9 @@ function clearRecoveredAttack(enemy: CombatEnemy, elapsedMs: number): CombatEnem
       attackHitResolved: undefined,
       attackResolvedHits: undefined,
       attackRushStartPosition: undefined,
-      attackRushTargetPosition: undefined
+      attackRushTargetPosition: undefined,
+      attackPullStartPosition: undefined,
+      attackPullTargetPosition: undefined
     };
   }
 
@@ -1728,8 +1789,22 @@ function enemyRushTargetPosition(enemy: CombatEnemy, player: CombatPlayer, rushP
   };
 }
 
+function enemyPullTargetPosition(enemy: CombatEnemy, player: CombatPlayer, pullPx: number): CombatVector {
+  const signedDistance = enemy.position.x - player.x;
+  const absoluteDistance = Math.abs(signedDistance);
+  const desiredGap = Math.max(118, enemy.hurtbox.width / 2 + 42);
+  const pullDistance = Math.min(pullPx, Math.max(0, absoluteDistance - desiredGap));
+  const direction = signedDistance >= 0 ? 1 : -1;
+
+  return {
+    x: clamp(player.x + direction * pullDistance, 0, arena.width),
+    y: player.y
+  };
+}
+
 function advanceEnemyRushMovement(enemy: CombatEnemy, elapsedMs: number): CombatEnemy {
   if (
+    enemy.hp <= 0 ||
     !enemy.attackRushStartPosition ||
     !enemy.attackRushTargetPosition ||
     enemy.attackStartedAtMs === undefined ||
@@ -1751,6 +1826,46 @@ function advanceEnemyRushMovement(enemy: CombatEnemy, elapsedMs: number): Combat
   };
 }
 
+function advanceEnemyWindupPull(enemy: CombatEnemy, player: CombatPlayer, elapsedMs: number): CombatPlayer {
+  if (
+    enemy.hp <= 0 ||
+    !enemy.attackPullStartPosition ||
+    !enemy.attackPullTargetPosition ||
+    enemy.attackStartedAtMs === undefined ||
+    enemy.attackImpactAtMs === undefined ||
+    elapsedMs < enemy.attackStartedAtMs
+  ) {
+    return player;
+  }
+
+  const windupMs = Math.max(1, enemy.attackImpactAtMs - enemy.attackStartedAtMs);
+  const pullSampleAtMs = Math.min(elapsedMs, enemy.attackImpactAtMs);
+  const progress = clamp((pullSampleAtMs - enemy.attackStartedAtMs) / windupMs, 0, 1);
+  const easedProgress = 1 - (1 - progress) * (1 - progress);
+
+  return {
+    ...player,
+    x: lerp(enemy.attackPullStartPosition.x, enemy.attackPullTargetPosition.x, easedProgress)
+  };
+}
+
+function advanceEnemyWindupState(
+  enemy: CombatEnemy,
+  player: CombatPlayer,
+  elapsedMs: number
+): { enemy: CombatEnemy; player: CombatPlayer } {
+  if (enemy.hp <= 0) {
+    return { enemy, player };
+  }
+
+  const movingEnemy = advanceEnemyRushMovement(enemy, elapsedMs);
+
+  return {
+    enemy: movingEnemy,
+    player: advanceEnemyWindupPull(movingEnemy, player, elapsedMs)
+  };
+}
+
 function beginEnemyAttack(
   enemy: CombatEnemy,
   elapsedMs: number,
@@ -1769,14 +1884,24 @@ function beginEnemyAttack(
     return { enemy: recovered };
   }
 
-  const attack = enemyAttackDefinition(recovered);
+  const attackProfileId = nextEnemyAttackProfile(recovered);
+  const attack = enemyAttackDefinition({ ...recovered, attackProfileId });
   const attackRushTargetPosition = attack.windupRushPx && player ? enemyRushTargetPosition(recovered, player, attack.windupRushPx) : undefined;
+  const attackPullTargetPosition = attack.windupPullPx && player ? enemyPullTargetPosition(recovered, player, attack.windupPullPx) : undefined;
   const impactAtMs = elapsedMs + attack.windupMs;
   const finalImpactAtMs = impactAtMs + (attack.hitCount - 1) * attack.hitIntervalMs;
+  const attackPatternIds = recovered.attackPatternIds?.filter((profileId) => enemyAttackProfileKind(profileId) === recovered.kind);
+  const currentPatternIndex = attackPatternIds?.indexOf(attackProfileId) ?? -1;
+  const nextAttackPatternIndex =
+    attackPatternIds && attackPatternIds.length > 0 ? (currentPatternIndex >= 0 ? (currentPatternIndex + 1) % attackPatternIds.length : 0) : recovered.nextAttackPatternIndex;
+  const nextAttackProfileId = attackPatternIds && attackPatternIds.length > 0 ? attackPatternIds[nextAttackPatternIndex ?? 0] : recovered.attackProfileId;
 
   return {
     enemy: {
       ...recovered,
+      attackProfileId: nextAttackProfileId,
+      attackPatternIds,
+      nextAttackPatternIndex,
       attackStartedAtMs: elapsedMs,
       attackImpactAtMs: impactAtMs,
       attackRecoverUntilMs: finalImpactAtMs + attack.recoveryMs,
@@ -1785,6 +1910,8 @@ function beginEnemyAttack(
       attackResolvedHits: 0,
       attackRushStartPosition: attackRushTargetPosition ? recovered.position : undefined,
       attackRushTargetPosition,
+      attackPullStartPosition: attackPullTargetPosition && player ? { x: player.x, y: player.y } : undefined,
+      attackPullTargetPosition,
       nextAttackAtMs: elapsedMs + attack.cooldownMs
     },
     event: {
@@ -1956,8 +2083,8 @@ function advanceEnemyAttacks(run: CombatRun): CombatRun {
       events.push(started.event);
     }
 
-    const movingEnemy = advanceEnemyRushMovement(started.enemy, run.elapsedMs);
-    const impacted = applyEnemyImpact(movingEnemy, player, run.elapsedMs, run.combatProfile);
+    const advanced = advanceEnemyWindupState(started.enemy, player, run.elapsedMs);
+    const impacted = applyEnemyImpact(advanced.enemy, advanced.player, run.elapsedMs, run.combatProfile);
 
     player = impacted.player;
     failed = failed || impacted.failed;
@@ -2049,6 +2176,8 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
       attackResolvedHits: statusInterruptsAttack ? undefined : enemy.attackResolvedHits,
       attackRushStartPosition: statusInterruptsAttack ? undefined : enemy.attackRushStartPosition,
       attackRushTargetPosition: statusInterruptsAttack ? undefined : enemy.attackRushTargetPosition,
+      attackPullStartPosition: statusInterruptsAttack ? undefined : enemy.attackPullStartPosition,
+      attackPullTargetPosition: statusInterruptsAttack ? undefined : enemy.attackPullTargetPosition,
       position: nextPosition,
       airborne,
       downed,
@@ -2216,6 +2345,8 @@ function applyScheduledEnemyHitEffect(run: CombatRun, effect: CombatScheduledEne
       attackResolvedHits: statusInterruptsAttack ? undefined : enemy.attackResolvedHits,
       attackRushStartPosition: statusInterruptsAttack ? undefined : enemy.attackRushStartPosition,
       attackRushTargetPosition: statusInterruptsAttack ? undefined : enemy.attackRushTargetPosition,
+      attackPullStartPosition: statusInterruptsAttack ? undefined : enemy.attackPullStartPosition,
+      attackPullTargetPosition: statusInterruptsAttack ? undefined : enemy.attackPullTargetPosition,
       position: nextPosition,
       airborne,
       downed,
@@ -2242,7 +2373,8 @@ function resolveTargetEnemyImpactsBeforeScheduledEffect(
     return run;
   }
 
-  const impacted = applyEnemyImpact(target, run.player, effect.applyAtMs, run.combatProfile);
+  const advanced = advanceEnemyWindupState(target, run.player, effect.applyAtMs);
+  const impacted = applyEnemyImpact(advanced.enemy, advanced.player, effect.applyAtMs, run.combatProfile);
 
   if (impacted.events.length === 0) {
     return run;

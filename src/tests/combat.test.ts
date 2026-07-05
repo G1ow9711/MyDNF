@@ -1362,6 +1362,59 @@ describe("enemy attacks and player defeat", () => {
     ]);
   });
 
+  it("gives the boss alternating flame breath and devour pull attack patterns", () => {
+    const run = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const boss = run.enemies[0] as CombatEnemy & { attackPatternIds?: string[]; nextAttackPatternIndex?: number };
+
+    expect(run.enemies.map((enemy) => enemy.kind)).toEqual(["boss"]);
+    expect(boss.attackProfileId).toBe("taotie-flame-breath");
+    expect(boss.attackPatternIds).toEqual(["taotie-flame-breath", "taotie-devour-pull"]);
+    expect(boss.nextAttackPatternIndex).toBe(0);
+  });
+
+  it("rotates the boss next cast from flame breath into devour pull", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 180,
+        y: 340,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          position: {
+            x: 400,
+            y: 340
+          },
+          nextAttackAtMs: 1
+        }
+      ]
+    };
+    const firstWindup = stepCombat(run, {}, 80);
+    const afterRecovery = stepCombat(firstWindup, {}, 1141);
+    const readySecond = {
+      ...afterRecovery,
+      enemies: [
+        {
+          ...afterRecovery.enemies[0],
+          nextAttackAtMs: afterRecovery.elapsedMs
+        }
+      ]
+    };
+    const secondWindup = stepCombat(readySecond, {}, 1);
+
+    expect(firstWindup.enemies[0].attackSkillId).toBe("taotie-flame-breath");
+    expect((firstWindup.enemies[0] as { attackProfileId?: string; nextAttackPatternIndex?: number }).attackProfileId).toBe("taotie-devour-pull");
+    expect((firstWindup.enemies[0] as { nextAttackPatternIndex?: number }).nextAttackPatternIndex).toBe(1);
+    expect(secondWindup.enemies[0].attackSkillId).toBe("taotie-devour-pull");
+    expect((secondWindup.enemies[0] as { attackProfileId?: string; nextAttackPatternIndex?: number }).attackProfileId).toBe("taotie-flame-breath");
+    expect((secondWindup.enemies[0] as { nextAttackPatternIndex?: number }).nextAttackPatternIndex).toBe(0);
+  });
+
   it("telegraphs monster attacks before the damage frame", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"));
     const telegraph = stepCombat(run, {}, 80);
@@ -1755,6 +1808,298 @@ describe("enemy attacks and player defeat", () => {
     expect(playerHits).toHaveLength(3);
     expect(playerHits.map((event) => event.occurredAtMs)).toEqual([500, 680, 860]);
     expect(thirdPulse.enemies[0].attackHitResolved).toBe(true);
+  });
+
+  it("pulls the player during taotie devour windup before the close bite impact", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 160,
+        y: 340,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          attackProfileId: "taotie-devour-pull",
+          attackPatternIds: ["taotie-devour-pull"],
+          nextAttackPatternIndex: 0,
+          position: {
+            x: 520,
+            y: 340
+          },
+          nextAttackAtMs: 1
+        } as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const midPull = stepCombat(telegraph, {}, 200);
+    const impacted = stepCombat(midPull, {}, 260);
+    const active = impacted.events.find(
+      (event) => event.kind === "enemy-attack" && event.skillId === "taotie-devour-pull" && event.phase === "active"
+    );
+    const playerHit = impacted.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-devour-pull"
+    );
+
+    expect(telegraph.player.hp).toBe(run.player.hp);
+    expect(telegraph.player.x).toBe(run.player.x);
+    expect(midPull.player.x).toBeGreaterThan(run.player.x);
+    expect(midPull.player.x).toBeLessThan(impacted.enemies[0].position.x);
+    expect((telegraph.enemies[0] as { attackPullStartPosition?: unknown }).attackPullStartPosition).toBeDefined();
+    expect((telegraph.enemies[0] as { attackPullTargetPosition?: unknown }).attackPullTargetPosition).toBeDefined();
+    expect(active).toMatchObject({
+      occurredAtMs: 540,
+      impactAtMs: 540,
+      hitIndex: 1,
+      totalHits: 1,
+      vfxCue: "taotie-devour-bite",
+      vfxWindowMs: 560
+    });
+    expect(playerHit).toMatchObject({
+      damage: expect.any(Number),
+      occurredAtMs: 540,
+      hitstopMs: 76,
+      feedbackCue: "player-hurt-devoured"
+    });
+    expect(playerHit?.damage ?? 0).toBeGreaterThan(50);
+    expect(impacted.player.hurtLockUntilMs).toBeGreaterThan(impacted.elapsedMs);
+  });
+
+  it("still applies taotie devour pull when a frame jumps past the bite impact", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 160,
+        y: 340,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          attackProfileId: "taotie-devour-pull",
+          attackPatternIds: ["taotie-devour-pull"],
+          nextAttackPatternIndex: 0,
+          position: {
+            x: 520,
+            y: 340
+          },
+          nextAttackAtMs: 1
+        } as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const jumpedPastImpact = stepCombat(telegraph, {}, 500);
+    const playerHit = jumpedPastImpact.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-devour-pull"
+    );
+
+    expect(jumpedPastImpact.elapsedMs).toBeGreaterThan(telegraph.enemies[0].attackImpactAtMs ?? 0);
+    expect(jumpedPastImpact.player.x).toBeGreaterThan(run.player.x);
+    expect(playerHit).toMatchObject({
+      occurredAtMs: 540,
+      feedbackCue: "player-hurt-devoured"
+    });
+  });
+
+  it("resolves taotie devour bite before delayed player skill effects that cross the bite frame", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)),
+      "mountain-cracking-smith"
+    );
+    const baseRun = reachBossRoom(createCombatRun(state, "cinder-kiln-alley"));
+    const devourRun: CombatRun = {
+      ...baseRun,
+      elapsedMs: 0,
+      player: {
+        ...baseRun.player,
+        x: 160,
+        y: 340,
+        facing: 1,
+        hp: 999,
+        maxHp: 999,
+        actionLockUntilMs: 0,
+        hurtLockUntilMs: 0
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          position: {
+            x: 515,
+            y: 340
+          },
+          attackProfileId: "taotie-devour-pull",
+          attackStartedAtMs: 0,
+          attackImpactAtMs: 240,
+          attackRecoverUntilMs: 660,
+          attackSkillId: "taotie-devour-pull",
+          attackHitResolved: false,
+          attackResolvedHits: 0,
+          attackPullStartPosition: {
+            x: 160,
+            y: 340
+          },
+          attackPullTargetPosition: {
+            x: 340,
+            y: 340
+          },
+          nextAttackAtMs: 9999
+        } as CombatEnemy
+      ]
+    };
+    const cast = performAction(devourRun, { type: "skill", skillId: "mountain-crack-hammer" });
+    const jumped = stepCombat(cast, {}, 380);
+    const playerHits = jumped.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-devour-pull"
+    );
+
+    expect(cast.scheduledEnemyHitEffects.length).toBeGreaterThan(0);
+    expect(playerHits).toHaveLength(1);
+    expect(playerHits[0]).toMatchObject({
+      occurredAtMs: 240,
+      feedbackCue: "player-hurt-devoured"
+    });
+    expect(jumped.player.hp).toBeLessThan(cast.player.hp);
+  });
+
+  it("does not keep pulling the player after a dead boss retains stale devour anchors", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      elapsedMs: 80,
+      player: {
+        ...baseRun.player,
+        x: 160,
+        y: 340
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          hp: 0,
+          armor: 0,
+          position: {
+            x: 520,
+            y: 340
+          },
+          attackSkillId: "taotie-devour-pull",
+          attackStartedAtMs: 80,
+          attackImpactAtMs: 540,
+          attackRecoverUntilMs: 960,
+          attackPullStartPosition: {
+            x: 160,
+            y: 340
+          },
+          attackPullTargetPosition: {
+            x: 340,
+            y: 340
+          },
+          nextAttackAtMs: 9999
+        } as CombatEnemy
+      ]
+    };
+    const advanced = stepCombat(run, {}, 200);
+
+    expect(advanced.player.x).toBe(run.player.x);
+    expect(advanced.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-devour-pull")).toBe(false);
+  });
+
+  it("lets the player sidestep taotie devour pull so the bite misses", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 160,
+        y: 340,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          attackProfileId: "taotie-devour-pull",
+          attackPatternIds: ["taotie-devour-pull"],
+          nextAttackPatternIndex: 0,
+          position: {
+            x: 520,
+            y: 340
+          },
+          nextAttackAtMs: 1
+        } as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const sidestepped = {
+      ...telegraph,
+      player: {
+        ...telegraph.player,
+        y: telegraph.arena.maxY
+      }
+    };
+    const missed = stepCombat(sidestepped, {}, 460);
+
+    expect(missed.player.hp).toBe(run.player.hp);
+    expect(missed.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          skillId: "taotie-devour-pull",
+          phase: "miss",
+          vfxCue: "taotie-devour-bite"
+        })
+      ])
+    );
+    expect(missed.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-devour-pull")).toBe(false);
+  });
+
+  it("cancels taotie devour pull and clears pull anchors when staggered", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 160,
+        y: 340
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          attackProfileId: "taotie-devour-pull",
+          attackPatternIds: ["taotie-devour-pull"],
+          nextAttackPatternIndex: 0,
+          position: {
+            x: 520,
+            y: 340
+          },
+          nextAttackAtMs: 1
+        } as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const midPull = stepCombat(telegraph, {}, 200);
+    const interrupted = applyHit(midPull, {
+      id: "test-stagger-taotie-devour",
+      targetId: midPull.enemies[0].id,
+      damage: 1,
+      hitstopMs: 40,
+      knockback: 0,
+      juggle: false,
+      statusTags: ["stagger"]
+    });
+    const afterImpact = stepCombat(interrupted, {}, 260);
+
+    expect(telegraph.enemies[0].attackSkillId).toBe("taotie-devour-pull");
+    expect(interrupted.enemies[0].attackSkillId).toBeUndefined();
+    expect((interrupted.enemies[0] as { attackPullStartPosition?: unknown }).attackPullStartPosition).toBeUndefined();
+    expect((interrupted.enemies[0] as { attackPullTargetPosition?: unknown }).attackPullTargetPosition).toBeUndefined();
+    expect(afterImpact.events.some((event) => event.kind === "enemy-attack" && event.skillId === "taotie-devour-pull" && event.phase !== "windup")).toBe(false);
+    expect(afterImpact.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-devour-pull")).toBe(false);
   });
 
   it("clears boss skill pulse state when a status hit interrupts the attack", () => {

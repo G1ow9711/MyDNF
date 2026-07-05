@@ -1602,3 +1602,34 @@
   - Final `npm test`: pass, 13 files and 249 tests.
   - Final `npm run build`: pass.
   - Final `git diff --check`: pass with Windows line-ending warnings only.
+
+## Task 58 Taotie Devour Boss Pattern
+- Started from the remaining monster-pattern gap: boss tier still had only `taotie-flame-breath` and needed another Shan Hai Jing style attack archetype with real movement and VFX.
+- Used two read-only parallel agents:
+  - `019f309a-9eac-7280-bbbe-cbf972ada840` audited boss combat logic and recommended a second boss profile with pattern rotation plus player pull behavior.
+  - `019f309a-ccdb-7041-b452-4f5981cc1b25` audited UI/CSS and found the boss fallback in `enemySkillEffect()` would swallow new boss skills unless exact-matched before `enemy.kind === "boss"`.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires boss enemies to carry alternating `taotie-flame-breath` / `taotie-devour-pull` patterns.
+  - `src/tests/combat.test.ts` requires `taotie-devour-pull` to pull the player during windup, resolve a close bite hit, miss after lane sidestep, and clear pull anchors when staggered.
+  - `src/tests/app-integration.test.ts` requires reducer-rendered devour windup/active DOM to avoid flame fallback and show player hit motion.
+  - `src/tests/ui-smoke.test.ts` requires devour telegraph, VFX cue, feedback class, and dedicated CSS selectors/keyframes.
+- RED evidence:
+  - Focused tests initially failed because boss `attackPatternIds` were undefined, devour patches resolved/rendered as `taotie-flame-breath`, player X was not pulled, and devour CSS did not exist.
+- Implemented:
+  - Added `taotie-devour-pull` to `EnemyAttackProfileId`, `taotie-devour-bite` to enemy VFX cues, and `player-hurt-devoured` feedback.
+  - Added boss pattern rotation while preserving active `attackSkillId` priority so a flame breath cast cannot change mid-attack.
+  - Added windup pull anchors and smooth horizontal player pull during windup; vertical movement remains player-controlled so sidestep can miss.
+  - Added dedicated UI label, circle telegraph shape, model animation selector, vortex telegraph, bite VFX, and hit/miss feedback styling.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 158 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/taotie-devour-check.html`: confirmed 3 panels, windup `taotie-devour-pull` circle telegraph, no flame fallback, enemy animation `monster-taotie-devour-pull`, telegraph animations `taotie-devour-pull-telegraph` / `taotie-devour-pull-telegraph-edge`, active cue `taotie-devour-bite`, ring/core/trail animations `taotie-devour-vortex-ring` / `taotie-devour-vortex-core` / `taotie-devour-vortex-trail`, player `player-hurt-react`, hit feedback `taotie-devour-hit-feedback`, and miss feedback `taotie-devour-miss-feedback`.
+  - Browser screenshot saved at `.codex-local/tmp/taotie-devour-check.png`.
+  - Browser tool note: `waitForLoadState` does not support `networkidle`; switched to supported `load` state for validation.
+- Code review follow-up:
+  - Read-only review found three Important timing gaps: a large tick could skip windup pull before bite, delayed player skill effects could cross the devour bite without first applying windup pull, and dead enemies with stale pull anchors could keep pulling the player.
+  - Added RED regression coverage for all three cases. Initial `npm test -- src/tests/combat.test.ts` failed with missing player pull/player-hit and stale dead-boss pull.
+  - Implemented shared `advanceEnemyWindupState()` with clamped pull sampling at `Math.min(elapsedMs, attackImpactAtMs)`, reused it in normal enemy ticks and delayed-effect pre-resolution, and skipped windup movement for dead enemies.
+  - `npm test -- src/tests/combat.test.ts`: pass, 73 tests.
+  - Final `npm test`: pass, 13 files and 258 tests.
+  - Final `npm run build`: pass.
+  - Final `git diff --check`: pass with Windows line-ending warnings only.

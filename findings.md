@@ -314,3 +314,13 @@
 - RED evidence: focused combat/UI tests failed because elite rooms only spawned `elite + trash`, `zheng-horn-charge` produced no windup/active/miss events, and UI rendered `zheng-shockwave` circle telegraph instead of line charge.
 - Implementation note: elite rooms now spawn two elite profiles plus one trash minion. `zheng-horn-charge` uses a narrow line lane, windup-time rush movement, heavier hitstop/knockback, `zheng-horn-charge-impact` VFX cue, and stagger interruption through the existing attack clear path.
 - Presentation note: `zheng-horn-charge` has independent model charge, line telegraph, electric trail/core/ring VFX, and hit/miss feedback keyframes so it does not read like the old circular quake.
+
+## Taotie Devour Boss Pattern Findings
+- User's current acceptance split still treats model mesh detail as secondary to combat action timing, model-following movement, hit feedback, and skill/monster VFX.
+- Read-only combat audit found the boss tier still relied on one default attack profile, `taotie-flame-breath`, so boss fights lacked alternate punish windows and movement pressure.
+- Read-only UI audit found `enemySkillEffect()` used `enemy.kind === "boss"` as a fallback to `taotie-flame-breath`; any new boss skill must be exact-matched before that fallback or it will render as flame breath.
+- RED evidence: focused combat/app/UI tests failed because boss enemies had no `attackPatternIds`, patched `taotie-devour-pull` attacks resolved as flame breath, no windup pull anchors existed, and CSS lacked devour selectors/keyframes.
+- Implementation note: boss enemies now carry a two-profile attack queue, `taotie-flame-breath` then `taotie-devour-pull`. Active attacks are still locked by `attackSkillId`, while the next pattern index advances for the following cast.
+- Combat note: `taotie-devour-pull` pulls the player horizontally during windup without overriding lane movement, then resolves a close bite hit or miss. Stagger/control clears both rush and pull anchors.
+- Presentation note: `taotie-devour-pull` has a circle vortex telegraph, separate boss model animation, bite VFX cue, vortex ring/core/trail animations, and skill-specific hit/miss feedback so it is visually distinct from flame breath.
+- Code review follow-up found windup pull had to be sampled at the impact frame when a large tick overshoots the bite frame, and scheduled player hit effects also need to resolve already-landed enemy bites after applying the same clamped windup pull. A shared windup-state helper now handles both paths and skips dead enemies.

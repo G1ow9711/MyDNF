@@ -253,11 +253,14 @@ describe("town app shell", () => {
     const zhengChargePatch = { attackProfileId: "zheng-horn-charge" } as unknown as Partial<CombatEnemy>;
     const zhengChargeRun = stepCombat(withSingleReadyEnemy(eliteBaseRun, zhengChargePatch), {}, 80);
     const bossRun = stepCombat(withSingleReadyEnemy(bossBaseRun, {}), {}, 80);
+    const taotieDevourPatch = { attackProfileId: "taotie-devour-pull", attackPatternIds: ["taotie-devour-pull"], nextAttackPatternIndex: 0 } as unknown as Partial<CombatEnemy>;
+    const taotieDevourRun = stepCombat(withSingleReadyEnemy(bossBaseRun, taotieDevourPatch), {}, 80);
     const activeTrashRun = stepCombat(trashRun, {}, 500);
     const activeCrawlerRun = stepCombat(crawlerRun, {}, 500);
     const activeEliteRun = stepCombat(eliteRun, {}, 500);
     const activeZhengChargeRun = stepCombat(zhengChargeRun, {}, 520);
     const activeBossRun = stepCombat(bossRun, {}, 500);
+    const activeTaotieDevourRun = stepCombat(taotieDevourRun, {}, 520);
     const activeTrashHtml = renderAppHtml({ state, mode: "combat", combatRun: activeTrashRun });
     const crawlerHtml = renderAppHtml({ state, mode: "combat", combatRun: crawlerRun });
     const activeCrawlerHtml = renderAppHtml({ state, mode: "combat", combatRun: activeCrawlerRun });
@@ -265,6 +268,8 @@ describe("town app shell", () => {
     const zhengChargeHtml = renderAppHtml({ state, mode: "combat", combatRun: zhengChargeRun });
     const activeZhengChargeHtml = renderAppHtml({ state, mode: "combat", combatRun: activeZhengChargeRun });
     const activeBossHtml = renderAppHtml({ state, mode: "combat", combatRun: activeBossRun });
+    const taotieDevourHtml = renderAppHtml({ state, mode: "combat", combatRun: taotieDevourRun });
+    const activeTaotieDevourHtml = renderAppHtml({ state, mode: "combat", combatRun: activeTaotieDevourRun });
 
     expect(quietHtml).not.toContain("data-enemy-skill-vfx");
 
@@ -283,6 +288,9 @@ describe("town app shell", () => {
     expect(renderAppHtml({ state, mode: "combat", combatRun: bossRun })).toContain(
       'data-enemy-telegraph="taotie-flame-breath"'
     );
+    expect(taotieDevourHtml).toContain('data-enemy-telegraph="taotie-devour-pull"');
+    expect(taotieDevourHtml).toContain('data-telegraph-shape="circle"');
+    expect(taotieDevourHtml).toContain('actor-enemy-skill-taotie-devour-pull');
     expect(activeTrashHtml).toContain('data-enemy-skill-vfx="ash-ember-spit"');
     expect(activeTrashHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-ash-ember-spit"');
     expect(activeCrawlerHtml).toContain('data-enemy-skill-vfx="ash-crawler-burst"');
@@ -301,6 +309,12 @@ describe("town app shell", () => {
     expect(activeBossHtml).toContain(
       'class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-flame-breath"'
     );
+    expect(activeTaotieDevourHtml).toContain('data-enemy-skill-vfx="taotie-devour-pull"');
+    expect(activeTaotieDevourHtml).toContain('data-enemy-vfx-cue="taotie-devour-bite"');
+    expect(activeTaotieDevourHtml).toContain('actor-enemy-skill-taotie-devour-pull');
+    expect(activeTaotieDevourHtml).toContain(
+      'class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-devour-pull"'
+    );
     expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain(
       'data-telegraph-phase="windup"'
     );
@@ -309,13 +323,17 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('.enemy-skill-zheng-shockwave[data-enemy-vfx-cue="zheng-shockwave-impact"]');
     expect(stylesCss).toContain(".enemy-telegraph-zheng-horn-charge");
     expect(stylesCss).toContain(".enemy-skill-zheng-horn-charge .enemy-cast-trail");
+    expect(stylesCss).toContain(".enemy-telegraph-taotie-devour-pull");
+    expect(stylesCss).toContain(".enemy-skill-taotie-devour-pull .enemy-cast-core");
     expect(stylesCss).toContain(".combat-feedback-skill-ash-ember-spit");
     expect(stylesCss).toContain(".combat-feedback-skill-ash-crawler-burst");
     expect(stylesCss).toContain(".combat-feedback-skill-zheng-shockwave");
     expect(stylesCss).toContain(".combat-feedback-skill-zheng-horn-charge");
     expect(stylesCss).toContain(".combat-feedback-skill-taotie-flame-breath");
+    expect(stylesCss).toContain(".combat-feedback-skill-taotie-devour-pull");
     expect(stylesCss).toContain("@keyframes monster-ash-crawler-burst");
     expect(stylesCss).toContain("@keyframes monster-zheng-horn-charge");
+    expect(stylesCss).toContain("@keyframes monster-taotie-devour-pull");
     expect(stylesCss).toContain("@keyframes ash-crawler-burst-core");
     expect(stylesCss).toContain("@keyframes ash-crawler-burst-hit-feedback");
     expect(stylesCss).toContain("@keyframes zheng-horn-charge-trail");
@@ -325,6 +343,8 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes zheng-shockwave-expand");
     expect(stylesCss).toContain("@keyframes zheng-shock-hit-feedback");
     expect(stylesCss).toContain("@keyframes taotie-breath-hit-feedback");
+    expect(stylesCss).toContain("@keyframes taotie-devour-vortex-core");
+    expect(stylesCss).toContain("@keyframes taotie-devour-hit-feedback");
   });
 
   it("renders target-bound skill impact bursts for multi-hit player skills", () => {

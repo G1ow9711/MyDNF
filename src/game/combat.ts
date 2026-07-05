@@ -38,6 +38,7 @@ export type CombatHitPhase =
   | "ink-bolt"
   | "glass-cut"
   | "jab-chain"
+  | "shield-jab"
   | "roll-shot"
   | "uppercut"
   | "chain-open"
@@ -68,6 +69,7 @@ export type CombatVfxCue =
   | "ink-shot-pierce"
   | "glass-slash-cut"
   | "ember-jab-chain"
+  | "iron-shield-jab"
   | "shadow-roll-shot"
   | "cinder-uppercut-rise"
   | "flowing-chain-open"
@@ -1528,6 +1530,10 @@ function skillMovementDistance(skill: ClassSkillDefinition): number {
     return 26;
   }
 
+  if (skill.id === "iron-palm") {
+    return 34;
+  }
+
   if (skill.id === "cinder-uppercut") {
     return 64;
   }
@@ -1672,6 +1678,43 @@ function applySparkCombo(run: CombatRun, skill: ClassSkillDefinition, canceledFr
       vfxWindowMs: 240
     }
   );
+}
+
+function ironPalmHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 132,
+    laneRange: 54,
+    targetCap: 1,
+    frontOnly: true,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.98)),
+    hitstopMs: 58,
+    knockback: 34,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    statusTags: ["stagger"]
+  };
+}
+
+function applyIronPalm(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x + skillMovementDistance(skill) * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+
+  return schedulePlayerHitboxEffect(movingRun, ironPalmHitbox(run, skill, canceledFromCombo), endPosition, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-shield-jab`,
+    hitPhase: "shield-jab",
+    vfxCue: "iron-shield-jab",
+    vfxWindowMs: 260
+  });
 }
 
 function anvilCrashHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
@@ -1950,6 +1993,63 @@ function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFro
       });
     }, nextRun);
   }, scriptedRun);
+}
+
+function blackRainVolleyHitbox(
+  run: CombatRun,
+  skill: ClassSkillDefinition,
+  canceledFromCombo: boolean,
+  delayMs: number
+): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: skillRangeX(skill.tags),
+    laneRange: skillLaneRange(skill.tags),
+    targetCap: skillTargetCap(skill.tags),
+    frontOnly: false,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.42)),
+    hitstopMs: 58,
+    knockback: 12,
+    juggle: false,
+    inputToHitMs: delayMs,
+    canceledFromCombo
+  };
+}
+
+function applyBlackRainVolley(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const castingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(
+      run,
+      skill,
+      {
+        x: run.player.x,
+        y: run.player.y
+      },
+      run.elapsedMs + skill.animation.durationMs
+    ),
+    skill,
+    canceledFromCombo
+  );
+  const rainDelays = [skill.animation.hitFrameMs, skill.animation.hitFrameMs + 110, skill.animation.hitFrameMs + 220];
+
+  return rainDelays.reduce((nextRun, delayMs, rainIndex) => {
+    return schedulePlayerHitboxEffect(
+      nextRun,
+      blackRainVolleyHitbox(run, skill, canceledFromCombo, delayMs),
+      {
+        x: run.player.x,
+        y: run.player.y
+      },
+      run.player.facing,
+      {
+        id: `hit-${run.elapsedMs}-skill-${skill.id}-rain-${rainIndex}`,
+        hitPhase: "rain",
+        vfxCue: "black-rain-fall",
+        vfxWindowMs: 300
+      }
+    );
+  }, castingRun);
 }
 
 const swordPrismFieldLockDelayMs = 390;
@@ -4728,12 +4828,20 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     return completeSkillAction(run, applyLiuliRain(run, skill, canceledFromCombo), skill, statusTags);
   }
 
+  if (skill.id === "black-rain-volley") {
+    return completeSkillAction(run, applyBlackRainVolley(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
   if (skill.id === "sword-prism-field") {
     return completeSkillAction(run, applySwordPrismField(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "spark-combo") {
     return completeSkillAction(run, applySparkCombo(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "iron-palm") {
+    return completeSkillAction(run, applyIronPalm(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "cinder-uppercut") {

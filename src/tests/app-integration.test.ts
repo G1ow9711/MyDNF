@@ -1354,6 +1354,76 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="spark-combo"')).toBe(1);
   });
 
+  it("renders iron-palm as a timed shield jab with target iron sparks", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: selectBaseClass(createInitialState(), "iron-forge-guardian")
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 190,
+          maxHp: 190,
+          position: { x: player.x + 78 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "iron-palm" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after iron-palm");
+    }
+
+    const [jabAtMs] = scheduledSkillTimes(model.combatRun, "iron-palm");
+    const castHtml = renderAppHtml(model);
+    const beforeJabRun = stepToElapsed(model.combatRun, jabAtMs - 1);
+    const beforeJabHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeJabRun
+    });
+    const hitRun = stepToElapsed(model.combatRun, jabAtMs);
+    const hitHtml = renderAppHtml({
+      ...model,
+      combatRun: hitRun
+    });
+
+    expect(model.combatRun.player.x).toBe(player.x);
+    expect(beforeJabRun.player.x).toBeGreaterThan(player.x);
+    expect(skillHitEvents(model.combatRun, "iron-palm")).toHaveLength(0);
+    expect(skillHitEvents(hitRun, "iron-palm")).toHaveLength(1);
+    expect(castHtml).toContain('data-active-skill-id="iron-palm"');
+    expect(castHtml).toContain('data-skill-animation-preset="iron-palm"');
+    expect(castHtml).toContain('data-skill-weapon-arc="shield-jab"');
+    expect(castHtml).toContain('data-skill-vfx-shape="iron-spark"');
+    expect(castHtml).toContain('data-player-skill-move="iron-palm"');
+    expect(beforeJabHtml).not.toContain('data-skill-impact-vfx="iron-palm"');
+    expect(hitHtml).toContain('data-hit-phase="shield-jab"');
+    expect(hitHtml).toContain('data-vfx-cue="iron-shield-jab"');
+    expect(hitHtml).toContain('data-impact-vfx-shape="iron-spark"');
+    expect(hitHtml).toContain('class="skill-impact-burst skill-impact-shape-iron-spark"');
+    expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="iron-palm"')).toBe(1);
+  });
+
   it("renders cinder-uppercut as a timed forward launcher with flame-column impact", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),
@@ -2081,28 +2151,28 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run");
     }
 
-    const volleyHits = model.combatRun.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "black-rain-volley"
-    );
-    const firstWaveAtMs = Math.min(...volleyHits.map((event) => event.occurredAtMs));
-    const finalWaveAtMs = Math.max(...volleyHits.map((event) => event.occurredAtMs));
-    const targetIds = [...new Set(volleyHits.map((event) => event.targetId))];
+    const [firstWaveAtMs, , finalWaveAtMs] = scheduledSkillTimes(model.combatRun, "black-rain-volley");
     const castHtml = renderAppHtml(model);
+    const beforeWaveRun = stepToElapsed(model.combatRun, firstWaveAtMs - 1);
+    const beforeWaveHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeWaveRun
+    });
+    const firstWaveRun = stepToElapsed(model.combatRun, firstWaveAtMs);
+    const firstWaveHits = skillHitEvents(firstWaveRun, "black-rain-volley");
+    const targetIds = [...new Set(firstWaveHits.map((event) => event.targetId))];
     const firstWaveHtml = renderAppHtml({
       ...model,
-      combatRun: {
-        ...model.combatRun,
-        elapsedMs: firstWaveAtMs
-      }
+      combatRun: firstWaveRun
     });
+    const finalWaveRun = stepToElapsed(model.combatRun, finalWaveAtMs);
+    const volleyHits = skillHitEvents(finalWaveRun, "black-rain-volley");
     const finalWaveHtml = renderAppHtml({
       ...model,
-      combatRun: {
-        ...model.combatRun,
-        elapsedMs: finalWaveAtMs
-      }
+      combatRun: finalWaveRun
     });
 
+    expect(skillHitEvents(model.combatRun, "black-rain-volley")).toHaveLength(0);
     expect(volleyHits).toHaveLength(6);
     expect(targetIds).toHaveLength(2);
     expect(castHtml).toContain('data-active-skill-id="black-rain-volley"');
@@ -2110,6 +2180,7 @@ describe("playable app integration actions", () => {
     expect(castHtml).toContain('data-skill-weapon-arc="rain-volley"');
     expect(castHtml).toContain('data-skill-vfx-shape="black-rain"');
     expect(castHtml).toContain('data-player-skill-vfx="black-rain-volley"');
+    expect(beforeWaveHtml).not.toContain('data-skill-impact-vfx="black-rain-volley"');
     expect(countOccurrences(firstWaveHtml, 'data-skill-impact-vfx="black-rain-volley"')).toBe(2);
     expect(countOccurrences(finalWaveHtml, 'data-skill-impact-vfx="black-rain-volley"')).toBe(6);
     expect(finalWaveHtml).toContain('data-impact-vfx-shape="black-rain"');

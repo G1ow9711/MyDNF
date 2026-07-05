@@ -720,6 +720,62 @@ describe("combat actions and impact feel", () => {
     expect(missed.enemies[0].hp).toBe(run.enemies[0].hp);
   });
 
+  it("delays iron-palm into a forward shield-jab hit frame", () => {
+    const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 318, y: 340, hp: 190, maxHp: 190 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "iron-palm" });
+    const [jabAtMs] = scheduledSkillTimes(cast, "iron-palm");
+    const midJab = stepToElapsed(cast, 75);
+    const beforeJab = stepToElapsed(cast, jabAtMs - 1);
+    const hit = stepToElapsed(cast, jabAtMs);
+    const [shieldHit] = skillHitEvents(hit, "iron-palm");
+
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("iron-palm");
+    expect(skillHitEvents(cast, "iron-palm")).toHaveLength(0);
+    expect(jabAtMs).toBe(150);
+    expect(midJab.player.x).toBeGreaterThan(run.player.x);
+    expect(midJab.player.x).toBeLessThan(run.player.x + 34);
+    expect(beforeJab.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(shieldHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "shield-jab",
+      vfxCue: "iron-shield-jab",
+      vfxWindowMs: 260
+    });
+    expect(hit.player.activeSkillMovement).toBeUndefined();
+    expect(hit.player.x).toBe(274);
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("uses the iron-palm left-facing endpoint as the shield-jab hitbox origin", () => {
+    const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 360, y: 340, facing: -1 },
+      [{ x: 172, y: 340, hp: 190, maxHp: 190 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "iron-palm" });
+    const [jabAtMs] = scheduledSkillTimes(cast, "iron-palm");
+    const hit = stepToElapsed(cast, jabAtMs);
+    const [shieldHit] = skillHitEvents(hit, "iron-palm");
+
+    expect(hit.player.x).toBe(326);
+    expect(shieldHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "shield-jab",
+      vfxCue: "iron-shield-jab"
+    });
+    expect(skillMissEvents(hit, "iron-palm")).toHaveLength(0);
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
   it("cancels spark-combo jab when monster damage interrupts before the jab frame", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(createInitialState(), "cinder-kiln-alley"),
@@ -2432,12 +2488,23 @@ describe("combat actions and impact feel", () => {
       ]
     );
 
-    const volley = performAction(run, { type: "skill", skillId: "black-rain-volley" });
-    const volleyHits = volley.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "black-rain-volley"
-    );
+    const cast = performAction(run, { type: "skill", skillId: "black-rain-volley" });
+    const [firstRainAtMs, secondRainAtMs, finalRainAtMs] = scheduledSkillTimes(cast, "black-rain-volley");
+    const beforeFirstRain = stepToElapsed(cast, firstRainAtMs - 1);
+    const firstRain = stepToElapsed(cast, firstRainAtMs);
+    const secondRain = stepToElapsed(cast, secondRainAtMs);
+    const finalRain = stepToElapsed(cast, finalRainAtMs);
+    const firstRainHits = skillHitEvents(firstRain, "black-rain-volley");
+    const volleyHits = skillHitEvents(finalRain, "black-rain-volley");
     const hitTimes = [...new Set(volleyHits.map((event) => event.occurredAtMs))];
 
+    expect(skillHitEvents(cast, "black-rain-volley")).toHaveLength(0);
+    expect(cast.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(cast.enemies[1].hp).toBe(run.enemies[1].hp);
+    expect(beforeFirstRain.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(beforeFirstRain.enemies[1].hp).toBe(run.enemies[1].hp);
+    expect(firstRainHits).toHaveLength(2);
+    expect(skillHitEvents(secondRain, "black-rain-volley")).toHaveLength(4);
     expect(volleyHits).toHaveLength(6);
     expect(hitTimes.length).toBeGreaterThan(1);
     expect(Math.max(...hitTimes) - Math.min(...hitTimes)).toBeGreaterThanOrEqual(180);
@@ -2445,8 +2512,108 @@ describe("combat actions and impact feel", () => {
     expect(volleyHits.every((event) => event.hitPhase === "rain")).toBe(true);
     expect(volleyHits.every((event) => event.vfxCue === "black-rain-fall")).toBe(true);
     expect(volleyHits.every((event) => event.vfxWindowMs === 300)).toBe(true);
-    expect(volley.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
-    expect(volley.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+    expect(firstRain.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(finalRain.enemies[0].hp).toBeLessThan(firstRain.enemies[0].hp);
+    expect(finalRain.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
+  it("cancels black-rain-volley rain waves when monster damage interrupts the cast", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [
+        { x: 330, y: 340, hp: 220, maxHp: 220 },
+        { x: 390, y: 356, hp: 220, maxHp: 220 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "black-rain-volley" });
+    const [, , finalRainAtMs] = scheduledSkillTimes(cast, "black-rain-volley");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 220,
+            attackRecoverUntilMs: 420,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          },
+          cast.enemies[1]
+        ]
+      },
+      {},
+      finalRainAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 220
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(skillHitEvents(interrupted, "black-rain-volley")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.enemies[1].hp).toBe(run.enemies[1].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "black-rain-volley")).toHaveLength(0);
+  });
+
+  it("cancels remaining black-rain-volley waves after the first rain if a monster interrupts", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [
+        { x: 330, y: 340, hp: 220, maxHp: 220 },
+        { x: 390, y: 356, hp: 220, maxHp: 220 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "black-rain-volley" });
+    const [firstRainAtMs, , finalRainAtMs] = scheduledSkillTimes(cast, "black-rain-volley");
+    const firstRain = stepToElapsed(cast, firstRainAtMs);
+    const interrupted = stepCombat(
+      {
+        ...firstRain,
+        enemies: [
+          {
+            ...firstRain.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: firstRainAtMs,
+            attackImpactAtMs: firstRainAtMs + 55,
+            attackRecoverUntilMs: firstRainAtMs + 260,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          },
+          firstRain.enemies[1]
+        ]
+      },
+      {},
+      finalRainAtMs - firstRain.elapsedMs
+    );
+
+    expect(skillHitEvents(firstRain, "black-rain-volley")).toHaveLength(2);
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: firstRainAtMs + 55
+        })
+      ])
+    );
+    expect(skillHitEvents(interrupted, "black-rain-volley")).toHaveLength(2);
+    expect(interrupted.enemies[0].hp).toBe(firstRain.enemies[0].hp);
+    expect(interrupted.enemies[1].hp).toBe(firstRain.enemies[1].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "black-rain-volley")).toHaveLength(0);
   });
 
   it("liuli-rain falls in staggered prism waves on locked targets", () => {

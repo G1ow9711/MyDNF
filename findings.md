@@ -467,3 +467,13 @@
 - Read-only audits found that Boss profile/rotation is driven by `EnemyAttackProfileId`, `enemyAttackDefinition()`, `beginEnemyAttack()`, and `applyEnemyImpact()`, while UI must add exact hooks before the boss flame-breath fallback in `enemySkillEffect()`.
 - Control note: `hurtLockUntilMs` already blocks `performAction()`, but movement still flows through `advancePlayerFramePosition()`. A real Boss bind needs a separate player movement/control lock so the model cannot slide during the chain lock.
 - RED evidence: focused combat/app/UI tests fail because `taotie-forge-shackle` is not a valid Boss profile, phase 2 does not add it to rotation, UI falls back to flame breath, and no bind/slam CSS or player bound data exists yet.
+
+## Black Rain and Iron Palm Strict Combat Findings
+- Current user clarification: character modeling can stay simpler for now, but attack smoothness, model-following combat motion, strict hit frames, player/enemy action changes, and skill VFX must be treated as hard acceptance criteria.
+- Parallel read-only audits found two high-value gaps: `black-rain-volley` looked visually complete but still used the generic instant branch, while `iron-palm` was a high-frequency Iron starter with no dedicated timed shield-jab script.
+- RED evidence: focused tests failed because neither `black-rain-volley` nor `iron-palm` produced scheduled hit effects; black rain could mutate targets at cast time, and Iron palm had no `iron-palm` / `shield-jab` / `iron-spark` runtime/CSS path.
+- Implementation note: `black-rain-volley` now starts a stationary cancelable cast and schedules dynamic rain waves at 340/450/560 ms, with no cast-frame damage or impact VFX.
+- Interruption note: black rain pending waves cancel if monster damage interrupts before the first rain or after the first rain, so later waves do not continue as detached damage.
+- Implementation note: `iron-palm` now starts a 34 px active shield-jab movement, resolves a 150 ms endpoint-based dynamic hitbox, and uses `shield-jab` / `iron-shield-jab` metadata for target-bound VFX.
+- Review follow-up: `weapon-shield-jab` keyframes now multiply lunge and rotation offsets by `--weapon-facing`, so left-facing shield jab weapon motion mirrors the hit direction.
+- Presentation note: browser computed-style validation confirmed black rain has `player-ink-volley-cast`, `weapon-rain-volley`, and `black-rain-target-core`, while Iron palm has `player-iron-palm-jab`, `weapon-shield-jab`, and `iron-shield-jab-impact-core`, with no warning/error console output.

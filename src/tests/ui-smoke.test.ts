@@ -544,18 +544,17 @@ describe("town app shell", () => {
       },
       { type: "skill", skillId: "black-rain-volley" }
     );
-    const volleyHits = castRun.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "black-rain-volley"
-    );
+    const [, , finalRainAtMs] = scheduledSkillTimes(castRun, "black-rain-volley");
+    const finalRainRun = stepToElapsed(castRun, finalRainAtMs);
+    const volleyHits = skillHitEvents(finalRainRun, "black-rain-volley");
     const html = renderAppHtml({
       state,
       mode: "combat",
-      combatRun: {
-        ...castRun,
-        elapsedMs: Math.max(...volleyHits.map((event) => event.occurredAtMs))
-      }
+      combatRun: finalRainRun
     });
 
+    expect(skillHitEvents(castRun, "black-rain-volley")).toHaveLength(0);
+    expect(volleyHits).toHaveLength(6);
     expect(countOccurrences(html, 'data-skill-impact-vfx="black-rain-volley"')).toBe(6);
     expect(html).toContain('data-impact-vfx-shape="black-rain"');
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-black-rain"');
@@ -569,6 +568,8 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes player-ink-volley-cast");
     expect(stylesCss).toContain("@keyframes weapon-rain-volley");
     expect(stylesCss).toContain("@keyframes black-rain-cast-core");
+    expect(stylesCss).toContain("@keyframes black-rain-target-core");
+    expect(stylesCss).toContain("@keyframes black-rain-target-ring");
     expect(stylesCss).toContain("@keyframes black-rain-target-burst");
   });
 
@@ -633,6 +634,58 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes weapon-jab-chain");
     expect(stylesCss).toContain("@keyframes ember-sparks-cast-core");
     expect(stylesCss).toContain("@keyframes ember-jab-chain-impact-core");
+  });
+
+  it("defines dedicated iron-palm player, weapon, sparks, and shield-jab animations", () => {
+    const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 190,
+          maxHp: 190,
+          position: { x: player.x + 78 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "iron-palm" }
+    );
+    const [jabAtMs] = scheduledSkillTimes(castRun, "iron-palm");
+    const beforeJabHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, jabAtMs - 1)
+    });
+    const hitRun = stepToElapsed(castRun, jabAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: hitRun
+    });
+
+    expect(skillHitEvents(castRun, "iron-palm")).toHaveLength(0);
+    expect(skillHitEvents(hitRun, "iron-palm")).toHaveLength(1);
+    expect(beforeJabHtml).toContain('data-player-skill-move="iron-palm"');
+    expect(beforeJabHtml).not.toContain('data-skill-impact-vfx="iron-palm"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="iron-palm"')).toBe(1);
+    expect(html).toContain('data-impact-vfx-shape="iron-spark"');
+    expect(html).toContain('data-vfx-cue="iron-shield-jab"');
+    expect(html).toContain('data-hit-phase="shield-jab"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-iron-spark"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="iron-palm"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="iron-palm"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="shield-jab"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-iron-spark");
+    expect(stylesCss).toContain(".skill-impact-shape-iron-spark");
+    expect(stylesCss).toContain("@keyframes player-iron-palm-jab");
+    expect(stylesCss).toContain("@keyframes weapon-shield-jab");
+    expect(stylesCss).toContain("var(--weapon-facing, 1) * var(--weapon-skill-lunge, 24px) * 1.34");
+    expect(stylesCss).toContain("@keyframes iron-spark-cast-core");
+    expect(stylesCss).toContain("@keyframes iron-shield-jab-impact-core");
   });
 
   it("renders anvil-crash as a delayed hammer-drop slam with target sparks", () => {

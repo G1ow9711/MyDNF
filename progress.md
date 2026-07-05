@@ -2102,3 +2102,29 @@
   - Related combat/app/UI suite passed after review fix: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 262 tests.
   - Build passed after review fix: `npm run build`.
   - Final full verification passed: `npm test` passed with 13 files / 358 tests, `npm run build` passed, and `git diff --check` exited 0 with line-ending warnings only.
+
+## Task 76 Black Rain and Iron Palm Strict Combat
+- Continued under the latest clarification: character modeling can stay simpler, but combat action smoothness, model-following attacks, strict hit frames, hit feedback, player/monster action changes, and skill VFX must remain strict.
+- Used parallel read-only agents:
+  - Combat explorer flagged `black-rain-volley` as visually present but still using fake delayed damage and the generic branch.
+  - UI/CSS explorer flagged `iron-palm` as a good low-level Iron starter candidate that still needed a real shield-jab action, target-bound sparks, and facing-safe weapon motion.
+  - Review agent found an Important issue in the initial Iron implementation: left-facing `weapon-shield-jab` keyframes did not multiply lunge and rotation by `--weapon-facing`.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `black-rain-volley` to do zero cast-frame damage, schedule rain waves at 340/450/560 ms, emit per-target staged hit events, dynamically recheck enemies, and cancel pending waves on monster interruption before and after the first wave.
+  - `src/tests/combat.test.ts` also requires `iron-palm` to do zero cast-frame damage, schedule a 150 ms forward shield-jab hit frame, move the player model 34 px, and use the left-facing endpoint as the hitbox origin.
+  - `src/tests/app-integration.test.ts` requires runtime DOM metadata and target-bound VFX for both skills, including no pre-wave black-rain impact and dedicated Iron shield-jab sparks.
+  - `src/tests/ui-smoke.test.ts` requires dedicated black-rain target core/ring animations plus dedicated Iron player, weapon, cast-spark, target-impact, and facing-safe CSS hooks.
+- RED evidence:
+  - Focused tests failed before implementation because `black-rain-volley` mutated HP and emitted hit events immediately through the generic path, while `iron-palm` had no scheduled shield-jab frame.
+  - Review regression failed before the CSS fix because `weapon-shield-jab` did not preserve left-facing lunge and rotation formulas.
+- Implemented:
+  - Added `applyBlackRainVolley()` with 340/450/560 ms dynamic rain-wave hitboxes, no cast-frame HP mutation, target-bound `black-rain-fall` VFX, stationary cancelable cast state, and queue cancellation when monster damage interrupts the cast or remaining waves.
+  - Added `applyIronPalm()` with a 150 ms dynamic `shield-jab` hitbox, 34 px model-following movement, `iron-shield-jab` target VFX, dedicated `iron-spark` cast field, and left-facing endpoint support.
+  - Added dedicated CSS for black-rain target core/ring burst visuals, Iron palm player jab, shield weapon arc, cast sparks, target sparks, and facing-aware shield-jab keyframes.
+- Browser validation:
+  - DOM/CSS check on `http://127.0.0.1:5174/.codex-local/tmp/strict-combat-check.html` confirmed black-rain scheduled times `[340,450,560]`, zero cast-frame hits/damage, zero pre-wave impact nodes, six final target-bound impacts, `player-ink-volley-cast`, `weapon-rain-volley`, and `black-rain-target-core`.
+  - The same browser check confirmed Iron scheduled time `[150]`, zero cast-frame hits, active `data-player-skill-move="iron-palm"`, real HP change only at the hit frame, one target impact, `player-iron-palm-jab`, `weapon-shield-jab`, `iron-shield-jab-impact-core`, left-facing computed weapon transform, and empty warning/error console output. Temporary check page was deleted.
+- Final verification:
+  - `npm test` passed with 13 files / 364 tests.
+  - `npm run build` passed.
+  - `git diff --check` passed with line-ending warnings only.

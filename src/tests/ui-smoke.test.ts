@@ -1591,6 +1591,29 @@ describe("town app shell", () => {
     expect(html).not.toContain("settle-button");
   });
 
+  it("renders DNF-style skill-slot hotkeys with visible hotkey badge styling", () => {
+    const state = createInitialState();
+    const combatRun = createCombatRun({ ...state, player: { ...state.player, heat: 80 } }, "cinder-kiln-alley");
+    const html = renderAppHtml({ state: { ...state, player: { ...state.player, heat: 80 } }, mode: "combat", combatRun });
+
+    expect(html).toContain('data-dnf-skill-bar="true"');
+    expect(html).toContain('data-dnf-hotkey="A"');
+    expect(html).toContain('data-dnf-hotkey="H"');
+    expect(html).toContain('data-dnf-slot-index="0"');
+    expect(html).toContain('data-dnf-slot-index="5"');
+    expect(html).toContain('data-legacy-hotkey="O"');
+    expect(html).toContain('data-dnf-slot-state="ready"');
+    expect(html).toContain("A/J · 0");
+    expect(html).toContain("H/O · 70");
+    expect(stylesCss).toContain(".dnf-skill-bar");
+    expect(stylesCss).toContain(".dnf-skill-slot");
+    expect(stylesCss).toContain(".dnf-keycap");
+    expect(stylesCss).toContain(".dnf-cooldown-overlay");
+    expect(stylesCss).toContain('[data-dnf-slot-state="cooling"]');
+    expect(stylesCss).toContain('.dnf-skill-slot[data-dnf-hotkey]:not([data-dnf-hotkey=""])::before');
+    expect(stylesCss).toContain("content: attr(data-dnf-hotkey)");
+  });
+
   it("renders the playable town as the first screen instead of a landing page", () => {
     const html = renderAppHtml({ state: createInitialState(), mode: "town" });
 

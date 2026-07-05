@@ -223,7 +223,7 @@ function withPlayerAndEnemies(
 describe("combat run setup and movement", () => {
   it("creates a dungeon run and clamps belt-scroll movement from keyboard input", () => {
     const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
-    const input = mapKeyboardToCombatInput(new Set(["KeyD", "KeyW"]));
+    const input = mapKeyboardToCombatInput(new Set(["ArrowRight", "ArrowUp"]));
     const moved = stepCombat(run, input, 100);
 
     expect(run.dungeonId).toBe("cinder-kiln-alley");
@@ -233,6 +233,16 @@ describe("combat run setup and movement", () => {
     expect(moved.player.y).toBeLessThan(run.player.y);
     expect(moved.player.x).toBeLessThanOrEqual(moved.arena.width);
     expect(moved.player.y).toBeGreaterThanOrEqual(moved.arena.minY);
+  });
+
+  it("maps DNF-style skill-slot keys separately from arrow movement", () => {
+    const skillInput = mapKeyboardToCombatInput(new Set(["KeyA", "KeyF"]));
+    const movementInput = mapKeyboardToCombatInput(new Set(["ArrowLeft", "ArrowDown"]));
+
+    expect(skillInput.moveX).toBe(0);
+    expect(skillInput.moveY).toBe(0);
+    expect(skillInput.skillId).toBe("spark-combo");
+    expect(movementInput).toMatchObject({ moveX: -1, moveY: 1 });
   });
 
   it("rejects entering locked or unknown dungeons", () => {

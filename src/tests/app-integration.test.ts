@@ -739,6 +739,58 @@ describe("playable app integration actions", () => {
     expect(cast.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "skill-burst" }]));
   });
 
+  it("maps DNF-style A-H combat skill slots while arrow keys own movement", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 80)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    const html = renderAppHtml(model);
+
+    expect(html).toContain('data-dnf-skill-bar="true"');
+    expect(html).toContain('data-dnf-hotkey="A"');
+    expect(html).toContain('data-dnf-hotkey="F"');
+    expect(html).toContain('data-dnf-slot-index="0"');
+    expect(html).toContain('data-dnf-slot-index="5"');
+    expect(html).toContain('data-legacy-hotkey="U"');
+    expect(html).toContain('data-dnf-slot-state="ready"');
+    expect(html).toContain('data-combat-skill-id="spark-combo"');
+    expect(html).toContain('data-combat-skill-id="anvil-crash"');
+    expect(html).toContain('data-hotkey="U"');
+    expect(html).toContain("方向键移动");
+    expect(html).toContain("A/S/D/F/G/H 技能");
+    expect(html).not.toContain("方向键/WASD 移动");
+
+    expect(combatActionForKeyCode(model.state, "ArrowRight")).toEqual({
+      type: "combatMove",
+      moveX: 1,
+      moveY: 0,
+      dash: false
+    });
+    expect(combatActionForKeyCode(model.state, "KeyA", 80, false, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "spark-combo"
+    });
+    expect(combatActionForKeyCode(model.state, "KeyD", 80, false, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "furnace-step"
+    });
+    expect(combatActionForKeyCode(model.state, "KeyF", 80, false, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "anvil-crash"
+    });
+    expect(combatActionForKeyCode(model.state, "KeyG", 30, false, model.combatRun)).toBeUndefined();
+    expect(combatActionForKeyCode(model.state, "KeyU", 80, false, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "anvil-crash"
+    });
+  });
+
   it("queues combat input during the action buffer window instead of skipping past the lock", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

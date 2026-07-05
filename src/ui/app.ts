@@ -183,6 +183,14 @@ function combatSkillsForState(state: GameState): ClassSkillDefinition[] {
   return catalog.classSkills.filter((skill) => skill.classId === state.player.classId && skillIds.has(skill.id));
 }
 
+const dnfSkillHotkeys = ["A", "S", "D", "F", "G", "H"] as const;
+
+function combatSkillForDnfHotkey(state: GameState, hotkey: string): ClassSkillDefinition | undefined {
+  const index = dnfSkillHotkeys.indexOf(hotkey as (typeof dnfSkillHotkeys)[number]);
+
+  return index >= 0 ? combatSkillsForState(state)[index] : undefined;
+}
+
 export function combatActionForKeyCode(
   state: GameState,
   code: string,
@@ -192,13 +200,9 @@ export function combatActionForKeyCode(
 ): AppAction | undefined {
   const movementByCode: Record<string, Pick<Extract<AppAction, { type: "combatMove" }>, "moveX" | "moveY">> = {
     ArrowLeft: { moveX: -1, moveY: 0 },
-    KeyA: { moveX: -1, moveY: 0 },
     ArrowRight: { moveX: 1, moveY: 0 },
-    KeyD: { moveX: 1, moveY: 0 },
     ArrowUp: { moveX: 0, moveY: -1 },
-    KeyW: { moveX: 0, moveY: -1 },
-    ArrowDown: { moveX: 0, moveY: 1 },
-    KeyS: { moveX: 0, moveY: 1 }
+    ArrowDown: { moveX: 0, moveY: 1 }
   };
   const movement = movementByCode[code];
 
@@ -218,6 +222,14 @@ export function combatActionForKeyCode(
     return { type: "combatAction", action: "backstep" };
   }
 
+  const dnfKeyByCode: Record<string, string> = {
+    KeyA: "A",
+    KeyS: "S",
+    KeyD: "D",
+    KeyF: "F",
+    KeyG: "G",
+    KeyH: "H"
+  };
   const keyByCode: Record<string, string> = {
     KeyL: "L",
     KeyU: "U",
@@ -225,16 +237,15 @@ export function combatActionForKeyCode(
     KeyO: "O",
     Space: "Space"
   };
+  const dnfSkill = combatSkillForDnfHotkey(state, dnfKeyByCode[code] ?? "");
   const key = keyByCode[code];
+  const skill = dnfSkill ?? (key ? combatSkillsForState(state).find((item) => item.key === key) : undefined);
 
-  if (!key) {
+  if (!skill) {
     return undefined;
   }
 
-  const skill = combatSkillsForState(state).find((item) => item.key === key);
-
   if (
-    !skill ||
     (resourceValue !== undefined && resourceValue < skill.resourceCost) ||
     (run !== undefined && skillCooldownRemaining(run, skill.id) > 0)
   ) {
@@ -1125,18 +1136,38 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         ? "前往首领房"
         : roomGate.state === "complete"
           ? "离开副本"
-          : "前往下一房";
+        : "前往下一房";
   const doorStatus = `<div class="door-status-button" data-door-state="${roomGate.state}" data-room-gate-state="${roomGate.state}">${doorStatusLabel}</div>`;
-  const skillButtons = combatSkillsForState(state)
-    .map((skill) => {
+  const availableCombatSkills = combatSkillsForState(state);
+  const renderSkillButton = (skill: ClassSkillDefinition | undefined, dnfHotkey: string, slotIndex: number): string => {
+    if (!skill) {
+      return `<button class="dnf-skill-slot is-empty" data-dnf-hotkey="${dnfHotkey}" data-dnf-slot-index="${slotIndex}" data-dnf-slot-state="empty" disabled><span class="dnf-keycap">${dnfHotkey}</span><span>空槽</span></button>`;
+    }
+
       const cooldownRemaining = skillCooldownRemaining(run, skill.id);
       const cooldownLabel = cooldownRemaining > 0 ? ` · 冷却 ${(cooldownRemaining / 1000).toFixed(1)}s` : "";
       const cooldownState = cooldownRemaining > 0 ? "cooling" : "ready";
       const disabled = roomCleared || roomFailed || run.player.resource.current < skill.resourceCost || cooldownRemaining > 0;
+      const hotkeyLabel = dnfHotkey ? `${dnfHotkey}/${skill.key}` : skill.key;
+      const slotState = cooldownRemaining > 0 ? "cooling" : disabled ? "locked" : "ready";
+      const slotIndexAttribute = slotIndex >= 0 ? String(slotIndex) : "";
+      const dnfClass = dnfHotkey ? "dnf-skill-slot" : "legacy-skill-slot";
 
-      return `<button data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-resource-id="${run.player.resource.id}" data-skill-cost="${skill.resourceCost}" data-skill-cooldown-remaining="${cooldownRemaining}" data-cooldown-state="${cooldownState}" ${disabled ? "disabled" : ""}>${skill.displayName}<span>${skill.key} · ${skill.resourceCost}${cooldownLabel}</span></button>`;
-    })
+      return `<button class="${dnfClass}" data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-dnf-hotkey="${dnfHotkey}" data-dnf-slot-index="${slotIndexAttribute}" data-legacy-hotkey="${skill.key}" data-dnf-slot-state="${slotState}" data-resource-id="${run.player.resource.id}" data-skill-cost="${skill.resourceCost}" data-skill-cooldown-remaining="${cooldownRemaining}" data-cooldown-state="${cooldownState}" ${disabled ? "disabled" : ""}>${dnfHotkey ? `<span class="dnf-keycap">${dnfHotkey}</span>` : ""}<span class="skill-slot-name">${skill.displayName}</span><span class="skill-slot-meta">${hotkeyLabel} · ${skill.resourceCost}${cooldownLabel}</span><span class="dnf-cooldown-overlay" aria-hidden="true"></span></button>`;
+  };
+  const dnfSkillButtons = dnfSkillHotkeys
+    .map((hotkey, index) => renderSkillButton(availableCombatSkills[index], hotkey, index))
     .join("");
+  const legacySkillButtons = availableCombatSkills
+    .slice(dnfSkillHotkeys.length)
+    .map((skill) => renderSkillButton(skill, "", -1))
+    .join("");
+  const skillButtons = `
+    <div class="dnf-skill-bar" data-dnf-skill-bar="true" data-dnf-slot-count="${dnfSkillHotkeys.length}">
+      ${dnfSkillButtons}
+    </div>
+    ${legacySkillButtons ? `<div class="legacy-skill-bar" data-legacy-skill-bar="true">${legacySkillButtons}</div>` : ""}
+  `;
   const enemies = run.enemies
     .map((enemy) => `<li>${enemy.displayName} HP ${enemy.hp}/${enemy.maxHp} · 护甲 ${enemy.armor}</li>`)
     .join("");
@@ -1192,7 +1223,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
           : ""
       }
       <div class="combat-actions">
-        <div class="combat-control-hint">方向键/WASD 移动 · Shift 冲刺 · X/J 轻击 · Z/K 重击 · C 后跳</div>
+        <div class="combat-control-hint">方向键移动 · Shift 冲刺 · X/J 轻击 · Z/K 重击 · A/S/D/F/G/H 技能 · C 后跳</div>
         <button data-combat-action="light" data-hotkey="J" ${roomCleared || roomFailed ? "disabled" : ""}>轻击<span>X/J</span></button>
         <button data-combat-action="heavy" data-hotkey="K" ${roomCleared || roomFailed ? "disabled" : ""}>重击<span>Z/K</span></button>
         <button data-combat-action="backstep" data-hotkey="C" ${roomCleared || roomFailed ? "disabled" : ""}>后跳<span>C</span></button>

@@ -7,6 +7,15 @@ export interface CombatInput {
   skillId?: string;
 }
 
+const dnfSkillSlots: Array<[string, string]> = [
+  ["KeyA", "spark-combo"],
+  ["KeyS", "cinder-uppercut"],
+  ["KeyD", "furnace-step"],
+  ["KeyF", "anvil-crash"],
+  ["KeyG", "heat-bloom"],
+  ["KeyH", "meteor-knuckle"]
+];
+
 function axis(positive: boolean, negative: boolean): number {
   if (positive === negative) {
     return 0;
@@ -17,8 +26,8 @@ function axis(positive: boolean, negative: boolean): number {
 
 export function mapKeyboardToCombatInput(keys: ReadonlySet<string>): CombatInput {
   const input: CombatInput = {
-    moveX: axis(keys.has("KeyD"), keys.has("KeyA")),
-    moveY: axis(keys.has("KeyS"), keys.has("KeyW"))
+    moveX: axis(keys.has("ArrowRight"), keys.has("ArrowLeft")),
+    moveY: axis(keys.has("ArrowDown"), keys.has("ArrowUp"))
   };
 
   if (keys.has("KeyJ")) {
@@ -34,6 +43,7 @@ export function mapKeyboardToCombatInput(keys: ReadonlySet<string>): CombatInput
   }
 
   const skillKeys: Array<[string, string]> = [
+    ...dnfSkillSlots,
     ["KeyU", "anvil-crash"],
     ["KeyI", "heat-bloom"],
     ["KeyO", "meteor-knuckle"],

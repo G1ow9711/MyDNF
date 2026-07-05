@@ -133,6 +133,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current Iron ultimate progress: `earth-furnace-breaker` now uses a strict 260 ms earth-crack and 410 ms furnace-eruption timeline, model-following Iron charge movement, dynamic hit-frame target recheck, monster-interruption cancellation, guard-break/knockdown eruption, target-bound forge-quake impact VFX, dedicated player/weapon/cast/target animations, and ultimate forge-quake screen flash.
 - Current black-rain strictness progress: `black-rain-volley` no longer mutates HP or emits impact VFX at cast time; it schedules 340/450/560 ms dynamic rain-wave hit frames, cancels pending waves when interrupted, and renders dedicated cast, weapon, and target core/ring/burst animations only on real impact frames.
 - Current Iron starter progress: `iron-palm` now uses a strict 150 ms forward shield-jab timeline, model-following movement, endpoint-based dynamic hitbox, left-facing weapon mirroring, target-bound iron-spark impact VFX, and interruption-safe scheduled damage.
+- Current DNF hotbar progress: combat movement now prioritizes arrow keys, while `A/S/D/F/G/H` map to the first six current-class skill slots with a fixed six-slot UI bar, visible hotkey badges, slot state hooks, and preserved legacy `L/U/I/O/Space` skill mappings.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

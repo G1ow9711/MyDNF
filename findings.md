@@ -477,3 +477,12 @@
 - Implementation note: `iron-palm` now starts a 34 px active shield-jab movement, resolves a 150 ms endpoint-based dynamic hitbox, and uses `shield-jab` / `iron-shield-jab` metadata for target-bound VFX.
 - Review follow-up: `weapon-shield-jab` keyframes now multiply lunge and rotation offsets by `--weapon-facing`, so left-facing shield jab weapon motion mirrors the hit direction.
 - Presentation note: browser computed-style validation confirmed black rain has `player-ink-volley-cast`, `weapon-rain-volley`, and `black-rain-target-core`, while Iron palm has `player-iron-palm-jab`, `weapon-shield-jab`, and `iron-shield-jab-impact-core`, with no warning/error console output.
+
+## DNF-Style Skill Hotbar Findings
+- Reference note: DFO-style keyboard play uses arrow-key movement plus skill slots on `A/S/D/F/G/H`, while `X` is the default attack key. This supports shifting this prototype away from WASD movement conflicts and toward a DNF-like six-slot combat hotbar.
+- Read-only input audit found `combatActionForKeyCode()` used `A/S/D/W` as movement before skill matching, so `A/S/D` could not be real skill hotkeys. It also found `J/K` skill labels were misleading because those keys already trigger light/heavy attacks.
+- Read-only UI audit recommended a dedicated `data-dnf-skill-bar="true"` with fixed six slots, `data-dnf-hotkey`, `data-dnf-slot-index`, `data-legacy-hotkey`, and `data-dnf-slot-state`, while keeping legacy `U/I/O/L/Space` mappings working.
+- RED evidence: focused App/Input/UI tests failed because arrow keys were not recognized by the low-level keyboard mapper, `KeyA` still moved instead of casting a skill, and rendered skill buttons had no DNF hotkey slot attributes or CSS badge hooks.
+- Implementation note: direction movement now belongs to arrow keys, and `A/S/D/F/G/H` map to the first six current-class combat skills. Legacy `L/U/I/O/Space` skill keys still map to their catalog skills, so existing keyboard/button workflows remain available.
+- Presentation note: combat UI now renders a fixed six-slot DNF hotbar with visible key badges, slot index/state, old key labels such as `F/U`, and cooling/locked/empty styling hooks.
+- Browser validation note: in the live in-app browser, the DNF bar rendered one six-slot bar, slot badges included computed `F` pseudo content, the old WASD movement hint disappeared, pressing `A` after focusing the combat scene triggered the current Ink class `ink-shot` skill VFX, and console warn/error logs were empty.

@@ -2128,3 +2128,32 @@
   - `npm test` passed with 13 files / 364 tests.
   - `npm run build` passed.
   - `git diff --check` passed with line-ending warnings only.
+
+## Task 77 DNF-Style Six-Slot Combat Hotbar
+- Continued toward the active goal: stricter DNF-like keyboard control and local PC gameplay acceptance, while preserving the existing playable prototype.
+- External reference pass:
+  - DFO-style references show arrow-key movement and skill hotkeys on `A/S/D/F/G/H`, with `X` as default attack. This became the input target for the next slice.
+- Used parallel read-only agents:
+  - Input explorer found `A/S/D/W` were consumed as movement before skill matching, so `A/S/D` could not be real skills; it also flagged that `J/K` skill labels were not true keyboard skills because those keys trigger light/heavy.
+  - UI explorer recommended a dedicated fixed six-slot DNF bar with slot index, DNF hotkey, legacy hotkey, state, and cooling hooks while retaining old `U/I/O/L/Space` key paths.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires low-level keyboard mapping to use arrow keys for movement and treat `A/F` as DNF skill slots rather than movement axes.
+  - `src/tests/app-integration.test.ts` requires App-level `A/S/D/F/G/H` mappings for current-class skills, arrow movement, preserved `KeyU` legacy casting, resource/cooldown filtering, and DNF bar DOM attributes.
+  - `src/tests/ui-smoke.test.ts` requires a fixed DNF skill bar, slot index/state/legacy-key attributes, visible hotkey text, and CSS hooks for key badges and cooldown overlays.
+- RED evidence:
+  - Focused tests failed before implementation because arrow keys were not recognized in `mapKeyboardToCombatInput()`, `KeyA` still produced movement, and the rendered skill buttons lacked `data-dnf-hotkey` / bar CSS hooks.
+- Implemented:
+  - `src/game/input.ts` now maps movement to arrow keys and default DNF slot keys `A/S/D/F/G/H` to the Ember six-skill baseline for low-level input.
+  - `src/ui/app.ts` now maps `A/S/D/F/G/H` to the first six skills for the selected class, while preserving legacy `L/U/I/O/Space` mappings through the same resource and cooldown gates.
+  - Combat UI now renders a fixed `data-dnf-skill-bar="true"` six-slot bar with `data-dnf-hotkey`, `data-dnf-slot-index`, `data-legacy-hotkey`, `data-dnf-slot-state`, and old `data-hotkey` attributes.
+  - `src/styles.css` now styles `.dnf-skill-bar`, `.dnf-skill-slot`, `.dnf-keycap`, `.dnf-cooldown-overlay`, and cooling/locked/empty slot states.
+- Browser validation:
+  - In-app browser on `http://127.0.0.1:5174/` rendered one DNF bar with six slots, slot badges, no old `方向键/WASD 移动` hint, and computed `F` keycap pseudo content.
+  - Current live browser save was Ink class, so the visible slots mapped to Ink skills; locked resource states were visible on higher-cost slots.
+  - After focusing the combat scene, pressing `A` triggered `ink-shot` player skill VFX. Console warn/error logs were empty.
+  - The same browser save reached defeat quickly, so arrow movement browser proof was not reliable; arrow movement is covered by focused automated tests.
+- Final verification:
+  - Focused DNF hotbar suite passed: `npm test -- src/tests/app-integration.test.ts src/tests/combat.test.ts src/tests/ui-smoke.test.ts -t "DNF-style|clamps belt-scroll movement"`, 4 tests.
+  - `npm test` passed with 13 files / 367 tests.
+  - `npm run build` passed.
+  - `git diff --check` passed with line-ending warnings only.

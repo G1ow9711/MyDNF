@@ -1670,6 +1670,60 @@ describe("combat actions and impact feel", () => {
     expect((landed.player as { airAttackUsed?: boolean }).airAttackUsed).toBe(false);
   });
 
+  it("lets airborne heavy attack slam on a strict delayed hit frame with dedicated VFX", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1 },
+      [{ x: 366, y: 340 }]
+    );
+    const jumped = performAction(run, { type: "jump" });
+    const midair = stepCombat(jumped, {}, 180);
+    const yBefore = midair.player.y;
+    const airWindup = performAction(midair, { type: "heavy" });
+    const immediateAirHits = airWindup.events.filter(
+      (event): event is CombatHitEvent =>
+        event.kind === "hit" && event.action === "heavy" && (event as { hitPhase?: string }).hitPhase === "air-heavy-slam"
+    );
+    const airSlam = stepCombat(airWindup, {}, 120);
+    const airHits = airSlam.events.filter(
+      (event): event is CombatHitEvent =>
+        event.kind === "hit" && event.action === "heavy" && (event as { hitPhase?: string }).hitPhase === "air-heavy-slam"
+    );
+    const target = airSlam.enemies[0];
+    const secondAttempt = performAction(airWindup, { type: "heavy" });
+    const scheduledAirHits = secondAttempt.scheduledEnemyHitEffects.filter((effect) => (effect as { hitPhase?: string }).hitPhase === "air-heavy-slam");
+
+    expect(midair.player.airState).toBe("jumping");
+    expect(immediateAirHits).toHaveLength(0);
+    expect(airWindup.enemies[0].hp).toBe(midair.enemies[0].hp);
+    expect(airWindup.scheduledEnemyHitEffects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "heavy",
+          applyAtMs: airWindup.elapsedMs + 120,
+          hitPhase: "air-heavy-slam",
+          vfxCue: "air-heavy-impact"
+        })
+      ])
+    );
+    expect(airHits).toHaveLength(1);
+    expect(airHits[0]).toMatchObject({
+      targetId: target.id,
+      inputToHitMs: 120,
+      hitPhase: "air-heavy-slam",
+      vfxCue: "air-heavy-impact",
+      actionTags: expect.arrayContaining(["slam", "knockdown"])
+    });
+    expect(airSlam.enemies[0].hp).toBeLessThan(midair.enemies[0].hp);
+    expect(airSlam.enemies[0].downed).toBe(true);
+    expect(airSlam.player.y).toBe(yBefore);
+    expect(airSlam.player.airState).toBe("jumping");
+    expect((airSlam.player as { airAttackUsed?: boolean; airAttackType?: string }).airAttackUsed).toBe(true);
+    expect((airSlam.player as { airAttackUsed?: boolean; airAttackType?: string }).airAttackType).toBe("heavy");
+    expect(scheduledAirHits).toHaveLength(1);
+    expect(secondAttempt.player.bufferedAction).toBeUndefined();
+  });
+
   it("locks airborne light movement and facing so the hitbox follows the attacking model", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
@@ -1689,6 +1743,68 @@ describe("combat actions and impact feel", () => {
     expect(movedDuringWindup.player.facing).toBe(airWindup.player.facing);
     expect(airHit?.casterPosition).toEqual({ x: airWindup.player.x, y: airWindup.player.y });
     expect(airHit?.casterFacing).toBe(airWindup.player.facing);
+  });
+
+  it("locks airborne heavy movement and rechecks targets at the slam frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1 },
+      [{ x: 510, y: 340 }]
+    );
+    const midair = stepCombat(performAction(run, { type: "jump" }), {}, 180);
+    const airWindup = performAction(midair, { type: "heavy" });
+    const movedDuringWindup = stepCombat(airWindup, { moveX: -1, moveY: 1 }, 119);
+    const enteredBeforeHit = {
+      ...movedDuringWindup,
+      enemies: movedDuringWindup.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: { x: 366, y: 340 }
+            }
+          : enemy
+      )
+    };
+    const hitFrame = stepCombat(enteredBeforeHit, { moveX: -1, moveY: 1 }, 1);
+    const airHit = hitFrame.events.find(
+      (event): event is CombatHitEvent =>
+        event.kind === "hit" && event.action === "heavy" && (event as { hitPhase?: string }).hitPhase === "air-heavy-slam"
+    );
+    const inRangeWindup = performAction(
+      stepCombat(
+        performAction(
+          withPlayerAndEnemies(
+            createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+            { x: 280, y: 340, facing: 1 },
+            [{ x: 366, y: 340 }]
+          ),
+          { type: "jump" }
+        ),
+        {},
+        180
+      ),
+      { type: "heavy" }
+    );
+    const leftBeforeHit = {
+      ...inRangeWindup,
+      enemies: inRangeWindup.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: { x: 510, y: 340 }
+            }
+          : enemy
+      )
+    };
+    const leftHit = stepCombat(leftBeforeHit, {}, 120);
+
+    expect(movedDuringWindup.player.x).toBe(airWindup.player.x);
+    expect(movedDuringWindup.player.y).toBe(airWindup.player.y);
+    expect(movedDuringWindup.player.facing).toBe(airWindup.player.facing);
+    expect(airHit?.casterPosition).toEqual({ x: airWindup.player.x, y: airWindup.player.y });
+    expect(airHit?.casterFacing).toBe(airWindup.player.facing);
+    expect(leftHit.events.some((event) => event.kind === "hit" && event.action === "heavy")).toBe(false);
+    expect(leftHit.events).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "miss", action: "heavy" })]));
   });
 
   it("rechecks airborne light targets at the hit frame instead of cast time", () => {
@@ -1788,6 +1904,40 @@ describe("combat actions and impact feel", () => {
     const resolved = stepCombat(interrupted, {}, 65);
 
     expect(resolved.events.some((event) => event.kind === "hit" && event.action === "light")).toBe(false);
+    expect(resolved.enemies[0].hp).toBe(airWindup.enemies[0].hp);
+  });
+
+  it("does not queue airborne heavy near landing and cancels it when interrupted", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1 },
+      [{ x: 366, y: 340 }]
+    );
+    const jumped = performAction(run, { type: "jump" });
+    const lateAir = stepCombat(jumped, {}, 390);
+    const attemptedLate = performAction(lateAir, { type: "heavy" });
+    const landing = stepCombat(jumped, {}, 500);
+    const attemptedLanding = performAction(landing, { type: "heavy" });
+    const midair = stepCombat(performAction(run, { type: "jump" }), {}, 180);
+    const airWindup = performAction(midair, { type: "heavy" });
+    const interrupted = {
+      ...airWindup,
+      player: {
+        ...airWindup.player,
+        hurtLockUntilMs: airWindup.elapsedMs + 260
+      }
+    };
+    const resolved = stepCombat(interrupted, {}, 120);
+
+    expect(lateAir.player.airState).toBe("jumping");
+    expect(attemptedLate).toBe(lateAir);
+    expect(attemptedLate.scheduledEnemyHitEffects.filter((effect) => (effect as { hitPhase?: string }).hitPhase === "air-heavy-slam")).toHaveLength(0);
+    expect(attemptedLate.player.bufferedAction).toBeUndefined();
+    expect(landing.player.airState).toBe("landing");
+    expect(attemptedLanding).toBe(landing);
+    expect(attemptedLanding.player.bufferedAction).toBeUndefined();
+    expect(attemptedLanding.events.some((event) => event.kind === "hit" && event.action === "heavy")).toBe(false);
+    expect(resolved.events.some((event) => event.kind === "hit" && event.action === "heavy")).toBe(false);
     expect(resolved.enemies[0].hp).toBe(airWindup.enemies[0].hp);
   });
 

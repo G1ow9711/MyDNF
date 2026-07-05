@@ -1682,6 +1682,52 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes weapon-air-light-slash");
   });
 
+  it("renders DNF-style airborne heavy slam with player, weapon, target, and impact hooks", () => {
+    const state = createInitialState();
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const readyRun = withSingleReadyEnemy(
+      {
+        ...baseRun,
+        player: {
+          ...baseRun.player,
+          x: 260,
+          y: 340,
+          facing: 1,
+          actionLockUntilMs: 0,
+          hurtLockUntilMs: 0
+        }
+      },
+      {
+        position: { x: 348, y: 340 },
+        nextAttackAtMs: 9999
+      }
+    );
+    const jumped = performAction(readyRun, { type: "jump" });
+    const midair = stepCombat(jumped, {}, 180);
+    const airWindup = performAction(midair, { type: "heavy" });
+    const airSlam = stepCombat(airWindup, {}, 120);
+    const html = renderAppHtml({ state, mode: "combat", combatRun: airSlam });
+
+    expect(html).toContain('data-player-motion="air-heavy"');
+    expect(html).toContain('data-player-air-state="jumping"');
+    expect(html).toContain('data-player-airborne-active="true"');
+    expect(html).toContain('data-player-air-attack-used="true"');
+    expect(html).toContain('data-player-air-attack-type="heavy"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-air-heavy"');
+    expect(html).toContain('data-weapon-air-action="heavy"');
+    expect(html).toContain('data-vfx-cue="air-heavy-impact"');
+    expect(html).toContain('data-impact-air-action="heavy"');
+    expect(html).toContain('hit-impact-air-heavy');
+    expect(html).toContain('data-enemy-hit-air-action="heavy"');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="air-heavy"] .combat-player-art');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="air-heavy"] .combat-weapon');
+    expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-air-action="heavy"] .enemy-art');
+    expect(stylesCss).toContain("@keyframes player-air-heavy-slam");
+    expect(stylesCss).toContain("@keyframes weapon-air-heavy-slam");
+    expect(stylesCss).toContain("@keyframes monster-air-heavy-hit-react");
+    expect(stylesCss).toContain("@keyframes air-heavy-impact-slam");
+  });
+
   it("renders DNF-style command inputs and manual-cast reduction hooks on skill slots", () => {
     const state = createInitialState();
     const combatRun = createCombatRun({ ...state, player: { ...state.player, heat: 24 } }, "cinder-kiln-alley");

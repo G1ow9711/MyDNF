@@ -535,3 +535,12 @@
 - Review follow-up: because the scheduled air-light hitbox intentionally stores cast origin/facing, player movement and facing are frozen while `airAttackUntilMs` is active. This keeps the visible actor, weapon arc, and hitbox origin aligned instead of letting the model drift away from the pending strike.
 - Review follow-up: player hit state now overrides `air-attacking` state, so interrupted air-light renders `data-player-motion="hit"` and `data-player-state="hit"` consistently.
 - Review follow-up: the live air-light monster hit reaction selector is ordered after airborne/knockdown animation rules and scoped to alive enemies, so air-light impact can override float without masking defeated-state handling.
+
+## DNF-Style Airborne Heavy Slam Findings
+- Current user clarification keeps character/monster geometry lightweight for now, but treats smooth action flow, model-following attacks, strict hit frames, hit feedback, and player/monster VFX as hard acceptance criteria.
+- Read-only combat audit found jump lock prevented midair heavy from becoming an airborne action. Before this slice, `heavy` during jump either returned the original run or buffered into the grounded launcher at landing.
+- Read-only UI/CSS audit found every airborne-action presentation hook was hard-coded to `air-light`, so a second air action needed an explicit `airAttackType` and separate hit-phase mapping.
+- Combat note: airborne heavy now schedules a 120 ms dynamic `air-heavy-slam` hitbox, freezes movement/facing through the 300 ms action window, rechecks targets at the slam frame, and uses `slam/knockdown` tags so the monster model and state change together.
+- Cancellation note: the scheduled airborne-hit guard now covers both `air-light` and `air-heavy-slam`, so late landing, hurt lock, or bound lock prevents detached damage.
+- Presentation note: browser computed-style validation confirmed `player-air-heavy-slam`, `weapon-air-heavy-slam`, `monster-air-heavy-hit-react`, and `air-heavy-impact-slam`, with `data-player-air-attack-type="heavy"` and empty warning/error console output.
+- Review follow-up: heavy input during landing lock must not buffer into a grounded heavy attack. `performAction()` now routes heavy through the air-heavy guard for any non-grounded air state, producing a no-op when the slam window is no longer valid.

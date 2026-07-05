@@ -24,6 +24,7 @@ export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "t
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
 export type CombatHitPhase =
   | "air-light"
+  | "air-heavy-slam"
   | "fall"
   | "impact"
   | "rain"
@@ -55,6 +56,7 @@ export type CombatHitPhase =
   | "prism-field-burst";
 export type CombatVfxCue =
   | "air-light-slash"
+  | "air-heavy-impact"
   | "meteor-fall"
   | "meteor-impact"
   | "glass-rain-fall"
@@ -180,6 +182,7 @@ export interface CombatPlayer {
   airborneUntilMs: number;
   landingUntilMs: number;
   airAttackUsed: boolean;
+  airAttackType: "none" | "light" | "heavy";
   airAttackStartedAtMs: number;
   airAttackUntilMs: number;
   shieldUntilMs: number;
@@ -574,6 +577,8 @@ const jumpLandingLockMs = 80;
 const jumpActionLockMs = jumpAirborneMs + jumpLandingLockMs;
 const airLightInputToHitMs = 65;
 const airLightActionMs = 260;
+const airHeavyInputToHitMs = 120;
+const airHeavyActionMs = 300;
 const taotieForgeCollapseSkillId: CombatBossPhaseSkillId = "taotie-forge-collapse";
 const taotieForgeCollapseTelegraphMs = 620;
 const taotieForgeCollapseHazardGapMs = 140;
@@ -653,6 +658,7 @@ function clearCompletedPlayerAirState(player: CombatPlayer, elapsedMs: number): 
     landingUntilMs: 0,
     jumpStartedAtMs: 0,
     airAttackUsed: false,
+    airAttackType: "none",
     airAttackStartedAtMs: 0,
     airAttackUntilMs: 0
   };
@@ -3441,6 +3447,7 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       airborneUntilMs: 0,
       landingUntilMs: 0,
       airAttackUsed: false,
+      airAttackType: "none",
       airAttackStartedAtMs: 0,
       airAttackUntilMs: 0,
       shieldUntilMs: 0,
@@ -4244,7 +4251,7 @@ function applyScheduledPlayerHitboxEffect(
   }
 
   if (
-    effect.hitPhase === "air-light" &&
+    (effect.hitPhase === "air-light" || effect.hitPhase === "air-heavy-slam") &&
     (effect.applyAtMs >= run.player.airborneUntilMs || effect.applyAtMs < run.player.hurtLockUntilMs || effect.applyAtMs < run.player.boundUntilMs)
   ) {
     return run;
@@ -4949,6 +4956,14 @@ function canStartAirLight(run: CombatRun): boolean {
   );
 }
 
+function canStartAirHeavy(run: CombatRun): boolean {
+  return (
+    playerAirStateAt(run.player, run.elapsedMs) === "jumping" &&
+    !run.player.airAttackUsed &&
+    run.elapsedMs + airHeavyInputToHitMs < run.player.airborneUntilMs
+  );
+}
+
 function performAirLightAction(run: CombatRun): CombatRun {
   if (!canStartAirLight(run)) {
     return run;
@@ -4988,8 +5003,59 @@ function performAirLightAction(run: CombatRun): CombatRun {
       actionLockUntilMs: Math.max(run.player.actionLockUntilMs, run.elapsedMs + airLightActionMs),
       cancelWindowUntilMs: 0,
       airAttackUsed: true,
+      airAttackType: "light",
       airAttackStartedAtMs: run.elapsedMs,
       airAttackUntilMs: run.elapsedMs + airLightActionMs,
+      bufferedAction: undefined,
+      bufferedActionQueuedAtMs: undefined,
+      bufferedActionExecuteAtMs: undefined
+    }
+  };
+}
+
+function performAirHeavyAction(run: CombatRun): CombatRun {
+  if (!canStartAirHeavy(run)) {
+    return run;
+  }
+
+  const origin = samplePlayerPosition(run.player, run.elapsedMs);
+  const scheduledRun = schedulePlayerHitboxEffect(
+    run,
+    {
+      action: "heavy",
+      rangeX: 170,
+      laneRange: 66,
+      targetCap: 2,
+      frontOnly: true,
+      damage: playerDamage(run, 56),
+      hitstopMs: 86,
+      knockback: 28,
+      juggle: false,
+      inputToHitMs: airHeavyInputToHitMs,
+      canceledFromCombo: false,
+      actionTags: ["slam", "knockdown"]
+    },
+    origin,
+    run.player.facing,
+    {
+      id: `air-heavy-${run.elapsedMs}`,
+      hitPhase: "air-heavy-slam",
+      vfxCue: "air-heavy-impact",
+      vfxWindowMs: 320
+    }
+  );
+
+  return {
+    ...scheduledRun,
+    player: {
+      ...scheduledRun.player,
+      comboStep: 0,
+      actionLockUntilMs: Math.max(run.player.actionLockUntilMs, run.elapsedMs + airHeavyActionMs),
+      cancelWindowUntilMs: 0,
+      airAttackUsed: true,
+      airAttackType: "heavy",
+      airAttackStartedAtMs: run.elapsedMs,
+      airAttackUntilMs: run.elapsedMs + airHeavyActionMs,
       bufferedAction: undefined,
       bufferedActionQueuedAtMs: undefined,
       bufferedActionExecuteAtMs: undefined
@@ -5012,6 +5078,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (action.type === "light" && playerAirStateAt(run.player, run.elapsedMs) === "jumping") {
     return performAirLightAction(run);
+  }
+
+  if (action.type === "heavy" && playerAirStateAt(run.player, run.elapsedMs) !== "grounded") {
+    return performAirHeavyAction(run);
   }
 
   const locked = run.elapsedMs < run.player.actionLockUntilMs;
@@ -5097,6 +5167,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         airborneUntilMs: run.elapsedMs + jumpAirborneMs,
         landingUntilMs: run.elapsedMs + jumpActionLockMs,
         airAttackUsed: false,
+        airAttackType: "none",
         airAttackStartedAtMs: 0,
         airAttackUntilMs: 0,
         comboStep: 0,
@@ -5370,6 +5441,7 @@ export function finishRoom(run: CombatRun): CombatRun {
       airborneUntilMs: 0,
       landingUntilMs: 0,
       airAttackUsed: false,
+      airAttackType: "none",
       airAttackStartedAtMs: 0,
       airAttackUntilMs: 0
     },

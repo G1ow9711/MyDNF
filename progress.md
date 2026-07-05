@@ -2288,3 +2288,32 @@
   - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 301 tests.
   - Full suite passed: `npm test`, 13 files / 397 tests.
   - Production build passed: `npm run build`.
+
+## Task 82 DNF-Style Airborne Heavy Slam
+- Continued under the user's latest clarification: character models can stay simpler for this playable phase, but combat motion smoothness, strict hit frames, model-following attacks, hit feedback, skill VFX, and monster VFX remain strict.
+- Used parallel read-only agents:
+  - Combat audit confirmed airborne `heavy` was not special-cased, so it was swallowed by jump lock or buffered into a grounded launcher after landing.
+  - UI/CSS audit confirmed all airborne presentation hooks only recognized `air-light`, so a second airborne action needed an explicit air-attack type.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires airborne heavy to schedule a strict 120 ms `air-heavy-slam` hit frame, not mutate at input time, freeze movement/facing, recheck targets at the hit frame, force knockdown, reject late near-landing input, and cancel on interruption.
+  - `src/tests/app-integration.test.ts` requires the jump-lock reducer path to execute airborne heavy and render `air-heavy` motion plus `air-heavy-impact` VFX.
+  - `src/tests/ui-smoke.test.ts` requires player, weapon, enemy hit reaction, impact class, and keyframes for airborne heavy.
+- RED evidence:
+  - Focused tests failed before implementation because no scheduled `air-heavy-slam` effect existed, movement still drifted during windup, late heavy buffered to landing, and UI still rendered `jump`.
+- Implemented:
+  - Added `airAttackType` and a one-per-jump `performAirHeavyAction()` using a 120 ms dynamic hitbox and 300 ms air-attack lock.
+  - Air-heavy uses `hitPhase: "air-heavy-slam"`, `vfxCue: "air-heavy-impact"`, `slam/knockdown` action tags, larger hitstop, and target recheck at the slam frame.
+  - Shared airborne scheduled-hit cancellation now covers both `air-light` and `air-heavy-slam`, preventing late landing or interrupted detached damage.
+  - UI now maps air hit phases to light/heavy air actions, exposes `data-player-air-attack-type`, `data-weapon-air-action="heavy"`, `data-enemy-hit-air-action="heavy"`, and `hit-impact-air-heavy`.
+  - CSS now defines dedicated `player-air-heavy-slam`, `weapon-air-heavy-slam`, `monster-air-heavy-hit-react`, and `air-heavy-impact-slam` animations.
+- Verification:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "airborne heavy|air heavy"`, 5 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 306 tests.
+  - Full suite passed: `npm test`, 13 files / 402 tests.
+  - Production build passed: `npm run build`.
+  - Browser DOM/CSS validation on `http://127.0.0.1:5177/.codex-local/tmp/air-heavy-check.html` confirmed `air-heavy` player motion, heavy air action metadata, `air-heavy-impact` cue, animations `player-air-heavy-slam`, `weapon-air-heavy-slam`, `monster-air-heavy-hit-react`, `air-heavy-impact-slam`, and empty warn/error console output. Temporary check page was deleted and the temporary dev server was stopped.
+- Code review follow-up:
+  - Read-only review found one Critical issue: pressing heavy during the 480-560 ms landing lock could still buffer into a grounded heavy attack.
+  - Added a landing-lock regression to the airborne heavy cancellation test.
+  - Fixed heavy input so any non-grounded air state routes through `performAirHeavyAction()` and returns no-op when the slam can no longer start, preventing landing-buffered ground heavy.
+  - Review regression passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "airborne heavy|air heavy|jump state"`, 6 tests.

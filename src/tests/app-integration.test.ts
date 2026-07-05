@@ -1291,6 +1291,97 @@ describe("playable app integration actions", () => {
     expect(airLightHtml).toContain('class="combat-player-art actor-model actor-model-air-light"');
   });
 
+  it("casts airborne heavy slam from the jump lock with dedicated motion and impact hooks", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: selectBaseClass(createInitialState(), "liuli-blademage")
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: {
+          ...model.combatRun.player,
+          x: 260,
+          y: 340,
+          facing: 1
+        },
+        enemies: model.combatRun.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 348, y: 340 },
+                nextAttackAtMs: 9999
+              }
+            : enemy
+        )
+      }
+    };
+
+    model = reduceAppAction(model, { type: "combatAction", action: "jump" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: stepCombat(model.combatRun, {}, 180)
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "heavy" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    expect(model.combatRun.scheduledEnemyHitEffects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "heavy",
+          applyAtMs: model.combatRun.elapsedMs + 120,
+          hitPhase: "air-heavy-slam",
+          vfxCue: "air-heavy-impact"
+        })
+      ])
+    );
+
+    model = {
+      ...model,
+      combatRun: stepCombat(model.combatRun, {}, 120)
+    };
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const airHeavyHit = model.combatRun.events.find(
+      (event): event is CombatHitEvent =>
+        event.kind === "hit" && event.action === "heavy" && (event as { hitPhase?: string }).hitPhase === "air-heavy-slam"
+    );
+    const airHeavyHtml = renderAppHtml(model);
+
+    expect(airHeavyHit).toMatchObject({
+      inputToHitMs: 120,
+      vfxCue: "air-heavy-impact",
+      actionTags: expect.arrayContaining(["slam", "knockdown"])
+    });
+    expect(airHeavyHtml).toContain('data-player-motion="air-heavy"');
+    expect(airHeavyHtml).toContain('data-player-air-state="jumping"');
+    expect(airHeavyHtml).toContain('data-player-air-attack-used="true"');
+    expect(airHeavyHtml).toContain('data-player-air-attack-type="heavy"');
+    expect(airHeavyHtml).toContain('class="combat-player-art actor-model actor-model-air-heavy"');
+    expect(airHeavyHtml).toContain('data-vfx-cue="air-heavy-impact"');
+    expect(airHeavyHtml).toContain('hit-impact-air-heavy');
+  });
+
   it("renders player hit state over airborne light attack state when interrupted", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

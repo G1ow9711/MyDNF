@@ -4,6 +4,7 @@ import type { CombatInput } from "./input";
 import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
 
 export type EnemyKind = "trash" | "elite" | "boss";
+export type EnemyAttackProfileId = "ash-ember-spit" | "ash-crawler-burst" | "zheng-shockwave" | "taotie-flame-breath";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "backstep" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
@@ -31,6 +32,7 @@ export type CombatVfxCue =
   | "mountain-crack-impact";
 export type CombatEnemyVfxCue =
   | "ash-ember-spit-impact"
+  | "ash-crawler-burst-explode"
   | "zheng-shockwave-impact"
   | "taotie-flame-breath-sustain";
 export type CombatPlayerFeedbackCue = "player-hurt-light" | "player-hurt-heavy" | "player-hurt-boss-breath";
@@ -54,6 +56,7 @@ export interface CombatEnemy {
   id: string;
   displayName: string;
   kind: EnemyKind;
+  attackProfileId: EnemyAttackProfileId;
   hp: number;
   maxHp: number;
   armor: number;
@@ -72,6 +75,8 @@ export interface CombatEnemy {
   attackSkillId?: string;
   attackHitResolved?: boolean;
   attackResolvedHits?: number;
+  attackRushStartPosition?: CombatVector;
+  attackRushTargetPosition?: CombatVector;
   controlledUntilMs?: number;
   armorBrokenUntilMs?: number;
   statusSourceSkillId?: string;
@@ -281,6 +286,7 @@ interface EnemyAttackDefinition {
   feedbackCue: CombatPlayerFeedbackCue;
   invulnerabilityMs: number;
   hurtLockMs: number;
+  windupRushPx?: number;
 }
 
 interface PlayerHitboxDefinition {
@@ -327,6 +333,10 @@ const backstepActionLockMs = 260;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function lerp(start: number, end: number, progress: number): number {
+  return start + (end - start) * progress;
 }
 
 function clearBufferedAction(player: CombatPlayer): CombatPlayer {
@@ -433,8 +443,38 @@ function enemyStats(kind: EnemyKind): Pick<CombatEnemy, "displayName" | "hp" | "
   };
 }
 
-function enemyAttackDefinition(kind: EnemyKind): EnemyAttackDefinition {
+function defaultEnemyAttackProfile(kind: EnemyKind): EnemyAttackProfileId {
   if (kind === "boss") {
+    return "taotie-flame-breath";
+  }
+
+  if (kind === "elite") {
+    return "zheng-shockwave";
+  }
+
+  return "ash-ember-spit";
+}
+
+function isEnemyAttackProfileId(value: string | undefined): value is EnemyAttackProfileId {
+  return (
+    value === "ash-ember-spit" ||
+    value === "ash-crawler-burst" ||
+    value === "zheng-shockwave" ||
+    value === "taotie-flame-breath"
+  );
+}
+
+function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileId" | "attackSkillId"> | EnemyKind): EnemyAttackDefinition {
+  const profileId =
+    typeof enemy === "string"
+      ? defaultEnemyAttackProfile(enemy)
+      : isEnemyAttackProfileId(enemy.attackSkillId)
+        ? enemy.attackSkillId
+        : enemy.kind === "trash"
+          ? enemy.attackProfileId ?? defaultEnemyAttackProfile(enemy.kind)
+          : defaultEnemyAttackProfile(enemy.kind);
+
+  if (profileId === "taotie-flame-breath") {
     return {
       skillId: "taotie-flame-breath",
       damage: 44,
@@ -455,7 +495,7 @@ function enemyAttackDefinition(kind: EnemyKind): EnemyAttackDefinition {
     };
   }
 
-  if (kind === "elite") {
+  if (profileId === "zheng-shockwave") {
     return {
       skillId: "zheng-shockwave",
       damage: 52,
@@ -473,6 +513,28 @@ function enemyAttackDefinition(kind: EnemyKind): EnemyAttackDefinition {
       feedbackCue: "player-hurt-heavy",
       invulnerabilityMs: 560,
       hurtLockMs: 420
+    };
+  }
+
+  if (profileId === "ash-crawler-burst") {
+    return {
+      skillId: "ash-crawler-burst",
+      damage: 38,
+      rangeX: 70,
+      laneRange: 46,
+      windupMs: 320,
+      recoveryMs: 340,
+      cooldownMs: 1900,
+      hitstopMs: 52,
+      knockback: 68,
+      hitCount: 1,
+      hitIntervalMs: 0,
+      vfxCue: "ash-crawler-burst-explode",
+      vfxWindowMs: 460,
+      feedbackCue: "player-hurt-heavy",
+      invulnerabilityMs: 560,
+      hurtLockMs: 460,
+      windupRushPx: 190
     };
   }
 
@@ -496,13 +558,21 @@ function enemyAttackDefinition(kind: EnemyKind): EnemyAttackDefinition {
   };
 }
 
-function createEnemy(dungeonId: DungeonId, roomIndex: number, enemyIndex: number, kind: EnemyKind): CombatEnemy {
+function createEnemy(
+  dungeonId: DungeonId,
+  roomIndex: number,
+  enemyIndex: number,
+  kind: EnemyKind,
+  attackProfileId = defaultEnemyAttackProfile(kind)
+): CombatEnemy {
   const stats = enemyStats(kind);
 
   return {
     id: `${dungeonId}-room-${roomIndex}-enemy-${enemyIndex}`,
     kind,
     ...stats,
+    displayName: attackProfileId === "ash-crawler-burst" ? "灰烬爬妖" : stats.displayName,
+    attackProfileId,
     marks: 0,
     position: {
       x: 520 + enemyIndex * 74,
@@ -529,7 +599,10 @@ function createRoomEnemies(dungeonId: DungeonId, roomIndex: number): CombatEnemy
     return [createEnemy(dungeonId, roomIndex, 0, "elite"), createEnemy(dungeonId, roomIndex, 1, "trash")];
   }
 
-  return [createEnemy(dungeonId, roomIndex, 0, "trash"), createEnemy(dungeonId, roomIndex, 1, "trash")];
+  return [
+    createEnemy(dungeonId, roomIndex, 0, "trash", "ash-ember-spit"),
+    createEnemy(dungeonId, roomIndex, 1, "trash", "ash-crawler-burst")
+  ];
 }
 
 function eventHitstop(enemy: CombatEnemy, hitstopMs: number): number {
@@ -1402,7 +1475,9 @@ function updateEnemyAirStates(run: CombatRun): CombatRun {
           attackRecoverUntilMs: undefined,
           attackSkillId: undefined,
           attackHitResolved: undefined,
-          attackResolvedHits: undefined
+          attackResolvedHits: undefined,
+          attackRushStartPosition: undefined,
+          attackRushTargetPosition: undefined
         };
       }
 
@@ -1581,14 +1656,56 @@ function clearRecoveredAttack(enemy: CombatEnemy, elapsedMs: number): CombatEnem
       attackRecoverUntilMs: undefined,
       attackSkillId: undefined,
       attackHitResolved: undefined,
-      attackResolvedHits: undefined
+      attackResolvedHits: undefined,
+      attackRushStartPosition: undefined,
+      attackRushTargetPosition: undefined
     };
   }
 
   return enemy;
 }
 
-function beginEnemyAttack(enemy: CombatEnemy, elapsedMs: number): { enemy: CombatEnemy; event?: CombatEnemyAttackEvent } {
+function enemyRushTargetPosition(enemy: CombatEnemy, player: CombatPlayer, rushPx: number): CombatVector {
+  const signedDistance = enemy.position.x - player.x;
+  const absoluteDistance = Math.abs(signedDistance);
+  const desiredGap = Math.max(82, enemy.hurtbox.width / 2 + 38);
+  const rushDistance = Math.min(rushPx, Math.max(0, absoluteDistance - desiredGap));
+  const direction = signedDistance >= 0 ? -1 : 1;
+
+  return {
+    x: clamp(enemy.position.x + direction * rushDistance, 0, arena.width),
+    y: clamp(enemy.position.y + (player.y - enemy.position.y) * 0.35, arena.minY, arena.maxY)
+  };
+}
+
+function advanceEnemyRushMovement(enemy: CombatEnemy, elapsedMs: number): CombatEnemy {
+  if (
+    !enemy.attackRushStartPosition ||
+    !enemy.attackRushTargetPosition ||
+    enemy.attackStartedAtMs === undefined ||
+    enemy.attackImpactAtMs === undefined
+  ) {
+    return enemy;
+  }
+
+  const windupMs = Math.max(1, enemy.attackImpactAtMs - enemy.attackStartedAtMs);
+  const progress = clamp((elapsedMs - enemy.attackStartedAtMs) / windupMs, 0, 1);
+  const easedProgress = progress * progress * (3 - 2 * progress);
+
+  return {
+    ...enemy,
+    position: {
+      x: lerp(enemy.attackRushStartPosition.x, enemy.attackRushTargetPosition.x, easedProgress),
+      y: lerp(enemy.attackRushStartPosition.y, enemy.attackRushTargetPosition.y, easedProgress)
+    }
+  };
+}
+
+function beginEnemyAttack(
+  enemy: CombatEnemy,
+  elapsedMs: number,
+  player?: CombatPlayer
+): { enemy: CombatEnemy; event?: CombatEnemyAttackEvent } {
   const recovered = clearRecoveredAttack(enemy, elapsedMs);
 
   if (
@@ -1602,7 +1719,8 @@ function beginEnemyAttack(enemy: CombatEnemy, elapsedMs: number): { enemy: Comba
     return { enemy: recovered };
   }
 
-  const attack = enemyAttackDefinition(recovered.kind);
+  const attack = enemyAttackDefinition(recovered);
+  const attackRushTargetPosition = attack.windupRushPx && player ? enemyRushTargetPosition(recovered, player, attack.windupRushPx) : undefined;
   const impactAtMs = elapsedMs + attack.windupMs;
   const finalImpactAtMs = impactAtMs + (attack.hitCount - 1) * attack.hitIntervalMs;
 
@@ -1615,6 +1733,8 @@ function beginEnemyAttack(enemy: CombatEnemy, elapsedMs: number): { enemy: Comba
       attackSkillId: attack.skillId,
       attackHitResolved: false,
       attackResolvedHits: 0,
+      attackRushStartPosition: attackRushTargetPosition ? recovered.position : undefined,
+      attackRushTargetPosition,
       nextAttackAtMs: elapsedMs + attack.cooldownMs
     },
     event: {
@@ -1652,7 +1772,7 @@ function applyEnemyImpact(
     return { enemy, player, events: [], failed: player.defeated };
   }
 
-  const attack = enemyAttackDefinition(enemy.kind);
+  const attack = enemyAttackDefinition(enemy);
   let resolvedHits = enemy.attackResolvedHits ?? (enemy.attackHitResolved ? attack.hitCount : 0);
   let nextEnemy: CombatEnemy = enemy;
   let nextPlayer: CombatPlayer = player;
@@ -1780,13 +1900,14 @@ function advanceEnemyAttacks(run: CombatRun): CombatRun {
   let failed = run.failed;
   const events: CombatEvent[] = [];
   const enemies = run.enemies.map((enemy) => {
-    const started = beginEnemyAttack(enemy, run.elapsedMs);
+    const started = beginEnemyAttack(enemy, run.elapsedMs, player);
 
     if (started.event) {
       events.push(started.event);
     }
 
-    const impacted = applyEnemyImpact(started.enemy, player, run.elapsedMs, run.combatProfile);
+    const movingEnemy = advanceEnemyRushMovement(started.enemy, run.elapsedMs);
+    const impacted = applyEnemyImpact(movingEnemy, player, run.elapsedMs, run.combatProfile);
 
     player = impacted.player;
     failed = failed || impacted.failed;
@@ -1876,6 +1997,8 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
       attackSkillId: statusInterruptsAttack ? undefined : enemy.attackSkillId,
       attackHitResolved: statusInterruptsAttack ? undefined : enemy.attackHitResolved,
       attackResolvedHits: statusInterruptsAttack ? undefined : enemy.attackResolvedHits,
+      attackRushStartPosition: statusInterruptsAttack ? undefined : enemy.attackRushStartPosition,
+      attackRushTargetPosition: statusInterruptsAttack ? undefined : enemy.attackRushTargetPosition,
       position: nextPosition,
       airborne,
       downed,
@@ -2041,6 +2164,8 @@ function applyScheduledEnemyHitEffect(run: CombatRun, effect: CombatScheduledEne
       attackSkillId: statusInterruptsAttack ? undefined : enemy.attackSkillId,
       attackHitResolved: statusInterruptsAttack ? undefined : enemy.attackHitResolved,
       attackResolvedHits: statusInterruptsAttack ? undefined : enemy.attackResolvedHits,
+      attackRushStartPosition: statusInterruptsAttack ? undefined : enemy.attackRushStartPosition,
+      attackRushTargetPosition: statusInterruptsAttack ? undefined : enemy.attackRushTargetPosition,
       position: nextPosition,
       airborne,
       downed,

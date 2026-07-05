@@ -110,8 +110,10 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current Ink mechanism progress: `mechanism-shadow-net` now has delayed bind/snap stages, scheduled enemy effects, no cast-frame enemy mutation, control/stagger/pull behavior, aligned cast-field center, and dedicated player/weapon/cast/target mechanism-net presentation.
 - Current Iron advancement progress: `mountain-crack-hammer` now has delayed stagger/impact stages, scheduled enemy effects, windup interruption, armor-break/knockdown impact, and dedicated player/weapon/cast/target mountain-crack presentation.
 - Current monster-skill feedback progress: `ash-ember-spit`, `zheng-shockwave`, and `taotie-flame-breath` now render skill-specific target feedback classes and dedicated VFX plus hit-feedback animations, with browser computed-style verification.
+- Current visual priority clarification: character and monster model detail may stay lightweight while the playable loop is being completed, but combat motion smoothness, model-following attack movement, hit feel, player/enemy action changes, skill VFX, and monster skill VFX are strict acceptance criteria.
+- Current monster-pattern progress: normal trash rooms now mix ranged `ash-ember-spit` with close-range `ash-crawler-burst`, including windup rush, circle telegraph, active explosion VFX, hit/miss feedback, and stagger interruption.
 - Remaining strict-DNF combat gaps: deeper scripts for remaining skills, broader class-specific animation timelines, enemy hurtbox tuning, broader target-bound VFX coverage, weapon atlas/frame animation beyond static SVG assets, stronger room-transition staging, and a formal save migration from `heat` alias to class-resource storage.
-- Remaining monster-pattern gap: combat still mostly maps each monster tier to one attack profile; next high-value slice is adding extra monster archetypes with different rush/range/control attack patterns.
+- Remaining monster-pattern gap: elite and boss tiers still need more alternate attack archetypes beyond their current primary profile, plus broader rush/range/control pattern variety.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

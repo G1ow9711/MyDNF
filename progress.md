@@ -1544,3 +1544,34 @@
   - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/monster-feedback-check.html`: confirmed 3 combat panels, 3 feedback nodes, `ash-ember-spit-trail`, `ash-ember-hit-feedback`, `zheng-shockwave-expand`, `zheng-shock-hit-feedback`, `taotie-breath-flow`, `taotie-breath-hit-feedback`, boss total hits `3`, cue `taotie-flame-breath-sustain`, and player hit animation `player-hurt-react`.
   - Browser console error log: empty.
   - Browser screenshot saved at `.codex-local/tmp/monster-feedback-check.png`.
+
+## Task 56 Ash Crawler Burst Monster Pattern
+- Started after user clarified that lightweight character/monster model detail is acceptable for the prototype, but combat action smoothness, model-following attack movement, hit feel, skill effects, and monster skill effects are strict requirements.
+- Used two read-only parallel agents:
+  - `019f2f43-d4d8-7731-bef4-b059e8a8f221` audited monster combat state and recommended adding persistent `attackProfileId` while keeping `attackSkillId` as active cast state.
+  - `019f2f44-089c-7821-a6f2-5d54a974a72b` audited UI/CSS hooks and identified the required crawler-burst DOM classes, telegraph shape, VFX selectors, and keyframes.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires normal trash rooms to mix attack profiles, crawler enemies to rush into close range before impact, lane sidestep to produce a miss, and stagger to cancel the pending explosion.
+  - `src/tests/app-integration.test.ts` requires crawler windup/active rendering with attack skill id, circle telegraph, active explosion cue, player hurt motion, and skill-specific feedback.
+  - `src/tests/ui-smoke.test.ts` requires static render coverage plus dedicated crawler-burst CSS selectors/keyframes.
+- RED evidence:
+  - Focused tests initially failed because only the existing trash projectile profile existed, crawler rush/hit/miss/interruption behavior was absent, and UI/CSS had no `ash-crawler-burst` presentation.
+- Implemented:
+  - Added `EnemyAttackProfileId` and persistent `attackProfileId` on `CombatEnemy`.
+  - Added close-range `ash-crawler-burst` attack definition with windup rush, short range, circle telegraph, explosion VFX cue, heavy player feedback, and stagger interruption through existing attack clearing.
+  - Updated normal room enemy creation to mix one ranged trash enemy and one crawler burst enemy.
+  - Added dedicated UI labels, telegraph shape, enemy model lunge animation, explosion ring/core/trail VFX, and hit/miss feedback styling.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts`: pass, 61 tests.
+  - `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 86 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/crawler-burst-check.html`: confirmed 3 panels, windup `ash-crawler-burst` circle telegraph, enemy animation `monster-ash-crawler-burst`, active cue `ash-crawler-burst-explode`, ring/core/trail animations, hit feedback animation, player hurt animation, and miss feedback.
+  - Browser screenshot saved at `.codex-local/tmp/crawler-burst-check.png`.
+- Code review follow-up:
+  - Read-only review found no Critical or Important issues.
+  - Minor follow-up converted crawler rush from an instant windup-start coordinate jump into windup-time interpolated movement using stored rush start/target positions.
+  - Added app integration coverage for `combat-feedback-miss combat-feedback-skill-ash-crawler-burst`.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts`: pass, 121 tests.
+  - Browser DOM/computed-style re-validation after the rush interpolation change confirmed crawler windup/active/miss panels, circle telegraph, `monster-ash-crawler-burst`, `ash-crawler-burst-explode`, hit/miss feedback classes, player hurt animation, and active core animation.
+  - Final `npm test`: pass, 13 files and 244 tests.
+  - Final `npm run build`: pass.
+  - Final `git diff --check`: pass with Windows line-ending warnings only.

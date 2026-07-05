@@ -1393,6 +1393,11 @@ p {
   animation: monster-ember-spit 480ms cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
 
+.combat-enemy[data-enemy-motion="attack"][data-enemy-attack-skill-id="ash-crawler-burst"] .enemy-art {
+  animation: monster-ash-crawler-burst 620ms cubic-bezier(0.12, 0.82, 0.16, 1) both;
+  filter: drop-shadow(0 0 18px rgba(248, 113, 113, 0.58)) brightness(1.14);
+}
+
 .actor-model-controlled,
 .combat-enemy[data-enemy-motion="controlled"] .enemy-art {
   animation: monster-controlled-bind 680ms ease-out both;
@@ -2082,6 +2087,17 @@ p {
   animation: ash-ember-hit-feedback 500ms cubic-bezier(0.14, 0.82, 0.18, 1) both;
 }
 
+.combat-feedback-skill-ash-crawler-burst .combat-feedback-text {
+  border-color: rgba(252, 165, 165, 0.56);
+  text-shadow: 0 2px 0 rgba(69, 10, 10, 0.9), 0 0 14px rgba(248, 113, 113, 0.64);
+}
+
+.combat-feedback-hit.combat-feedback-skill-ash-crawler-burst .combat-feedback-text {
+  background: rgba(127, 29, 29, 0.78);
+  box-shadow: 0 0 30px rgba(248, 113, 113, 0.66), inset 0 0 20px rgba(251, 146, 60, 0.28);
+  animation: ash-crawler-burst-hit-feedback 540ms cubic-bezier(0.1, 0.82, 0.14, 1) both;
+}
+
 .combat-feedback-skill-zheng-shockwave .combat-feedback-text {
   border-color: rgba(125, 211, 252, 0.54);
   text-shadow: 0 2px 0 rgba(12, 74, 110, 0.84), 0 0 14px rgba(56, 189, 248, 0.58);
@@ -2479,6 +2495,13 @@ p {
   border-radius: 50%;
 }
 
+.enemy-telegraph-ash-crawler-burst .enemy-telegraph-zone {
+  inset: 0 18%;
+  border-color: rgba(248, 113, 113, 0.78);
+  box-shadow: 0 0 24px rgba(248, 113, 113, 0.52), inset 0 0 18px rgba(251, 146, 60, 0.2);
+  animation: ash-crawler-burst-telegraph 680ms ease-in-out infinite;
+}
+
 .enemy-cast-ring {
   left: 50%;
   bottom: -8px;
@@ -2542,6 +2565,40 @@ p {
     linear-gradient(90deg, rgba(127, 29, 29, 0.2), rgba(251, 146, 60, 0.82), rgba(254, 240, 138, 0.62), transparent),
     radial-gradient(ellipse at 48% 50%, rgba(248, 113, 113, 0.62), transparent 62%);
   animation: ash-ember-spit-trail 520ms ease-in-out infinite;
+}
+
+.enemy-skill-ash-crawler-burst {
+  width: 184px;
+  height: 132px;
+}
+
+.enemy-skill-ash-crawler-burst .enemy-cast-ring {
+  left: 50%;
+  bottom: -12px;
+  width: 154px;
+  height: 46px;
+  border-color: rgba(248, 113, 113, 0.82);
+  box-shadow: 0 0 34px rgba(248, 113, 113, 0.64), inset 0 0 18px rgba(251, 146, 60, 0.24);
+  animation: ash-crawler-burst-ring 560ms cubic-bezier(0.12, 0.78, 0.14, 1) both;
+}
+
+.enemy-skill-ash-crawler-burst .enemy-cast-core {
+  top: 48%;
+  width: 58px;
+  height: 58px;
+  background: radial-gradient(circle, rgba(255, 247, 237, 0.98), rgba(251, 146, 60, 0.82), rgba(185, 28, 28, 0.4), transparent 74%);
+  animation: ash-crawler-burst-core 560ms ease-out both;
+}
+
+.enemy-skill-ash-crawler-burst .enemy-cast-trail {
+  left: 4%;
+  top: 42%;
+  width: 168px;
+  height: 34px;
+  background:
+    linear-gradient(90deg, transparent, rgba(248, 113, 113, 0.46), rgba(254, 240, 138, 0.82), rgba(127, 29, 29, 0.16)),
+    radial-gradient(ellipse at 55% 50%, rgba(251, 146, 60, 0.7), transparent 62%);
+  animation: ash-crawler-burst-trail 560ms ease-out both;
 }
 
 .enemy-skill-zheng-shockwave .enemy-cast-ring {
@@ -3108,6 +3165,13 @@ p {
   100% { transform: translateX(0) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
 }
 
+@keyframes monster-ash-crawler-burst {
+  0% { transform: translateX(calc(var(--enemy-lunge-x, 28px) * -0.34)) translateY(0) scale(0.94) scaleX(var(--model-scale-x, 1)); filter: brightness(0.95); }
+  34% { transform: translateX(calc(var(--enemy-lunge-x, 28px) * 0.92)) translateY(-5px) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.42) saturate(1.2); }
+  62% { transform: translateX(calc(var(--enemy-lunge-x, 28px) * 1.35)) translateY(3px) scale(1.16) scaleX(var(--model-scale-x, 1)); filter: brightness(1.9) saturate(1.38); }
+  100% { transform: translateX(0) translateY(0) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
+}
+
 @keyframes monster-controlled-bind {
   0% { transform: translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
   24% { transform: translateY(-4px) rotate(-2deg) scale(0.98) scaleX(var(--model-scale-x, 1)); filter: brightness(1.35) saturate(0.72); }
@@ -3207,6 +3271,13 @@ p {
   0% { opacity: 0; transform: translate(-56%, -36%) scale(0.72) skewX(-8deg); filter: brightness(0.9); }
   22% { opacity: 1; transform: translate(-46%, -58%) scale(1.16) skewX(-12deg); filter: brightness(1.45); }
   100% { opacity: 0; transform: translate(-22%, -108%) scale(0.88) skewX(-4deg); filter: brightness(0.95); }
+}
+
+@keyframes ash-crawler-burst-hit-feedback {
+  0% { opacity: 0; transform: translate(-50%, -38%) scale(0.64) rotate(-3deg); filter: brightness(0.92); }
+  20% { opacity: 1; transform: translate(-48%, -62%) scale(1.22) rotate(2deg); filter: brightness(1.62); }
+  54% { opacity: 0.9; transform: translate(-54%, -78%) scale(1.08) rotate(-2deg); filter: brightness(1.28); }
+  100% { opacity: 0; transform: translate(-50%, -124%) scale(0.88) rotate(4deg); filter: brightness(0.9); }
 }
 
 @keyframes zheng-shock-hit-feedback {
@@ -3573,6 +3644,29 @@ p {
   0% { opacity: 0.18; transform: translateX(-24px) rotate(-8deg) scaleX(0.42); filter: blur(2px) brightness(0.9); }
   36% { opacity: 0.92; transform: translateX(6px) rotate(-7deg) scaleX(1.08); filter: blur(0.7px) brightness(1.38); }
   100% { opacity: 0.24; transform: translateX(42px) rotate(-9deg) scaleX(0.7); filter: blur(2.4px) brightness(0.96); }
+}
+
+@keyframes ash-crawler-burst-telegraph {
+  0%, 100% { opacity: 0.22; transform: scale(0.74); }
+  50% { opacity: 0.9; transform: scale(1.08); }
+}
+
+@keyframes ash-crawler-burst-ring {
+  0% { opacity: 0; transform: translateX(-50%) scaleX(0.24) scaleY(0.62); filter: blur(1px); }
+  28% { opacity: 1; transform: translateX(-50%) scaleX(1.02) scaleY(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(-50%) scaleX(1.66) scaleY(1.28); filter: blur(2px); }
+}
+
+@keyframes ash-crawler-burst-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.26); filter: brightness(1); }
+  22% { opacity: 1; transform: translate(-50%, -50%) scale(1.18); filter: brightness(1.58); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.68); filter: brightness(0.92); }
+}
+
+@keyframes ash-crawler-burst-trail {
+  0% { opacity: 0; transform: translateX(-42px) rotate(-6deg) scaleX(0.24); filter: blur(2px); }
+  32% { opacity: 0.95; transform: translateX(-4px) rotate(-4deg) scaleX(1.02); filter: blur(0.5px); }
+  100% { opacity: 0; transform: translateX(52px) rotate(4deg) scaleX(1.22); filter: blur(2.4px); }
 }
 
 @keyframes zheng-shockwave-expand {

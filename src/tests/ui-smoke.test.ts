@@ -236,12 +236,16 @@ describe("town app shell", () => {
     const eliteBaseRun = reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 1);
     const bossBaseRun = reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 2);
     const trashRun = stepCombat(withSingleReadyEnemy(baseRun, {}), {}, 80);
+    const crawlerRun = stepCombat(withSingleReadyEnemy(baseRun, { attackProfileId: "ash-crawler-burst" }), {}, 80);
     const eliteRun = stepCombat(withSingleReadyEnemy(eliteBaseRun, {}), {}, 80);
     const bossRun = stepCombat(withSingleReadyEnemy(bossBaseRun, {}), {}, 80);
     const activeTrashRun = stepCombat(trashRun, {}, 500);
+    const activeCrawlerRun = stepCombat(crawlerRun, {}, 500);
     const activeEliteRun = stepCombat(eliteRun, {}, 500);
     const activeBossRun = stepCombat(bossRun, {}, 500);
     const activeTrashHtml = renderAppHtml({ state, mode: "combat", combatRun: activeTrashRun });
+    const crawlerHtml = renderAppHtml({ state, mode: "combat", combatRun: crawlerRun });
+    const activeCrawlerHtml = renderAppHtml({ state, mode: "combat", combatRun: activeCrawlerRun });
     const activeEliteHtml = renderAppHtml({ state, mode: "combat", combatRun: activeEliteRun });
     const activeBossHtml = renderAppHtml({ state, mode: "combat", combatRun: activeBossRun });
 
@@ -250,6 +254,9 @@ describe("town app shell", () => {
     expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain(
       'data-enemy-telegraph="ash-ember-spit"'
     );
+    expect(crawlerHtml).toContain('data-enemy-telegraph="ash-crawler-burst"');
+    expect(crawlerHtml).toContain('data-telegraph-shape="circle"');
+    expect(crawlerHtml).toContain('actor-enemy-skill-ash-crawler-burst');
     expect(renderAppHtml({ state, mode: "combat", combatRun: eliteRun })).toContain(
       'data-enemy-telegraph="zheng-shockwave"'
     );
@@ -258,6 +265,9 @@ describe("town app shell", () => {
     );
     expect(activeTrashHtml).toContain('data-enemy-skill-vfx="ash-ember-spit"');
     expect(activeTrashHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-ash-ember-spit"');
+    expect(activeCrawlerHtml).toContain('data-enemy-skill-vfx="ash-crawler-burst"');
+    expect(activeCrawlerHtml).toContain('data-enemy-vfx-cue="ash-crawler-burst-explode"');
+    expect(activeCrawlerHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-ash-crawler-burst"');
     expect(activeEliteHtml).toContain('data-enemy-skill-vfx="zheng-shockwave"');
     expect(activeEliteHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-zheng-shockwave"');
     expect(activeBossHtml).toContain('data-enemy-skill-vfx="taotie-flame-breath"');
@@ -272,10 +282,15 @@ describe("town app shell", () => {
       'data-telegraph-phase="windup"'
     );
     expect(stylesCss).toContain(".enemy-skill-ash-ember-spit .enemy-cast-trail");
+    expect(stylesCss).toContain(".enemy-skill-ash-crawler-burst .enemy-cast-ring");
     expect(stylesCss).toContain('.enemy-skill-zheng-shockwave[data-enemy-vfx-cue="zheng-shockwave-impact"]');
     expect(stylesCss).toContain(".combat-feedback-skill-ash-ember-spit");
+    expect(stylesCss).toContain(".combat-feedback-skill-ash-crawler-burst");
     expect(stylesCss).toContain(".combat-feedback-skill-zheng-shockwave");
     expect(stylesCss).toContain(".combat-feedback-skill-taotie-flame-breath");
+    expect(stylesCss).toContain("@keyframes monster-ash-crawler-burst");
+    expect(stylesCss).toContain("@keyframes ash-crawler-burst-core");
+    expect(stylesCss).toContain("@keyframes ash-crawler-burst-hit-feedback");
     expect(stylesCss).toContain("@keyframes ash-ember-spit-trail");
     expect(stylesCss).toContain("@keyframes ash-ember-hit-feedback");
     expect(stylesCss).toContain("@keyframes zheng-shockwave-expand");

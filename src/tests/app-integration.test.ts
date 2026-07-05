@@ -1850,6 +1850,144 @@ describe("playable app integration actions", () => {
     }
   });
 
+  it("renders crawler burst as a rushing monster skill with explosion feedback", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        enemies: model.combatRun.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                attackProfileId: "ash-crawler-burst",
+                position: {
+                  x: (model.combatRun?.player.x ?? enemy.position.x) + 260,
+                  y: model.combatRun?.player.y ?? enemy.position.y
+                },
+                nextAttackAtMs: 1
+              }
+            : enemy
+        )
+      }
+    };
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const windupHtml = renderAppHtml(model);
+
+    expect(windupHtml).toContain('data-enemy-motion="attack"');
+    expect(windupHtml).toContain('data-enemy-attack-skill-id="ash-crawler-burst"');
+    expect(windupHtml).toContain('actor-enemy-skill-ash-crawler-burst');
+    expect(windupHtml).toContain('data-enemy-telegraph="ash-crawler-burst"');
+    expect(windupHtml).toContain('data-telegraph-shape="circle"');
+    expect(windupHtml).not.toContain('data-enemy-skill-vfx="ash-crawler-burst"');
+
+    for (let guard = 0; guard < 6; guard += 1) {
+      if (
+        model.combatRun?.events.some(
+          (event) =>
+            event.kind === "enemy-attack" &&
+            event.skillId === "ash-crawler-burst" &&
+            event.phase === "active"
+        )
+      ) {
+        break;
+      }
+
+      model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    }
+
+    const burstHtml = renderAppHtml(model);
+
+    expect(burstHtml).toContain('data-player-motion="hit"');
+    expect(burstHtml).toContain('data-enemy-skill-vfx="ash-crawler-burst"');
+    expect(burstHtml).toContain('data-enemy-attack-phase="active"');
+    expect(burstHtml).toContain('data-enemy-vfx-cue="ash-crawler-burst-explode"');
+    expect(burstHtml).toContain('data-combat-feedback="enemy-skill-hit"');
+    expect(burstHtml).toContain('data-feedback-skill-id="ash-crawler-burst"');
+    expect(burstHtml).toContain('data-player-feedback-cue="player-hurt-heavy"');
+    expect(burstHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-ash-crawler-burst"');
+    expect(burstHtml).not.toContain('data-enemy-telegraph="ash-crawler-burst"');
+  });
+
+  it("renders crawler burst miss feedback when the player sidesteps the explosion", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        enemies: model.combatRun.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                attackProfileId: "ash-crawler-burst",
+                position: {
+                  x: (model.combatRun?.player.x ?? enemy.position.x) + 260,
+                  y: model.combatRun?.player.y ?? enemy.position.y
+                },
+                nextAttackAtMs: 1
+              }
+            : enemy
+        )
+      }
+    };
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: {
+          ...model.combatRun.player,
+          y: model.combatRun.arena.maxY
+        }
+      }
+    };
+
+    for (let guard = 0; guard < 6; guard += 1) {
+      if (
+        model.combatRun?.events.some(
+          (event) =>
+            event.kind === "enemy-attack" &&
+            event.skillId === "ash-crawler-burst" &&
+            event.phase === "miss"
+        )
+      ) {
+        break;
+      }
+
+      model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    }
+
+    const missHtml = renderAppHtml(model);
+
+    expect(missHtml).toContain('data-enemy-skill-vfx="ash-crawler-burst"');
+    expect(missHtml).toContain('data-enemy-attack-phase="miss"');
+    expect(missHtml).toContain('data-enemy-vfx-cue="ash-crawler-burst-explode"');
+    expect(missHtml).toContain('data-combat-feedback="enemy-skill-miss"');
+    expect(missHtml).toContain('data-feedback-skill-id="ash-crawler-burst"');
+    expect(missHtml).toContain('class="combat-feedback combat-feedback-miss combat-feedback-skill-ash-crawler-burst"');
+    expect(missHtml).not.toContain('data-player-motion="hit"');
+  });
+
   it("does not render hit feedback when invulnerability absorbs an active monster skill", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

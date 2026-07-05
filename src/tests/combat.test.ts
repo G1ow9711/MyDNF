@@ -1337,6 +1337,16 @@ describe("combat actions and impact feel", () => {
 });
 
 describe("enemy attacks and player defeat", () => {
+  it("creates mixed trash attack profiles in normal rooms", () => {
+    const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
+
+    expect(run.enemies.map((enemy) => enemy.kind)).toEqual(["trash", "trash"]);
+    expect(run.enemies.map((enemy) => (enemy as { attackProfileId?: string }).attackProfileId)).toEqual([
+      "ash-ember-spit",
+      "ash-crawler-burst"
+    ]);
+  });
+
   it("telegraphs monster attacks before the damage frame", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"));
     const telegraph = stepCombat(run, {}, 80);
@@ -1406,6 +1416,126 @@ describe("enemy attacks and player defeat", () => {
     expect(impacted.player.hitstopUntilMs).toBe(396);
     expect(impacted.player.hurtLockUntilMs).toBe(780);
     expect(impacted.player.invulnerableUntilMs).toBe(920);
+  });
+
+  it("rushes a crawler trash enemy into close range before its burst impact", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const crawlerPatch = { attackProfileId: "ash-crawler-burst" } as unknown as Partial<CombatEnemy>;
+    const run = withEnemyInRange(baseRun, {
+      ...crawlerPatch,
+      position: {
+        x: baseRun.player.x + 260,
+        y: baseRun.player.y
+      },
+      nextAttackAtMs: 1
+    });
+    const startDistance = run.enemies[0].position.x - run.player.x;
+    const telegraph = stepCombat(run, {}, 80);
+    const windup = telegraph.events.find(
+      (event) => event.kind === "enemy-attack" && event.skillId === "ash-crawler-burst" && event.phase === "windup"
+    );
+    const windupStartDistance = telegraph.enemies[0].position.x - telegraph.player.x;
+    const midRush = stepCombat(telegraph, {}, 160);
+    const midRushDistance = midRush.enemies[0].position.x - midRush.player.x;
+    const impacted = stepCombat(midRush, {}, 160);
+    const impactDistanceBeforeKnockback = impacted.enemies[0].position.x - midRush.player.x;
+    const active = impacted.events.find(
+      (event) => event.kind === "enemy-attack" && event.skillId === "ash-crawler-burst" && event.phase === "active"
+    );
+    const playerHit = impacted.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-crawler-burst"
+    );
+
+    expect(windup).toMatchObject({
+      impactAtMs: 400,
+      totalHits: 1
+    });
+    expect(windupStartDistance).toBe(startDistance);
+    expect(midRushDistance).toBeLessThan(startDistance);
+    expect(midRushDistance).toBeGreaterThan(96);
+    expect(impactDistanceBeforeKnockback).toBeLessThanOrEqual(96);
+    expect(telegraph.player.hp).toBe(run.player.hp);
+    expect(active).toMatchObject({
+      occurredAtMs: 400,
+      impactAtMs: 400,
+      hitIndex: 1,
+      totalHits: 1,
+      vfxCue: "ash-crawler-burst-explode",
+      vfxWindowMs: 460
+    });
+    expect(playerHit).toMatchObject({
+      damage: expect.any(Number),
+      occurredAtMs: 400,
+      hitstopMs: 52,
+      feedbackCue: "player-hurt-heavy"
+    });
+    expect(playerHit?.damage ?? 0).toBeGreaterThan(28);
+    expect(impacted.player.x).toBeLessThan(telegraph.player.x);
+    expect(impacted.player.hurtLockUntilMs).toBeGreaterThan(impacted.elapsedMs);
+  });
+
+  it("lets the player sidestep a crawler burst so it explodes as a miss", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const crawlerPatch = { attackProfileId: "ash-crawler-burst" } as unknown as Partial<CombatEnemy>;
+    const run = withEnemyInRange(baseRun, {
+      ...crawlerPatch,
+      position: {
+        x: baseRun.player.x + 260,
+        y: baseRun.player.y
+      },
+      nextAttackAtMs: 1
+    });
+    const telegraph = stepCombat(run, {}, 80);
+    const sidestepped = {
+      ...telegraph,
+      player: {
+        ...telegraph.player,
+        y: telegraph.arena.maxY
+      }
+    };
+    const missed = stepCombat(sidestepped, {}, 360);
+
+    expect(missed.player.hp).toBe(run.player.hp);
+    expect(missed.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          skillId: "ash-crawler-burst",
+          phase: "miss",
+          vfxCue: "ash-crawler-burst-explode"
+        })
+      ])
+    );
+    expect(missed.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-crawler-burst")).toBe(false);
+  });
+
+  it("cancels crawler burst explosion when the rushing enemy is staggered", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const crawlerPatch = { attackProfileId: "ash-crawler-burst" } as unknown as Partial<CombatEnemy>;
+    const run = withEnemyInRange(baseRun, {
+      ...crawlerPatch,
+      position: {
+        x: baseRun.player.x + 260,
+        y: baseRun.player.y
+      },
+      nextAttackAtMs: 1
+    });
+    const telegraph = stepCombat(run, {}, 80);
+    const interrupted = applyHit(telegraph, {
+      id: "test-stagger-crawler-burst",
+      targetId: telegraph.enemies[0].id,
+      damage: 1,
+      hitstopMs: 40,
+      knockback: 0,
+      juggle: false,
+      statusTags: ["stagger"]
+    });
+    const afterImpact = stepCombat(interrupted, {}, 360);
+
+    expect(telegraph.enemies[0].attackSkillId).toBe("ash-crawler-burst");
+    expect(interrupted.enemies[0].attackSkillId).toBeUndefined();
+    expect(afterImpact.events.some((event) => event.kind === "enemy-attack" && event.skillId === "ash-crawler-burst" && event.phase !== "windup")).toBe(false);
+    expect(afterImpact.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-crawler-burst")).toBe(false);
   });
 
   it("uses monster hurtbox edges for monster skill attack range boundaries", () => {

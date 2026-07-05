@@ -619,6 +619,10 @@ function enemyArmorState(enemy: CombatEnemy, elapsedMs: number): string {
 }
 
 function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { id: string; label: string } {
+  if (skillId === "ash-crawler-burst") {
+    return { id: "ash-crawler-burst", label: "灰爬虫爆冲" };
+  }
+
   if (skillId === "taotie-flame-breath" || enemy.kind === "boss") {
     return { id: "taotie-flame-breath", label: "饕餮炉火" };
   }
@@ -635,7 +639,7 @@ function enemyTelegraphShape(effectId: string): "cone" | "line" | "circle" {
     return "line";
   }
 
-  if (effectId === "zheng-shockwave") {
+  if (effectId === "zheng-shockwave" || effectId === "ash-crawler-burst") {
     return "circle";
   }
 

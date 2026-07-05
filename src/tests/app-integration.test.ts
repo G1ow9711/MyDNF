@@ -1244,6 +1244,93 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-combat-action="jump"');
     expect(html).toContain('data-hotkey="C"');
     expect(html).toContain('class="combat-player-art actor-model actor-model-jump"');
+
+    model = {
+      ...model,
+      combatRun: stepCombat(model.combatRun, {}, 180)
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "light" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    expect(model.message).not.toBe("动作硬直中");
+    expect(model.combatRun.scheduledEnemyHitEffects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "light",
+          applyAtMs: model.combatRun.elapsedMs + 65,
+          hitPhase: "air-light",
+          vfxCue: "air-light-slash"
+        })
+      ])
+    );
+
+    model = {
+      ...model,
+      combatRun: stepCombat(model.combatRun, {}, 65)
+    };
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const airLightHit = model.combatRun.events.find(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.action === "light" && event.hitPhase === "air-light"
+    );
+    const airLightHtml = renderAppHtml(model);
+
+    expect(airLightHit).toMatchObject({
+      inputToHitMs: 65,
+      vfxCue: "air-light-slash"
+    });
+    expect(airLightHtml).toContain('data-player-motion="air-light"');
+    expect(airLightHtml).toContain('data-player-air-state="jumping"');
+    expect(airLightHtml).toContain('data-player-air-attack-used="true"');
+    expect(airLightHtml).toContain('class="combat-player-art actor-model actor-model-air-light"');
+  });
+
+  it("renders player hit state over airborne light attack state when interrupted", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: selectBaseClass(createInitialState(), "liuli-blademage")
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const midair = stepCombat(performAction(model.combatRun, { type: "jump" }), {}, 180);
+    const airWindup = performAction(midair, { type: "light" });
+    const interruptedRun: CombatRun = {
+      ...airWindup,
+      player: {
+        ...airWindup.player,
+        hurtLockUntilMs: airWindup.elapsedMs + 320
+      },
+      events: [
+        ...airWindup.events,
+        {
+          kind: "player-hit",
+          id: "test-air-light-interrupt",
+          enemyId: airWindup.enemies[0].id,
+          skillId: "ash-ember-spit",
+          damage: 1,
+          occurredAtMs: airWindup.elapsedMs,
+          hitstopMs: 60,
+          feedbackCue: "player-hurt-light"
+        } satisfies CombatPlayerHitEvent
+      ]
+    };
+    const html = renderAppHtml({ ...model, combatRun: interruptedRun });
+
+    expect(html).toContain('data-player-motion="hit"');
+    expect(html).toContain('data-player-state="hit"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-hit"');
   });
 
   it("filters combat skill hotkeys and settlement persistence by selected class resource", () => {

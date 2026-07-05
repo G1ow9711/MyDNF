@@ -23,6 +23,7 @@ export type CombatActionInput =
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
 export type CombatHitPhase =
+  | "air-light"
   | "fall"
   | "impact"
   | "rain"
@@ -53,6 +54,7 @@ export type CombatHitPhase =
   | "prism-field-lock"
   | "prism-field-burst";
 export type CombatVfxCue =
+  | "air-light-slash"
   | "meteor-fall"
   | "meteor-impact"
   | "glass-rain-fall"
@@ -177,6 +179,9 @@ export interface CombatPlayer {
   jumpStartedAtMs: number;
   airborneUntilMs: number;
   landingUntilMs: number;
+  airAttackUsed: boolean;
+  airAttackStartedAtMs: number;
+  airAttackUntilMs: number;
   shieldUntilMs: number;
   shieldReduction: number;
   evadeUntilMs: number;
@@ -567,6 +572,8 @@ const backstepActionLockMs = 260;
 const jumpAirborneMs = 480;
 const jumpLandingLockMs = 80;
 const jumpActionLockMs = jumpAirborneMs + jumpLandingLockMs;
+const airLightInputToHitMs = 65;
+const airLightActionMs = 260;
 const taotieForgeCollapseSkillId: CombatBossPhaseSkillId = "taotie-forge-collapse";
 const taotieForgeCollapseTelegraphMs = 620;
 const taotieForgeCollapseHazardGapMs = 140;
@@ -644,7 +651,10 @@ function clearCompletedPlayerAirState(player: CombatPlayer, elapsedMs: number): 
     airState,
     airborneUntilMs: 0,
     landingUntilMs: 0,
-    jumpStartedAtMs: 0
+    jumpStartedAtMs: 0,
+    airAttackUsed: false,
+    airAttackStartedAtMs: 0,
+    airAttackUntilMs: 0
   };
 }
 
@@ -661,6 +671,33 @@ function advancePlayerFramePosition(
   if (run.elapsedMs < run.player.boundUntilMs) {
     if (elapsedMs > run.player.boundUntilMs) {
       const movableMs = elapsedMs - run.player.boundUntilMs;
+      const facing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
+
+      return {
+        x: clamp(startPosition.x + moveX * speed * movableMs, 0, run.arena.width),
+        y: clamp(startPosition.y + moveY * speed * movableMs, run.arena.minY, run.arena.maxY),
+        facing,
+        movementFinished: true,
+        moveX,
+        moveY,
+        speed
+      };
+    }
+
+    return {
+      x: startPosition.x,
+      y: startPosition.y,
+      facing: run.player.facing,
+      movementFinished: true,
+      moveX: 0,
+      moveY: 0,
+      speed: 0
+    };
+  }
+
+  if (run.elapsedMs < run.player.airAttackUntilMs) {
+    if (elapsedMs > run.player.airAttackUntilMs) {
+      const movableMs = elapsedMs - run.player.airAttackUntilMs;
       const facing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
 
       return {
@@ -3403,6 +3440,9 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       jumpStartedAtMs: 0,
       airborneUntilMs: 0,
       landingUntilMs: 0,
+      airAttackUsed: false,
+      airAttackStartedAtMs: 0,
+      airAttackUntilMs: 0,
       shieldUntilMs: 0,
       shieldReduction: 0,
       evadeUntilMs: 0,
@@ -4203,6 +4243,13 @@ function applyScheduledPlayerHitboxEffect(
     return run;
   }
 
+  if (
+    effect.hitPhase === "air-light" &&
+    (effect.applyAtMs >= run.player.airborneUntilMs || effect.applyAtMs < run.player.hurtLockUntilMs || effect.applyAtMs < run.player.boundUntilMs)
+  ) {
+    return run;
+  }
+
   const sampledRun: CombatRun = {
     ...run,
     enemies: run.enemies.map((enemy) => advanceEnemyRushMovement(enemy, effect.applyAtMs))
@@ -4393,7 +4440,9 @@ function applyScheduledEnemyHitEffect(
       enemies: nextEnemies,
       events: [...impactResolvedRun.events, event],
       player: {
-        ...impactResolvedRun.player,
+        ...(effect.action === "light" && effect.hitPhase === "air-light"
+          ? gainPlayerResource(impactResolvedRun.player, impactResolvedRun, 5)
+          : impactResolvedRun.player),
         hitstopUntilMs: Math.max(impactResolvedRun.player.hitstopUntilMs, effect.applyAtMs + effect.hitstopMs)
       }
     },
@@ -4892,6 +4941,62 @@ function bufferAction(run: CombatRun, action: CombatActionInput): CombatRun {
   };
 }
 
+function canStartAirLight(run: CombatRun): boolean {
+  return (
+    playerAirStateAt(run.player, run.elapsedMs) === "jumping" &&
+    !run.player.airAttackUsed &&
+    run.elapsedMs + airLightInputToHitMs < run.player.airborneUntilMs
+  );
+}
+
+function performAirLightAction(run: CombatRun): CombatRun {
+  if (!canStartAirLight(run)) {
+    return run;
+  }
+
+  const origin = samplePlayerPosition(run.player, run.elapsedMs);
+  const scheduledRun = schedulePlayerHitboxEffect(
+    run,
+    {
+      action: "light",
+      rangeX: 142,
+      laneRange: 54,
+      targetCap: 1,
+      frontOnly: true,
+      damage: playerDamage(run, 28),
+      hitstopMs: 48,
+      knockback: 24,
+      juggle: false,
+      inputToHitMs: airLightInputToHitMs,
+      canceledFromCombo: false
+    },
+    origin,
+    run.player.facing,
+    {
+      id: `air-light-${run.elapsedMs}`,
+      hitPhase: "air-light",
+      vfxCue: "air-light-slash",
+      vfxWindowMs: 260
+    }
+  );
+
+  return {
+    ...scheduledRun,
+    player: {
+      ...scheduledRun.player,
+      comboStep: 0,
+      actionLockUntilMs: Math.max(run.player.actionLockUntilMs, run.elapsedMs + airLightActionMs),
+      cancelWindowUntilMs: 0,
+      airAttackUsed: true,
+      airAttackStartedAtMs: run.elapsedMs,
+      airAttackUntilMs: run.elapsedMs + airLightActionMs,
+      bufferedAction: undefined,
+      bufferedActionQueuedAtMs: undefined,
+      bufferedActionExecuteAtMs: undefined
+    }
+  };
+}
+
 export function performAction(run: CombatRun, action: CombatActionInput): CombatRun {
   if (run.failed || run.player.defeated) {
     return run;
@@ -4903,6 +5008,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (action.type === "jump" && (run.elapsedMs < run.player.airborneUntilMs || run.elapsedMs < run.player.landingUntilMs)) {
     return run;
+  }
+
+  if (action.type === "light" && playerAirStateAt(run.player, run.elapsedMs) === "jumping") {
+    return performAirLightAction(run);
   }
 
   const locked = run.elapsedMs < run.player.actionLockUntilMs;
@@ -4987,6 +5096,9 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         jumpStartedAtMs: run.elapsedMs,
         airborneUntilMs: run.elapsedMs + jumpAirborneMs,
         landingUntilMs: run.elapsedMs + jumpActionLockMs,
+        airAttackUsed: false,
+        airAttackStartedAtMs: 0,
+        airAttackUntilMs: 0,
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + jumpActionLockMs,
         cancelWindowUntilMs: 0,
@@ -5256,7 +5368,10 @@ export function finishRoom(run: CombatRun): CombatRun {
       airState: "grounded",
       jumpStartedAtMs: 0,
       airborneUntilMs: 0,
-      landingUntilMs: 0
+      landingUntilMs: 0,
+      airAttackUsed: false,
+      airAttackStartedAtMs: 0,
+      airAttackUntilMs: 0
     },
     enemies: completed ? [] : createRoomEnemies(run.dungeonId, nextRoomIndex),
     events: [clearedEvent],

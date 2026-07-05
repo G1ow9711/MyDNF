@@ -2255,3 +2255,36 @@
   - Full suite passed: `npm test`, 13 files / 390 tests.
   - Production build passed: `npm run build`.
   - `git diff --check` passed with line-ending warnings only.
+
+## Task 81 DNF-Style Airborne Light Attack
+- Continued under the latest clarification: character and monster modeling can stay simpler while the full loop is connected, but combat action flow, model-following attacks, hit frames, skill/impact VFX, and player/enemy action changes remain strict.
+- Used parallel read-only agents:
+  - Combat audit confirmed jump action lock blocked midair `X/J`, and the least risky path is to keep public input as `{ type: "light" }` while branching internally during the `jumping` state.
+  - UI/CSS audit confirmed `playerMotion()` returned `jump` before checking action events, so any air attack would be visually masked unless it had an explicit `air-light` motion and render hooks.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires airborne light to schedule, not instant-apply, a 65 ms hit frame; it must not alter lane `y`, must only fire once per jump, must not buffer repeat air attacks, and must reset after landing.
+  - `src/tests/app-integration.test.ts` requires the jump-lock reducer path to execute air-light instead of showing `动作硬直中`, then render `data-player-motion="air-light"` after the real hit frame.
+  - `src/tests/ui-smoke.test.ts` requires player, weapon, hit impact, and CSS hooks for `air-light`.
+- RED evidence:
+  - Focused air-light suite failed before implementation because no air-light hit event existed and UI still rendered `data-player-motion="jump"`.
+- Implemented:
+  - Added player air-attack state (`airAttackUsed`, `airAttackStartedAtMs`, `airAttackUntilMs`) and a one-per-jump `performAirLightAction()`.
+  - Air-light schedules a dynamic 65 ms player hitbox with `hitPhase: "air-light"` and `vfxCue: "air-light-slash"`; it rechecks targets at the hit frame instead of mutating HP at input time.
+  - Scheduled air-light cancels if the hit frame occurs after airborne time or after monster interruption/control, preventing detached damage after landing or being hit.
+  - Jump start, landing cleanup, and room transition all clear air-attack state.
+  - UI now renders `air-light` player motion, `air-attacking` state, weapon air-action metadata, enemy hit-air metadata, and generic impact VFX metadata for non-skill air hits.
+  - CSS now defines `player-air-light-slash`, `weapon-air-light-slash`, `monster-air-light-hit-react`, and `air-light-impact-slash`.
+- Browser validation:
+  - Temporary worktree page on `http://127.0.0.1:5175/.codex-local/tmp/air-light-check.html` confirmed computed animations `player-air-light-slash`, `weapon-air-light-slash`, `monster-air-light-hit-react`, and `air-light-impact-slash`, with `data-player-motion="air-light"`, `data-player-state="air-attacking"`, `data-vfx-cue="air-light-slash"`, visible player asset dimensions, and empty warning/error console output.
+  - Temporary check page was deleted and the temporary dev server was stopped.
+- Code review follow-up:
+  - Read-only review found three Important issues: air-light hitbox used cast-time origin while player could still move/turn during windup, `data-player-state` stayed `air-attacking` when a player hit interrupted the air attack, and dynamic/cancel/landing regression coverage was too narrow.
+  - Fixed by freezing movement and facing while `airAttackUntilMs` is active, making `playerState()` return `hit` before `air-attacking`, and moving the live enemy air-light reaction selector after airborne/knockdown rules while limiting it to alive enemies.
+  - Added regressions for hitbox/model lockstep, target entering/leaving before the 65 ms hit frame, near-landing air-light rejection plus ground-light recovery, pending air-light cancellation on interruption, and player hit state overriding air-attack state.
+  - Browser revalidation used an `airborne` enemy fixture and confirmed air-light hit reaction still overrides float animation, with empty warning/error console output. Temporary check page was deleted and the temporary dev server was stopped.
+- Final verification:
+  - Focused air-light suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "airborne light|KeyC|jump state|airborne light attack|air light"`, 4 tests.
+  - Review regression suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts -t "hitbox follows|rechecks airborne light|does not queue airborne light|hit state over airborne"`, 4 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 301 tests.
+  - Full suite passed: `npm test`, 13 files / 397 tests.
+  - Production build passed: `npm run build`.

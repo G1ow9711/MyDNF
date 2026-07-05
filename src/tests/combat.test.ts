@@ -1618,6 +1618,179 @@ describe("combat actions and impact feel", () => {
     expect(landed.player.airborneUntilMs).toBe(0);
   });
 
+  it("lets airborne light attack connect once per jump with a dedicated hit phase", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1 },
+      [{ x: 350, y: 340 }]
+    );
+    const jumped = performAction(run, { type: "jump" });
+    const midair = stepCombat(jumped, {}, 180);
+    const yBefore = midair.player.y;
+    const airWindup = performAction(midair, { type: "light" });
+    const immediateAirHits = airWindup.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.action === "light" && event.hitPhase === "air-light"
+    );
+    const airStrike = stepCombat(airWindup, {}, 65);
+    const airHits = airStrike.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.action === "light" && event.hitPhase === "air-light"
+    );
+    const target = airStrike.enemies[0];
+    const secondAttempt = performAction(airWindup, { type: "light" });
+    const scheduledAirHits = secondAttempt.scheduledEnemyHitEffects.filter((effect) => effect.hitPhase === "air-light");
+    const landed = stepCombat(airStrike, {}, airStrike.player.landingUntilMs - airStrike.elapsedMs);
+
+    expect(midair.player.airState).toBe("jumping");
+    expect(immediateAirHits).toHaveLength(0);
+    expect(airWindup.enemies[0].hp).toBe(midair.enemies[0].hp);
+    expect(airWindup.scheduledEnemyHitEffects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "light",
+          applyAtMs: airWindup.elapsedMs + 65,
+          hitPhase: "air-light",
+          vfxCue: "air-light-slash"
+        })
+      ])
+    );
+    expect(airHits).toHaveLength(1);
+    expect(airHits[0]).toMatchObject({
+      targetId: target.id,
+      inputToHitMs: 65,
+      hitPhase: "air-light",
+      vfxCue: "air-light-slash"
+    });
+    expect(airStrike.enemies[0].hp).toBeLessThan(midair.enemies[0].hp);
+    expect(airStrike.player.y).toBe(yBefore);
+    expect(airStrike.player.airState).toBe("jumping");
+    expect(airStrike.player.comboStep).toBe(0);
+    expect((airStrike.player as { airAttackUsed?: boolean }).airAttackUsed).toBe(true);
+    expect(scheduledAirHits).toHaveLength(1);
+    expect(secondAttempt.player.bufferedAction).toBeUndefined();
+    expect((landed.player as { airAttackUsed?: boolean }).airAttackUsed).toBe(false);
+  });
+
+  it("locks airborne light movement and facing so the hitbox follows the attacking model", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1 },
+      [{ x: 350, y: 340 }]
+    );
+    const midair = stepCombat(performAction(run, { type: "jump" }), {}, 180);
+    const airWindup = performAction(midair, { type: "light" });
+    const movedDuringWindup = stepCombat(airWindup, { moveX: -1, moveY: 1 }, 64);
+    const hitFrame = stepCombat(movedDuringWindup, { moveX: -1, moveY: 1 }, 1);
+    const airHit = hitFrame.events.find(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.action === "light" && event.hitPhase === "air-light"
+    );
+
+    expect(movedDuringWindup.player.x).toBe(airWindup.player.x);
+    expect(movedDuringWindup.player.y).toBe(airWindup.player.y);
+    expect(movedDuringWindup.player.facing).toBe(airWindup.player.facing);
+    expect(airHit?.casterPosition).toEqual({ x: airWindup.player.x, y: airWindup.player.y });
+    expect(airHit?.casterFacing).toBe(airWindup.player.facing);
+  });
+
+  it("rechecks airborne light targets at the hit frame instead of cast time", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1 },
+      [{ x: 510, y: 340 }]
+    );
+    const midair = stepCombat(performAction(run, { type: "jump" }), {}, 180);
+    const airWindup = performAction(midair, { type: "light" });
+    const enteredBeforeHit = {
+      ...airWindup,
+      enemies: airWindup.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: { x: 350, y: 340 }
+            }
+          : enemy
+      )
+    };
+    const enteredHit = stepCombat(enteredBeforeHit, {}, 65);
+    const inRangeWindup = performAction(
+      stepCombat(
+        performAction(
+          withPlayerAndEnemies(
+            createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+            { x: 280, y: 340, facing: 1 },
+            [{ x: 350, y: 340 }]
+          ),
+          { type: "jump" }
+        ),
+        {},
+        180
+      ),
+      { type: "light" }
+    );
+    const leftBeforeHit = {
+      ...inRangeWindup,
+      enemies: inRangeWindup.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: { x: 510, y: 340 }
+            }
+          : enemy
+      )
+    };
+    const leftHit = stepCombat(leftBeforeHit, {}, 65);
+
+    expect(enteredHit.events).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "hit", action: "light", hitPhase: "air-light" })])
+    );
+    expect(leftHit.events.some((event) => event.kind === "hit" && event.action === "light")).toBe(false);
+    expect(leftHit.events).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "miss", action: "light" })]));
+  });
+
+  it("does not queue airborne light when the hit frame would land after the airborne window", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1 },
+      [{ x: 350, y: 340 }]
+    );
+    const jumped = performAction(run, { type: "jump" });
+    const lateAir = stepCombat(jumped, {}, 430);
+    const attempted = performAction(lateAir, { type: "light" });
+
+    expect(lateAir.player.airState).toBe("jumping");
+    expect(attempted).toBe(lateAir);
+    expect(attempted.scheduledEnemyHitEffects.filter((effect) => effect.hitPhase === "air-light")).toHaveLength(0);
+    expect(attempted.player.bufferedAction).toBeUndefined();
+
+    const landed = stepCombat(attempted, {}, attempted.player.landingUntilMs - attempted.elapsedMs);
+    const groundLight = performAction(landed, { type: "light" });
+    const groundHit = groundLight.events.find((event): event is CombatHitEvent => event.kind === "hit" && event.action === "light");
+
+    expect(landed.player.airState).toBe("grounded");
+    expect(groundHit?.hitPhase).not.toBe("air-light");
+    expect(groundLight.player.comboStep).toBe(1);
+  });
+
+  it("cancels pending airborne light when the player is interrupted before the hit frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 280, y: 340, facing: 1 },
+      [{ x: 350, y: 340 }]
+    );
+    const midair = stepCombat(performAction(run, { type: "jump" }), {}, 180);
+    const airWindup = performAction(midair, { type: "light" });
+    const interrupted = {
+      ...airWindup,
+      player: {
+        ...airWindup.player,
+        hurtLockUntilMs: airWindup.elapsedMs + 160
+      }
+    };
+    const resolved = stepCombat(interrupted, {}, 65);
+
+    expect(resolved.events.some((event) => event.kind === "hit" && event.action === "light")).toBe(false);
+    expect(resolved.enemies[0].hp).toBe(airWindup.enemies[0].hp);
+  });
+
   it("makes ground monster attacks miss while the player is airborne from jump", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),

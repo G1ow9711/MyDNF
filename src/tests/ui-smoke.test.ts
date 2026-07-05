@@ -1643,6 +1643,45 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes player-jump-rise");
   });
 
+  it("renders DNF-style airborne light attack with player, weapon, and impact hooks", () => {
+    const state = createInitialState();
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const readyRun = withSingleReadyEnemy(
+      {
+        ...baseRun,
+        player: {
+          ...baseRun.player,
+          x: 260,
+          y: 340,
+          facing: 1,
+          actionLockUntilMs: 0,
+          hurtLockUntilMs: 0
+        }
+      },
+      {
+        position: { x: 334, y: 340 },
+        nextAttackAtMs: 9999
+      }
+    );
+    const jumped = performAction(readyRun, { type: "jump" });
+    const midair = stepCombat(jumped, {}, 180);
+    const airWindup = performAction(midair, { type: "light" });
+    const airStrike = stepCombat(airWindup, {}, 65);
+    const html = renderAppHtml({ state, mode: "combat", combatRun: airStrike });
+
+    expect(html).toContain('data-player-motion="air-light"');
+    expect(html).toContain('data-player-air-state="jumping"');
+    expect(html).toContain('data-player-airborne-active="true"');
+    expect(html).toContain('data-player-air-attack-used="true"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-air-light"');
+    expect(html).toContain('data-vfx-cue="air-light-slash"');
+    expect(html).toContain('hit-impact-air-light');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="air-light"] .combat-player-art');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="air-light"] .combat-weapon');
+    expect(stylesCss).toContain("@keyframes player-air-light-slash");
+    expect(stylesCss).toContain("@keyframes weapon-air-light-slash");
+  });
+
   it("renders DNF-style command inputs and manual-cast reduction hooks on skill slots", () => {
     const state = createInitialState();
     const combatRun = createCombatRun({ ...state, player: { ...state.player, heat: 24 } }, "cinder-kiln-alley");

@@ -523,3 +523,15 @@
 - Review follow-up: air timers are now cleared only after enemy impact resolution, so a large frame crossing landing still evaluates jump evasion at the actual hit time.
 - Review follow-up: jump repeat guard runs before action buffering, preventing C from queueing chained jumps during airborne or landing frames.
 - Review follow-up: jump evasion is attack-profile gated through `jumpEvade`; ground-style attacks can miss while airborne, but projectile/spit/breath-style attacks still hit if their normal hitbox connects.
+
+## DNF-Style Airborne Light Attack Findings
+- Current user clarification: model detail can stay lighter for now, but combat action smoothness, model-following attacks, strict hit frames, hit feedback, skill VFX, and monster VFX stay mandatory.
+- Read-only combat audit found jump action lock prevented midair light attacks. Reusing `{ type: "light" }` is the least invasive input path; adding a public `airLight` action would unnecessarily widen input/reducer/UI contracts.
+- Read-only UI/CSS audit found `playerMotion()` prioritized `jump` before action checks, so a combat-only air hit would still look static unless `air-light` became an explicit motion state before generic jump rendering.
+- Combat note: air-light now schedules a dynamic hitbox rather than using the existing instant ground-light path. This preserves a real input-to-hit frame and lets targets enter/leave before impact.
+- Cancellation note: air-light hit resolution checks the actual `applyAtMs` against `airborneUntilMs`, `hurtLockUntilMs`, and `boundUntilMs`, preventing late landing hits and interrupted detached damage.
+- Presentation note: air-light uses separate player, weapon, monster-hit, and impact animations instead of reusing `.actor-model-light`, so ground combo animation cannot mask airborne motion.
+- Browser validation note: computed style confirmed `player-air-light-slash`, `weapon-air-light-slash`, `monster-air-light-hit-react`, and `air-light-impact-slash` on the project CSS with no console warning/error output.
+- Review follow-up: because the scheduled air-light hitbox intentionally stores cast origin/facing, player movement and facing are frozen while `airAttackUntilMs` is active. This keeps the visible actor, weapon arc, and hitbox origin aligned instead of letting the model drift away from the pending strike.
+- Review follow-up: player hit state now overrides `air-attacking` state, so interrupted air-light renders `data-player-motion="hit"` and `data-player-state="hit"` consistently.
+- Review follow-up: the live air-light monster hit reaction selector is ordered after airborne/knockdown animation rules and scoped to alive enemies, so air-light impact can override float without masking defeated-state handling.

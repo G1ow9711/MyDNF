@@ -395,7 +395,13 @@ function weaponLayerStyle(
   return `--weapon-primary: ${equipped.appearance.palette.primary}; --weapon-secondary: ${equipped.appearance.palette.secondary}; --weapon-glow: ${equipped.appearance.palette.glow}; --weapon-anchor-x: ${anchor.x}%; --weapon-anchor-y: ${anchor.y}%; --weapon-scale: ${anchor.scale}; --weapon-rotation: ${anchor.rotation}deg; --weapon-grip-x: ${equipped.appearance.asset.gripX}%; --weapon-grip-y: ${equipped.appearance.asset.gripY}%; --weapon-skill-lunge: ${skillLunge}px; --weapon-skill-lift: -${skillLift}px; --skill-duration: ${skillDuration}ms;`;
 }
 
-function weaponLayerMarkup(state: GameState, layer: "town" | "combat", animation?: SkillAnimationDefinition): string {
+function weaponLayerMarkup(
+  state: GameState,
+  layer: "town" | "combat",
+  animation?: SkillAnimationDefinition,
+  motion = "",
+  normalComboStep = 0
+): string {
   const equipped = equippedWeaponAppearanceFor(state);
 
   if (!equipped) {
@@ -406,7 +412,7 @@ function weaponLayerMarkup(state: GameState, layer: "town" | "combat", animation
   const layerClass = layer === "town" ? "town-weapon" : "combat-weapon";
   const combatAttr =
     layer === "combat"
-      ? ` data-combat-weapon-appearance-id="${appearance.id}" data-weapon-arc="${animation?.weaponArc ?? ""}" data-weapon-skill-preset="${animation?.preset ?? ""}"`
+      ? ` data-combat-weapon-appearance-id="${appearance.id}" data-weapon-arc="${animation?.weaponArc ?? ""}" data-weapon-skill-preset="${animation?.preset ?? ""}" data-weapon-motion="${motion}" data-weapon-air-action="${motion === "air-light" ? "light" : ""}" data-weapon-normal-combo-step="${normalComboStep || ""}"`
       : "";
 
   return `
@@ -736,6 +742,10 @@ function playerAirborneActive(run: CombatRun): boolean {
   return playerAirState(run) === "jumping";
 }
 
+function playerAirAttackActive(run: CombatRun): boolean {
+  return playerAirborneActive(run) && run.elapsedMs < run.player.airAttackUntilMs;
+}
+
 function playerDodgeResult(run: CombatRun): "missed" | "none" {
   return recentEnemyAttackEvents(run).some((event) => event.phase === "miss") ? "missed" : "none";
 }
@@ -766,7 +776,13 @@ function playerMotion(run: CombatRun): string {
     return "bound";
   }
 
+  const action = latestPlayerActionEvent(run);
   const airState = playerAirState(run);
+  const hitPhase = action?.kind === "hit" ? action.hitPhase : undefined;
+
+  if (airState === "jumping" && (playerAirAttackActive(run) || hitPhase === "air-light")) {
+    return "air-light";
+  }
 
   if (airState === "jumping") {
     return "jump";
@@ -775,8 +791,6 @@ function playerMotion(run: CombatRun): string {
   if (airState === "landing") {
     return "landing";
   }
-
-  const action = latestPlayerActionEvent(run);
 
   if (playerDodgeResult(run) === "missed" && playerEvadeActive(run)) {
     return "dodge";
@@ -806,11 +820,19 @@ function playerState(run: CombatRun): string {
     return "bound";
   }
 
+  if (latestPlayerHitEvent(run)) {
+    return "hit";
+  }
+
+  if (playerAirAttackActive(run)) {
+    return "air-attacking";
+  }
+
   if (playerAirState(run) !== "grounded") {
     return "airborne";
   }
 
-  return latestPlayerHitEvent(run) ? "hit" : "active";
+  return "active";
 }
 
 function enemyMotion(
@@ -1064,10 +1086,12 @@ function renderCombatVfx(run: CombatRun): string {
         </div>
       `
           : "";
+      const airImpactClass = hitEvent.hitPhase === "air-light" ? " hit-impact-air-light" : "";
+      const airImpactAction = hitEvent.hitPhase === "air-light" ? "light" : "";
 
       return `
         ${skillImpactVfx}
-        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}" data-impact-spark="true" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, target.position.x, target.position.y)}">
+        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}${airImpactClass}" data-impact-spark="true" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" data-impact-air-action="${airImpactAction}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, target.position.x, target.position.y)}">
           <span class="hit-ring"></span>
           <span class="hit-slash"></span>
         </div>
@@ -1210,8 +1234,14 @@ function renderArenaHazards(run: CombatRun): string {
 
 function renderCombatActors(run: CombatRun, state: GameState): string {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
-  const hitTargetIds = new Set(recentHitEvents(run).map((event) => event.targetId));
+  const recentHits = recentHitEvents(run);
+  const hitTargetIds = new Set(recentHits.map((event) => event.targetId));
+  const latestHitByTargetId = new Map<string, CombatHitEvent>();
   const summonedById = new Map<string, string>();
+
+  for (const event of recentHits) {
+    latestHitByTargetId.set(event.targetId, event);
+  }
 
   for (const event of recentEnemySummonEvents(run)) {
     for (const enemyId of event.summonedEnemyIds) {
@@ -1242,9 +1272,11 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const airborneState = enemyAirborneState(enemy);
       const armorState = enemyArmorState(enemy, run.elapsedMs);
       const spawnSource = summonedById.get(enemy.id);
+      const recentTargetHit = latestHitByTargetId.get(enemy.id);
+      const hitAirAction = recentTargetHit?.hitPhase === "air-light" ? "light" : "";
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-hit-recent="${hitRecent ? "true" : "false"}" data-hit-action="${recentTargetHit?.action ?? ""}" data-hit-phase="${recentTargetHit?.hitPhase ?? ""}" data-hit-air-action="${hitAirAction}" data-hit-vfx-cue="${recentTargetHit?.vfxCue ?? ""}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
             <img class="enemy-art actor-model actor-model-${motion}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
@@ -1259,10 +1291,10 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   return `
     <div class="combat-actors" data-last-hit-target="${[...hitTargetIds].at(-1) ?? ""}">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-player-air-state="${airState}" data-player-airborne-active="${playerAirborneActive(run) ? "true" : "false"}" data-player-airborne-until-ms="${run.player.airborneUntilMs || ""}" data-player-landing-until-ms="${run.player.landingUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-release-source="${releaseSource}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-player-air-state="${airState}" data-player-airborne-active="${playerAirborneActive(run) ? "true" : "false"}" data-player-air-attack-active="${playerMotionName === "air-light" ? "true" : "false"}" data-player-air-attack-used="${run.player.airAttackUsed ? "true" : "false"}" data-player-air-attack-started-at-ms="${run.player.airAttackStartedAtMs || ""}" data-player-air-attack-until-ms="${run.player.airAttackUntilMs || ""}" data-player-airborne-until-ms="${run.player.airborneUntilMs || ""}" data-player-landing-until-ms="${run.player.landingUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-release-source="${releaseSource}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
         ${playerTrailMarkup(run, playerMotionName, activeSkill)}
         <img class="combat-player-art actor-model actor-model-${playerMotionName}${skillMotionClass}${normalComboMotionClass}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run, activeSkill?.animation)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
-        ${weaponLayerMarkup(state, "combat", activeSkill?.animation)}
+        ${weaponLayerMarkup(state, "combat", activeSkill?.animation, playerMotionName, normalComboStep)}
         <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>
       </div>
       ${enemyActors}
@@ -1698,12 +1730,13 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         try {
           const queuedRun = performAction(model.combatRun, directInput);
           const queued = queuedRun.player.bufferedAction !== undefined;
+          const executed = queuedRun !== model.combatRun && !queued;
 
           return {
             ...model,
             combatRun: queuedRun,
-            message: queued ? "输入已缓冲" : "动作硬直中",
-            audio: playSfx(model.audio, "ui-select")
+            message: queued ? "输入已缓冲" : executed ? undefined : "动作硬直中",
+            audio: playSfx(model.audio, executed ? (directInput.type === "skill" ? "skill-burst" : "hit-light") : "ui-select")
           };
         } catch (error) {
           const message = error instanceof Error && /cooldown/i.test(error.message) ? "鎶€鑳藉喎鍗翠腑" : error instanceof Error ? error.message : String(error);

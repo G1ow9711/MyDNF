@@ -23,6 +23,7 @@ export type CombatActionInput =
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
 export type CombatHitPhase =
+  | "dash-light"
   | "air-light"
   | "air-heavy-slam"
   | "fall"
@@ -55,6 +56,7 @@ export type CombatHitPhase =
   | "prism-field-lock"
   | "prism-field-burst";
 export type CombatVfxCue =
+  | "dash-light-slash"
   | "air-light-slash"
   | "air-heavy-impact"
   | "meteor-fall"
@@ -185,6 +187,9 @@ export interface CombatPlayer {
   airAttackType: "none" | "light" | "heavy";
   airAttackStartedAtMs: number;
   airAttackUntilMs: number;
+  dashAttackReadyUntilMs: number;
+  dashAttackStartedAtMs: number;
+  dashAttackUntilMs: number;
   shieldUntilMs: number;
   shieldReduction: number;
   evadeUntilMs: number;
@@ -579,6 +584,10 @@ const airLightInputToHitMs = 65;
 const airLightActionMs = 260;
 const airHeavyInputToHitMs = 120;
 const airHeavyActionMs = 300;
+const dashLightReadyWindowMs = 220;
+const dashLightInputToHitMs = 90;
+const dashLightActionMs = 260;
+const dashLightLungePx = 46;
 const taotieForgeCollapseSkillId: CombatBossPhaseSkillId = "taotie-forge-collapse";
 const taotieForgeCollapseTelegraphMs = 620;
 const taotieForgeCollapseHazardGapMs = 140;
@@ -3450,6 +3459,9 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       airAttackType: "none",
       airAttackStartedAtMs: 0,
       airAttackUntilMs: 0,
+      dashAttackReadyUntilMs: 0,
+      dashAttackStartedAtMs: 0,
+      dashAttackUntilMs: 0,
       shieldUntilMs: 0,
       shieldReduction: 0,
       evadeUntilMs: 0,
@@ -3488,6 +3500,23 @@ function advanceCombatFrame(run: CombatRun, input: CombatInput, dtMs: number): C
     skillMovement: run.player.activeSkillMovement
   };
   const comboActiveAtElapsed = comboStillActive(run, elapsedMs);
+  const dashControlUnlocked = run.elapsedMs >= run.player.hurtLockUntilMs && run.elapsedMs >= run.player.boundUntilMs;
+  const dashMovementStarted =
+    dashControlUnlocked &&
+    Boolean(input.dash) &&
+    framePosition.moveX !== 0 &&
+    framePosition.speed > 0 &&
+    playerAirStateAt(run.player, run.elapsedMs) === "grounded" &&
+    run.elapsedMs >= run.player.actionLockUntilMs &&
+    run.elapsedMs >= run.player.airAttackUntilMs &&
+    run.player.activeSkillMovement === undefined;
+  const dashAttackReadyUntilMs = !dashControlUnlocked
+    ? 0
+    : dashMovementStarted
+      ? elapsedMs + dashLightReadyWindowMs
+      : run.player.dashAttackReadyUntilMs > elapsedMs
+        ? run.player.dashAttackReadyUntilMs
+        : 0;
   const movedRun: CombatRun = {
     ...run,
     elapsedMs,
@@ -3498,6 +3527,7 @@ function advanceCombatFrame(run: CombatRun, input: CombatInput, dtMs: number): C
       x: framePosition.x,
       y: framePosition.y,
       facing: framePosition.facing,
+      dashAttackReadyUntilMs,
       comboStep: comboActiveAtElapsed ? run.player.comboStep : 0
     }
   };
@@ -4257,6 +4287,10 @@ function applyScheduledPlayerHitboxEffect(
     return run;
   }
 
+  if (effect.hitPhase === "dash-light" && (effect.applyAtMs < run.player.hurtLockUntilMs || effect.applyAtMs < run.player.boundUntilMs)) {
+    return run;
+  }
+
   const sampledRun: CombatRun = {
     ...run,
     enemies: run.enemies.map((enemy) => advanceEnemyRushMovement(enemy, effect.applyAtMs))
@@ -4439,6 +4473,8 @@ function applyScheduledEnemyHitEffect(
     };
   });
 
+  const resourceGain = effect.action === "light" && effect.hitPhase === "air-light" ? 5 : effect.action === "light" && effect.hitPhase === "dash-light" ? 6 : 0;
+
   return triggerBossPhaseTransitions(
     {
       ...impactResolvedRun,
@@ -4447,9 +4483,7 @@ function applyScheduledEnemyHitEffect(
       enemies: nextEnemies,
       events: [...impactResolvedRun.events, event],
       player: {
-        ...(effect.action === "light" && effect.hitPhase === "air-light"
-          ? gainPlayerResource(impactResolvedRun.player, impactResolvedRun, 5)
-          : impactResolvedRun.player),
+        ...(resourceGain > 0 ? gainPlayerResource(impactResolvedRun.player, impactResolvedRun, resourceGain) : impactResolvedRun.player),
         hitstopUntilMs: Math.max(impactResolvedRun.player.hitstopUntilMs, effect.applyAtMs + effect.hitstopMs)
       }
     },
@@ -4905,6 +4939,7 @@ function completeSkillAction(
       comboStep: 0,
       actionLockUntilMs: run.elapsedMs + skill.animation.durationMs,
       cancelWindowUntilMs: 0,
+      dashAttackReadyUntilMs: 0,
       lastSkillId: skill.id,
       prismChain: nextPrismChain(run, skill.id),
       bufferedAction: undefined,
@@ -4944,6 +4979,79 @@ function bufferAction(run: CombatRun, action: CombatActionInput): CombatRun {
       bufferedAction: action,
       bufferedActionQueuedAtMs: run.elapsedMs,
       bufferedActionExecuteAtMs: run.player.actionLockUntilMs
+    }
+  };
+}
+
+function canStartDashLight(run: CombatRun): boolean {
+  return (
+    playerAirStateAt(run.player, run.elapsedMs) === "grounded" &&
+    run.player.dashAttackReadyUntilMs > 0 &&
+    run.elapsedMs <= run.player.dashAttackReadyUntilMs
+  );
+}
+
+function performDashLightAction(run: CombatRun): CombatRun {
+  const origin = samplePlayerPosition(run.player, run.elapsedMs);
+  const endPosition = {
+    x: clamp(origin.x + dashLightLungePx * run.player.facing, 0, run.arena.width),
+    y: origin.y
+  };
+  const movingRun: CombatRun = {
+    ...run,
+    player: {
+      ...run.player,
+      activeSkillMovement: {
+        skillId: "dash-light",
+        startAtMs: run.elapsedMs,
+        endAtMs: run.elapsedMs + dashLightInputToHitMs,
+        startX: origin.x,
+        startY: origin.y,
+        endX: endPosition.x,
+        endY: endPosition.y
+      }
+    }
+  };
+  const scheduledRun = schedulePlayerHitboxEffect(
+    movingRun,
+    {
+      action: "light",
+      skillId: "dash-light",
+      rangeX: 136,
+      laneRange: 54,
+      targetCap: 1,
+      frontOnly: true,
+      damage: playerDamage(run, 34),
+      hitstopMs: 58,
+      knockback: 32,
+      juggle: false,
+      inputToHitMs: dashLightInputToHitMs,
+      canceledFromCombo: false,
+      statusTags: ["stagger"]
+    },
+    endPosition,
+    run.player.facing,
+    {
+      id: `dash-light-${run.elapsedMs}`,
+      hitPhase: "dash-light",
+      vfxCue: "dash-light-slash",
+      vfxWindowMs: 260
+    }
+  );
+
+  return {
+    ...scheduledRun,
+    player: {
+      ...scheduledRun.player,
+      comboStep: 0,
+      actionLockUntilMs: Math.max(run.player.actionLockUntilMs, run.elapsedMs + dashLightActionMs),
+      cancelWindowUntilMs: 0,
+      dashAttackReadyUntilMs: 0,
+      dashAttackStartedAtMs: run.elapsedMs,
+      dashAttackUntilMs: run.elapsedMs + dashLightActionMs,
+      bufferedAction: undefined,
+      bufferedActionQueuedAtMs: undefined,
+      bufferedActionExecuteAtMs: undefined
     }
   };
 }
@@ -5093,6 +5201,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     return canBufferAction(run, action, remainingLockMs) ? bufferAction(run, action) : run;
   }
 
+  if (action.type === "light" && canStartDashLight(run)) {
+    return performDashLightAction(run);
+  }
+
   if (action.type === "light") {
     const comboStep = nextLightComboStep(run);
     const combo = lightComboSteps[comboStep - 1];
@@ -5119,6 +5231,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         comboStep: hitConnected ? comboStep : 0,
         actionLockUntilMs: run.elapsedMs + combo.actionLockMs,
         cancelWindowUntilMs: hitConnected ? run.elapsedMs + combo.actionLockMs : 0,
+        dashAttackReadyUntilMs: 0,
         bufferedAction: undefined,
         bufferedActionQueuedAtMs: undefined,
         bufferedActionExecuteAtMs: undefined
@@ -5150,6 +5263,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + 260,
         cancelWindowUntilMs: 0,
+        dashAttackReadyUntilMs: 0,
         bufferedAction: undefined,
         bufferedActionQueuedAtMs: undefined,
         bufferedActionExecuteAtMs: undefined
@@ -5170,6 +5284,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         airAttackType: "none",
         airAttackStartedAtMs: 0,
         airAttackUntilMs: 0,
+        dashAttackReadyUntilMs: 0,
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + jumpActionLockMs,
         cancelWindowUntilMs: 0,
@@ -5189,6 +5304,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + backstepActionLockMs,
         cancelWindowUntilMs: 0,
+        dashAttackReadyUntilMs: 0,
         evadeUntilMs: Math.max(run.player.evadeUntilMs, run.elapsedMs + backstepEvadeMs),
         invulnerableUntilMs: Math.max(run.player.invulnerableUntilMs, run.elapsedMs + backstepInvulnerableMs),
         bufferedAction: undefined,
@@ -5443,7 +5559,14 @@ export function finishRoom(run: CombatRun): CombatRun {
       airAttackUsed: false,
       airAttackType: "none",
       airAttackStartedAtMs: 0,
-      airAttackUntilMs: 0
+      airAttackUntilMs: 0,
+      dashAttackReadyUntilMs: 0,
+      dashAttackStartedAtMs: 0,
+      dashAttackUntilMs: 0,
+      activeSkillMovement: undefined,
+      bufferedAction: undefined,
+      bufferedActionQueuedAtMs: undefined,
+      bufferedActionExecuteAtMs: undefined
     },
     enemies: completed ? [] : createRoomEnemies(run.dungeonId, nextRoomIndex),
     events: [clearedEvent],

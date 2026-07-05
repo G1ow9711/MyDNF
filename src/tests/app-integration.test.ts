@@ -1382,6 +1382,140 @@ describe("playable app integration actions", () => {
     expect(airHeavyHtml).toContain('hit-impact-air-heavy');
   });
 
+  it("renders dash-light windup, weapon motion, target reaction, and impact VFX hooks", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage()
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            player: {
+              ...model.combatRun.player,
+              x: 240,
+              y: 340,
+              facing: 1 as const,
+              actionLockUntilMs: 0,
+              hurtLockUntilMs: 0
+            },
+            enemies: model.combatRun.enemies.map((enemy, index) => ({
+              ...enemy,
+              hp: index === 0 ? 180 : 0,
+              maxHp: 180,
+              position: { x: 382, y: 340 },
+              nextAttackAtMs: 9999,
+              attackStartedAtMs: undefined,
+              attackImpactAtMs: undefined,
+              attackRecoverUntilMs: undefined,
+              attackSkillId: undefined,
+              attackHitResolved: undefined
+            }))
+          }
+        : undefined
+    };
+    model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: true });
+    model = reduceAppAction(model, { type: "combatAction", action: "light" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after dash-light");
+    }
+
+    const [effect] = model.combatRun.scheduledEnemyHitEffects.filter((item) => item.hitPhase === "dash-light");
+    expect(effect).toBeDefined();
+    if (!effect) {
+      return;
+    }
+    const castHtml = renderAppHtml(model);
+    const beforeHitHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, effect.applyAtMs - 1)
+    });
+    const hitRun = stepToElapsed(model.combatRun, effect.applyAtMs);
+    const hitHtml = renderAppHtml({
+      ...model,
+      combatRun: hitRun
+    });
+
+    expect(effect).toMatchObject({
+      action: "light",
+      skillId: "dash-light",
+      hitPhase: "dash-light",
+      vfxCue: "dash-light-slash"
+    });
+    expect(castHtml).toContain('data-player-motion="dash-light"');
+    expect(castHtml).toContain('data-player-state="dash-attacking"');
+    expect(castHtml).toContain('data-player-dash-attack-active="true"');
+    expect(castHtml).toContain('data-player-skill-move="dash-light"');
+    expect(castHtml).toContain('data-weapon-dash-action="light"');
+    expect(castHtml).toContain('class="combat-player-art actor-model actor-model-dash-light"');
+    expect(beforeHitHtml).not.toContain('data-vfx-cue="dash-light-slash"');
+    expect(hitHtml).toContain('data-hit-phase="dash-light"');
+    expect(hitHtml).toContain('data-vfx-cue="dash-light-slash"');
+    expect(hitHtml).toContain('data-impact-dash-action="light"');
+    expect(hitHtml).toContain('data-enemy-hit-dash-action="light"');
+    expect(hitHtml).toContain('hit-impact-dash-light');
+    expect(skillHitEvents(hitRun, "dash-light")).toHaveLength(1);
+  });
+
+  it("expires dash-light player motion at the action window instead of the generic recent-hit window", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage()
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            player: {
+              ...model.combatRun.player,
+              x: 240,
+              y: 340,
+              facing: 1 as const,
+              actionLockUntilMs: 0,
+              hurtLockUntilMs: 0
+            },
+            enemies: model.combatRun.enemies.map((enemy, index) => ({
+              ...enemy,
+              hp: index === 0 ? 180 : 0,
+              maxHp: 180,
+              position: { x: 382, y: 340 },
+              nextAttackAtMs: 9999
+            }))
+          }
+        : undefined
+    };
+    model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: true });
+    model = reduceAppAction(model, { type: "combatAction", action: "light" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after dash-light");
+    }
+
+    const [effect] = model.combatRun.scheduledEnemyHitEffects.filter((item) => item.hitPhase === "dash-light");
+    expect(effect).toBeDefined();
+    if (!effect) {
+      return;
+    }
+
+    const hitRun = stepToElapsed(model.combatRun, effect.applyAtMs);
+    const expiredRun = stepToElapsed(hitRun, hitRun.player.dashAttackUntilMs + 1);
+    const expiredHtml = renderAppHtml({
+      ...model,
+      combatRun: expiredRun
+    });
+
+    expect(skillHitEvents(hitRun, "dash-light")).toHaveLength(1);
+    expect(expiredRun.elapsedMs).toBeGreaterThan(hitRun.player.dashAttackUntilMs);
+    expect(expiredHtml).toContain('data-player-dash-attack-active="false"');
+    expect(expiredHtml).not.toContain('data-player-motion="dash-light"');
+    expect(expiredHtml).not.toContain('data-player-state="dash-attacking"');
+  });
+
   it("renders player hit state over airborne light attack state when interrupted", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

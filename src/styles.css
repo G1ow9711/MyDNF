@@ -1079,6 +1079,10 @@ p {
   animation: weapon-light-swing 260ms cubic-bezier(0.2, 0.78, 0.2, 1) both;
 }
 
+.combat-player[data-player-motion="dash-light"] .combat-weapon {
+  animation: weapon-dash-light-slash 280ms cubic-bezier(0.14, 0.84, 0.16, 1) both;
+}
+
 .combat-player[data-player-motion="light"][data-player-normal-combo-step="2"] .combat-weapon {
   animation: weapon-light-cross 300ms cubic-bezier(0.18, 0.8, 0.18, 1) both;
 }
@@ -1461,6 +1465,12 @@ p {
 .actor-model-light,
 .combat-player[data-player-motion="light"] .combat-player-art {
   animation: player-light-strike 260ms cubic-bezier(0.2, 0.78, 0.2, 1) both;
+}
+
+.actor-model-dash-light,
+.combat-player[data-player-motion="dash-light"] .combat-player-art {
+  animation: player-dash-light-strike 280ms cubic-bezier(0.14, 0.84, 0.16, 1) both;
+  filter: drop-shadow(0 0 18px rgba(252, 211, 77, 0.52)) brightness(1.18);
 }
 
 .combat-player[data-player-motion="light"][data-player-normal-combo-step="2"] .combat-player-art,
@@ -1870,6 +1880,13 @@ p {
   filter: drop-shadow(0 0 22px rgba(251, 191, 36, 0.58)) brightness(1.2) saturate(1.12);
 }
 
+.combat-enemy[data-enemy-state="alive"][data-hit-dash-action="light"] .enemy-art,
+.combat-enemy[data-enemy-hit-dash-action="light"] .enemy-art,
+.combat-enemy[data-enemy-state="alive"][data-enemy-hit-dash-action="light"] .enemy-art {
+  animation: monster-dash-light-hit-react 360ms cubic-bezier(0.14, 0.82, 0.16, 1) both;
+  filter: drop-shadow(0 0 20px rgba(252, 211, 77, 0.56)) brightness(1.22) saturate(1.1);
+}
+
 .actor-model-idle,
 .combat-enemy[data-enemy-motion="idle"] .enemy-art {
   animation: monster-idle-breathe 2.8s ease-in-out infinite;
@@ -2045,6 +2062,11 @@ p {
   height: 142px;
 }
 
+.hit-impact-dash-light {
+  width: 148px;
+  height: 124px;
+}
+
 .combat-enemy-boss[data-boss-phase="2"] .enemy-art {
   animation: monster-taotie-forge-enrage 1160ms cubic-bezier(0.12, 0.82, 0.16, 1) both;
   filter: saturate(1.22) contrast(1.1) drop-shadow(0 0 18px rgba(248, 113, 113, 0.52));
@@ -2215,6 +2237,23 @@ p {
   transform: rotate(18deg);
   filter: blur(0.1px) drop-shadow(0 0 16px rgba(251, 191, 36, 0.9));
   animation: air-heavy-impact-slam 320ms ease-out both;
+}
+
+.hit-impact-dash-light .hit-ring {
+  width: 108px;
+  height: 76px;
+  border-color: rgba(254, 240, 138, 0.92);
+  box-shadow: 0 0 30px rgba(252, 211, 77, 0.78), inset 0 0 18px rgba(251, 146, 60, 0.28);
+  animation: impact-ring 300ms ease-out both;
+}
+
+.hit-impact-dash-light .hit-slash {
+  width: 166px;
+  height: 20px;
+  background: linear-gradient(90deg, transparent, rgba(255, 251, 235, 0.98), rgba(252, 211, 77, 0.92), rgba(251, 146, 60, 0.78), transparent);
+  transform: rotate(-12deg);
+  filter: blur(0.1px) drop-shadow(0 0 15px rgba(252, 211, 77, 0.88));
+  animation: dash-light-impact-slash 280ms ease-out both;
 }
 
 .skill-impact-burst {
@@ -4875,6 +4914,13 @@ p {
   100% { transform: translateX(0) rotate(0deg) scaleX(var(--model-scale-x, 1)); }
 }
 
+@keyframes player-dash-light-strike {
+  0% { transform: translateX(calc(var(--model-scale-x, 1) * -10px)) translateY(2px) rotate(-3deg) scale(0.98) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
+  36% { transform: translateX(calc(var(--model-scale-x, 1) * 30px)) translateY(-3px) rotate(5deg) scale(1.05) scaleX(var(--model-scale-x, 1)); filter: brightness(1.42) saturate(1.16); }
+  58% { transform: translateX(calc(var(--model-scale-x, 1) * 48px)) translateY(-1px) rotate(8deg) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.66) saturate(1.24); }
+  100% { transform: translateX(calc(var(--model-scale-x, 1) * 6px)) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
+}
+
 @keyframes player-air-light-slash {
   0% { transform: translateX(calc(var(--light-lunge-x, 24px) * -0.22)) translateY(-22px) rotate(-5deg) scale(0.98) scaleX(var(--model-scale-x, 1)); filter: brightness(1.02); }
   34% { transform: translateX(calc(var(--light-lunge-x, 24px) * 0.48)) translateY(-42px) rotate(4deg) scale(1.04) scaleX(var(--model-scale-x, 1)); filter: brightness(1.36) saturate(1.12); }
@@ -5145,6 +5191,13 @@ p {
   0% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); }
   48% { transform: translate(calc(-50% + var(--weapon-swing-x, 22px)), -56%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 24deg)) scale(var(--weapon-scale, 1)); }
   100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); }
+}
+
+@keyframes weapon-dash-light-slash {
+  0% { transform: translate(calc(-50% + var(--weapon-facing, 1) * -14px), -54%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * -18deg)) scale(calc(var(--weapon-scale, 1) * 0.96)); opacity: 0.86; }
+  40% { transform: translate(calc(-50% + var(--weapon-facing, 1) * 34px), -62%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * 42deg)) scale(calc(var(--weapon-scale, 1) * 1.14)); filter: drop-shadow(0 0 30px color-mix(in srgb, var(--weapon-glow, #facc15) 90%, transparent)) brightness(1.42); opacity: 1; }
+  66% { transform: translate(calc(-50% + var(--weapon-facing, 1) * 48px), -50%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * 18deg)) scale(calc(var(--weapon-scale, 1) * 1.08)); filter: drop-shadow(0 0 36px color-mix(in srgb, var(--weapon-glow, #facc15) 96%, transparent)) brightness(1.52); }
+  100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 0.94; }
 }
 
 @keyframes weapon-air-light-slash {
@@ -5444,6 +5497,13 @@ p {
   100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
 }
 
+@keyframes monster-dash-light-hit-react {
+  0% { transform: translateX(0) rotate(0deg) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
+  20% { transform: translateX(calc(var(--hit-react-x, 18px) * 1.22)) translateY(-4px) rotate(5deg) scale(1.04, 0.96) scaleX(var(--model-scale-x, 1)); filter: brightness(2) saturate(1.18); }
+  48% { transform: translateX(calc(var(--hit-react-x, 18px) * -0.42)) translateY(1px) rotate(-3deg) scale(1.02) scaleX(var(--model-scale-x, 1)); filter: brightness(1.38); }
+  100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
+}
+
 @keyframes actor-trail-a {
   0% { opacity: 0.34; transform: translateX(calc(var(--model-scale-x, 1) * -18px)) translateY(4px) scale(0.98); }
   100% { opacity: 0; transform: translateX(calc(var(--model-scale-x, 1) * -48px)) translateY(8px) scale(0.92); }
@@ -5499,6 +5559,12 @@ p {
   0% { opacity: 0; transform: translateX(-10px) translateY(-34px) rotate(18deg) scaleX(0.42) scaleY(0.72); }
   28% { opacity: 1; transform: translateX(4px) translateY(-8px) rotate(18deg) scaleX(1.06) scaleY(1.18); }
   100% { opacity: 0; transform: translateX(18px) translateY(18px) rotate(18deg) scaleX(1.36) scaleY(0.8); }
+}
+
+@keyframes dash-light-impact-slash {
+  0% { opacity: 0; transform: translateX(-30px) translateY(-6px) rotate(-12deg) scaleX(0.34); }
+  30% { opacity: 1; transform: translateX(0) translateY(-10px) rotate(-12deg) scaleX(1.04); }
+  100% { opacity: 0; transform: translateX(34px) translateY(-16px) rotate(-12deg) scaleX(1.32); }
 }
 
 @keyframes damage-float {

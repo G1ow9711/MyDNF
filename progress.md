@@ -2317,3 +2317,38 @@
   - Added a landing-lock regression to the airborne heavy cancellation test.
   - Fixed heavy input so any non-grounded air state routes through `performAirHeavyAction()` and returns no-op when the slam can no longer start, preventing landing-buffered ground heavy.
   - Review regression passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "airborne heavy|air heavy|jump state"`, 6 tests.
+
+## Task 83 DNF-Style Dash-Light Attack
+- Continued under the user's clarification: character models can stay lightweight for now, but combat motion smoothness, model-following attacks, strict hit frames, hit feedback, skill VFX, and monster VFX are strict.
+- Used parallel read-only agents:
+  - Combat/input audit confirmed `Shift` only affected movement speed and was not visible to `{ type: "light" }`, so recent dash movement had to be stored on the combat player state.
+  - UI/CSS audit confirmed ordinary ground light animation would mask dash-light unless `hitPhase`, `playerMotion`, weapon dash data, target dash-hit data, and impact class were all distinct.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires recent dash movement followed by `X/J` to schedule a 90 ms dynamic `dash-light` hit frame, lunge the model forward, recheck targets at the hit frame, and cancel if a monster interrupts before impact.
+  - `src/tests/app-integration.test.ts` requires dash-light windup/impact DOM hooks including `data-player-motion="dash-light"`, `data-player-state="dash-attacking"`, `data-weapon-dash-action="light"`, `data-enemy-hit-dash-action="light"`, and `hit-impact-dash-light`.
+  - `src/tests/ui-smoke.test.ts` requires dedicated player, weapon, monster, and impact CSS keyframes.
+- RED evidence:
+  - Focused dash-light suite failed before implementation because no `dash-light` scheduled effect existed.
+- Implemented:
+  - Added dash-light-ready player timing fields and set them only after real `Shift + horizontal movement`.
+  - Added `performDashLightAction()` with 46 px model-following lunge, `inputToHitMs: 90`, dynamic endpoint hitbox, `skillId: "dash-light"`, `hitPhase: "dash-light"`, and `vfxCue: "dash-light-slash"`.
+  - Scheduled dash-light damage cancels through the existing active-movement interruption path when a monster hit lands before the hit frame.
+  - UI now renders `dash-light` player motion/state, weapon dash action metadata, enemy dash-hit metadata, dash-light impact metadata, and dash-light motion trail support.
+  - CSS now defines `player-dash-light-strike`, `weapon-dash-light-slash`, `monster-dash-light-hit-react`, and `dash-light-impact-slash`.
+- Verification:
+  - RED confirmed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "dash-light"` failed before implementation on missing scheduled `dash-light` effects.
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "dash-light"`, 5 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 311 tests.
+  - Full suite passed: `npm test`, 13 files / 407 tests.
+  - Production build passed: `npm run build`.
+  - Browser DOM/CSS validation on `http://127.0.0.1:5178/.codex-local/tmp/dash-light-check.html` confirmed HP 180 -> 143 only on hit, `dash-light` player motion/state, weapon/enemy/impact dash action metadata, computed animations `player-dash-light-strike`, `weapon-dash-light-slash`, `monster-dash-light-hit-react`, `dash-light-impact-slash`, and empty warning/error console output. Temporary check page was deleted; dev server remains running on port 5178 for manual play.
+- Code review follow-up:
+  - Read-only review found one Critical and three Important issues: dash-ready crossed room transitions, hurt/bound frames could precharge a later dash-light, UI player dash-light state could last for the generic 520 ms recent-hit window, and tests needed behavior regressions rather than only string hooks.
+  - Added regressions for room-transition dash reset, hurt/bound dash precharge rejection, and player motion expiry at the dash action window.
+  - Fixed room entry cleanup to clear dash timers, active dash movement, and buffered actions; fixed dash precharge to require control-unlocked frames; fixed UI dash-light active logic to use the real dash action window instead of recent-hit metadata.
+  - Review RED confirmed: focused dash-light suite failed on the three new regressions before the fix.
+  - Review focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "dash-light"`, 8 tests.
+  - Review related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 314 tests.
+  - Review full suite passed: `npm test`, 13 files / 410 tests.
+  - Review production build passed: `npm run build`.
+  - Browser revalidation on `http://127.0.0.1:5178/.codex-local/tmp/dash-light-review-check.html` confirmed HP 180 -> 143 at the hit frame, hit-frame player/weapon/enemy dash hooks, computed animations `player-dash-light-strike`, `weapon-dash-light-slash`, `monster-dash-light-hit-react`, and `dash-light-impact-slash`, expired player state `motion=light` / `state=active` / `dashActive=false`, room reset dash timers all zero, hurt precharge zero, and empty warn/error logs. Temporary check page was deleted; dev server remains running on port 5178 for manual play.

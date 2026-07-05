@@ -365,6 +365,213 @@ describe("combat actions and impact feel", () => {
     expect(restartHit.comboCount).toBe(1);
   });
 
+  it("turns recent dash movement into a delayed model-following dash-light strike", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 382, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const dashed = stepCombat(run, { moveX: 1, moveY: 0, dash: true }, 80);
+    const cast = performAction(dashed, { type: "light" });
+    const [effect] = cast.scheduledEnemyHitEffects.filter((item) => item.hitPhase === "dash-light");
+    expect(effect).toBeDefined();
+    if (!effect) {
+      return;
+    }
+    const beforeHit = stepToElapsed(cast, effect.applyAtMs - 1);
+    const midLunge = stepToElapsed(cast, cast.elapsedMs + 45);
+    const hit = stepToElapsed(cast, effect.applyAtMs);
+    const [dashHit] = hit.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.action === "light" && event.hitPhase === "dash-light"
+    );
+
+    expect(effect).toMatchObject({
+      action: "light",
+      skillId: "dash-light",
+      inputToHitMs: 90,
+      hitPhase: "dash-light",
+      vfxCue: "dash-light-slash"
+    });
+    expect(cast.player.activeSkillMovement?.skillId).toBe("dash-light");
+    expect(midLunge.player.x).toBeGreaterThan(cast.player.x);
+    expect(midLunge.player.x).toBeLessThan(effect.dynamicOrigin?.x ?? 0);
+    expect(beforeHit.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(dashHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      inputToHitMs: 90,
+      hitstopMs: 58,
+      vfxCue: "dash-light-slash",
+      vfxWindowMs: 260
+    });
+    expect(hit.player.x).toBeCloseTo(effect.dynamicOrigin?.x ?? 0, 5);
+    expect(hit.player.comboStep).toBe(0);
+    expect(hit.player.activeSkillMovement).toBeUndefined();
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("rechecks dash-light targets at the hit frame instead of locking cast-time targets", () => {
+    const inRangeRun = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 382, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const castWithTarget = performAction(stepCombat(inRangeRun, { moveX: 1, moveY: 0, dash: true }, 80), { type: "light" });
+    const [dashEffect] = castWithTarget.scheduledEnemyHitEffects.filter((item) => item.hitPhase === "dash-light");
+    expect(dashEffect).toBeDefined();
+    if (!dashEffect) {
+      return;
+    }
+    const movedOutBeforeHit = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: castWithTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 620, y: 430 }
+              }
+            : enemy
+        )
+      },
+      dashEffect.applyAtMs
+    );
+
+    expect(
+      movedOutBeforeHit.events.filter((event) => event.kind === "hit" && event.action === "light" && event.hitPhase === "dash-light")
+    ).toHaveLength(0);
+    expect(movedOutBeforeHit.events.filter((event) => event.kind === "miss" && event.action === "light" && event.skillId === "dash-light")).toHaveLength(1);
+    expect(movedOutBeforeHit.enemies[0].hp).toBe(inRangeRun.enemies[0].hp);
+
+    const outOfRangeRun = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 620, y: 430, hp: 180, maxHp: 180 }]
+    );
+    const castWithoutTarget = performAction(stepCombat(outOfRangeRun, { moveX: 1, moveY: 0, dash: true }, 80), { type: "light" });
+    const [lateDashEffect] = castWithoutTarget.scheduledEnemyHitEffects.filter((item) => item.hitPhase === "dash-light");
+    expect(lateDashEffect).toBeDefined();
+    if (!lateDashEffect) {
+      return;
+    }
+    const movedInBeforeHit = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: castWithoutTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 382, y: 340 }
+              }
+            : enemy
+        )
+      },
+      lateDashEffect.applyAtMs
+    );
+    const [lateHit] = movedInBeforeHit.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.action === "light" && event.hitPhase === "dash-light"
+    );
+
+    expect(lateHit).toMatchObject({
+      targetId: outOfRangeRun.enemies[0].id,
+      vfxCue: "dash-light-slash"
+    });
+    expect(movedInBeforeHit.events.filter((event) => event.kind === "miss" && event.action === "light" && event.skillId === "dash-light")).toHaveLength(0);
+    expect(movedInBeforeHit.enemies[0].hp).toBeLessThan(outOfRangeRun.enemies[0].hp);
+  });
+
+  it("cancels pending dash-light damage when a monster interrupts before the hit frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 350, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const dashed = stepCombat(run, { moveX: 1, moveY: 0, dash: true }, 80);
+    const interruptingRun: CombatRun = {
+      ...dashed,
+      enemies: dashed.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: dashed.elapsedMs,
+              attackImpactAtMs: dashed.elapsedMs + 50,
+              attackRecoverUntilMs: dashed.elapsedMs + 420,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+
+    const cast = performAction(interruptingRun, { type: "light" });
+    const [effect] = cast.scheduledEnemyHitEffects.filter((item) => item.hitPhase === "dash-light");
+    expect(effect).toBeDefined();
+    if (!effect) {
+      return;
+    }
+    const interrupted = stepToElapsed(cast, effect.applyAtMs);
+    const playerHits = interrupted.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(playerHits).toHaveLength(1);
+    expect(interrupted.events.filter((event) => event.kind === "hit" && event.action === "light" && event.hitPhase === "dash-light")).toHaveLength(0);
+    expect(interrupted.events.filter((event) => event.kind === "miss" && event.action === "light" && event.skillId === "dash-light")).toHaveLength(0);
+    expect(interrupted.scheduledEnemyHitEffects.filter((item) => item.skillId === "dash-light")).toHaveLength(0);
+  });
+
+  it("clears dash-light readiness and movement state when entering the next room", () => {
+    const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const cleared = defeatAll(run);
+    const dashedAtGate = stepCombat(cleared, { moveX: 1, moveY: 0, dash: true }, 80);
+    expect(dashedAtGate.player.dashAttackReadyUntilMs).toBeGreaterThan(dashedAtGate.elapsedMs);
+
+    const nextRoom = finishRoom({
+      ...dashedAtGate,
+      enemies: dashedAtGate.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
+    });
+    const nextAction = performAction(nextRoom, { type: "light" });
+
+    expect(nextRoom.roomIndex).toBe(1);
+    expect(nextRoom.player.dashAttackReadyUntilMs).toBe(0);
+    expect(nextRoom.player.dashAttackStartedAtMs).toBe(0);
+    expect(nextRoom.player.dashAttackUntilMs).toBe(0);
+    expect(nextRoom.player.activeSkillMovement).toBeUndefined();
+    expect(nextAction.scheduledEnemyHitEffects.filter((item) => item.skillId === "dash-light")).toHaveLength(0);
+  });
+
+  it("does not precharge dash-light while hurt or bound control locks are active", () => {
+    const base = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const hurtLocked: CombatRun = {
+      ...base,
+      player: {
+        ...base.player,
+        hurtLockUntilMs: 120
+      }
+    };
+    const hurtDash = stepCombat(hurtLocked, { moveX: 1, moveY: 0, dash: true }, 80);
+    const afterHurt = stepToElapsed(hurtDash, 130);
+    const hurtAction = performAction(afterHurt, { type: "light" });
+
+    expect(hurtDash.player.dashAttackReadyUntilMs).toBe(0);
+    expect(hurtAction.scheduledEnemyHitEffects.filter((item) => item.skillId === "dash-light")).toHaveLength(0);
+
+    const boundLocked: CombatRun = {
+      ...base,
+      player: {
+        ...base.player,
+        boundUntilMs: 50
+      }
+    };
+    const boundDash = stepCombat(boundLocked, { moveX: 1, moveY: 0, dash: true }, 80);
+    const afterBound = stepToElapsed(boundDash, 100);
+    const boundAction = performAction(afterBound, { type: "light" });
+
+    expect(boundDash.player.dashAttackReadyUntilMs).toBe(0);
+    expect(boundAction.scheduledEnemyHitEffects.filter((item) => item.skillId === "dash-light")).toHaveLength(0);
+  });
+
   it("keeps launched enemies airborne, blocks their attacks, and then drops them into knockdown", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       hp: 200,

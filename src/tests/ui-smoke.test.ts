@@ -1728,6 +1728,54 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes air-heavy-impact-slam");
   });
 
+  it("renders DNF-style dash-light with player, weapon, target, and impact hooks", () => {
+    const state = createInitialState();
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const readyRun = withSingleReadyEnemy(
+      {
+        ...baseRun,
+        player: {
+          ...baseRun.player,
+          x: 240,
+          y: 340,
+          facing: 1,
+          actionLockUntilMs: 0,
+          hurtLockUntilMs: 0
+        }
+      },
+      {
+        position: { x: 382, y: 340 },
+        nextAttackAtMs: 9999
+      }
+    );
+    const dashed = stepCombat(readyRun, { moveX: 1, moveY: 0, dash: true }, 80);
+    const dashWindup = performAction(dashed, { type: "light" });
+    const [effect] = dashWindup.scheduledEnemyHitEffects.filter((item) => item.hitPhase === "dash-light");
+    expect(effect).toBeDefined();
+    if (!effect) {
+      return;
+    }
+    const dashStrike = stepCombat(dashWindup, {}, effect.applyAtMs - dashWindup.elapsedMs);
+    const html = renderAppHtml({ state, mode: "combat", combatRun: dashStrike });
+
+    expect(html).toContain('data-player-motion="dash-light"');
+    expect(html).toContain('data-player-state="dash-attacking"');
+    expect(html).toContain('data-player-dash-attack-active="true"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-dash-light"');
+    expect(html).toContain('data-weapon-dash-action="light"');
+    expect(html).toContain('data-vfx-cue="dash-light-slash"');
+    expect(html).toContain('data-impact-dash-action="light"');
+    expect(html).toContain('hit-impact-dash-light');
+    expect(html).toContain('data-enemy-hit-dash-action="light"');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="dash-light"] .combat-player-art');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="dash-light"] .combat-weapon');
+    expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-dash-action="light"] .enemy-art');
+    expect(stylesCss).toContain("@keyframes player-dash-light-strike");
+    expect(stylesCss).toContain("@keyframes weapon-dash-light-slash");
+    expect(stylesCss).toContain("@keyframes monster-dash-light-hit-react");
+    expect(stylesCss).toContain("@keyframes dash-light-impact-slash");
+  });
+
   it("renders DNF-style command inputs and manual-cast reduction hooks on skill slots", () => {
     const state = createInitialState();
     const combatRun = createCombatRun({ ...state, player: { ...state.player, heat: 24 } }, "cinder-kiln-alley");

@@ -347,6 +347,106 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes taotie-devour-hit-feedback");
   });
 
+  it("renders taotie boss phase and forge collapse arena hazard effects", () => {
+    const state = createInitialState();
+    const bossBaseRun = reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 2);
+    const lowHpRun: CombatRun = {
+      ...bossBaseRun,
+      player: {
+        ...bossBaseRun.player,
+        x: 240,
+        y: 340,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...bossBaseRun.enemies[0],
+          hp: Math.floor(bossBaseRun.enemies[0].maxHp / 2),
+          armor: 0,
+          nextAttackAtMs: 9999
+        } as CombatEnemy
+      ]
+    };
+    const phaseRun = stepCombat(lowHpRun, {}, 1);
+    const impactRun = stepCombat(phaseRun, {}, 620);
+    const phaseHtml = renderAppHtml({ state, mode: "combat", combatRun: phaseRun });
+    const impactHtml = renderAppHtml({ state, mode: "combat", combatRun: impactRun });
+
+    expect(phaseHtml).toContain('data-boss-phase="2"');
+    expect(phaseHtml).toContain('data-boss-enraged="true"');
+    expect(phaseHtml).toContain('data-boss-phase-vfx="taotie-forge-collapse"');
+    expect(phaseHtml).toContain('data-arena-danger="taotie-forge-collapse"');
+    expect(phaseHtml).toContain('data-arena-hazard-layer="true"');
+    expect(countOccurrences(phaseHtml, 'data-arena-hazard="taotie-forge-collapse"')).toBe(3);
+    expect(phaseHtml).toContain('data-hazard-phase="telegraph"');
+    expect(impactHtml).toContain('data-hazard-phase="active"');
+    expect(impactHtml).toContain('data-hazard-vfx-cue="taotie-forge-collapse-impact"');
+    expect(impactHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-forge-collapse"');
+    expect(stylesCss).toContain('.combat-enemy-boss[data-boss-phase="2"]');
+    expect(stylesCss).toContain(".boss-phase-vfx-taotie-forge-collapse");
+    expect(stylesCss).toContain(".arena-hazard-taotie-forge-collapse");
+    expect(stylesCss).toContain("@keyframes monster-taotie-forge-enrage");
+    expect(stylesCss).toContain("@keyframes taotie-forge-collapse-ring");
+    expect(stylesCss).toContain("@keyframes taotie-forge-hazard-drop");
+    expect(stylesCss).toContain("@keyframes taotie-forge-collapse-hit-feedback");
+  });
+
+  it("does not render stale arena hazards after combat failure", () => {
+    const state = createInitialState();
+    const bossBaseRun = reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 2);
+    const failedRun: CombatRun = {
+      ...bossBaseRun,
+      failed: true,
+      player: {
+        ...bossBaseRun.player,
+        defeated: true,
+        hp: 0
+      },
+      events: [
+        ...bossBaseRun.events,
+        {
+          kind: "arena-hazard",
+          id: "stale-hazard-telegraph",
+          hazardId: "stale-hazard",
+          enemyId: bossBaseRun.enemies[0].id,
+          skillId: "taotie-forge-collapse",
+          phase: "telegraph",
+          x: 240,
+          y: 340,
+          radiusX: 86,
+          laneRange: 36,
+          occurredAtMs: bossBaseRun.elapsedMs,
+          impactAtMs: bossBaseRun.elapsedMs + 620,
+          vfxCue: "taotie-forge-collapse-telegraph",
+          vfxWindowMs: 620
+        }
+      ],
+      scheduledArenaHazards: [
+        {
+          hazardId: "stale-hazard",
+          enemyId: bossBaseRun.enemies[0].id,
+          skillId: "taotie-forge-collapse",
+          x: 240,
+          y: 340,
+          radiusX: 86,
+          laneRange: 36,
+          impactAtMs: bossBaseRun.elapsedMs + 620,
+          damage: 62,
+          hitstopMs: 72,
+          knockback: 36,
+          vfxWindowMs: 720
+        }
+      ]
+    };
+    const html = renderAppHtml({ state, mode: "combat", combatRun: failedRun });
+
+    expect(html).toContain('data-combat-objective="failed"');
+    expect(html).toContain('data-arena-danger="none"');
+    expect(html).toContain('data-arena-hazard-count="0"');
+    expect(html).not.toContain('data-arena-hazard="taotie-forge-collapse"');
+  });
+
   it("renders target-bound skill impact bursts for multi-hit player skills", () => {
     const inkState = selectBaseClass(createInitialState(), "ink-shadow-ranger");
     const state = {

@@ -114,8 +114,9 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current monster-pattern progress: normal trash rooms now mix ranged `ash-ember-spit` with close-range `ash-crawler-burst`, including windup rush, circle telegraph, active explosion VFX, hit/miss feedback, and stagger interruption.
 - Current elite-pattern progress: elite rooms now include `zheng-shockwave` plus `zheng-horn-charge`, giving Shan Hai Jing elites both circular quake pressure and line-telegraphed rush attacks with separate model motion/VFX/feedback.
 - Current boss-pattern progress: boss now alternates `taotie-flame-breath` and `taotie-devour-pull`; the devour skill pulls the player horizontally during windup, uses circular vortex telegraph, resolves a bite impact/miss, and has independent model/VFX/feedback animations.
+- Current boss-phase progress: Taotie now enters phase 2 at half HP, interrupts its current cast, emits a phase-burst event, schedules three arena forge-collapse hazards, and resolves hazard hit/miss based on player position at the impact frame with dedicated VFX/feedback.
 - Remaining strict-DNF combat gaps: deeper scripts for remaining skills, broader class-specific animation timelines, enemy hurtbox tuning, broader target-bound VFX coverage, weapon atlas/frame animation beyond static SVG assets, stronger room-transition staging, and a formal save migration from `heat` alias to class-resource storage.
-- Remaining monster-pattern gap: boss tier now has a second archetype, but still needs broader control, summon, arena hazard, and phase-change pattern variety.
+- Remaining monster-pattern gap: boss tier now has alternating attacks plus first half-HP arena hazard, but still needs broader control, summon/minion pressure, and later multi-phase behavior variety.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

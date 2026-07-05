@@ -10,6 +10,8 @@ import {
   skillCooldownRemaining,
   stepCombat,
   type CombatActionInput,
+  type CombatArenaHazardEvent,
+  type CombatBossPhaseEvent,
   type CombatEnemy,
   type CombatEnemyAttackEvent,
   type CombatHitEvent,
@@ -439,6 +441,24 @@ function matchingPlayerHitEvent(run: CombatRun, attackEvent: CombatEnemyAttackEv
   });
 }
 
+function matchingArenaHazardPlayerHit(run: CombatRun, hazardEvent: CombatArenaHazardEvent): CombatPlayerHitEvent | undefined {
+  return [...run.events].reverse().find((event): event is CombatPlayerHitEvent => {
+    if (event.kind !== "player-hit") {
+      return false;
+    }
+
+    const age = eventAge(run, event.occurredAtMs);
+
+    return (
+      age >= 0 &&
+      age <= (event.vfxWindowMs ?? recentHitWindowMs) &&
+      event.enemyId === hazardEvent.enemyId &&
+      event.skillId === hazardEvent.skillId &&
+      event.occurredAtMs === hazardEvent.occurredAtMs
+    );
+  });
+}
+
 function recentEnemyAttackEvents(run: CombatRun): CombatEnemyAttackEvent[] {
   const latestByEnemy = new Map<string, CombatEnemyAttackEvent>();
 
@@ -456,6 +476,36 @@ function recentEnemyAttackEvents(run: CombatRun): CombatEnemyAttackEvent[] {
   }
 
   return [...latestByEnemy.values()];
+}
+
+function latestBossPhaseEvent(run: CombatRun): CombatBossPhaseEvent | undefined {
+  return [...run.events].reverse().find((event): event is CombatBossPhaseEvent => {
+    if (event.kind !== "boss-phase") {
+      return false;
+    }
+
+    const age = eventAge(run, event.occurredAtMs);
+
+    return age >= 0 && age <= event.vfxWindowMs;
+  });
+}
+
+function recentArenaHazardEvents(run: CombatRun): CombatArenaHazardEvent[] {
+  const latestByHazard = new Map<string, CombatArenaHazardEvent>();
+
+  for (const event of run.events) {
+    if (event.kind !== "arena-hazard") {
+      continue;
+    }
+
+    const age = eventAge(run, event.occurredAtMs);
+
+    if (age >= 0 && age <= event.vfxWindowMs) {
+      latestByHazard.set(event.hazardId, event);
+    }
+  }
+
+  return [...latestByHazard.values()];
 }
 
 function latestPlayerActionEvent(run: CombatRun): CombatHitEvent | CombatMissEvent | undefined {
@@ -706,6 +756,7 @@ function renderCombatVfx(run: CombatRun): string {
   const hit = latestHitEvent(run);
   const hits = recentHitEvents(run);
   const playerHit = latestPlayerHitEvent(run);
+  const bossPhase = latestBossPhaseEvent(run);
   const playerAction = latestPlayerActionEvent(run);
   const skillTarget =
     playerAction?.kind === "hit" ? run.enemies.find((enemy) => enemy.id === playerAction.targetId) : undefined;
@@ -805,12 +856,61 @@ function renderCombatVfx(run: CombatRun): string {
       `;
     })
     .join("");
+  const bossPhaseVfx = bossPhase
+    ? `
+        <div class="boss-phase-vfx boss-phase-vfx-${bossPhase.skillId}" data-boss-phase-vfx="${bossPhase.skillId}" data-boss-phase="${bossPhase.phase}" data-boss-phase-enemy-id="${bossPhase.enemyId}" data-boss-phase-hazard-count="${bossPhase.hazardCount}" data-boss-phase-cue="${bossPhase.vfxCue}" style="${combatActorStyle(run, run.arena.width / 2, run.arena.minY + 84)}">
+          <span class="boss-phase-ring"></span>
+          <span class="boss-phase-core"></span>
+          <span class="boss-phase-shards"></span>
+        </div>
+      `
+    : "";
 
   return `
     <div class="combat-vfx-layer" data-hitstop-active="${hitstopActive ? "true" : "false"}" data-screen-shake="${screenShake}" data-screen-flash="${screenFlash}" data-impact-skill-id="${impactSkillId}">
+      ${bossPhaseVfx}
       ${enemyVfx}
       ${hitVfx}
       ${skillVfx}
+    </div>
+  `;
+}
+
+function renderArenaHazards(run: CombatRun): string {
+  const hazards = recentArenaHazardEvents(run);
+
+  if (hazards.length === 0) {
+    return `<div class="arena-hazard-layer" data-arena-hazard-layer="true" data-arena-hazard-count="0"></div>`;
+  }
+
+  const hazardMarkup = hazards
+    .map((event, index) => {
+      const playerHit = matchingArenaHazardPlayerHit(run, event);
+      const feedbackResult = playerHit ? "hit" : event.phase === "miss" ? "miss" : "";
+      const feedback =
+        feedbackResult !== ""
+          ? `
+            <div class="combat-feedback combat-feedback-${feedbackResult} combat-feedback-skill-${event.skillId}" data-combat-feedback="arena-hazard-${feedbackResult}" data-feedback-skill-id="${event.skillId}" data-feedback-result="${feedbackResult}" data-player-feedback-cue="${playerHit?.feedbackCue ?? ""}" data-hazard-id="${event.hazardId}" data-hazard-vfx-cue="${event.vfxCue}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+              <span class="combat-feedback-text">${feedbackResult === "miss" ? "MISS" : "HIT"}</span>
+            </div>
+          `
+          : "";
+
+      return `
+        <div class="arena-hazard arena-hazard-${event.skillId}" data-arena-hazard="${event.skillId}" data-hazard-id="${event.hazardId}" data-hazard-phase="${event.phase}" data-hazard-index="${index}" data-hazard-impact-at-ms="${event.impactAtMs}" data-hazard-vfx-cue="${event.vfxCue}" data-hazard-radius-x="${event.radiusX}" data-hazard-lane-range="${event.laneRange}" style="${combatActorStyle(run, event.x, event.y)} --hazard-radius-x: ${event.radiusX}px; --hazard-lane-range: ${event.laneRange}px; --hazard-index: ${index};">
+          <span class="arena-hazard-shadow"></span>
+          <span class="arena-hazard-marker"></span>
+          <span class="arena-hazard-core"></span>
+          <span class="arena-hazard-debris"></span>
+        </div>
+        ${feedback}
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="arena-hazard-layer" data-arena-hazard-layer="true" data-arena-hazard-count="${hazards.length}">
+      ${hazardMarkup}
     </div>
   `;
 }
@@ -828,6 +928,9 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
     .map((enemy) => {
       const enemyState = enemy.hp > 0 ? "alive" : "defeated";
       const hpPercent = enemyHpPercent(enemy);
+      const hpPercentRounded = Math.round(hpPercent);
+      const bossPhase = enemy.kind === "boss" ? enemy.bossPhase ?? 1 : "";
+      const bossEnraged = enemy.kind === "boss" && (enemy.bossPhase ?? 1) >= 2;
       const motion = enemyMotion(enemy, hitTargetIds.has(enemy.id) ? enemy.id : undefined, run.elapsedMs);
       const enemySkillMotionClass = enemy.attackSkillId ? `actor-enemy-skill-${enemy.attackSkillId}` : "";
       const hitRecent = hitTargetIds.has(enemy.id);
@@ -836,7 +939,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const armorState = enemyArmorState(enemy, run.elapsedMs);
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" style="${enemyActorStyle(run, enemy)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
             <img class="enemy-art actor-model actor-model-${motion}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
@@ -915,15 +1018,26 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const bufferState = bufferedAction ? "queued" : "empty";
   const bufferExecuteAtMs = run.player.bufferedActionExecuteAtMs;
   const bufferRemainingMs = bufferedAction && bufferExecuteAtMs !== undefined ? Math.max(0, bufferExecuteAtMs - run.elapsedMs) : 0;
+  const bossEnemy = run.enemies.find((enemy) => enemy.kind === "boss");
+  const bossPhase = bossEnemy ? bossEnemy.bossPhase ?? 1 : "";
+  const bossPhaseTriggered = Boolean(bossEnemy?.bossPhaseTriggeredAtMs !== undefined || (bossEnemy?.bossPhase ?? 1) >= 2);
+  const activeArenaHazards = roomFailed ? [] : recentArenaHazardEvents(run);
+  const arenaHazardIds = new Set([
+    ...activeArenaHazards.map((hazard) => hazard.hazardId),
+    ...(roomFailed ? [] : (run.scheduledArenaHazards ?? []).map((hazard) => hazard.hazardId))
+  ]);
+  const arenaHazardCount = arenaHazardIds.size;
+  const arenaDanger = arenaHazardCount > 0 ? "taotie-forge-collapse" : "none";
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
       </div>
       ${renderCombatActors(run, state)}
       ${roomGateMarkup}
+      ${roomFailed ? `<div class="arena-hazard-layer" data-arena-hazard-layer="true" data-arena-hazard-count="0"></div>` : renderArenaHazards(run)}
       ${renderCombatVfx(run)}
       ${comboMeter}
       ${

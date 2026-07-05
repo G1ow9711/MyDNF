@@ -324,3 +324,10 @@
 - Combat note: `taotie-devour-pull` pulls the player horizontally during windup without overriding lane movement, then resolves a close bite hit or miss. Stagger/control clears both rush and pull anchors.
 - Presentation note: `taotie-devour-pull` has a circle vortex telegraph, separate boss model animation, bite VFX cue, vortex ring/core/trail animations, and skill-specific hit/miss feedback so it is visually distinct from flame breath.
 - Code review follow-up found windup pull had to be sampled at the impact frame when a large tick overshoots the bite frame, and scheduled player hit effects also need to resolve already-landed enemy bites after applying the same clamped windup pull. A shared windup-state helper now handles both paths and skips dead enemies.
+
+## Taotie Forge Collapse Phase Findings
+- Latest user clarification keeps character/monster mesh detail lightweight for now, but strict acceptance remains combat action flow, model-following motion, hit feel, player/enemy action changes, skill VFX, and monster/arena VFX.
+- Read-only UI audit agreed that arena hazards should not be forced through `enemySkillEffect()` because those effects are anchored to enemy positions. The new forge-collapse hazards use independent arena coordinates and a dedicated hazard layer.
+- Read-only combat audit recommended phase transition and arena hazard scheduling as separate combat events. The implementation now emits `boss-phase` plus `arena-hazard` events and keeps hazard damage delayed until the impact frame.
+- Phase design note: the first forge-collapse marker locks onto the player's current lane for a clear response test; the other two markers pressure adjacent space, so the mechanic reads as a real arena pattern instead of another point attack.
+- Presentation note: Taotie phase 2 sets boss DOM state, plays a boss model enrage animation, renders a phase-burst ring, renders three ground telegraphs, then resolves active/miss hazard feedback with dedicated forge-collapse animations.

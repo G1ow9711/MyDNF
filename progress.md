@@ -1633,3 +1633,42 @@
   - Final `npm test`: pass, 13 files and 258 tests.
   - Final `npm run build`: pass.
   - Final `git diff --check`: pass with Windows line-ending warnings only.
+
+## Task 59 Taotie Forge Collapse Boss Phase
+- Started after user clarified that simpler character/monster modeling is acceptable only for near-term model fidelity; combat motion smoothness, skill effects, monster effects, and hit feedback remain strict.
+- Used two read-only parallel agents:
+  - `019f30ac-f03c-72d2-989d-5c3e404e116f` audited combat insertion points and recommended separate boss-phase / arena-hazard events rather than overloading enemy attack profiles.
+  - `019f30ad-1600-7791-9c8f-1da1161fbc0a` audited UI/CSS insertion points and recommended an independent arena hazard layer instead of enemy-anchored skill VFX.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires Taotie to enter phase 2 once at half HP, emit a phase event, schedule three forge-collapse hazards, and resolve hit/miss only at the hazard impact frame.
+  - `src/tests/app-integration.test.ts` requires reducer-rendered phase DOM, boss phase VFX, arena hazard telegraphs, active impact feedback, and no flame-breath fallback.
+  - `src/tests/ui-smoke.test.ts` requires boss phase DOM, hazard DOM, and dedicated CSS/keyframes.
+- RED evidence:
+  - Focused tests initially failed because boss phase was undefined, no forge-collapse hazard events existed, and UI lacked phase/hazard DOM.
+- Implemented:
+  - Added `CombatBossPhaseEvent`, `CombatArenaHazardEvent`, and `scheduledArenaHazards`.
+  - Added half-HP Taotie phase transition that interrupts current boss casts, delays the next attack, and schedules three arena hazards.
+  - Added hazard impact resolution with active/miss events, player HP damage, hurt lock, hitstop, knockback, and `player-hurt-forge-collapse` feedback.
+  - Added `data-boss-phase`, `data-boss-enraged`, `data-arena-danger`, `data-arena-hazard-layer`, phase-burst VFX, and forge-collapse hazard rendering.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 166 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/taotie-forge-collapse-check.html`: confirmed phase events `1`, hazard telegraphs `3`, active hazard `1`, dodge miss `1`, player hit `1`, dodge hit `0`, boss phase `2`, scheduled hazards `3`, and animations `monster-taotie-forge-enrage`, `taotie-forge-collapse-ring`, `taotie-forge-hazard-telegraph`, `taotie-forge-hazard-drop`, and `taotie-forge-collapse-hit-feedback`.
+  - Browser console error log for the current verification page: empty.
+  - Browser screenshot saved at `.codex-local/tmp/taotie-forge-collapse-check.png`.
+- Code review follow-up:
+  - Read-only review found four Important issues: light/heavy reward detection used the final event after phase/hazard events, hazard impacts used frame-end player position on large ticks, defeated runs could retain scheduled hazards and stale arena-danger UI, and reflect-triggered phase events used frame-end time instead of the real reflect hit frame.
+  - Added regression coverage for all four cases. Initial focused tests failed on hit rewards, impact-frame sampling, failed-run queue clearing, reflect phase timing, and failed UI hazard rendering.
+  - Implemented `actionAddedHitEvent()` for player action rewards, `CombatMovementSample` impact-frame hazard sampling, failed-run pending-effect cleanup, failed UI hazard suppression, and reflect `phaseTransitionAtMs` propagation.
+  - `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts`: pass, 171 tests.
+  - Browser re-validation confirmed phase scene `data-arena-hazard-count="3"`, hit/miss panels, and dedicated animation names with no current-page console errors.
+  - Final `npm test`: pass, 13 files and 267 tests.
+  - Final `npm run build`: pass.
+  - Final `git diff --check`: pass with Windows line-ending warnings only.
+  - Follow-up review found one remaining Important case: reflect could trigger phase on the first pulse of a multi-hit boss attack while later pulses from the same attack still resolved in a large tick.
+  - Added a regression assertion to the reflect test and confirmed it failed before the fix.
+  - Fixed reflect-triggered phase interruption by breaking the current enemy hit loop when reflected damage kills the boss or crosses into phase 2.
+  - `npm test -- src/tests/combat.test.ts -t "reflect damage pushes"`: pass.
+  - `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts`: pass, 171 tests.
+  - Final post-review `npm test`: pass, 13 files and 267 tests.
+  - Final post-review `npm run build`: pass.
+  - Final post-review `git diff --check`: pass with Windows line-ending warnings only.

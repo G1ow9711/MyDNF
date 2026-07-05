@@ -43,7 +43,15 @@ export type CombatEnemyVfxCue =
   | "zheng-horn-charge-impact"
   | "taotie-flame-breath-sustain"
   | "taotie-devour-bite";
-export type CombatPlayerFeedbackCue = "player-hurt-light" | "player-hurt-heavy" | "player-hurt-boss-breath" | "player-hurt-devoured";
+export type CombatPlayerFeedbackCue =
+  | "player-hurt-light"
+  | "player-hurt-heavy"
+  | "player-hurt-boss-breath"
+  | "player-hurt-devoured"
+  | "player-hurt-forge-collapse";
+export type CombatBossPhaseSkillId = "taotie-forge-collapse";
+export type CombatArenaHazardPhase = "telegraph" | "active" | "miss";
+export type CombatArenaHazardVfxCue = "taotie-forge-collapse-telegraph" | "taotie-forge-collapse-impact";
 
 export interface CombatVector {
   x: number;
@@ -89,6 +97,8 @@ export interface CombatEnemy {
   attackRushTargetPosition?: CombatVector;
   attackPullStartPosition?: CombatVector;
   attackPullTargetPosition?: CombatVector;
+  bossPhase?: 1 | 2;
+  bossPhaseTriggeredAtMs?: number;
   controlledUntilMs?: number;
   armorBrokenUntilMs?: number;
   statusSourceSkillId?: string;
@@ -212,7 +222,43 @@ export interface CombatPlayerHitEvent {
   vfxWindowMs?: number;
 }
 
-export type CombatEvent = CombatHitEvent | CombatMissEvent | CombatRoomClearedEvent | CombatEnemyAttackEvent | CombatPlayerHitEvent;
+export interface CombatBossPhaseEvent {
+  kind: "boss-phase";
+  id: string;
+  enemyId: string;
+  phase: 2;
+  skillId: CombatBossPhaseSkillId;
+  occurredAtMs: number;
+  hazardCount: number;
+  vfxCue: CombatBossPhaseSkillId;
+  vfxWindowMs: number;
+}
+
+export interface CombatArenaHazardEvent {
+  kind: "arena-hazard";
+  id: string;
+  hazardId: string;
+  enemyId: string;
+  skillId: CombatBossPhaseSkillId;
+  phase: CombatArenaHazardPhase;
+  x: number;
+  y: number;
+  radiusX: number;
+  laneRange: number;
+  occurredAtMs: number;
+  impactAtMs: number;
+  vfxCue: CombatArenaHazardVfxCue;
+  vfxWindowMs: number;
+}
+
+export type CombatEvent =
+  | CombatHitEvent
+  | CombatMissEvent
+  | CombatRoomClearedEvent
+  | CombatEnemyAttackEvent
+  | CombatPlayerHitEvent
+  | CombatBossPhaseEvent
+  | CombatArenaHazardEvent;
 
 export interface CombatLootEvent {
   dungeonId: DungeonId;
@@ -238,6 +284,7 @@ export interface CombatRun {
   events: CombatEvent[];
   lootEvents: CombatLootEvent[];
   scheduledEnemyHitEffects: CombatScheduledEnemyHitEffect[];
+  scheduledArenaHazards: CombatScheduledArenaHazard[];
   completed: boolean;
   failed: boolean;
 }
@@ -279,6 +326,31 @@ export interface CombatScheduledEnemyHitEffect {
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
   skillId?: string;
+}
+
+export interface CombatScheduledArenaHazard {
+  hazardId: string;
+  enemyId: string;
+  skillId: CombatBossPhaseSkillId;
+  x: number;
+  y: number;
+  radiusX: number;
+  laneRange: number;
+  impactAtMs: number;
+  damage: number;
+  hitstopMs: number;
+  knockback: number;
+  vfxWindowMs: number;
+}
+
+interface CombatMovementSample {
+  startElapsedMs: number;
+  endElapsedMs: number;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  facing: 1 | -1;
 }
 
 interface EnemyAttackDefinition {
@@ -343,6 +415,16 @@ const backstepDistancePx = 74;
 const backstepEvadeMs = 420;
 const backstepInvulnerableMs = 240;
 const backstepActionLockMs = 260;
+const taotieForgeCollapseSkillId: CombatBossPhaseSkillId = "taotie-forge-collapse";
+const taotieForgeCollapseTelegraphMs = 620;
+const taotieForgeCollapseHazardGapMs = 140;
+const taotieForgeCollapsePhaseVfxMs = 1180;
+const taotieForgeCollapseHazardVfxMs = 720;
+const taotieForgeCollapseHazardDamage = 62;
+const taotieForgeCollapseHazardHitstopMs = 72;
+const taotieForgeCollapseHazardKnockback = 36;
+const taotieForgeCollapseRadiusX = 86;
+const taotieForgeCollapseLaneRange = 36;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -358,6 +440,147 @@ function clearBufferedAction(player: CombatPlayer): CombatPlayer {
     bufferedAction: undefined,
     bufferedActionQueuedAtMs: undefined,
     bufferedActionExecuteAtMs: undefined
+  };
+}
+
+function bossPhase(enemy: CombatEnemy): 1 | 2 {
+  return enemy.bossPhase ?? 1;
+}
+
+function bossHpPercent(enemy: CombatEnemy): number {
+  return enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 0;
+}
+
+function taotieForgeCollapseHazardPositions(run: CombatRun, boss: CombatEnemy): CombatVector[] {
+  const playerLane = clamp(run.player.y, run.arena.minY + 18, run.arena.maxY - 18);
+  const bossSide = boss.position.x >= run.player.x ? 1 : -1;
+
+  return [
+    {
+      x: clamp(run.player.x, taotieForgeCollapseRadiusX, run.arena.width - taotieForgeCollapseRadiusX),
+      y: playerLane
+    },
+    {
+      x: clamp(run.player.x + 148 * bossSide, taotieForgeCollapseRadiusX, run.arena.width - taotieForgeCollapseRadiusX),
+      y: clamp(playerLane - 52, run.arena.minY + 18, run.arena.maxY - 18)
+    },
+    {
+      x: clamp(run.player.x - 132 * bossSide, taotieForgeCollapseRadiusX, run.arena.width - taotieForgeCollapseRadiusX),
+      y: clamp(playerLane + 56, run.arena.minY + 18, run.arena.maxY - 18)
+    }
+  ];
+}
+
+function createTaotieForgeCollapseHazards(
+  run: CombatRun,
+  boss: CombatEnemy,
+  occurredAtMs: number
+): { scheduled: CombatScheduledArenaHazard[]; events: CombatArenaHazardEvent[] } {
+  const scheduled = taotieForgeCollapseHazardPositions(run, boss).map((position, index) => {
+    const impactAtMs = occurredAtMs + taotieForgeCollapseTelegraphMs + index * taotieForgeCollapseHazardGapMs;
+
+    return {
+      hazardId: `${taotieForgeCollapseSkillId}-${occurredAtMs}-${boss.id}-${index}`,
+      enemyId: boss.id,
+      skillId: taotieForgeCollapseSkillId,
+      x: position.x,
+      y: position.y,
+      radiusX: taotieForgeCollapseRadiusX,
+      laneRange: taotieForgeCollapseLaneRange,
+      impactAtMs,
+      damage: taotieForgeCollapseHazardDamage,
+      hitstopMs: taotieForgeCollapseHazardHitstopMs,
+      knockback: taotieForgeCollapseHazardKnockback,
+      vfxWindowMs: taotieForgeCollapseHazardVfxMs
+    };
+  });
+  const events = scheduled.map((hazard) => ({
+    kind: "arena-hazard" as const,
+    id: `arena-hazard-${hazard.hazardId}-telegraph`,
+    hazardId: hazard.hazardId,
+    enemyId: hazard.enemyId,
+    skillId: hazard.skillId,
+    phase: "telegraph" as const,
+    x: hazard.x,
+    y: hazard.y,
+    radiusX: hazard.radiusX,
+    laneRange: hazard.laneRange,
+    occurredAtMs,
+    impactAtMs: hazard.impactAtMs,
+    vfxCue: "taotie-forge-collapse-telegraph" as const,
+    vfxWindowMs: hazard.impactAtMs - occurredAtMs
+  }));
+
+  return { scheduled, events };
+}
+
+function triggerBossPhaseTransitions(run: CombatRun, occurredAtMs = run.elapsedMs): CombatRun {
+  if (run.completed || run.failed) {
+    return run;
+  }
+
+  const events: CombatEvent[] = [];
+  const scheduledArenaHazards: CombatScheduledArenaHazard[] = [];
+  const enemies = run.enemies.map((enemy) => {
+    if (enemy.kind !== "boss" || enemy.hp <= 0 || bossPhase(enemy) >= 2 || bossHpPercent(enemy) > 0.5) {
+      return enemy;
+    }
+
+    const hazards = createTaotieForgeCollapseHazards(run, enemy, occurredAtMs);
+    const phaseEvent: CombatBossPhaseEvent = {
+      kind: "boss-phase",
+      id: `boss-phase-${occurredAtMs}-${enemy.id}-2`,
+      enemyId: enemy.id,
+      phase: 2,
+      skillId: taotieForgeCollapseSkillId,
+      occurredAtMs,
+      hazardCount: hazards.scheduled.length,
+      vfxCue: taotieForgeCollapseSkillId,
+      vfxWindowMs: taotieForgeCollapsePhaseVfxMs
+    };
+
+    events.push(phaseEvent, ...hazards.events);
+    scheduledArenaHazards.push(...hazards.scheduled);
+
+    return {
+      ...enemy,
+      bossPhase: 2 as const,
+      bossPhaseTriggeredAtMs: occurredAtMs,
+      nextAttackAtMs: Math.max(enemy.nextAttackAtMs, occurredAtMs + 760),
+      attackStartedAtMs: undefined,
+      attackImpactAtMs: undefined,
+      attackRecoverUntilMs: undefined,
+      attackSkillId: undefined,
+      attackHitResolved: undefined,
+      attackResolvedHits: undefined,
+      attackRushStartPosition: undefined,
+      attackRushTargetPosition: undefined,
+      attackPullStartPosition: undefined,
+      attackPullTargetPosition: undefined
+    };
+  });
+
+  if (events.length === 0) {
+    return run;
+  }
+
+  return {
+    ...run,
+    enemies,
+    events: [...run.events, ...events],
+    scheduledArenaHazards: [...(run.scheduledArenaHazards ?? []), ...scheduledArenaHazards]
+  };
+}
+
+function clearPendingCombatEffectsIfFailed(run: CombatRun): CombatRun {
+  if (!run.failed && !run.player.defeated) {
+    return run;
+  }
+
+  return {
+    ...run,
+    scheduledEnemyHitEffects: [],
+    scheduledArenaHazards: []
   };
 }
 
@@ -820,6 +1043,12 @@ function applyPlayerHitbox(run: CombatRun, hitbox: PlayerHitboxDefinition): Comb
 
     return next;
   }, run);
+}
+
+function actionAddedHitEvent(before: CombatRun, after: CombatRun, action: CombatHitEvent["action"]): boolean {
+  const existingEventIds = new Set(before.events.filter((event): event is CombatHitEvent => event.kind === "hit").map((event) => event.id));
+
+  return after.events.some((event): event is CombatHitEvent => event.kind === "hit" && event.action === action && !existingEventIds.has(event.id));
 }
 
 function skillTargetCap(tags: string[]): number {
@@ -1651,6 +1880,7 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
     events: [],
     lootEvents: [],
     scheduledEnemyHitEffects: [],
+    scheduledArenaHazards: [],
     completed: false,
     failed: false
   };
@@ -1675,6 +1905,15 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
   const nextX = clamp(run.player.x + moveX * speed * dtMs, 0, run.arena.width);
   const nextY = clamp(run.player.y + moveY * speed * dtMs, run.arena.minY, run.arena.maxY);
   const facing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
+  const movementSample: CombatMovementSample = {
+    startElapsedMs: run.elapsedMs,
+    endElapsedMs: elapsedMs,
+    startX: run.player.x,
+    startY: run.player.y,
+    endX: nextX,
+    endY: nextY,
+    facing
+  };
   const comboActiveAtElapsed = comboStillActive(run, elapsedMs);
   const movedRun: CombatRun = {
     ...run,
@@ -1689,7 +1928,7 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
       comboStep: comboActiveAtElapsed ? run.player.comboStep : 0
     }
   };
-  const movedRunWithEffects = resolveScheduledEnemyHitEffects(movedRun);
+  const movedRunWithEffects = triggerBossPhaseTransitions(resolveScheduledArenaHazards(resolveScheduledEnemyHitEffects(movedRun), movementSample));
 
   if (shouldReleaseBuffer) {
     const releaseDtMs = bufferExecuteAtMs - run.elapsedMs;
@@ -1734,14 +1973,14 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
     };
 
     if (run.completed || run.failed) {
-      return expiredRun;
+      return clearPendingCombatEffectsIfFailed(expiredRun);
     }
 
     return advanceEnemyAttacks(updateEnemyAirStates(expiredRun));
   }
 
   if (run.completed || run.failed) {
-    return movedRunWithEffects;
+    return clearPendingCombatEffectsIfFailed(movedRunWithEffects);
   }
 
   return advanceEnemyAttacks(updateEnemyAirStates(movedRunWithEffects));
@@ -1939,7 +2178,7 @@ function applyEnemyImpact(
   player: CombatPlayer,
   elapsedMs: number,
   combatProfile: CombatProfile
-): { enemy: CombatEnemy; player: CombatPlayer; events: CombatEvent[]; failed: boolean } {
+): { enemy: CombatEnemy; player: CombatPlayer; events: CombatEvent[]; failed: boolean; phaseTransitionAtMs?: number } {
   if (
     enemy.hp <= 0 ||
     !enemy.attackSkillId ||
@@ -1954,6 +2193,7 @@ function applyEnemyImpact(
   let nextEnemy: CombatEnemy = enemy;
   let nextPlayer: CombatPlayer = player;
   let failed = player.defeated;
+  let phaseTransitionAtMs: number | undefined;
   const events: CombatEvent[] = [];
 
   while (resolvedHits < attack.hitCount) {
@@ -2018,11 +2258,19 @@ function applyEnemyImpact(
       };
 
       nextEnemy = reflectedEnemy;
+      if (reflectedEnemy.kind === "boss" && reflectedEnemy.hp > 0 && bossPhase(reflectedEnemy) < 2 && bossHpPercent(reflectedEnemy) <= 0.5) {
+        phaseTransitionAtMs = phaseTransitionAtMs ?? hitTime;
+      }
       nextPlayer = {
         ...nextPlayer,
         reflectUntilMs: hitTime
       };
       events.push(reflectEvent);
+
+      if (reflectedEnemy.hp <= 0 || phaseTransitionAtMs !== undefined) {
+        break;
+      }
+
       continue;
     }
 
@@ -2069,12 +2317,13 @@ function applyEnemyImpact(
     }
   }
 
-  return { enemy: nextEnemy, player: nextPlayer, events, failed };
+  return { enemy: nextEnemy, player: nextPlayer, events, failed, phaseTransitionAtMs };
 }
 
 function advanceEnemyAttacks(run: CombatRun): CombatRun {
   let player = run.player;
   let failed = run.failed;
+  let phaseTransitionAtMs: number | undefined;
   const events: CombatEvent[] = [];
   const enemies = run.enemies.map((enemy) => {
     const started = beginEnemyAttack(enemy, run.elapsedMs, player);
@@ -2088,18 +2337,26 @@ function advanceEnemyAttacks(run: CombatRun): CombatRun {
 
     player = impacted.player;
     failed = failed || impacted.failed;
+    if (impacted.phaseTransitionAtMs !== undefined) {
+      phaseTransitionAtMs = Math.min(phaseTransitionAtMs ?? impacted.phaseTransitionAtMs, impacted.phaseTransitionAtMs);
+    }
     events.push(...impacted.events);
 
     return impacted.enemy;
   });
 
-  return {
-    ...run,
-    player,
-    enemies,
-    events: [...run.events, ...events],
-    failed
-  };
+  return clearPendingCombatEffectsIfFailed(
+    triggerBossPhaseTransitions(
+      {
+      ...run,
+      player,
+      enemies,
+      events: [...run.events, ...events],
+      failed
+      },
+      phaseTransitionAtMs ?? run.elapsedMs
+    )
+  );
 }
 
 export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
@@ -2204,7 +2461,8 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     vfxWindowMs: hit.vfxWindowMs
   };
 
-  return {
+  return triggerBossPhaseTransitions(
+    {
     ...run,
     comboCount,
     comboExpiresAtMs,
@@ -2214,7 +2472,9 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
       ...run.player,
       hitstopUntilMs: Math.max(run.player.hitstopUntilMs, impactAtMs + hitstopMs)
     }
-  };
+    },
+    impactAtMs
+  );
 }
 
 function scheduleEnemyHitEffect(run: CombatRun, hit: HitDefinition): CombatRun {
@@ -2355,12 +2615,15 @@ function applyScheduledEnemyHitEffect(run: CombatRun, effect: CombatScheduledEne
     };
   });
 
-  return {
-    ...impactResolvedRun,
-    comboCount,
-    comboExpiresAtMs,
-    enemies: nextEnemies
-  };
+  return triggerBossPhaseTransitions(
+    {
+      ...impactResolvedRun,
+      comboCount,
+      comboExpiresAtMs,
+      enemies: nextEnemies
+    },
+    effect.applyAtMs
+  );
 }
 
 function resolveTargetEnemyImpactsBeforeScheduledEffect(
@@ -2400,6 +2663,126 @@ function resolveScheduledEnemyHitEffects(run: CombatRun): CombatRun {
     {
       ...run,
       scheduledEnemyHitEffects: pending
+    }
+  );
+}
+
+function samplePlayerForMovement(player: CombatPlayer, hazard: CombatScheduledArenaHazard, movement?: CombatMovementSample): CombatPlayer {
+  if (!movement) {
+    return player;
+  }
+
+  if (hazard.impactAtMs <= movement.startElapsedMs) {
+    return {
+      ...player,
+      x: movement.startX,
+      y: movement.startY,
+      facing: movement.facing
+    };
+  }
+
+  if (hazard.impactAtMs >= movement.endElapsedMs) {
+    return player;
+  }
+
+  const progress = clamp((hazard.impactAtMs - movement.startElapsedMs) / Math.max(1, movement.endElapsedMs - movement.startElapsedMs), 0, 1);
+
+  return {
+    ...player,
+    x: lerp(movement.startX, movement.endX, progress),
+    y: lerp(movement.startY, movement.endY, progress),
+    facing: movement.facing
+  };
+}
+
+function playerInArenaHazard(player: CombatPlayer, hazard: CombatScheduledArenaHazard): boolean {
+  const xDistance = axisDistanceOutsideHalfSize(player.x - hazard.x, hazard.radiusX);
+  const yDistance = Math.abs(player.y - hazard.y);
+
+  return xDistance <= 0 && yDistance <= hazard.laneRange;
+}
+
+function applyScheduledArenaHazard(run: CombatRun, hazard: CombatScheduledArenaHazard, movement?: CombatMovementSample): CombatRun {
+  const sampledPlayer = samplePlayerForMovement(run.player, hazard, movement);
+  const inRange = playerInArenaHazard(sampledPlayer, hazard);
+  const evaded = inRange && hazard.impactAtMs < sampledPlayer.evadeUntilMs;
+  const phase: CombatArenaHazardPhase = inRange && !evaded ? "active" : "miss";
+  const hazardEvent: CombatArenaHazardEvent = {
+    kind: "arena-hazard",
+    id: `arena-hazard-${hazard.hazardId}-${phase}`,
+    hazardId: hazard.hazardId,
+    enemyId: hazard.enemyId,
+    skillId: hazard.skillId,
+    phase,
+    x: hazard.x,
+    y: hazard.y,
+    radiusX: hazard.radiusX,
+    laneRange: hazard.laneRange,
+    occurredAtMs: hazard.impactAtMs,
+    impactAtMs: hazard.impactAtMs,
+    vfxCue: "taotie-forge-collapse-impact",
+    vfxWindowMs: hazard.vfxWindowMs
+  };
+
+  if (phase !== "active" || run.player.defeated || hazard.impactAtMs < sampledPlayer.invulnerableUntilMs) {
+    return {
+      ...run,
+      events: [...run.events, hazardEvent]
+    };
+  }
+
+  const damage = Math.max(1, Math.round(hazard.damage * run.combatProfile.damageTakenMultiplier));
+  const nextHp = Math.max(0, sampledPlayer.hp - damage);
+  const nextFacing: 1 | -1 = hazard.x >= sampledPlayer.x ? 1 : -1;
+  const playerHit: CombatPlayerHitEvent = {
+    kind: "player-hit",
+    id: `player-hit-${hazard.impactAtMs}-${hazard.hazardId}`,
+    enemyId: hazard.enemyId,
+    skillId: hazard.skillId,
+    damage,
+    occurredAtMs: hazard.impactAtMs,
+    hitstopMs: hazard.hitstopMs,
+    feedbackCue: "player-hurt-forge-collapse",
+    vfxWindowMs: hazard.vfxWindowMs
+  };
+  const damagedPlayer: CombatPlayer = {
+    ...run.player,
+    hp: nextHp,
+    x: clamp(sampledPlayer.x - nextFacing * hazard.knockback, 0, run.arena.width),
+    y: sampledPlayer.y,
+    facing: nextFacing,
+    hitstopUntilMs: Math.max(run.player.hitstopUntilMs, hazard.impactAtMs + hazard.hitstopMs),
+    invulnerableUntilMs: hazard.impactAtMs + 520,
+    hurtLockUntilMs: hazard.impactAtMs + 520,
+    bufferedAction: undefined,
+    bufferedActionQueuedAtMs: undefined,
+    bufferedActionExecuteAtMs: undefined,
+    defeated: nextHp <= 0
+  };
+  const nextPlayer = damagedPlayer.resource.id === "guard" ? gainFlatPlayerResource(damagedPlayer, 12) : damagedPlayer;
+
+  return clearPendingCombatEffectsIfFailed({
+    ...run,
+    player: nextPlayer,
+    failed: run.failed || nextHp <= 0,
+    events: [...run.events, hazardEvent, playerHit]
+  });
+}
+
+function resolveScheduledArenaHazards(run: CombatRun, movement?: CombatMovementSample): CombatRun {
+  const due = (run.scheduledArenaHazards ?? [])
+    .filter((hazard) => hazard.impactAtMs <= run.elapsedMs)
+    .sort((left, right) => left.impactAtMs - right.impactAtMs);
+  const pending = (run.scheduledArenaHazards ?? []).filter((hazard) => hazard.impactAtMs > run.elapsedMs);
+
+  return due.reduce(
+    (nextRun, hazard) =>
+      nextRun.failed || nextRun.player.defeated
+        ? clearPendingCombatEffectsIfFailed(nextRun)
+        : applyScheduledArenaHazard(nextRun, hazard, movement),
+    {
+      ...run,
+      scheduledArenaHazards: pending
     }
   );
 }
@@ -2499,7 +2882,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       canceledFromCombo,
       actionTags: combo.actionTags
     });
-    const hitConnected = hitRun.events.at(-1)?.kind === "hit";
+    const hitConnected = actionAddedHitEvent(run, hitRun, "light");
 
     return {
       ...hitRun,
@@ -2530,7 +2913,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       canceledFromCombo,
       actionTags: ["launcher"]
     });
-    const hitConnected = hitRun.events.at(-1)?.kind === "hit";
+    const hitConnected = actionAddedHitEvent(run, hitRun, "heavy");
 
     return {
       ...hitRun,
@@ -2742,6 +3125,7 @@ export function finishRoom(run: CombatRun): CombatRun {
     events: [clearedEvent],
     lootEvents: [...run.lootEvents, lootEvent],
     scheduledEnemyHitEffects: [],
+    scheduledArenaHazards: [],
     completed
   };
 }

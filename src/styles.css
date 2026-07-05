@@ -1562,12 +1562,21 @@ p {
   pointer-events: none;
 }
 
+.arena-hazard-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
 .hit-impact,
 .skill-impact-burst,
 .damage-number,
 .combat-feedback,
 .player-skill-vfx,
-.enemy-skill-vfx {
+.enemy-skill-vfx,
+.boss-phase-vfx,
+.arena-hazard {
   position: absolute;
   left: var(--actor-x);
   top: var(--actor-y);
@@ -1582,6 +1591,97 @@ p {
   mix-blend-mode: screen;
 }
 
+.combat-enemy-boss[data-boss-phase="2"] .enemy-art {
+  animation: monster-taotie-forge-enrage 1160ms cubic-bezier(0.12, 0.82, 0.16, 1) both;
+  filter: saturate(1.22) contrast(1.1) drop-shadow(0 0 18px rgba(248, 113, 113, 0.52));
+}
+
+.boss-phase-vfx {
+  width: 360px;
+  height: 220px;
+  transform: translate(-50%, -50%);
+  mix-blend-mode: screen;
+}
+
+.boss-phase-vfx-taotie-forge-collapse .boss-phase-ring {
+  inset: 24px 42px;
+  border: 3px solid rgba(253, 186, 116, 0.82);
+  border-radius: 50%;
+  box-shadow: 0 0 46px rgba(248, 113, 113, 0.66), inset 0 0 34px rgba(252, 211, 77, 0.3);
+  animation: taotie-forge-collapse-ring 980ms ease-out both;
+}
+
+.boss-phase-vfx-taotie-forge-collapse .boss-phase-core {
+  inset: 44px 92px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255, 247, 237, 0.98), rgba(251, 146, 60, 0.82) 34%, rgba(127, 29, 29, 0.28) 68%, transparent 72%);
+  filter: blur(1px);
+  animation: taotie-forge-collapse-core 1080ms cubic-bezier(0.1, 0.78, 0.14, 1) both;
+}
+
+.boss-phase-vfx-taotie-forge-collapse .boss-phase-shards {
+  inset: 0;
+  background:
+    radial-gradient(circle at 24% 48%, rgba(253, 186, 116, 0.92) 0 5px, transparent 6px),
+    radial-gradient(circle at 72% 34%, rgba(248, 113, 113, 0.9) 0 6px, transparent 7px),
+    radial-gradient(circle at 54% 78%, rgba(254, 240, 138, 0.88) 0 4px, transparent 5px),
+    radial-gradient(circle at 82% 64%, rgba(251, 146, 60, 0.86) 0 5px, transparent 6px);
+  animation: taotie-forge-collapse-shards 1080ms ease-out both;
+}
+
+.arena-hazard {
+  width: calc(var(--hazard-radius-x, 86px) * 2);
+  height: calc(var(--hazard-lane-range, 36px) * 2 + 36px);
+  transform: translate(-50%, -56%);
+  mix-blend-mode: screen;
+}
+
+.arena-hazard-taotie-forge-collapse .arena-hazard-shadow {
+  inset: auto 8% 6px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(127, 29, 29, 0.72), rgba(251, 146, 60, 0.28) 44%, transparent 72%);
+  animation: taotie-forge-hazard-shadow 620ms ease-in-out infinite;
+}
+
+.arena-hazard-taotie-forge-collapse .arena-hazard-marker {
+  inset: 22% 10%;
+  border: 2px solid rgba(253, 186, 116, 0.86);
+  border-radius: 50%;
+  box-shadow: 0 0 28px rgba(251, 146, 60, 0.62), inset 0 0 20px rgba(248, 113, 113, 0.22);
+  animation: taotie-forge-hazard-telegraph 620ms ease-in-out infinite;
+}
+
+.arena-hazard-taotie-forge-collapse[data-hazard-phase="telegraph"] .arena-hazard-core {
+  inset: 8% 38%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(254, 240, 138, 0.74), rgba(251, 146, 60, 0.08));
+  filter: blur(2px);
+  animation: taotie-forge-hazard-warning-beam 620ms ease-in-out infinite;
+}
+
+.arena-hazard-taotie-forge-collapse[data-hazard-phase="active"] .arena-hazard-core,
+.arena-hazard-taotie-forge-collapse[data-hazard-phase="miss"] .arena-hazard-core {
+  inset: -96px 28% 22px;
+  border-radius: 22px 22px 46px 46px;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 237, 0.98), rgba(251, 146, 60, 0.86) 44%, rgba(127, 29, 29, 0.86));
+  box-shadow: 0 0 38px rgba(248, 113, 113, 0.72);
+  animation: taotie-forge-hazard-drop 520ms cubic-bezier(0.12, 0.78, 0.16, 1) both;
+}
+
+.arena-hazard-taotie-forge-collapse[data-hazard-phase="active"] .arena-hazard-debris,
+.arena-hazard-taotie-forge-collapse[data-hazard-phase="miss"] .arena-hazard-debris {
+  inset: 44% 4% 0;
+  background:
+    radial-gradient(circle at 16% 72%, rgba(253, 186, 116, 0.9) 0 5px, transparent 6px),
+    radial-gradient(circle at 38% 58%, rgba(248, 113, 113, 0.86) 0 4px, transparent 5px),
+    radial-gradient(circle at 62% 68%, rgba(254, 240, 138, 0.9) 0 6px, transparent 7px),
+    radial-gradient(circle at 84% 54%, rgba(251, 146, 60, 0.84) 0 5px, transparent 6px);
+  animation: taotie-forge-hazard-debris 620ms ease-out both;
+}
+
 .hit-ring,
 .hit-slash,
 .skill-impact-core,
@@ -1590,6 +1690,13 @@ p {
 .skill-core,
 .skill-wave,
 .skill-sparks,
+.boss-phase-ring,
+.boss-phase-core,
+.boss-phase-shards,
+.arena-hazard-shadow,
+.arena-hazard-marker,
+.arena-hazard-core,
+.arena-hazard-debris,
 .enemy-cast-ring,
 .enemy-cast-core,
 .enemy-cast-trail,
@@ -2158,6 +2265,21 @@ p {
 
 .combat-feedback-miss.combat-feedback-skill-taotie-devour-pull .combat-feedback-text {
   animation: taotie-devour-miss-feedback 660ms cubic-bezier(0.14, 0.84, 0.18, 1) both;
+}
+
+.combat-feedback-skill-taotie-forge-collapse .combat-feedback-text {
+  border-color: rgba(253, 186, 116, 0.68);
+  text-shadow: 0 2px 0 rgba(69, 10, 10, 0.9), 0 0 18px rgba(251, 146, 60, 0.72);
+}
+
+.combat-feedback-hit.combat-feedback-skill-taotie-forge-collapse .combat-feedback-text {
+  background: rgba(127, 29, 29, 0.84);
+  box-shadow: 0 0 36px rgba(251, 146, 60, 0.72), inset 0 0 26px rgba(252, 211, 77, 0.24);
+  animation: taotie-forge-collapse-hit-feedback 640ms cubic-bezier(0.08, 0.82, 0.12, 1) both;
+}
+
+.combat-feedback-miss.combat-feedback-skill-taotie-forge-collapse .combat-feedback-text {
+  animation: enemy-skill-miss-feedback 620ms cubic-bezier(0.16, 0.84, 0.2, 1) both;
 }
 
 .player-skill-vfx {
@@ -3952,6 +4074,65 @@ p {
     transform: translateY(-3px) scale(1.04);
     filter: brightness(1.18);
   }
+}
+
+@keyframes monster-taotie-forge-enrage {
+  0% { transform: translateX(0) scale(1); filter: brightness(1); }
+  16% { transform: translateX(calc(var(--model-scale-x, 1) * -8px)) scale(1.04); filter: brightness(1.42); }
+  34% { transform: translateX(calc(var(--model-scale-x, 1) * 7px)) scale(1.07); filter: brightness(1.18); }
+  58% { transform: translateX(calc(var(--model-scale-x, 1) * -5px)) scale(1.03); filter: brightness(1.3); }
+  100% { transform: translateX(0) scale(1); filter: brightness(1.12); }
+}
+
+@keyframes taotie-forge-collapse-ring {
+  0% { opacity: 0; transform: scale(0.32) rotate(0deg); filter: blur(3px); }
+  28% { opacity: 0.96; transform: scale(1.06) rotate(12deg); filter: blur(0); }
+  100% { opacity: 0; transform: scale(1.78) rotate(34deg); filter: blur(4px); }
+}
+
+@keyframes taotie-forge-collapse-core {
+  0% { opacity: 0; transform: scale(0.4); filter: brightness(1); }
+  22% { opacity: 1; transform: scale(1.12); filter: brightness(1.8); }
+  100% { opacity: 0; transform: scale(1.46); filter: brightness(0.9); }
+}
+
+@keyframes taotie-forge-collapse-shards {
+  0% { opacity: 0; transform: scale(0.48) rotate(0deg); filter: blur(1.2px); }
+  28% { opacity: 1; transform: scale(1) rotate(8deg); filter: blur(0); }
+  100% { opacity: 0; transform: scale(1.72) rotate(28deg); filter: blur(2.6px); }
+}
+
+@keyframes taotie-forge-hazard-shadow {
+  0%, 100% { opacity: 0.36; transform: scaleX(0.72) scaleY(0.74); }
+  50% { opacity: 0.9; transform: scaleX(1.08) scaleY(0.96); }
+}
+
+@keyframes taotie-forge-hazard-telegraph {
+  0%, 100% { opacity: 0.28; transform: scale(0.74); filter: blur(1px); }
+  50% { opacity: 0.92; transform: scale(1.08); filter: blur(0); }
+}
+
+@keyframes taotie-forge-hazard-warning-beam {
+  0%, 100% { opacity: 0.24; transform: translateY(-16px) scaleY(0.76); }
+  50% { opacity: 0.78; transform: translateY(-34px) scaleY(1.16); }
+}
+
+@keyframes taotie-forge-hazard-drop {
+  0% { opacity: 0; transform: translateY(-88px) scaleY(0.78); filter: blur(2px) brightness(1.4); }
+  46% { opacity: 1; transform: translateY(22px) scaleY(1.08); filter: blur(0) brightness(1.2); }
+  100% { opacity: 0; transform: translateY(48px) scaleX(1.24) scaleY(0.34); filter: blur(2.6px) brightness(0.92); }
+}
+
+@keyframes taotie-forge-hazard-debris {
+  0% { opacity: 0; transform: translateY(0) scale(0.52); filter: blur(1px); }
+  28% { opacity: 0.95; transform: translateY(-12px) scale(1.04); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-36px) scale(1.46); filter: blur(2.4px); }
+}
+
+@keyframes taotie-forge-collapse-hit-feedback {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.72); filter: blur(2px); }
+  24% { opacity: 1; transform: translate(-50%, -50%) scale(1.18); filter: blur(0); }
+  100% { opacity: 0; transform: translate(-50%, -82%) scale(1.42); filter: blur(2px); }
 }
 
 @media (max-width: 860px) {

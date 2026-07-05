@@ -1850,6 +1850,76 @@ describe("playable app integration actions", () => {
     }
   });
 
+  it("renders taotie half-health phase change and forge collapse arena hazards", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+
+    if (!model.combatRun) {
+      throw new Error("Expected boss combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: {
+          ...model.combatRun.player,
+          x: 240,
+          y: 340,
+          hp: 999,
+          maxHp: 999
+        },
+        enemies: [
+          {
+            ...model.combatRun.enemies[0],
+            hp: Math.floor(model.combatRun.enemies[0].maxHp / 2),
+            armor: 0,
+            nextAttackAtMs: 9999
+          } as CombatEnemy
+        ]
+      }
+    };
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const phaseHtml = renderAppHtml(model);
+
+    expect(phaseHtml).toContain('data-boss-phase="2"');
+    expect(phaseHtml).toContain('data-boss-phase-triggered="true"');
+    expect(phaseHtml).toContain('data-boss-phase-vfx="taotie-forge-collapse"');
+    expect(phaseHtml).toContain('data-arena-hazard-layer="true"');
+    expect(countOccurrences(phaseHtml, 'data-arena-hazard="taotie-forge-collapse"')).toBe(3);
+    expect(phaseHtml).toContain('data-hazard-phase="telegraph"');
+    expect(phaseHtml).toContain('data-hazard-vfx-cue="taotie-forge-collapse-telegraph"');
+    expect(phaseHtml).toContain('data-enemy-hp-percent="50"');
+    expect(phaseHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
+
+    let guard = 0;
+
+    while (
+      model.combatRun &&
+      !model.combatRun.events.some(
+        (event) => event.kind === "arena-hazard" && event.skillId === "taotie-forge-collapse" && event.phase === "active"
+      ) &&
+      guard < 8
+    ) {
+      model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+      guard += 1;
+    }
+
+    const impactHtml = renderAppHtml(model);
+
+    expect(impactHtml).toContain('data-hazard-phase="active"');
+    expect(impactHtml).toContain('data-hazard-vfx-cue="taotie-forge-collapse-impact"');
+    expect(impactHtml).toContain('data-combat-feedback="arena-hazard-hit"');
+    expect(impactHtml).toContain('data-feedback-skill-id="taotie-forge-collapse"');
+    expect(impactHtml).toContain('data-player-feedback-cue="player-hurt-forge-collapse"');
+    expect(impactHtml).toContain('data-player-motion="hit"');
+  });
+
   it("renders taotie devour as a pull windup and bite impact instead of boss flame fallback", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

@@ -13,6 +13,8 @@ import {
   performAction,
   roomGateForRun,
   stepCombat,
+  type CombatArenaHazardEvent,
+  type CombatBossPhaseEvent,
   type CombatEnemyAttackEvent,
   type CombatEnemy,
   type CombatHitEvent,
@@ -1413,6 +1415,356 @@ describe("enemy attacks and player defeat", () => {
     expect(secondWindup.enemies[0].attackSkillId).toBe("taotie-devour-pull");
     expect((secondWindup.enemies[0] as { attackProfileId?: string; nextAttackPatternIndex?: number }).attackProfileId).toBe("taotie-flame-breath");
     expect((secondWindup.enemies[0] as { nextAttackPatternIndex?: number }).nextAttackPatternIndex).toBe(0);
+  });
+
+  it("triggers taotie forge collapse once when the boss drops below half hp", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const lowHpRun: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 240,
+        y: 340,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          hp: Math.floor(baseRun.enemies[0].maxHp / 2),
+          armor: 0,
+          nextAttackAtMs: 9999
+        } as CombatEnemy
+      ]
+    };
+    const phased = stepCombat(lowHpRun, {}, 1);
+    const phaseEvents = phased.events.filter(
+      (event): event is CombatBossPhaseEvent => event.kind === "boss-phase"
+    );
+    const hazardTelegraphs = phased.events.filter(
+      (event): event is CombatArenaHazardEvent =>
+        event.kind === "arena-hazard" && event.skillId === "taotie-forge-collapse" && event.phase === "telegraph"
+    );
+    const repeated = stepCombat(phased, {}, 180);
+
+    expect((phased.enemies[0] as { bossPhase?: number }).bossPhase).toBe(2);
+    expect(phaseEvents).toHaveLength(1);
+    expect(phaseEvents[0]).toMatchObject({
+      enemyId: phased.enemies[0].id,
+      phase: 2,
+      skillId: "taotie-forge-collapse",
+      hazardCount: 3,
+      vfxCue: "taotie-forge-collapse"
+    });
+    expect(hazardTelegraphs).toHaveLength(3);
+    expect(hazardTelegraphs.every((event) => event.impactAtMs > phased.elapsedMs)).toBe(true);
+    expect(hazardTelegraphs.every((event) => event.radiusX > 0 && event.laneRange > 0)).toBe(true);
+    expect(phased.scheduledArenaHazards).toHaveLength(3);
+    expect(repeated.events.filter((event) => event.kind === "boss-phase")).toHaveLength(1);
+  });
+
+  it("keeps light attack rewards when the hit also triggers boss phase events", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 220,
+        y: 340,
+        facing: 1,
+        heat: 0,
+        resource: {
+          ...baseRun.player.resource,
+          current: 0
+        }
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          hp: Math.floor(baseRun.enemies[0].maxHp / 2) + 8,
+          armor: 0,
+          position: {
+            x: 320,
+            y: 340
+          },
+          nextAttackAtMs: 9999
+        } as CombatEnemy
+      ]
+    };
+    const struck = performAction(run, { type: "light" });
+
+    expect(struck.events.at(-1)?.kind).toBe("arena-hazard");
+    expect(struck.events.some((event) => event.kind === "hit" && event.action === "light")).toBe(true);
+    expect((struck.enemies[0] as { bossPhase?: number }).bossPhase).toBe(2);
+    expect(struck.player.resource.current).toBeGreaterThan(run.player.resource.current);
+    expect(struck.player.comboStep).toBe(1);
+    expect(struck.player.cancelWindowUntilMs).toBeGreaterThan(struck.elapsedMs);
+  });
+
+  it("resolves taotie forge collapse hazards on the impact frame and lets lane movement dodge them", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const lowHpRun: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 240,
+        y: 340,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          hp: Math.floor(baseRun.enemies[0].maxHp / 2),
+          armor: 0,
+          nextAttackAtMs: 9999
+        } as CombatEnemy
+      ]
+    };
+    const phased = stepCombat(lowHpRun, {}, 1);
+    const firstHazard = phased.events.find(
+      (event): event is CombatArenaHazardEvent =>
+        event.kind === "arena-hazard" && event.skillId === "taotie-forge-collapse" && event.phase === "telegraph"
+    );
+
+    if (!firstHazard) {
+      throw new Error("Expected forge collapse telegraph");
+    }
+
+    const beforeImpact = stepCombat(phased, {}, firstHazard.impactAtMs - phased.elapsedMs - 1);
+    const impacted = stepCombat(beforeImpact, {}, 1);
+    const activeHazard = impacted.events.find(
+      (event): event is CombatArenaHazardEvent =>
+        event.kind === "arena-hazard" && event.hazardId === firstHazard.hazardId && event.phase === "active"
+    );
+    const playerHit = impacted.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-forge-collapse"
+    );
+    const sidestepped = stepCombat(
+      {
+        ...phased,
+        player: {
+          ...phased.player,
+          y: phased.arena.maxY,
+          hp: 999,
+          invulnerableUntilMs: 0,
+          hurtLockUntilMs: 0
+        }
+      },
+      {},
+      firstHazard.impactAtMs - phased.elapsedMs
+    );
+
+    expect(beforeImpact.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-forge-collapse")).toBe(false);
+    expect(beforeImpact.scheduledArenaHazards).toHaveLength(3);
+    expect(activeHazard).toMatchObject({
+      skillId: "taotie-forge-collapse",
+      phase: "active",
+      vfxCue: "taotie-forge-collapse-impact"
+    });
+    expect(playerHit).toMatchObject({
+      enemyId: phased.enemies[0].id,
+      skillId: "taotie-forge-collapse",
+      damage: expect.any(Number),
+      feedbackCue: "player-hurt-forge-collapse"
+    });
+    expect(playerHit?.damage ?? 0).toBeGreaterThan(40);
+    expect(impacted.player.hp).toBeLessThan(phased.player.hp);
+    expect(impacted.player.hurtLockUntilMs).toBeGreaterThan(impacted.elapsedMs);
+    expect(sidestepped.player.hp).toBe(999);
+    expect(sidestepped.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "arena-hazard",
+          hazardId: firstHazard.hazardId,
+          skillId: "taotie-forge-collapse",
+          phase: "miss",
+          vfxCue: "taotie-forge-collapse-impact"
+        })
+      ])
+    );
+    expect(sidestepped.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-forge-collapse")).toBe(false);
+  });
+
+  it("samples player position at the forge collapse impact frame during large movement ticks", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      elapsedMs: 1000,
+      player: {
+        ...baseRun.player,
+        x: 240,
+        y: baseRun.arena.maxY,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          nextAttackAtMs: 9999
+        }
+      ],
+      scheduledArenaHazards: [
+        {
+          hazardId: "test-forge-sample",
+          enemyId: baseRun.enemies[0].id,
+          skillId: "taotie-forge-collapse",
+          x: 240,
+          y: 340,
+          radiusX: 86,
+          laneRange: 36,
+          impactAtMs: 1100,
+          damage: 62,
+          hitstopMs: 72,
+          knockback: 36,
+          vfxWindowMs: 720
+        }
+      ]
+    };
+    const movedThroughHazard = stepCombat(run, { moveY: -1 }, 500);
+
+    expect(movedThroughHazard.player.y).toBeLessThan(340 + 36);
+    expect(movedThroughHazard.player.hp).toBe(999);
+    expect(movedThroughHazard.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "arena-hazard",
+          hazardId: "test-forge-sample",
+          phase: "miss"
+        })
+      ])
+    );
+    expect(movedThroughHazard.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-forge-collapse")).toBe(false);
+  });
+
+  it("clears pending hazards when a forge collapse impact defeats the player", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      elapsedMs: 1000,
+      player: {
+        ...baseRun.player,
+        x: 240,
+        y: 340,
+        hp: 1,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          nextAttackAtMs: 9999
+        }
+      ],
+      scheduledEnemyHitEffects: [
+        {
+          id: "test-pending-hit",
+          targetId: baseRun.enemies[0].id,
+          applyAtMs: 1400,
+          damage: 1,
+          hitstopMs: 1,
+          knockback: 0,
+          juggle: false,
+          playerFacing: 1
+        }
+      ],
+      scheduledArenaHazards: [
+        {
+          hazardId: "test-lethal-forge-1",
+          enemyId: baseRun.enemies[0].id,
+          skillId: "taotie-forge-collapse",
+          x: 240,
+          y: 340,
+          radiusX: 86,
+          laneRange: 36,
+          impactAtMs: 1100,
+          damage: 62,
+          hitstopMs: 72,
+          knockback: 36,
+          vfxWindowMs: 720
+        },
+        {
+          hazardId: "test-lethal-forge-2",
+          enemyId: baseRun.enemies[0].id,
+          skillId: "taotie-forge-collapse",
+          x: 260,
+          y: 340,
+          radiusX: 86,
+          laneRange: 36,
+          impactAtMs: 1240,
+          damage: 62,
+          hitstopMs: 72,
+          knockback: 36,
+          vfxWindowMs: 720
+        }
+      ]
+    };
+    const defeated = stepCombat(run, {}, 120);
+
+    expect(defeated.failed).toBe(true);
+    expect(defeated.player.defeated).toBe(true);
+    expect(defeated.scheduledEnemyHitEffects).toHaveLength(0);
+    expect(defeated.scheduledArenaHazards).toHaveLength(0);
+  });
+
+  it("also triggers taotie forge collapse when reflect damage pushes the boss below half hp", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      elapsedMs: 0,
+      player: {
+        ...baseRun.player,
+        x: 160,
+        y: 340,
+        hp: 999,
+        maxHp: 999,
+        reflectUntilMs: 1000
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          hp: Math.floor(baseRun.enemies[0].maxHp / 2) + 10,
+          armor: 0,
+          position: {
+            x: 256,
+            y: 340
+          },
+          attackStartedAtMs: 0,
+          attackImpactAtMs: 100,
+          attackRecoverUntilMs: 520,
+          attackSkillId: "taotie-flame-breath",
+          attackHitResolved: false,
+          attackResolvedHits: 0,
+          nextAttackAtMs: 9999
+        } as CombatEnemy
+      ]
+    };
+    const reflected = stepCombat(run, {}, 360);
+    const reflectHit = reflected.events.find(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mirror-reflect"
+    );
+    const phaseEvent = reflected.events.find(
+      (event): event is CombatBossPhaseEvent => event.kind === "boss-phase" && event.skillId === "taotie-forge-collapse"
+    );
+    const firstHazard = reflected.events.find(
+      (event): event is CombatArenaHazardEvent =>
+        event.kind === "arena-hazard" && event.skillId === "taotie-forge-collapse" && event.phase === "telegraph"
+    );
+
+    expect(reflectHit).toBeDefined();
+    expect(reflected.enemies[0].hp).toBeLessThanOrEqual(reflected.enemies[0].maxHp / 2);
+    expect((reflected.enemies[0] as { bossPhase?: number }).bossPhase).toBe(2);
+    expect(phaseEvent).toMatchObject({
+      occurredAtMs: 100,
+      enemyId: reflected.enemies[0].id
+    });
+    expect(firstHazard).toMatchObject({
+      impactAtMs: 720
+    });
+    expect(
+      reflected.events.some(
+        (event) => event.kind === "player-hit" && event.skillId === "taotie-flame-breath" && event.occurredAtMs > 100
+      )
+    ).toBe(false);
   });
 
   it("telegraphs monster attacks before the damage frame", () => {

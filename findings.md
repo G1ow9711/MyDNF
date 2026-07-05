@@ -421,3 +421,12 @@
 - Review follow-up: the first implementation moved the model but sampled the hitbox from the cast origin. The delayed dynamic hitbox now samples from the movement endpoint, with a regression where only the endpoint can reach the target.
 - Same-frame priority note: a `spark-combo` regression now covers monster impact and queued player jab at the same timestamp, relying on the shared scheduled queue priority that resolves monster impacts before delayed player hits.
 - Presentation note: browser computed-style validation confirmed `player-ember-spark-combo`, `weapon-jab-chain`, `ember-sparks-cast-core`, and `ember-jab-chain-impact-core` animation names, with no warning/error console output.
+
+## Sword Prism Field Timeline Findings
+- Latest user clarification keeps character modeling simpler for now, but treats combat flow, model-following action, strict hit frames, cancel/interruption behavior, and player/monster skill VFX as non-negotiable.
+- Parallel audits selected `sword-prism-field` because catalog metadata already exposed `liuli-prism-field`, `prism-field`, and `sword-prism-field`, while combat still fell through the generic instant branch and CSS lacked dedicated field/ultimate presentation.
+- RED evidence: focused combat/app/UI tests failed because `sword-prism-field` produced no scheduled effects, no delayed lock/burst phases, no interruption cancellation, no prism-field flash, and no dedicated CSS hooks/keyframes.
+- Implementation note: `sword-prism-field` now starts a stationary cancelable cast, fixes a field center 150 px in front of the caster, dynamically rechecks targets at 390 ms lock and 610 ms burst frames, emits delayed MISS only at the lock frame, and cancels pending effects when monster damage interrupts the cast.
+- Presentation note: events now carry `prism-field-lock` / `prism-field-burst` phases and `sword-prism-field-lock` / `sword-prism-field-burst` VFX cues; the burst triggers ultimate shake plus `prism-field` screen flash.
+- CSS note: dedicated player cast, prism-field weapon arc, field core/ring/sparks, target burst core/ring/shards, and prism-field screen flash animations now exist for this skill.
+- Review follow-up: dynamic multi-stage fields should suppress later-stage empty MISS events after the first lock/whiff signal, and weapon keyframes must preserve `--weapon-facing` in every frame so left-facing casts stay mirrored.

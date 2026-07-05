@@ -1212,6 +1212,85 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes flowing-chain-impact-core");
   });
 
+  it("defines dedicated sword-prism-field player, weapon, field, and ultimate burst animations", () => {
+    const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
+    const state = {
+      ...liuliState,
+      player: {
+        ...liuliState.player,
+        heat: 100
+      }
+    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: [
+          {
+            ...baseRun.enemies[0],
+            hp: 240,
+            maxHp: 240,
+            position: { x: 330, y: 340 },
+            nextAttackAtMs: 9999
+          },
+          {
+            ...baseRun.enemies[1],
+            hp: 240,
+            maxHp: 240,
+            position: { x: 390, y: 352 },
+            nextAttackAtMs: 9999
+          },
+          {
+            ...baseRun.enemies[0],
+            id: "test-prism-field-third",
+            hp: 240,
+            maxHp: 240,
+            position: { x: 450, y: 332 },
+            nextAttackAtMs: 9999
+          }
+        ]
+      },
+      { type: "skill", skillId: "sword-prism-field" }
+    );
+    const [lockAtMs, burstAtMs] = scheduledSkillTimes(castRun, "sword-prism-field");
+    const beforeLockHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, lockAtMs - 1)
+    });
+    const burstRun = stepToElapsed(castRun, burstAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: burstRun
+    });
+
+    expect(skillHitEvents(castRun, "sword-prism-field")).toHaveLength(0);
+    expect(beforeLockHtml).toContain('data-player-skill-move="sword-prism-field"');
+    expect(beforeLockHtml).not.toContain('data-skill-impact-vfx="sword-prism-field"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="sword-prism-field"')).toBe(6);
+    expect(html).toContain('data-impact-vfx-shape="sword-prism-field"');
+    expect(html).toContain('data-vfx-cue="sword-prism-field-burst"');
+    expect(html).toContain('data-hit-phase="prism-field-burst"');
+    expect(html).toContain('data-screen-shake="ultimate"');
+    expect(html).toContain('data-screen-flash="prism-field"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-sword-prism-field"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="sword-prism-field"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="liuli-prism-field"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="prism-field"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-sword-prism-field");
+    expect(stylesCss).toContain(".skill-impact-shape-sword-prism-field");
+    expect(stylesCss).toContain('@keyframes player-liuli-prism-field-cast');
+    expect(stylesCss).toContain('@keyframes weapon-prism-field');
+    expect(stylesCss).toContain('@keyframes sword-prism-field-cast-core');
+    expect(stylesCss).toContain('@keyframes sword-prism-field-burst-core');
+    expect(stylesCss).toContain('@keyframes prism-field-screen-flash');
+    expect(stylesCss).toContain("scaleX(var(--weapon-facing, 1))");
+    expect(stylesCss).toContain("var(--weapon-facing, 1) * var(--weapon-skill-lunge");
+  });
+
   it("renders meteor-knuckle with ultimate impact VFX instead of generic skill feedback", () => {
     const state = {
       ...createInitialState(),

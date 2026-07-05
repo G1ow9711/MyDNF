@@ -2299,6 +2299,185 @@ describe("combat actions and impact feel", () => {
     expect(rain.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
   });
 
+  it("sword-prism-field locks targets before a delayed ultimate field burst", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100);
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const run: CombatRun = {
+      ...baseRun,
+      player,
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          hp: 240,
+          maxHp: 240,
+          position: { x: 330, y: 340 },
+          nextAttackAtMs: 9999
+        },
+        {
+          ...baseRun.enemies[1],
+          hp: 240,
+          maxHp: 240,
+          position: { x: 390, y: 352 },
+          nextAttackAtMs: 9999
+        },
+        {
+          ...baseRun.enemies[0],
+          id: "test-prism-field-third",
+          hp: 240,
+          maxHp: 240,
+          position: { x: 450, y: 332 },
+          nextAttackAtMs: 9999
+        }
+      ]
+    };
+
+    const cast = performAction(run, { type: "skill", skillId: "sword-prism-field" });
+    const [lockAtMs, burstAtMs] = scheduledSkillTimes(cast, "sword-prism-field");
+    const beforeLock = stepToElapsed(cast, lockAtMs - 1);
+    const locked = stepToElapsed(cast, lockAtMs);
+    const burst = stepToElapsed(cast, burstAtMs);
+    const lockHits = skillHitEvents(locked, "sword-prism-field").filter((event) => event.hitPhase === "prism-field-lock");
+    const burstHits = skillHitEvents(burst, "sword-prism-field").filter((event) => event.hitPhase === "prism-field-burst");
+
+    expect(cast.player.activeSkillMovement?.skillId).toBe("sword-prism-field");
+    expect(lockAtMs).toBe(390);
+    expect(burstAtMs).toBe(610);
+    expect(skillHitEvents(cast, "sword-prism-field")).toHaveLength(0);
+    expect(beforeLock.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(lockHits).toHaveLength(3);
+    expect(lockHits.every((event) => event.vfxCue === "sword-prism-field-lock")).toBe(true);
+    expect(burstHits).toHaveLength(3);
+    expect(burstHits.every((event) => event.vfxCue === "sword-prism-field-burst")).toBe(true);
+    expect(burstHits.every((event) => event.actionTags?.includes("knockdown"))).toBe(true);
+    expect(burst.enemies.every((enemy) => enemy.hp < 240)).toBe(true);
+    expect(burst.enemies.every((enemy) => enemy.downed)).toBe(true);
+    expect(burst.player.activeSkillMovement).toBeUndefined();
+  });
+
+  it("rechecks sword-prism-field targets when the prism field locks", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 720, y: 500, hp: 240, maxHp: 240 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "sword-prism-field" });
+    const [lockAtMs] = scheduledSkillTimes(cast, "sword-prism-field");
+    const movedIntoField = stepToElapsed(
+      {
+        ...cast,
+        enemies: cast.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 390, y: 340 }
+              }
+            : enemy
+        )
+      },
+      lockAtMs
+    );
+    const [lockHit] = skillHitEvents(movedIntoField, "sword-prism-field");
+
+    expect(lockHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "prism-field-lock",
+      vfxCue: "sword-prism-field-lock"
+    });
+    expect(skillMissEvents(movedIntoField, "sword-prism-field")).toHaveLength(0);
+    expect(movedIntoField.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("delays sword-prism-field whiff feedback until the field lock frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 40, y: 500, hp: 240, maxHp: 240 },
+        { x: 760, y: 500, hp: 240, maxHp: 240 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "sword-prism-field" });
+    const [lockAtMs] = scheduledSkillTimes(cast, "sword-prism-field");
+    const beforeMiss = stepToElapsed(cast, lockAtMs - 1);
+    const missed = stepToElapsed(cast, lockAtMs);
+
+    expect(lockAtMs).toBe(390);
+    expect(skillMissEvents(cast, "sword-prism-field")).toHaveLength(0);
+    expect(skillMissEvents(beforeMiss, "sword-prism-field")).toHaveLength(0);
+    expect(skillMissEvents(missed, "sword-prism-field")).toHaveLength(1);
+    expect(missed.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+  });
+
+  it("does not emit a duplicate sword-prism-field miss on the burst frame after an empty lock", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 40, y: 500, hp: 240, maxHp: 240 },
+        { x: 760, y: 500, hp: 240, maxHp: 240 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "sword-prism-field" });
+    const [, burstAtMs] = scheduledSkillTimes(cast, "sword-prism-field");
+    const afterBurst = stepToElapsed(cast, burstAtMs);
+    const misses = skillMissEvents(afterBurst, "sword-prism-field");
+
+    expect(misses).toHaveLength(1);
+    expect(misses[0].occurredAtMs).toBe(390);
+    expect(skillHitEvents(afterBurst, "sword-prism-field")).toHaveLength(0);
+  });
+
+  it("cancels sword-prism-field pending lock and burst when monster damage interrupts the cast", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 390, y: 340, hp: 240, maxHp: 240 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "sword-prism-field" });
+    const [, burstAtMs] = scheduledSkillTimes(cast, "sword-prism-field");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 300,
+            attackRecoverUntilMs: 620,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      burstAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 300
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(skillHitEvents(interrupted, "sword-prism-field")).toHaveLength(0);
+    expect(skillMissEvents(interrupted, "sword-prism-field")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "sword-prism-field")).toHaveLength(0);
+  });
+
   it("furnace-heart-overdrive charges in place before pulsing and releasing around the player", () => {
     const state = advanceClass(
       readyForAdvancement(withHeat(createInitialState(), 100)),

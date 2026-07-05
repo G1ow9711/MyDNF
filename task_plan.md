@@ -127,7 +127,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current Ink starter progress: `ink-shot` now uses a strict 120 ms delayed projectile timeline, stationary cancelable cast state, live dynamic target recheck, rushing-monster sampling before hit selection, single-target piercing impact metadata, cast-origin anchored bolt VFX, and dedicated player/weapon/cast/target animations.
 - Current Liuli starter progress: `glass-cut` now uses a strict 115 ms short forward slash timeline, model-following movement, swept-path dynamic target recheck from cast origin, same-frame monster-impact priority coverage, cancelable pending impact, and dedicated glass slash player/weapon/cast/target VFX.
 - Current Ember starter progress: `spark-combo` now uses a strict 120 ms delayed jab-chain timeline, 26 px model-following forward movement, endpoint-based dynamic target recheck, delayed whiff feedback, same-frame monster-impact priority coverage, cancelable pending impact, and dedicated ember spark player/weapon/cast/target VFX.
-- Next strict-combat candidate from parallel agents: `sword-prism-field` still needs dedicated Liuli ultimate field presentation and runtime anchoring.
+- Current Liuli ultimate progress: `sword-prism-field` now uses a strict stationary cast, fixed field center, 390 ms dynamic lock frame, 610 ms dynamic burst frame, delayed whiff feedback, monster-interruption cancellation, knockdown burst, ultimate screen shake, prism-field flash, and dedicated player/weapon/cast/target VFX.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

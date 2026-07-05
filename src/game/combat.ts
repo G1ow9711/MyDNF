@@ -37,7 +37,9 @@ export type CombatHitPhase =
   | "uppercut"
   | "chain-open"
   | "chain-cross"
-  | "chain-finish";
+  | "chain-finish"
+  | "prism-field-lock"
+  | "prism-field-burst";
 export type CombatVfxCue =
   | "meteor-fall"
   | "meteor-impact"
@@ -62,7 +64,9 @@ export type CombatVfxCue =
   | "cinder-uppercut-rise"
   | "flowing-chain-open"
   | "flowing-chain-cross"
-  | "flowing-chain-finish";
+  | "flowing-chain-finish"
+  | "sword-prism-field-lock"
+  | "sword-prism-field-burst";
 export type CombatEnemyVfxCue =
   | "ash-ember-spit-impact"
   | "ash-crawler-burst-explode"
@@ -398,6 +402,7 @@ export interface CombatScheduledEnemyHitEffect {
   dynamicHitbox?: PlayerHitboxDefinition;
   dynamicOrigin?: CombatVector;
   dynamicFacing?: 1 | -1;
+  missOnEmpty?: boolean;
 }
 
 export interface CombatScheduledMissEffect {
@@ -1735,6 +1740,86 @@ function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFro
       });
     }, nextRun);
   }, scriptedRun);
+}
+
+const swordPrismFieldLockDelayMs = 390;
+const swordPrismFieldBurstDelayMs = 610;
+
+function swordPrismFieldCenter(run: CombatRun): CombatVector {
+  return {
+    x: clamp(run.player.x + 150 * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+}
+
+function swordPrismFieldHitbox(
+  run: CombatRun,
+  skill: ClassSkillDefinition,
+  canceledFromCombo: boolean,
+  delayMs: number,
+  stage: "lock" | "burst"
+): PlayerHitboxDefinition {
+  const burst = stage === "burst";
+
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 260,
+    laneRange: 112,
+    targetCap: 3,
+    frontOnly: false,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * (burst ? 1.16 : 0.36))),
+    hitstopMs: burst ? 112 : 60,
+    knockback: burst ? 48 : 8,
+    juggle: false,
+    inputToHitMs: delayMs,
+    canceledFromCombo,
+    statusTags: ["stagger"],
+    actionTags: burst ? ["knockdown"] : []
+  };
+}
+
+function applySwordPrismField(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const center = swordPrismFieldCenter(run);
+  const castingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(
+      run,
+      skill,
+      {
+        x: run.player.x,
+        y: run.player.y
+      },
+      run.elapsedMs + swordPrismFieldBurstDelayMs
+    ),
+    skill,
+    canceledFromCombo
+  );
+  const lockedRun = schedulePlayerHitboxEffect(
+    castingRun,
+    swordPrismFieldHitbox(run, skill, canceledFromCombo, swordPrismFieldLockDelayMs, "lock"),
+    center,
+    run.player.facing,
+    {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-prism-field-lock`,
+      hitPhase: "prism-field-lock",
+      vfxCue: "sword-prism-field-lock",
+      vfxWindowMs: 520
+    }
+  );
+
+  return schedulePlayerHitboxEffect(
+    lockedRun,
+    swordPrismFieldHitbox(run, skill, canceledFromCombo, swordPrismFieldBurstDelayMs, "burst"),
+    center,
+    run.player.facing,
+    {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-prism-field-burst`,
+      hitPhase: "prism-field-burst",
+      vfxCue: "sword-prism-field-burst",
+      vfxWindowMs: 640,
+      missOnEmpty: false
+    }
+  );
 }
 
 function selectPrismStepTargets(run: CombatRun, scriptedRun: CombatRun, skill: ClassSkillDefinition): CombatEnemy[] {
@@ -3434,7 +3519,7 @@ function schedulePlayerHitboxEffect(
   hitbox: PlayerHitboxDefinition,
   origin: CombatVector,
   facing: 1 | -1,
-  presentation: Pick<CombatScheduledEnemyHitEffect, "id" | "hitPhase" | "vfxCue" | "vfxWindowMs">
+  presentation: Pick<CombatScheduledEnemyHitEffect, "id" | "hitPhase" | "vfxCue" | "vfxWindowMs" | "missOnEmpty">
 ): CombatRun {
   const effect: CombatScheduledEnemyHitEffect = {
     id: presentation.id,
@@ -3461,7 +3546,8 @@ function schedulePlayerHitboxEffect(
     casterFacing: run.player.facing,
     dynamicHitbox: hitbox,
     dynamicOrigin: origin,
-    dynamicFacing: facing
+    dynamicFacing: facing,
+    missOnEmpty: presentation.missOnEmpty ?? true
   };
 
   return {
@@ -3519,6 +3605,10 @@ function applyScheduledPlayerHitboxEffect(
   const targets = selectPlayerTargets(targetingRun, hitbox);
 
   if (targets.length === 0) {
+    if (effect.missOnEmpty === false) {
+      return sampledRun;
+    }
+
     return applyScheduledMissEffect(sampledRun, {
       id: `miss-${effect.id}`,
       applyAtMs: effect.applyAtMs,
@@ -4271,6 +4361,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "liuli-rain") {
     return completeSkillAction(run, applyLiuliRain(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "sword-prism-field") {
+    return completeSkillAction(run, applySwordPrismField(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "spark-combo") {

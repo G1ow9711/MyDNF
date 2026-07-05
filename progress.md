@@ -1961,3 +1961,33 @@
   - Focused GREEN passed: `npm test -- src/tests/combat.test.ts -t "spark-combo"`, 8 tests.
   - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 232 tests.
   - Browser DOM/computed-style validation on `http://127.0.0.1:5174/spark-combo-check.html` confirmed 120 ms scheduled impact, zero cast/pre-hit hits, endpoint-only target hit after the player moves from x 240 to x 266, one target-bound impact, `jab-chain` / `ember-jab-chain` metadata, dedicated player/weapon/cast/impact animation names, and empty warning/error log. Temporary check page was deleted.
+
+## Task 71 Sword Prism Field Ultimate Timeline
+- Continued under the latest user clarification: character/monster model detail can stay lightweight while all combat action timing, model-following motion, hit frames, interruption/cancel behavior, and skill VFX remain strict.
+- Used earlier parallel read-only audit results:
+  - Combat audit found `sword-prism-field` still fell through the generic skill branch, mutating damage immediately and lacking cancelable scheduled phases.
+  - UI/CSS audit found catalog metadata existed for `liuli-prism-field`, `prism-field`, and `sword-prism-field`, but no dedicated CSS or runtime ultimate flash existed.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires no cast-frame damage, 390 ms lock, 610 ms burst, dynamic target recheck, delayed whiff feedback, knockdown burst, and monster-interruption cancellation.
+  - `src/tests/app-integration.test.ts` requires reducer-rendered field metadata, no pre-lock impact, lock/burst target VFX, ultimate shake, and prism-field flash.
+  - `src/tests/ui-smoke.test.ts` requires dedicated player, weapon, cast-field, target-burst, and screen-flash CSS hooks/keyframes.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "sword-prism-field"` failed before implementation because no scheduled `sword-prism-field` effects existed.
+  - The whiff test was corrected before production code to assert dynamic hit-frame MISS generation instead of cast-frame miss scheduling, preserving moved-in target recheck behavior.
+- Implemented:
+  - Added `applySwordPrismField()` with stationary active skill movement, fixed field center, 390 ms dynamic lock hitbox, 610 ms dynamic burst hitbox, delayed hit/miss behavior, and queue-based monster interruption cancellation.
+  - Added `prism-field-lock` / `prism-field-burst` phases plus `sword-prism-field-lock` / `sword-prism-field-burst` VFX cues.
+  - Added prism-field ultimate screen shake/flash handling and field-center VFX anchoring.
+  - Added dedicated CSS for player `player-liuli-prism-field-cast`, weapon `weapon-prism-field`, field `sword-prism-field-cast-*`, impact `sword-prism-field-burst-*`, and `prism-field-screen-flash`.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "sword-prism-field"`, 6 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 238 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/sword-prism-field-check.html` confirmed 390/610 ms staged timing, zero pre-lock impacts, three lock impacts, six cumulative burst impacts, fixed field-center VFX anchor, active movement cleanup, ultimate shake, prism-field flash, actual player/weapon/cast/burst/screen-flash animation names, and empty warning/error console output. Temporary check page was deleted.
+- Code review follow-up:
+  - Read-only review found no Critical issues and two Important issues: empty fields could emit duplicate MISS at the 610 ms burst frame, and the prism-field weapon keyframes did not preserve left-facing weapon mirroring.
+  - Added RED regressions for no-target-through-burst MISS count and facing-aware weapon CSS, then fixed dynamic hitbox scheduling with `missOnEmpty: false` for the burst stage and added `scaleX(--weapon-facing)` plus facing-multiplied offsets/rotations to `weapon-prism-field`.
+  - Focused review regressions passed: `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts -t "duplicate sword-prism-field miss|dedicated sword-prism-field"`.
+  - Focused `sword-prism-field` suite passed after review fixes: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "sword-prism-field"`, 7 tests.
+  - Related combat/app/UI suite passed after review fixes: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 239 tests.
+  - Browser re-validation confirmed exactly one empty-field MISS at 390 ms, left-facing weapon computed transform determinant below 0, 390/610 timing, three lock impacts, six burst-frame cumulative impacts, prism-field flash/shake, actual animation names, and empty warning/error console output. Temporary check page was deleted.
+  - Final full verification passed after review fixes: `npm test` passed with 335 tests, `npm run build` passed, and `git diff --check` passed with line-ending warnings only.

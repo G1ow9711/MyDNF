@@ -770,6 +770,10 @@ function playerSkillVfxStyle(
     return `${combatActorStyle(run, origin.x + 150 * facing, origin.y)}${durationStyle}`;
   }
 
+  if (skillId === "sword-prism-field") {
+    return `${combatActorStyle(run, origin.x + 150 * facing, origin.y)}${durationStyle}`;
+  }
+
   if (skillId === "heat-bloom") {
     return `${combatActorStyle(run, origin.x + 112 * facing, origin.y)}${durationStyle}`;
   }
@@ -797,6 +801,26 @@ function playerSkillVfxStyle(
   return `${combatActorStyle(run, run.player.x + 128 * run.player.facing, run.player.y)}${durationStyle}`;
 }
 
+function combatScreenShake(hit: CombatHitEvent | undefined, playerHit: CombatPlayerHitEvent | undefined): string {
+  if (hit?.vfxCue === "meteor-impact" || hit?.vfxCue === "sword-prism-field-burst") {
+    return "ultimate";
+  }
+
+  return hit ? hit.action ?? "test" : playerHit ? "enemy" : "none";
+}
+
+function combatScreenFlash(hit: CombatHitEvent | undefined): string {
+  if (hit?.vfxCue === "meteor-impact") {
+    return "meteor";
+  }
+
+  if (hit?.vfxCue === "sword-prism-field-burst") {
+    return "prism-field";
+  }
+
+  return "none";
+}
+
 function renderCombatVfx(run: CombatRun): string {
   const hit = latestHitEvent(run);
   const hits = recentHitEvents(run);
@@ -810,8 +834,8 @@ function renderCombatVfx(run: CombatRun): string {
       ? classSkillById(playerAction.skillId)?.animation
       : undefined;
   const hitstopActive = Boolean(hit && run.elapsedMs < hit.occurredAtMs + hit.hitstopMs) || Boolean(playerHit && run.elapsedMs < run.player.hitstopUntilMs);
-  const screenShake = hit?.vfxCue === "meteor-impact" ? "ultimate" : hit ? hit.action ?? "test" : playerHit ? "enemy" : "none";
-  const screenFlash = hit?.vfxCue === "meteor-impact" ? "meteor" : "none";
+  const screenShake = combatScreenShake(hit, playerHit);
+  const screenFlash = combatScreenFlash(hit);
   const impactSkillId = hit?.skillId ?? "";
   const hitVfx = hits
     .map((hitEvent, hitIndex) => {
@@ -1057,8 +1081,8 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
     : `<div class="combo-meter is-idle" data-combo-active="false" data-combo-count="0"><strong>0</strong><span>CHAIN</span></div>`;
   const sceneHit = latestHitEvent(run);
   const scenePlayerHit = latestPlayerHitEvent(run);
-  const sceneScreenShake = sceneHit?.vfxCue === "meteor-impact" ? "ultimate" : sceneHit ? sceneHit.action ?? "test" : scenePlayerHit ? "enemy" : "none";
-  const sceneScreenFlash = sceneHit?.vfxCue === "meteor-impact" ? "meteor" : "none";
+  const sceneScreenShake = combatScreenShake(sceneHit, scenePlayerHit);
+  const sceneScreenFlash = combatScreenFlash(sceneHit);
   const sceneImpactSkillId = sceneHit?.skillId ?? "";
   const bufferedAction = run.player.bufferedAction;
   const bufferState = bufferedAction ? "queued" : "empty";

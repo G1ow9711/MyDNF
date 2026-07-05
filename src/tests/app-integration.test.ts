@@ -2412,6 +2412,100 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(impactHtml, 'data-damage-number="true"')).toBe(4);
   });
 
+  it("renders sword-prism-field as a staged Liuli prism-field ultimate", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: [
+          {
+            ...model.combatRun.enemies[0],
+            hp: 240,
+            maxHp: 240,
+            position: { x: 330, y: 340 },
+            nextAttackAtMs: 9999
+          },
+          {
+            ...model.combatRun.enemies[1],
+            hp: 240,
+            maxHp: 240,
+            position: { x: 390, y: 352 },
+            nextAttackAtMs: 9999
+          },
+          {
+            ...model.combatRun.enemies[0],
+            id: "test-prism-field-third",
+            hp: 240,
+            maxHp: 240,
+            position: { x: 450, y: 332 },
+            nextAttackAtMs: 9999
+          }
+        ]
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "sword-prism-field" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after sword-prism-field");
+    }
+
+    const [lockAtMs, burstAtMs] = scheduledSkillTimes(model.combatRun, "sword-prism-field");
+    const castHtml = renderAppHtml(model);
+    const beforeLockHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, lockAtMs - 1)
+    });
+    const lockHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, lockAtMs)
+    });
+    const burstRun = stepToElapsed(model.combatRun, burstAtMs);
+    const burstHtml = renderAppHtml({
+      ...model,
+      combatRun: burstRun
+    });
+
+    expect(skillHitEvents(model.combatRun, "sword-prism-field")).toHaveLength(0);
+    expect(castHtml).toContain('data-active-skill-id="sword-prism-field"');
+    expect(castHtml).toContain('data-skill-animation-preset="liuli-prism-field"');
+    expect(castHtml).toContain('data-skill-weapon-arc="prism-field"');
+    expect(castHtml).toContain('data-skill-vfx-shape="sword-prism-field"');
+    expect(castHtml).toContain('data-player-skill-move="sword-prism-field"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-sword-prism-field skill-vfx-shape-sword-prism-field"');
+    expect(beforeLockHtml).not.toContain('data-skill-impact-vfx="sword-prism-field"');
+    expect(lockHtml).toContain('data-hit-phase="prism-field-lock"');
+    expect(lockHtml).toContain('data-vfx-cue="sword-prism-field-lock"');
+    expect(countOccurrences(lockHtml, 'data-skill-impact-vfx="sword-prism-field"')).toBe(3);
+    expect(burstHtml).toContain('data-screen-shake="ultimate"');
+    expect(burstHtml).toContain('data-screen-flash="prism-field"');
+    expect(burstHtml).toContain('data-hit-phase="prism-field-burst"');
+    expect(burstHtml).toContain('data-vfx-cue="sword-prism-field-burst"');
+    expect(burstHtml).toContain('data-impact-vfx-shape="sword-prism-field"');
+    expect(burstHtml).toContain('class="skill-impact-burst skill-impact-shape-sword-prism-field"');
+    expect(countOccurrences(burstHtml, 'data-skill-impact-vfx="sword-prism-field"')).toBe(6);
+    expect(skillHitEvents(burstRun, "sword-prism-field")).toHaveLength(6);
+  });
+
   it("renders meteor-knuckle as a staged ultimate with screen flash and ground impact", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

@@ -700,7 +700,7 @@ describe("combat actions and impact feel", () => {
     expect(hit.enemies[0].hp).toBe(run.enemies[0].hp);
   });
 
-  it("lets area skills hit multiple enemies inside the skill hitbox", () => {
+  it("heat-bloom draws enemies before erupting on a delayed hit frame", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1 },
@@ -710,12 +710,98 @@ describe("combat actions and impact feel", () => {
       ]
     );
     const cast = performAction(run, { type: "skill", skillId: "heat-bloom" });
-    const hitEvents = cast.events.filter((event) => event.kind === "hit");
+    const [drawAtMs, eruptAtMs] = scheduledSkillTimes(cast, "heat-bloom");
+    const beforeDraw = stepToElapsed(cast, drawAtMs - 1);
+    const drawRun = stepToElapsed(cast, drawAtMs);
+    const eruptionRun = stepToElapsed(drawRun, eruptAtMs);
+    const heatBloomHits = skillHitEvents(eruptionRun, "heat-bloom");
 
-    expect(hitEvents).toHaveLength(2);
-    expect(new Set(hitEvents.map((event) => event.targetId))).toEqual(new Set(run.enemies.map((enemy) => enemy.id)));
-    expect(cast.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
-    expect(cast.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+    expect([drawAtMs, eruptAtMs]).toEqual([240, 390]);
+    expect(skillHitEvents(cast, "heat-bloom")).toHaveLength(0);
+    expect(cast.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(beforeDraw.enemies.map((enemy) => enemy.position.x)).toEqual(run.enemies.map((enemy) => enemy.position.x));
+    expect(skillHitEvents(drawRun, "heat-bloom")).toHaveLength(2);
+    expect(drawRun.enemies[0].position.x).toBeGreaterThan(run.enemies[0].position.x);
+    expect(drawRun.enemies[1].position.x).toBeLessThan(run.enemies[1].position.x);
+    expect(heatBloomHits).toHaveLength(4);
+    expect(heatBloomHits.map((event) => event.hitPhase)).toEqual([
+      "heat-draw",
+      "heat-draw",
+      "heat-eruption",
+      "heat-eruption"
+    ]);
+    expect(heatBloomHits.map((event) => event.vfxCue)).toEqual([
+      "heat-bloom-draw",
+      "heat-bloom-draw",
+      "heat-bloom-eruption",
+      "heat-bloom-eruption"
+    ]);
+    expect(eruptionRun.enemies.every((enemy) => enemy.hp < run.enemies.find((source) => source.id === enemy.id)!.hp)).toBe(true);
+    expect(eruptionRun.enemies.every((enemy) => enemy.airborne && (enemy.airborneUntilMs ?? 0) > eruptionRun.elapsedMs)).toBe(true);
+  });
+
+  it("cancels pending heat-bloom draw and eruption when monster damage interrupts the cast", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [
+        { x: 315, y: 340 },
+        { x: 390, y: 356 }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "heat-bloom" });
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: cast.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                attackSkillId: "ash-ember-spit" as const,
+                attackStartedAtMs: 0,
+                attackImpactAtMs: 220,
+                attackRecoverUntilMs: 420,
+                attackHitResolved: false,
+                attackResolvedHits: 0
+              }
+            : enemy
+        )
+      },
+      {},
+      390
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 220
+        })
+      ])
+    );
+    expect(skillHitEvents(interrupted, "heat-bloom")).toHaveLength(0);
+    expect(interrupted.enemies.map((enemy) => enemy.hp)).toEqual(cast.enemies.map((enemy) => enemy.hp));
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "heat-bloom")).toHaveLength(0);
+  });
+
+  it("does not erupt against heat-bloom targets killed by the draw frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 315, y: 340, hp: 12, maxHp: 12, armor: 0 },
+        { x: 390, y: 356, hp: 12, maxHp: 12, armor: 0 }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "heat-bloom" });
+    const [, eruptAtMs] = scheduledSkillTimes(cast, "heat-bloom");
+    const resolved = stepToElapsed(cast, eruptAtMs);
+    const heatBloomHits = skillHitEvents(resolved, "heat-bloom");
+
+    expect(resolved.enemies.every((enemy) => enemy.hp === 0)).toBe(true);
+    expect(heatBloomHits.map((event) => event.hitPhase)).toEqual(["heat-draw", "heat-draw"]);
+    expect(heatBloomHits.some((event) => event.hitPhase === "heat-eruption")).toBe(false);
   });
 
   it("spends and updates the selected class resource when a non-ember class casts", () => {
@@ -1191,9 +1277,12 @@ describe("combat actions and impact feel", () => {
       ]
     );
 
-    const pulled = performAction(run, { type: "skill", skillId: "heat-bloom" });
+    const cast = performAction(run, { type: "skill", skillId: "heat-bloom" });
+    const [drawAtMs] = scheduledSkillTimes(cast, "heat-bloom");
+    const pulled = stepToElapsed(cast, drawAtMs);
     const centerX = run.player.x + 112;
 
+    expect(cast.enemies.map((enemy) => enemy.position.x)).toEqual(run.enemies.map((enemy) => enemy.position.x));
     expect(Math.abs(pulled.enemies[0].position.x - centerX)).toBeLessThan(Math.abs(run.enemies[0].position.x - centerX));
     expect(Math.abs(pulled.enemies[1].position.x - centerX)).toBeLessThan(Math.abs(run.enemies[1].position.x - centerX));
   });

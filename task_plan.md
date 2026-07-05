@@ -120,6 +120,8 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current player-combat priority: character models may remain lightweight while the playable loop is built, but player skill movement must be timed and model-following, with delayed hit frames, cancelable pending impacts, and dedicated skill/weapon/cast/target VFX.
 - Current Ember advancement progress: `furnace-heart-overdrive` now has a stationary charge timeline, delayed area pulse, delayed release/knockdown, cancelable pending hits, delayed whiff feedback, and dedicated overdrive player/weapon/cast/target VFX. `heat-bloom` remains the next Ember visual/mechanical candidate because its pull presentation is still generic.
 - Current review-fix progress: interrupted overdrive now clears stale cast VFX, same-frame monster impacts resolve before delayed whiff feedback, and a large-frame 360/560 ms release path is covered by tests.
+- Current heat-bloom progress: `heat-bloom` now uses a strict 240 ms draw and 390 ms eruption timeline, delays all target mutation until real hit frames, pulls enemies toward a fixed cast center, skips eruption feedback on targets killed by the draw frame, and renders dedicated player, weapon, cast-field, draw, and eruption VFX.
+- Current combat-fidelity priority: character and monster models may stay lighter while the full loop is connected, but smooth model-following attacks, strict hit frames, cancelable delayed effects, target action changes, skill VFX, and monster skill VFX remain hard acceptance criteria.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

@@ -519,6 +519,18 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes black-rain-target-burst");
   });
 
+  it("defines dedicated heat-bloom player, weapon, cast, draw, and eruption animations", () => {
+    expect(stylesCss).toContain('[data-skill-animation-preset="ember-bloom"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="pull-bloom"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-heat-bloom");
+    expect(stylesCss).toContain(".skill-impact-shape-heat-bloom");
+    expect(stylesCss).toContain("@keyframes player-ember-bloom-cast");
+    expect(stylesCss).toContain("@keyframes weapon-pull-bloom");
+    expect(stylesCss).toContain("@keyframes heat-bloom-cast-core");
+    expect(stylesCss).toContain("@keyframes heat-bloom-draw-core");
+    expect(stylesCss).toContain("@keyframes heat-bloom-eruption-core");
+  });
+
   it("renders liuli-rain as staggered glass-rain impact waves", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const state = {

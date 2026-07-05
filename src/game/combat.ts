@@ -26,6 +26,8 @@ export type CombatHitPhase =
   | "hammer-stagger"
   | "hammer-impact"
   | "shoulder-impact"
+  | "heat-draw"
+  | "heat-eruption"
   | "overdrive-pulse"
   | "overdrive-release"
   | "chain-open"
@@ -44,6 +46,8 @@ export type CombatVfxCue =
   | "mountain-hammer-stagger"
   | "mountain-crack-impact"
   | "furnace-shoulder-impact"
+  | "heat-bloom-draw"
+  | "heat-bloom-eruption"
   | "overdrive-core-pulse"
   | "overdrive-core-release"
   | "flowing-chain-open"
@@ -198,6 +202,8 @@ export interface CombatHitEvent {
   hitPhase?: CombatHitPhase;
   vfxCue?: CombatVfxCue;
   vfxWindowMs?: number;
+  casterPosition?: CombatVector;
+  casterFacing?: 1 | -1;
 }
 
 export interface CombatMissEvent {
@@ -210,6 +216,8 @@ export interface CombatMissEvent {
   canceledFromCombo: boolean;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
+  casterPosition?: CombatVector;
+  casterFacing?: 1 | -1;
 }
 
 export interface CombatSkillCastEvent {
@@ -222,6 +230,8 @@ export interface CombatSkillCastEvent {
   canceledFromCombo: boolean;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
+  casterPosition?: CombatVector;
+  casterFacing?: 1 | -1;
 }
 
 export interface CombatRoomClearedEvent {
@@ -347,6 +357,8 @@ export interface HitDefinition {
   hitPhase?: CombatHitPhase;
   vfxCue?: CombatVfxCue;
   vfxWindowMs?: number;
+  casterPosition?: CombatVector;
+  casterFacing?: 1 | -1;
 }
 
 export interface CombatScheduledEnemyHitEffect {
@@ -370,6 +382,8 @@ export interface CombatScheduledEnemyHitEffect {
   hitPhase?: CombatHitPhase;
   vfxCue?: CombatVfxCue;
   vfxWindowMs?: number;
+  casterPosition?: CombatVector;
+  casterFacing?: 1 | -1;
 }
 
 export interface CombatScheduledMissEffect {
@@ -381,6 +395,8 @@ export interface CombatScheduledMissEffect {
   canceledFromCombo: boolean;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
+  casterPosition?: CombatVector;
+  casterFacing?: 1 | -1;
 }
 
 export interface CombatScheduledArenaHazard {
@@ -1190,7 +1206,9 @@ function appendSkillCastEvent(run: CombatRun, skill: ClassSkillDefinition, cance
     inputToHitMs: 0,
     canceledFromCombo,
     statusTags: skillStatusTags(skill.tags),
-    actionTags: actionTagsForSkill(skill.tags)
+    actionTags: actionTagsForSkill(skill.tags),
+    casterPosition: { x: run.player.x, y: run.player.y },
+    casterFacing: run.player.facing
   };
 
   return {
@@ -1667,6 +1685,138 @@ function applyFurnaceStep(run: CombatRun, skill: ClassSkillDefinition, canceledF
       vfxWindowMs: 300
     });
   }, movingRun);
+}
+
+const heatBloomDrawDelayMs = 240;
+const heatBloomEruptionDelayMs = 390;
+
+function heatBloomCenter(run: CombatRun): CombatVector {
+  return {
+    x: clamp(run.player.x + 112 * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+}
+
+function selectHeatBloomTargets(run: CombatRun, center: CombatVector): CombatEnemy[] {
+  return run.enemies
+    .filter((enemy) => {
+      if (enemy.hp <= 0) {
+        return false;
+      }
+
+      const xDistance = axisDistanceOutsideHalfSize(enemy.position.x - center.x, enemy.hurtbox.width / 2);
+      const yDistance = axisDistanceOutsideHalfSize(enemy.position.y - center.y, enemy.hurtbox.height / 2);
+
+      return xDistance <= 170 && yDistance <= 82;
+    })
+    .sort((left, right) => {
+      const leftDistance = Math.abs(left.position.x - center.x) + Math.abs(left.position.y - center.y) * 0.5;
+      const rightDistance = Math.abs(right.position.x - center.x) + Math.abs(right.position.y - center.y) * 0.5;
+
+      return leftDistance - rightDistance;
+    })
+    .slice(0, 3);
+}
+
+function applyHeatBloom(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const center = heatBloomCenter(run);
+  const castingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(
+      run,
+      skill,
+      {
+        x: run.player.x,
+        y: run.player.y
+      },
+      run.elapsedMs + heatBloomEruptionDelayMs
+    ),
+    skill,
+    canceledFromCombo
+  );
+  const targetingHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 170,
+    laneRange: 82,
+    targetCap: 3,
+    frontOnly: false,
+    damage: skillDamage(run, skill),
+    hitstopMs: 56,
+    knockback: 0,
+    juggle: false,
+    inputToHitMs: heatBloomDrawDelayMs,
+    canceledFromCombo,
+    statusTags: ["stagger"]
+  };
+  const targets = selectHeatBloomTargets(run, center);
+
+  if (targets.length === 0) {
+    return scheduleMissEffect(castingRun, targetingHitbox);
+  }
+
+  const baseDamage = skillDamage(run, skill);
+  const stages: Array<{
+    phase: CombatHitPhase;
+    vfxCue: CombatVfxCue;
+    delayMs: number;
+    damageMultiplier: number;
+    hitstopMs: number;
+    knockback: number;
+    juggle: boolean;
+    pullCenter?: CombatVector;
+    statusTags: CombatSkillStatusTag[];
+    actionTags: CombatActionTag[];
+    vfxWindowMs: number;
+  }> = [
+    {
+      phase: "heat-draw",
+      vfxCue: "heat-bloom-draw",
+      delayMs: heatBloomDrawDelayMs,
+      damageMultiplier: 0.34,
+      hitstopMs: 48,
+      knockback: 0,
+      juggle: false,
+      pullCenter: center,
+      statusTags: ["stagger"],
+      actionTags: [],
+      vfxWindowMs: 340
+    },
+    {
+      phase: "heat-eruption",
+      vfxCue: "heat-bloom-eruption",
+      delayMs: heatBloomEruptionDelayMs,
+      damageMultiplier: 0.96,
+      hitstopMs: 86,
+      knockback: 36,
+      juggle: true,
+      statusTags: ["stagger"],
+      actionTags: ["launcher"],
+      vfxWindowMs: 520
+    }
+  ];
+
+  return stages.reduce((nextRun, stage) => {
+    return targets.reduce((stageRun, target) => {
+      return scheduleEnemyHitEffect(stageRun, {
+        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${target.id}`,
+        targetId: target.id,
+        damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
+        hitstopMs: stage.hitstopMs,
+        knockback: stage.knockback,
+        juggle: stage.juggle,
+        action: "skill",
+        skillId: skill.id,
+        inputToHitMs: stage.delayMs,
+        canceledFromCombo,
+        pullCenter: stage.pullCenter,
+        statusTags: stage.statusTags,
+        actionTags: stage.actionTags,
+        hitPhase: stage.phase,
+        vfxCue: stage.vfxCue,
+        vfxWindowMs: stage.vfxWindowMs
+      });
+    }, nextRun);
+  }, castingRun);
 }
 
 const furnaceHeartOverdrivePulseDelayMs = 360;
@@ -2989,7 +3139,9 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     actionTags: hit.actionTags,
     hitPhase: hit.hitPhase,
     vfxCue: hit.vfxCue,
-    vfxWindowMs: hit.vfxWindowMs
+    vfxWindowMs: hit.vfxWindowMs,
+    casterPosition: { x: run.player.x, y: run.player.y },
+    casterFacing: run.player.facing
   };
 
   return triggerBossPhaseTransitions(
@@ -3039,7 +3191,9 @@ function scheduleEnemyHitEffect(run: CombatRun, hit: HitDefinition): CombatRun {
     skillId: hit.skillId,
     hitPhase: hit.hitPhase,
     vfxCue: hit.vfxCue,
-    vfxWindowMs: hit.vfxWindowMs
+    vfxWindowMs: hit.vfxWindowMs,
+    casterPosition: { x: run.player.x, y: run.player.y },
+    casterFacing: run.player.facing
   };
 
   return {
@@ -3057,7 +3211,9 @@ function scheduleMissEffect(run: CombatRun, hitbox: PlayerHitboxDefinition): Com
     inputToHitMs: hitbox.inputToHitMs,
     canceledFromCombo: hitbox.canceledFromCombo,
     statusTags: hitbox.statusTags,
-    actionTags: hitbox.actionTags
+    actionTags: hitbox.actionTags,
+    casterPosition: { x: run.player.x, y: run.player.y },
+    casterFacing: run.player.facing
   };
 
   return {
@@ -3080,6 +3236,12 @@ function applyScheduledEnemyHitEffect(
 
   if (impactResolvedRun.failed || impactResolvedRun.player.defeated) {
     return clearPendingCombatEffectsIfFailed(impactResolvedRun);
+  }
+
+  const target = impactResolvedRun.enemies.find((enemy) => enemy.id === effect.targetId);
+
+  if (!target || target.hp <= 0) {
+    return impactResolvedRun;
   }
 
   const statusTags = effect.statusTags ?? [];
@@ -3105,7 +3267,9 @@ function applyScheduledEnemyHitEffect(
     actionTags: effect.actionTags,
     hitPhase: effect.hitPhase,
     vfxCue: effect.vfxCue,
-    vfxWindowMs: effect.vfxWindowMs
+    vfxWindowMs: effect.vfxWindowMs,
+    casterPosition: effect.casterPosition,
+    casterFacing: effect.casterFacing
   };
   const nextEnemies = impactResolvedRun.enemies.map((enemy) => {
     if (enemy.id !== effect.targetId) {
@@ -3206,7 +3370,9 @@ function applyScheduledMissEffect(run: CombatRun, effect: CombatScheduledMissEff
     inputToHitMs: effect.inputToHitMs,
     canceledFromCombo: effect.canceledFromCombo,
     statusTags: effect.statusTags,
-    actionTags: effect.actionTags
+    actionTags: effect.actionTags,
+    casterPosition: effect.casterPosition,
+    casterFacing: effect.casterFacing
   };
 
   return {
@@ -3771,6 +3937,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "furnace-step") {
     return completeSkillAction(run, applyFurnaceStep(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "heat-bloom") {
+    return completeSkillAction(run, applyHeatBloom(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "furnace-heart-overdrive") {

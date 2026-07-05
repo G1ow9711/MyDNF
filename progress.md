@@ -1819,3 +1819,27 @@
   - Focused overdrive suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "furnace-heart-overdrive|same-frame enemy interruption|removes furnace-heart-overdrive"`, 6 tests.
   - Related combat/app/UI suite passed after review fixes: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 191 tests.
   - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/furnace-heart-overdrive-check.html`: confirmed 360/560 ms timings, stationary x 320 charge, `ember-overdrive`, `core-overdrive`, `overdrive-core`, two pulse target bursts, two release target bursts, skill screen shake/hitstop, actual player/weapon/cast/pulse/release animation names, and empty browser console error log.
+
+## Task 65 Heat Bloom Draw and Eruption Timeline
+- Started from the latest user clarification: character and monster models may be lightweight for the current prototype, but combat action smoothness, model-following attacks, hit feel, player/enemy action changes, skill VFX, and monster VFX remain strict.
+- Used two read-only parallel agents:
+  - `019f31f3-409e-77b2-9985-40a3e65b8a1d` audited combat timing and found `heat-bloom` still behaved like a generic cast-frame skill instead of a delayed pull/eruption.
+  - `019f31f3-6976-78a0-8495-cf6589885e13` audited UI/CSS and found catalog metadata existed for `ember-bloom`, `pull-bloom`, and `heat-bloom`, but CSS lacked dedicated presentation.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires 240 ms draw, 390 ms eruption, no cast-frame damage, draw-frame pull, eruption launch, interruption cancellation, and no eruption feedback against targets killed by draw.
+  - `src/tests/app-integration.test.ts` requires delayed target VFX, fixed cast-field anchoring, and runtime DOM metadata for player, weapon, cast field, draw, and eruption.
+  - `src/tests/ui-smoke.test.ts` requires dedicated heat-bloom player, weapon, cast, draw, and eruption CSS hooks/keyframes.
+- RED evidence:
+  - Focused tests initially failed because no scheduled `heat-bloom` effects existed and CSS lacked heat-bloom selectors/keyframes.
+  - Review-driven regressions then failed because low-HP targets killed by draw still received eruption events, and the UI cast field could drift with the current player position.
+- Implemented:
+  - Added custom `heat-bloom` combat script with stationary active skill movement, fixed center, delayed draw/eruption effects, draw pull, eruption launch, and target death filtering at impact time.
+  - Added event caster position/facing metadata so fixed-field player skill VFX can stay aligned after later movement or hit events.
+  - Added dedicated CSS for player `player-ember-bloom-cast`, weapon `weapon-pull-bloom`, cast `heat-bloom-cast-*`, draw `heat-bloom-draw-*`, and eruption `heat-bloom-eruption-*` animations.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts -t "heat-bloom"`: failed before fixes, passed after fixes.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 195 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/heat-bloom-check.html`: confirmed 240/390 ms timings, no pre-draw target mutation, draw pull x 315/390 -> 342.75/361.5 around center 352, two draw impacts, four cumulative eruption impacts, player animation `player-ember-bloom-cast`, weapon animation `weapon-pull-bloom`, cast/draw/eruption animation names, and empty browser warning/error log.
+- Code review follow-up:
+  - Read-only review found no Critical issues and two Important issues: dead draw-frame targets could still receive eruption feedback, and fixed-field VFX could drift from the cast center.
+  - Added regressions for both and fixed them with live target checks plus caster-position metadata.

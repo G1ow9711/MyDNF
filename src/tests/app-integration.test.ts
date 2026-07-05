@@ -63,6 +63,12 @@ function countOccurrences(text: string, pattern: string): number {
   return text.split(pattern).length - 1;
 }
 
+function playerSkillVfxStyleFor(html: string, skillId: string): string {
+  const match = html.match(new RegExp(`<div class="player-skill-vfx skill-vfx-${skillId}[^"]*"[^>]*style="([^"]*)"`));
+
+  return match?.[1] ?? "";
+}
+
 function skillHitEvents(run: CombatRun, skillId: string): CombatHitEvent[] {
   return run.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === skillId);
 }
@@ -1254,6 +1260,93 @@ describe("playable app integration actions", () => {
     expect(impactHtml).toContain('data-vfx-cue="furnace-shoulder-impact"');
     expect(impactHtml).toContain('class="skill-impact-burst skill-impact-shape-furnace-trail"');
     expect(countOccurrences(impactHtml, 'data-skill-impact-vfx="furnace-step"')).toBe(1);
+  });
+
+  it("renders heat-bloom as a delayed pull and eruption field", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 80)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 220,
+          maxHp: 220,
+          position: { x: index === 0 ? 315 : 390, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "heat-bloom" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after heat-bloom");
+    }
+
+    const [drawAtMs, eruptAtMs] = scheduledSkillTimes(model.combatRun, "heat-bloom");
+    const castHtml = renderAppHtml(model);
+    const beforeDrawHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, drawAtMs - 1)
+    });
+    const drawHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, drawAtMs)
+    });
+    const eruptionRun = stepToElapsed(model.combatRun, eruptAtMs);
+    const eruptionHtml = renderAppHtml({
+      ...model,
+      combatRun: eruptionRun
+    });
+    const driftedEruptionHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...eruptionRun,
+        player: {
+          ...eruptionRun.player,
+          x: 120
+        }
+      }
+    });
+    const driftedHeatBloomStyle = playerSkillVfxStyleFor(driftedEruptionHtml, "heat-bloom");
+
+    expect(skillHitEvents(model.combatRun, "heat-bloom")).toHaveLength(0);
+    expect(castHtml).toContain('data-active-skill-id="heat-bloom"');
+    expect(castHtml).toContain('data-skill-animation-preset="ember-bloom"');
+    expect(castHtml).toContain('data-skill-weapon-arc="pull-bloom"');
+    expect(castHtml).toContain('data-skill-vfx-shape="heat-bloom"');
+    expect(castHtml).toContain('data-player-skill-move="heat-bloom"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-heat-bloom skill-vfx-shape-heat-bloom"');
+    expect(beforeDrawHtml).not.toContain('data-skill-impact-vfx="heat-bloom"');
+    expect(drawHtml).toContain('data-hit-phase="heat-draw"');
+    expect(drawHtml).toContain('data-vfx-cue="heat-bloom-draw"');
+    expect(countOccurrences(drawHtml, 'data-skill-impact-vfx="heat-bloom"')).toBe(2);
+    expect(eruptionHtml).toContain('data-hit-phase="heat-eruption"');
+    expect(eruptionHtml).toContain('data-vfx-cue="heat-bloom-eruption"');
+    expect(eruptionHtml).toContain('class="skill-impact-burst skill-impact-shape-heat-bloom"');
+    expect(countOccurrences(eruptionHtml, 'data-skill-impact-vfx="heat-bloom"')).toBe(4);
+    expect(skillHitEvents(eruptionRun, "heat-bloom")).toHaveLength(4);
+    expect(driftedHeatBloomStyle).toContain("--actor-x: 36.67%");
+    expect(driftedHeatBloomStyle).not.toContain("--actor-x: 24.17%");
   });
 
   it("renders furnace-heart-overdrive as a staged self-centered core release", () => {

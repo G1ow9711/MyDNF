@@ -1262,6 +1262,74 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(impactHtml, 'data-skill-impact-vfx="furnace-step"')).toBe(1);
   });
 
+  it("renders shadow-roll as a backward roll with delayed roll-shot impact", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: selectBaseClass(createInitialState(), "ink-shadow-ranger")
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 360,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x - 20 + index * 140, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "shadow-roll" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after shadow-roll");
+    }
+
+    const [shotAtMs] = scheduledSkillTimes(model.combatRun, "shadow-roll");
+    const castHtml = renderAppHtml(model);
+    const beforeShotRun = stepToElapsed(model.combatRun, shotAtMs - 1);
+    const beforeShotHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeShotRun
+    });
+    const shotRun = stepToElapsed(model.combatRun, shotAtMs);
+    const shotHtml = renderAppHtml({
+      ...model,
+      combatRun: shotRun
+    });
+
+    expect(model.combatRun.player.x).toBe(player.x);
+    expect(beforeShotRun.player.x).toBeLessThan(player.x);
+    expect(skillHitEvents(shotRun, "shadow-roll")).toHaveLength(1);
+    expect(castHtml).toContain('data-active-skill-id="shadow-roll"');
+    expect(castHtml).toContain('data-skill-animation-preset="ink-roll"');
+    expect(castHtml).toContain('data-skill-weapon-arc="roll-shot"');
+    expect(castHtml).toContain('data-skill-vfx-shape="shadow-smoke"');
+    expect(castHtml).toContain('data-player-skill-move="shadow-roll"');
+    expect(beforeShotHtml).not.toContain('data-skill-impact-vfx="shadow-roll"');
+    expect(shotHtml).toContain('data-hit-phase="roll-shot"');
+    expect(shotHtml).toContain('data-vfx-cue="shadow-roll-shot"');
+    expect(shotHtml).toContain('class="skill-impact-burst skill-impact-shape-shadow-smoke"');
+    expect(countOccurrences(shotHtml, 'data-skill-impact-vfx="shadow-roll"')).toBe(1);
+  });
+
   it("renders heat-bloom as a delayed pull and eruption field", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

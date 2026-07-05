@@ -845,6 +845,55 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes furnace-shoulder-impact-core");
   });
 
+  it("defines dedicated shadow-roll player, weapon, smoke, and roll-shot animations", () => {
+    const state = selectBaseClass(createInitialState(), "ink-shadow-ranger");
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 360, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x - 20 + index * 140, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "shadow-roll" }
+    );
+    const [shotAtMs] = scheduledSkillTimes(castRun, "shadow-roll");
+    const beforeShotHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, shotAtMs - 1)
+    });
+    const shotRun = stepToElapsed(castRun, shotAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: shotRun
+    });
+
+    expect(skillHitEvents(shotRun, "shadow-roll")).toHaveLength(1);
+    expect(beforeShotHtml).toContain('data-player-skill-move="shadow-roll"');
+    expect(beforeShotHtml).not.toContain('data-skill-impact-vfx="shadow-roll"');
+    expect(html).toContain('data-impact-vfx-shape="shadow-smoke"');
+    expect(html).toContain('data-vfx-cue="shadow-roll-shot"');
+    expect(html).toContain('data-hit-phase="roll-shot"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-shadow-smoke"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="shadow-roll"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="ink-roll"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="roll-shot"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-shadow-smoke");
+    expect(stylesCss).toContain(".skill-impact-shape-shadow-smoke");
+    expect(stylesCss).toContain("@keyframes player-ink-roll");
+    expect(stylesCss).toContain("@keyframes weapon-roll-shot");
+    expect(stylesCss).toContain("@keyframes shadow-smoke-cast-core");
+    expect(stylesCss).toContain("@keyframes shadow-roll-shot-core");
+  });
+
   it("defines dedicated furnace-heart-overdrive player, weapon, core, and release animations", () => {
     const advancedState = advanceClass(
       readyForAdvancement({

@@ -1267,6 +1267,189 @@ describe("combat actions and impact feel", () => {
     expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "furnace-step")).toHaveLength(0);
   });
 
+  it("moves shadow-roll backward before firing the roll-shot hit frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      { x: 360, y: 340, facing: 1 },
+      [{ x: 340, y: 340, hp: 180, maxHp: 180 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "shadow-roll" });
+    const [shotAtMs] = scheduledSkillTimes(cast, "shadow-roll");
+    const middleRoll = stepToElapsed(cast, 80);
+    const beforeShot = stepToElapsed(cast, shotAtMs - 1);
+    const shot = stepToElapsed(cast, shotAtMs);
+    const rollHits = skillHitEvents(shot, "shadow-roll");
+
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("shadow-roll");
+    expect(skillHitEvents(cast, "shadow-roll")).toHaveLength(0);
+    expect(shotAtMs).toBe(160);
+    expect(middleRoll.player.x).toBeLessThan(run.player.x - 34);
+    expect(middleRoll.player.x).toBeGreaterThan(run.player.x - 70);
+    expect(skillHitEvents(middleRoll, "shadow-roll")).toHaveLength(0);
+    expect(beforeShot.player.x).toBeLessThan(run.player.x);
+    expect(beforeShot.player.x).toBeGreaterThan(run.player.x - 86);
+    expect(beforeShot.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(shot.player.x).toBe(run.player.x - 86);
+    expect(rollHits).toHaveLength(1);
+    expect(rollHits[0]).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "roll-shot",
+      vfxCue: "shadow-roll-shot",
+      vfxWindowMs: 280
+    });
+    expect(shot.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("rechecks shadow-roll targets on the roll-shot frame instead of locking target state at cast", () => {
+    const inRangeRun = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      { x: 360, y: 340, facing: 1 },
+      [{ x: 340, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const castWithTarget = performAction(inRangeRun, { type: "skill", skillId: "shadow-roll" });
+    const [shotAtMs] = scheduledSkillTimes(castWithTarget, "shadow-roll");
+    const movedOutBeforeShot = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: castWithTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 118, y: 340 }
+              }
+            : enemy
+        )
+      },
+      shotAtMs
+    );
+
+    expect(skillHitEvents(movedOutBeforeShot, "shadow-roll")).toHaveLength(0);
+    expect(skillMissEvents(movedOutBeforeShot, "shadow-roll")).toHaveLength(1);
+    expect(movedOutBeforeShot.enemies[0].hp).toBe(inRangeRun.enemies[0].hp);
+
+    const outOfRangeRun = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      { x: 360, y: 340, facing: 1 },
+      [{ x: 118, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const castWithoutTarget = performAction(outOfRangeRun, { type: "skill", skillId: "shadow-roll" });
+    const [lateShotAtMs] = scheduledSkillTimes(castWithoutTarget, "shadow-roll");
+    const movedInBeforeShot = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: castWithoutTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 340, y: 340 }
+              }
+            : enemy
+        )
+      },
+      lateShotAtMs
+    );
+    const [lateHit] = skillHitEvents(movedInBeforeShot, "shadow-roll");
+
+    expect(lateHit).toMatchObject({
+      targetId: outOfRangeRun.enemies[0].id,
+      hitPhase: "roll-shot",
+      vfxCue: "shadow-roll-shot"
+    });
+    expect(skillMissEvents(movedInBeforeShot, "shadow-roll")).toHaveLength(0);
+    expect(movedInBeforeShot.enemies[0].hp).toBeLessThan(outOfRangeRun.enemies[0].hp);
+  });
+
+  it("continues shadow-roll to the endpoint when a monster attack misses before the shot frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      { x: 360, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [
+        { x: 340, y: 340, hp: 180, maxHp: 180 },
+        { x: 360, y: 430, hp: 180, maxHp: 180 }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "shadow-roll" });
+    const [shotAtMs] = scheduledSkillTimes(cast, "shadow-roll");
+    const missedDuringRoll = stepCombat(
+      {
+        ...cast,
+        enemies: cast.enemies.map((enemy, index) =>
+          index === 1
+            ? {
+                ...enemy,
+                attackSkillId: "ash-ember-spit",
+                attackStartedAtMs: 0,
+                attackImpactAtMs: 80,
+                attackRecoverUntilMs: 300,
+                attackHitResolved: false,
+                attackResolvedHits: 0
+              }
+            : enemy
+        )
+      },
+      {},
+      shotAtMs
+    );
+
+    expect(missedDuringRoll.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          skillId: "ash-ember-spit",
+          phase: "miss",
+          occurredAtMs: 80
+        })
+      ])
+    );
+    expect(missedDuringRoll.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-ember-spit")).toBe(false);
+    expect(missedDuringRoll.player.x).toBe(run.player.x - 86);
+    expect(skillHitEvents(missedDuringRoll, "shadow-roll")).toHaveLength(1);
+  });
+
+  it("cancels shadow-roll shot when monster damage interrupts the roll before the hit frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      { x: 360, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 340, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "shadow-roll" });
+    const [shotAtMs] = scheduledSkillTimes(cast, "shadow-roll");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 120,
+            attackRecoverUntilMs: 360,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      shotAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 120
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(skillHitEvents(interrupted, "shadow-roll")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "shadow-roll")).toHaveLength(0);
+  });
+
   it("pull skills gather enemies toward the skill center instead of knocking them away", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(createInitialState(), 90), "cinder-kiln-alley"),

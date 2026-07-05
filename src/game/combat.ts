@@ -30,6 +30,7 @@ export type CombatHitPhase =
   | "heat-eruption"
   | "overdrive-pulse"
   | "overdrive-release"
+  | "roll-shot"
   | "chain-open"
   | "chain-cross"
   | "chain-finish";
@@ -50,6 +51,7 @@ export type CombatVfxCue =
   | "heat-bloom-eruption"
   | "overdrive-core-pulse"
   | "overdrive-core-release"
+  | "shadow-roll-shot"
   | "flowing-chain-open"
   | "flowing-chain-cross"
   | "flowing-chain-finish";
@@ -363,7 +365,7 @@ export interface HitDefinition {
 
 export interface CombatScheduledEnemyHitEffect {
   id: string;
-  targetId: string;
+  targetId?: string;
   applyAtMs: number;
   action?: CombatHitEvent["action"];
   inputToHitMs: number;
@@ -375,6 +377,7 @@ export interface CombatScheduledEnemyHitEffect {
   playerFacing: 1 | -1;
   marksApplied?: number;
   consumeMarks?: boolean;
+  bonusDamagePerMark?: number;
   pullCenter?: CombatVector;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
@@ -384,6 +387,9 @@ export interface CombatScheduledEnemyHitEffect {
   vfxWindowMs?: number;
   casterPosition?: CombatVector;
   casterFacing?: 1 | -1;
+  dynamicHitbox?: PlayerHitboxDefinition;
+  dynamicOrigin?: CombatVector;
+  dynamicFacing?: 1 | -1;
 }
 
 export interface CombatScheduledMissEffect {
@@ -1685,6 +1691,44 @@ function applyFurnaceStep(run: CombatRun, skill: ClassSkillDefinition, canceledF
       vfxWindowMs: 300
     });
   }, movingRun);
+}
+
+function shadowRollHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: Math.max(190, skillRangeX(skill.tags)),
+    laneRange: Math.max(54, skillLaneRange(skill.tags)),
+    targetCap: 1,
+    frontOnly: true,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.92)),
+    hitstopMs: 52,
+    knockback: 36,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    statusTags: ["stagger"]
+  };
+}
+
+function applyShadowRoll(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x + skillMovementDistance(skill) * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+  const hitbox = shadowRollHitbox(run, skill, canceledFromCombo);
+
+  return schedulePlayerHitboxEffect(movingRun, hitbox, endPosition, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-roll-shot`,
+    hitPhase: "roll-shot",
+    vfxCue: "shadow-roll-shot",
+    vfxWindowMs: 280
+  });
 }
 
 const heatBloomDrawDelayMs = 240;
@@ -3202,6 +3246,47 @@ function scheduleEnemyHitEffect(run: CombatRun, hit: HitDefinition): CombatRun {
   };
 }
 
+function schedulePlayerHitboxEffect(
+  run: CombatRun,
+  hitbox: PlayerHitboxDefinition,
+  origin: CombatVector,
+  facing: 1 | -1,
+  presentation: Pick<CombatScheduledEnemyHitEffect, "id" | "hitPhase" | "vfxCue" | "vfxWindowMs">
+): CombatRun {
+  const effect: CombatScheduledEnemyHitEffect = {
+    id: presentation.id,
+    applyAtMs: run.elapsedMs + hitbox.inputToHitMs,
+    action: hitbox.action,
+    inputToHitMs: hitbox.inputToHitMs,
+    canceledFromCombo: hitbox.canceledFromCombo,
+    damage: hitbox.damage,
+    hitstopMs: hitbox.hitstopMs,
+    knockback: hitbox.knockback,
+    juggle: hitbox.juggle,
+    playerFacing: facing,
+    marksApplied: hitbox.marksApplied,
+    consumeMarks: hitbox.consumeMarks,
+    bonusDamagePerMark: hitbox.bonusDamagePerMark,
+    pullCenter: hitbox.pullCenter,
+    statusTags: hitbox.statusTags,
+    actionTags: hitbox.actionTags,
+    skillId: hitbox.skillId,
+    hitPhase: presentation.hitPhase,
+    vfxCue: presentation.vfxCue,
+    vfxWindowMs: presentation.vfxWindowMs,
+    casterPosition: { x: run.player.x, y: run.player.y },
+    casterFacing: run.player.facing,
+    dynamicHitbox: hitbox,
+    dynamicOrigin: origin,
+    dynamicFacing: facing
+  };
+
+  return {
+    ...run,
+    scheduledEnemyHitEffects: [...(run.scheduledEnemyHitEffects ?? []), effect]
+  };
+}
+
 function scheduleMissEffect(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatRun {
   const effect: CombatScheduledMissEffect = {
     id: `miss-${run.elapsedMs}-${hitbox.action}${hitbox.skillId ? `-${hitbox.skillId}` : ""}`,
@@ -3222,6 +3307,60 @@ function scheduleMissEffect(run: CombatRun, hitbox: PlayerHitboxDefinition): Com
   };
 }
 
+function applyScheduledPlayerHitboxEffect(
+  run: CombatRun,
+  effect: CombatScheduledEnemyHitEffect,
+  activeMovementSkillId?: string
+): CombatRun {
+  const hitbox = effect.dynamicHitbox;
+  const origin = effect.dynamicOrigin;
+
+  if (!hitbox || !origin) {
+    return run;
+  }
+
+  const targetingRun: CombatRun = {
+    ...run,
+    elapsedMs: effect.applyAtMs,
+    player: {
+      ...run.player,
+      x: origin.x,
+      y: origin.y,
+      facing: effect.dynamicFacing ?? effect.playerFacing
+    }
+  };
+  const targets = selectPlayerTargets(targetingRun, hitbox);
+
+  if (targets.length === 0) {
+    return applyScheduledMissEffect(run, {
+      id: `miss-${effect.id}`,
+      applyAtMs: effect.applyAtMs,
+      action: hitbox.action,
+      skillId: hitbox.skillId,
+      inputToHitMs: hitbox.inputToHitMs,
+      canceledFromCombo: hitbox.canceledFromCombo,
+      statusTags: hitbox.statusTags,
+      actionTags: hitbox.actionTags,
+      casterPosition: effect.casterPosition,
+      casterFacing: effect.casterFacing
+    });
+  }
+
+  return targets.reduce((nextRun, target, index) => {
+    const fixedEffect: CombatScheduledEnemyHitEffect = {
+      ...effect,
+      id: `${effect.id}-${target.id}-${index}`,
+      targetId: target.id,
+      hitstopMs: eventHitstop(target, hitbox.hitstopMs),
+      dynamicHitbox: undefined,
+      dynamicOrigin: undefined,
+      dynamicFacing: undefined
+    };
+
+    return applyScheduledEnemyHitEffect(nextRun, fixedEffect, activeMovementSkillId);
+  }, run);
+}
+
 function applyScheduledEnemyHitEffect(
   run: CombatRun,
   effect: CombatScheduledEnemyHitEffect,
@@ -3238,7 +3377,17 @@ function applyScheduledEnemyHitEffect(
     return clearPendingCombatEffectsIfFailed(impactResolvedRun);
   }
 
-  const target = impactResolvedRun.enemies.find((enemy) => enemy.id === effect.targetId);
+  if (effect.dynamicHitbox && effect.dynamicOrigin) {
+    return applyScheduledPlayerHitboxEffect(impactResolvedRun, effect, activeMovementSkillId);
+  }
+
+  const targetId = effect.targetId;
+
+  if (!targetId) {
+    return impactResolvedRun;
+  }
+
+  const target = impactResolvedRun.enemies.find((enemy) => enemy.id === targetId);
 
   if (!target || target.hp <= 0) {
     return impactResolvedRun;
@@ -3256,7 +3405,7 @@ function applyScheduledEnemyHitEffect(
     id: effect.id,
     action: effect.action ?? "test",
     skillId: effect.skillId,
-    targetId: effect.targetId,
+    targetId,
     damage: effect.damage,
     occurredAtMs: effect.applyAtMs,
     inputToHitMs: effect.inputToHitMs,
@@ -3272,7 +3421,7 @@ function applyScheduledEnemyHitEffect(
     casterFacing: effect.casterFacing
   };
   const nextEnemies = impactResolvedRun.enemies.map((enemy) => {
-    if (enemy.id !== effect.targetId) {
+    if (enemy.id !== targetId) {
       return enemy;
     }
 
@@ -3639,11 +3788,13 @@ function applyQueuedEnemyImpact(run: CombatRun, enemyId: string, occurredAtMs: n
     return run;
   }
 
+  const playerWasHit = impacted.events.some((event): event is CombatPlayerHitEvent => event.kind === "player-hit");
+
   return clearPendingCombatEffectsIfFailed(
     triggerBossPhaseTransitions(
       {
         ...run,
-        player: impacted.player,
+        player: playerWasHit ? impacted.player : run.player,
         enemies: run.enemies.map((item) => (item.id === enemy.id ? impacted.enemy : item)),
         events: [...run.events, ...impacted.events],
         failed: run.failed || impacted.failed
@@ -3937,6 +4088,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "furnace-step") {
     return completeSkillAction(run, applyFurnaceStep(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "shadow-roll") {
+    return completeSkillAction(run, applyShadowRoll(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "heat-bloom") {

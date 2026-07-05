@@ -1843,3 +1843,28 @@
 - Code review follow-up:
   - Read-only review found no Critical issues and two Important issues: dead draw-frame targets could still receive eruption feedback, and fixed-field VFX could drift from the cast center.
   - Added regressions for both and fixed them with live target checks plus caster-position metadata.
+
+## Task 66 Shadow Roll Roll-Shot Timeline
+- Started after the user clarified the current split again: character models can stay simple while strict combat motion, skill VFX, hit frames, and model-following attacks remain mandatory.
+- Used two read-only parallel agents:
+  - `019f320c-6247-7572-9f6a-eb00f69e699c` audited combat scripts and recommended `shadow-roll` because it had backward movement metadata but still used the generic immediate skill branch.
+  - `019f320c-9bf4-7d01-8fe5-0e2449957b65` audited UI/CSS and confirmed `ink-roll`, `roll-shot`, and `shadow-smoke` DOM metadata existed but dedicated CSS and runtime checks were missing.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires cast-frame no damage, 80 ms mid-roll sampling, 160 ms delayed roll-shot hit, and interruption cancellation before the shot.
+  - `src/tests/app-integration.test.ts` requires reducer-rendered `shadow-roll` movement, metadata, no pre-shot target impact, and roll-shot target impact DOM.
+  - `src/tests/ui-smoke.test.ts` requires dedicated player, weapon, smoke cast, and roll-shot impact CSS hooks/keyframes.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "shadow-roll"` failed before implementation because no scheduled effects existed for `shadow-roll`.
+- Implemented:
+  - Added `applyShadowRoll()` with backward active skill movement, target selection from the roll endpoint, delayed 160 ms `roll-shot` hit/miss, `shadow-roll-shot` VFX cue, and interruption-safe scheduled effect cancellation.
+  - Added dedicated CSS for `player-ink-roll`, `weapon-roll-shot`, `shadow-smoke` cast VFX, and target-bound `shadow-roll-shot` impact bursts.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "shadow-roll"`.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 199 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/shadow-roll-check.html`: confirmed cast x 360, before-shot x 274.006 at 159 ms with no impact, shot x 274 at 160 ms with one target impact, `roll-shot` / `shadow-roll-shot` metadata, actual player/weapon/cast/impact animation names, and empty browser warning/error log.
+- Code review follow-up:
+  - Read-only review found no Critical issues and two Important issues: cast-time target locking could make moving targets stale at the 160 ms shot frame, and a monster miss before the shot could freeze the player at the miss-time sample.
+  - Added RED regressions for target moving out/in before the shot and a monster miss at 80 ms during the roll; both failed before the fix and passed after it.
+  - `shadow-roll` now schedules a dynamic endpoint hitbox and resolves hit/miss on the shot frame. Queued monster miss resolution preserves frame-end player motion unless the player actually takes a hit.
+  - Browser re-validation confirmed the dynamic scheduled effect, moved-out miss behavior, 159 ms no-impact roll frame, 160 ms roll-shot impact, computed animation names, and empty warning/error log.
+  - Final verification: `npm test` passed with 297 tests, `npm run build` passed, and `git diff --check` passed with Windows line-ending warnings only.

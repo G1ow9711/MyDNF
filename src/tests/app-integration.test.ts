@@ -1291,6 +1291,83 @@ describe("playable app integration actions", () => {
     expect(airLightHtml).toContain('class="combat-player-art actor-model actor-model-air-light"');
   });
 
+  it("uses KeyC as DNF-style quick recover during strong monster hit recovery", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage()
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            player: {
+              ...model.combatRun.player,
+              x: 260,
+              y: 340,
+              facing: 1 as const,
+              actionLockUntilMs: 0,
+              hurtLockUntilMs: 0
+            },
+            enemies: model.combatRun.enemies.map((enemy, index) =>
+              index === 0
+                ? {
+                    ...enemy,
+                    hp: 180,
+                    maxHp: 180,
+                    attackProfileId: "ash-crawler-burst" as CombatEnemy["attackProfileId"],
+                    position: { x: 352, y: 340 },
+                    nextAttackAtMs: 1
+                  }
+                : {
+                    ...enemy,
+                    hp: 0
+                  }
+            )
+          }
+        : undefined
+    };
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const telegraph = stepCombat(model.combatRun, {}, 1);
+    const impacted = stepToElapsed(telegraph, telegraph.enemies[0].attackImpactAtMs ?? 0);
+    model = {
+      ...model,
+      combatRun: impacted
+    };
+
+    expect(impacted.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-crawler-burst")).toBe(true);
+    const impactedRun = model.combatRun;
+    if (!impactedRun) {
+      throw new Error("Expected impacted combat run");
+    }
+    expect(combatActionForKeyCode(model.state, "KeyC", impactedRun.player.resource.current, false, impactedRun)).toEqual({
+      type: "combatAction",
+      action: "jump"
+    });
+
+    model = reduceAppAction(model, { type: "combatAction", action: "jump" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after quick recover");
+    }
+
+    const html = renderAppHtml(model);
+
+    expect(html).toContain('data-player-motion="quick-recover"');
+    expect(html).toContain('data-player-state="recovering"');
+    expect(html).toContain('data-player-quick-recover-active="true"');
+    expect(html).toContain('data-player-quick-recover-ready-until-ms=""');
+    expect(html).toContain('data-player-quick-recover-started-at-ms="');
+    expect(html).toContain('data-player-quick-recover-until-ms="');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-quick-recover"');
+    expect(html).toContain('data-hotkey="C"');
+  });
+
   it("casts airborne heavy slam from the jump lock with dedicated motion and impact hooks", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

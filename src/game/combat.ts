@@ -190,6 +190,9 @@ export interface CombatPlayer {
   dashAttackReadyUntilMs: number;
   dashAttackStartedAtMs: number;
   dashAttackUntilMs: number;
+  quickRecoverReadyUntilMs: number;
+  quickRecoverStartedAtMs: number;
+  quickRecoverUntilMs: number;
   shieldUntilMs: number;
   shieldReduction: number;
   evadeUntilMs: number;
@@ -588,6 +591,9 @@ const dashLightReadyWindowMs = 220;
 const dashLightInputToHitMs = 90;
 const dashLightActionMs = 260;
 const dashLightLungePx = 46;
+const quickRecoverReadyWindowMs = 260;
+const quickRecoverActionMs = 260;
+const quickRecoverInvulnerableMs = 520;
 const taotieForgeCollapseSkillId: CombatBossPhaseSkillId = "taotie-forge-collapse";
 const taotieForgeCollapseTelegraphMs = 620;
 const taotieForgeCollapseHazardGapMs = 140;
@@ -3462,6 +3468,9 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       dashAttackReadyUntilMs: 0,
       dashAttackStartedAtMs: 0,
       dashAttackUntilMs: 0,
+      quickRecoverReadyUntilMs: 0,
+      quickRecoverStartedAtMs: 0,
+      quickRecoverUntilMs: 0,
       shieldUntilMs: 0,
       shieldReduction: 0,
       evadeUntilMs: 0,
@@ -3785,6 +3794,10 @@ function playerInEnemyAttackRange(enemy: CombatEnemy, player: CombatPlayer, atta
   return xDistance <= attack.rangeX && yDistance <= attack.laneRange;
 }
 
+function playerHitAllowsQuickRecover(feedbackCue: CombatPlayerFeedbackCue, knockback: number, boundMs: number): boolean {
+  return boundMs <= 0 && feedbackCue !== "player-hurt-light" && knockback >= 60;
+}
+
 function applyEnemyImpact(
   enemy: CombatEnemy,
   player: CombatPlayer,
@@ -3949,6 +3962,10 @@ function applyEnemyImpact(
     const damage = Math.max(1, Math.round(hitDamage * combatProfile.damageTakenMultiplier * (1 - mitigation)));
     const nextHp = Math.max(0, nextPlayer.hp - damage);
     const nextFacing: 1 | -1 = nextEnemy.position.x >= nextPlayer.x ? 1 : -1;
+    const quickRecoverReadyUntilMs =
+      nextHp > 0 && playerHitAllowsQuickRecover(hitFeedbackCue, hitKnockback, hitBoundMs)
+        ? hitTime + quickRecoverReadyWindowMs
+        : 0;
     const hitEvent: CombatPlayerHitEvent = {
       kind: "player-hit",
       id: `player-hit-${hitTime}-${enemy.id}-${hitIndex}`,
@@ -3971,6 +3988,9 @@ function applyEnemyImpact(
       invulnerableUntilMs: hitTime + hitInvulnerabilityMs,
       hurtLockUntilMs: hitTime + Math.max(attack.hitstopMs, hitHurtLockMs),
       boundUntilMs: Math.max(nextPlayer.boundUntilMs, hitBoundMs > 0 ? hitTime + hitBoundMs : 0),
+      quickRecoverReadyUntilMs,
+      quickRecoverStartedAtMs: 0,
+      quickRecoverUntilMs: 0,
       shieldUntilMs: shieldActive ? hitTime : nextPlayer.shieldUntilMs,
       shieldReduction: shieldActive ? 0 : nextPlayer.shieldReduction,
       bufferedAction: undefined,
@@ -4940,6 +4960,7 @@ function completeSkillAction(
       actionLockUntilMs: run.elapsedMs + skill.animation.durationMs,
       cancelWindowUntilMs: 0,
       dashAttackReadyUntilMs: 0,
+      quickRecoverReadyUntilMs: 0,
       lastSkillId: skill.id,
       prismChain: nextPrismChain(run, skill.id),
       bufferedAction: undefined,
@@ -4979,6 +5000,53 @@ function bufferAction(run: CombatRun, action: CombatActionInput): CombatRun {
       bufferedAction: action,
       bufferedActionQueuedAtMs: run.elapsedMs,
       bufferedActionExecuteAtMs: run.player.actionLockUntilMs
+    }
+  };
+}
+
+function quickRecoverActive(player: CombatPlayer, elapsedMs: number): boolean {
+  return elapsedMs < player.quickRecoverUntilMs;
+}
+
+function canStartQuickRecover(run: CombatRun): boolean {
+  return (
+    run.player.quickRecoverReadyUntilMs > 0 &&
+    run.elapsedMs <= run.player.quickRecoverReadyUntilMs &&
+    run.elapsedMs < run.player.hurtLockUntilMs &&
+    run.elapsedMs >= run.player.boundUntilMs &&
+    playerAirStateAt(run.player, run.elapsedMs) === "grounded" &&
+    !quickRecoverActive(run.player, run.elapsedMs)
+  );
+}
+
+function performQuickRecoverAction(run: CombatRun): CombatRun {
+  const recoverUntilMs = run.elapsedMs + quickRecoverActionMs;
+
+  return {
+    ...run,
+    player: {
+      ...run.player,
+      comboStep: 0,
+      actionLockUntilMs: recoverUntilMs,
+      cancelWindowUntilMs: 0,
+      hurtLockUntilMs: run.elapsedMs,
+      boundUntilMs: 0,
+      invulnerableUntilMs: Math.max(run.player.invulnerableUntilMs, run.elapsedMs + quickRecoverInvulnerableMs),
+      quickRecoverReadyUntilMs: 0,
+      quickRecoverStartedAtMs: run.elapsedMs,
+      quickRecoverUntilMs: recoverUntilMs,
+      dashAttackReadyUntilMs: 0,
+      airState: "grounded",
+      airborneUntilMs: 0,
+      landingUntilMs: 0,
+      airAttackUsed: false,
+      airAttackType: "none",
+      airAttackStartedAtMs: 0,
+      airAttackUntilMs: 0,
+      activeSkillMovement: undefined,
+      bufferedAction: undefined,
+      bufferedActionQueuedAtMs: undefined,
+      bufferedActionExecuteAtMs: undefined
     }
   };
 }
@@ -5176,6 +5244,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     return run;
   }
 
+  if (action.type === "jump" && canStartQuickRecover(run)) {
+    return performQuickRecoverAction(run);
+  }
+
   if (run.elapsedMs < run.player.hurtLockUntilMs || run.elapsedMs < run.player.boundUntilMs) {
     return run;
   }
@@ -5232,6 +5304,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         actionLockUntilMs: run.elapsedMs + combo.actionLockMs,
         cancelWindowUntilMs: hitConnected ? run.elapsedMs + combo.actionLockMs : 0,
         dashAttackReadyUntilMs: 0,
+        quickRecoverReadyUntilMs: 0,
         bufferedAction: undefined,
         bufferedActionQueuedAtMs: undefined,
         bufferedActionExecuteAtMs: undefined
@@ -5264,6 +5337,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         actionLockUntilMs: run.elapsedMs + 260,
         cancelWindowUntilMs: 0,
         dashAttackReadyUntilMs: 0,
+        quickRecoverReadyUntilMs: 0,
         bufferedAction: undefined,
         bufferedActionQueuedAtMs: undefined,
         bufferedActionExecuteAtMs: undefined
@@ -5285,6 +5359,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         airAttackStartedAtMs: 0,
         airAttackUntilMs: 0,
         dashAttackReadyUntilMs: 0,
+        quickRecoverReadyUntilMs: 0,
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + jumpActionLockMs,
         cancelWindowUntilMs: 0,
@@ -5305,6 +5380,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         actionLockUntilMs: run.elapsedMs + backstepActionLockMs,
         cancelWindowUntilMs: 0,
         dashAttackReadyUntilMs: 0,
+        quickRecoverReadyUntilMs: 0,
         evadeUntilMs: Math.max(run.player.evadeUntilMs, run.elapsedMs + backstepEvadeMs),
         invulnerableUntilMs: Math.max(run.player.invulnerableUntilMs, run.elapsedMs + backstepInvulnerableMs),
         bufferedAction: undefined,
@@ -5563,6 +5639,9 @@ export function finishRoom(run: CombatRun): CombatRun {
       dashAttackReadyUntilMs: 0,
       dashAttackStartedAtMs: 0,
       dashAttackUntilMs: 0,
+      quickRecoverReadyUntilMs: 0,
+      quickRecoverStartedAtMs: 0,
+      quickRecoverUntilMs: 0,
       activeSkillMovement: undefined,
       bufferedAction: undefined,
       bufferedActionQueuedAtMs: undefined,

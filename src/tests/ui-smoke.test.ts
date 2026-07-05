@@ -1643,6 +1643,42 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes player-jump-rise");
   });
 
+  it("renders DNF-style quick recover with dedicated player motion hooks", () => {
+    const state = createInitialState();
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const heavyRun = withSingleReadyEnemy(
+      {
+        ...baseRun,
+        player: {
+          ...baseRun.player,
+          x: 260,
+          y: 340,
+          facing: 1,
+          actionLockUntilMs: 0,
+          hurtLockUntilMs: 0
+        }
+      },
+      {
+        attackProfileId: "ash-crawler-burst" as CombatEnemy["attackProfileId"],
+        position: { x: 352, y: 340 },
+        nextAttackAtMs: 1
+      }
+    );
+    const telegraph = stepCombat(heavyRun, {}, 1);
+    const impacted = stepToElapsed(telegraph, telegraph.enemies[0].attackImpactAtMs ?? 0);
+    const recovered = performAction(impacted, { type: "jump" });
+    const html = renderAppHtml({ state, mode: "combat", combatRun: recovered });
+
+    expect(html).toContain('data-combat-action="jump"');
+    expect(html).toContain('data-hotkey="C"');
+    expect(html).toContain('data-player-motion="quick-recover"');
+    expect(html).toContain('data-player-state="recovering"');
+    expect(html).toContain('data-player-quick-recover-active="true"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-quick-recover"');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="quick-recover"] .combat-player-art');
+    expect(stylesCss).toContain("@keyframes player-quick-recover-rise");
+  });
+
   it("renders DNF-style airborne light attack with player, weapon, and impact hooks", () => {
     const state = createInitialState();
     const baseRun = createCombatRun(state, "cinder-kiln-alley");

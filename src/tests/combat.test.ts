@@ -142,6 +142,20 @@ function stepToElapsed(run: CombatRun, elapsedMs: number): CombatRun {
   return stepCombat(run, {}, Math.max(0, elapsedMs - run.elapsedMs));
 }
 
+function quickRecoverState(run: CombatRun): { readyUntilMs: number; startedAtMs: number; untilMs: number } {
+  const player = run.player as CombatRun["player"] & {
+    quickRecoverReadyUntilMs?: number;
+    quickRecoverStartedAtMs?: number;
+    quickRecoverUntilMs?: number;
+  };
+
+  return {
+    readyUntilMs: player.quickRecoverReadyUntilMs ?? 0,
+    startedAtMs: player.quickRecoverStartedAtMs ?? 0,
+    untilMs: player.quickRecoverUntilMs ?? 0
+  };
+}
+
 function defeatAll(run: CombatRun): CombatRun {
   return run.enemies.reduce(
     (next, enemy) =>
@@ -1801,6 +1815,99 @@ describe("combat actions and impact feel", () => {
       ])
     );
     expect(dodged.events.some((event) => event.kind === "player-hit")).toBe(false);
+  });
+
+  it("lets C trigger a DNF-style quick recover during strong monster hurt lock", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const run = withEnemyInRange(baseRun, {
+      ...({ attackProfileId: "ash-crawler-burst" } as unknown as Partial<CombatEnemy>),
+      position: { x: baseRun.player.x + 92, y: baseRun.player.y },
+      nextAttackAtMs: 1
+    });
+    const telegraph = stepCombat(run, {}, 1);
+    const impactAtMs = telegraph.enemies[0].attackImpactAtMs ?? 0;
+    const impacted = stepToElapsed(telegraph, impactAtMs);
+    const playerHit = impacted.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-crawler-burst"
+    );
+    const ready = quickRecoverState(impacted);
+
+    expect(playerHit).toBeDefined();
+    expect(impacted.player.hurtLockUntilMs).toBeGreaterThan(impacted.elapsedMs);
+    expect(ready.readyUntilMs).toBeGreaterThan(impacted.elapsedMs);
+    expect(ready.readyUntilMs).toBeLessThan(impacted.player.hurtLockUntilMs);
+
+    const recovered = performAction(impacted, { type: "jump" });
+    const recovering = quickRecoverState(recovered);
+
+    expect(recovering.startedAtMs).toBe(impacted.elapsedMs);
+    expect(recovering.untilMs).toBeGreaterThan(recovered.elapsedMs);
+    expect(recovered.player.hurtLockUntilMs).toBe(impacted.elapsedMs);
+    expect(recovered.player.boundUntilMs).toBe(0);
+    expect(recovered.player.invulnerableUntilMs).toBeGreaterThanOrEqual(recovered.elapsedMs + 500);
+    expect(recovered.player.actionLockUntilMs).toBe(recovering.untilMs);
+    expect(recovered.player.airState).toBe("grounded");
+
+    const followUpRun: CombatRun = {
+      ...recovered,
+      enemies: recovered.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: { x: recovered.player.x + 36, y: recovered.player.y },
+              attackStartedAtMs: recovered.elapsedMs,
+              attackImpactAtMs: recovered.elapsedMs + 120,
+              attackRecoverUntilMs: recovered.elapsedMs + 320,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const protectedByRecover = stepToElapsed(followUpRun, recovered.elapsedMs + 120);
+
+    expect(protectedByRecover.events.some((event) => event.kind === "enemy-attack" && event.phase === "active")).toBe(true);
+    expect(
+      protectedByRecover.events.some(
+        (event) => event.kind === "player-hit" && event.skillId === "ash-ember-spit" && event.occurredAtMs === recovered.elapsedMs + 120
+      )
+    ).toBe(false);
+    expect(protectedByRecover.player.hp).toBe(recovered.player.hp);
+  });
+
+  it("does not quick recover from light projectile hits or after the recover window expires", () => {
+    const lightRun = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      position: { x: 260, y: 345 },
+      nextAttackAtMs: 1
+    });
+    const lightTelegraph = stepCombat(lightRun, {}, 1);
+    const lightImpact = stepToElapsed(lightTelegraph, lightTelegraph.enemies[0].attackImpactAtMs ?? 0);
+    const lightAttempt = performAction(lightImpact, { type: "jump" });
+
+    expect(lightImpact.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-ember-spit")).toBe(true);
+    expect(quickRecoverState(lightImpact).readyUntilMs).toBe(0);
+    expect(quickRecoverState(lightAttempt).startedAtMs).toBe(0);
+    expect(lightAttempt.player.airState).toBe("grounded");
+    expect(lightAttempt.player.hurtLockUntilMs).toBe(lightImpact.player.hurtLockUntilMs);
+
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const heavyRun = withEnemyInRange(baseRun, {
+      ...({ attackProfileId: "ash-crawler-burst" } as unknown as Partial<CombatEnemy>),
+      position: { x: baseRun.player.x + 92, y: baseRun.player.y },
+      nextAttackAtMs: 1
+    });
+    const heavyTelegraph = stepCombat(heavyRun, {}, 1);
+    const heavyImpact = stepToElapsed(heavyTelegraph, heavyTelegraph.enemies[0].attackImpactAtMs ?? 0);
+    const readyUntilMs = quickRecoverState(heavyImpact).readyUntilMs;
+    const expired = stepToElapsed(heavyImpact, readyUntilMs + 1);
+    const expiredAttempt = performAction(expired, { type: "jump" });
+
+    expect(readyUntilMs).toBeGreaterThan(heavyImpact.elapsedMs);
+    expect(expired.elapsedMs).toBeLessThan(expired.player.hurtLockUntilMs);
+    expect(quickRecoverState(expiredAttempt).startedAtMs).toBe(0);
+    expect(expiredAttempt.player.hurtLockUntilMs).toBe(expired.player.hurtLockUntilMs);
   });
 
   it("lets every class jump into a timed airborne state without moving combat lane height", () => {

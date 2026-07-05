@@ -1713,6 +1713,12 @@ p {
   filter: drop-shadow(0 24px 16px rgba(2, 6, 23, 0.46)) drop-shadow(0 0 18px rgba(125, 211, 252, 0.5)) brightness(1.16);
 }
 
+.actor-model-quick-recover,
+.combat-player[data-player-motion="quick-recover"] .combat-player-art {
+  animation: player-quick-recover-rise 360ms cubic-bezier(0.14, 0.86, 0.18, 1) both;
+  filter: drop-shadow(0 18px 14px rgba(2, 6, 23, 0.54)) drop-shadow(0 0 22px rgba(191, 219, 254, 0.72)) brightness(1.24) saturate(1.12);
+}
+
 .actor-model-landing,
 .combat-player[data-player-motion="landing"] .combat-player-art {
   animation: player-jump-land 180ms cubic-bezier(0.2, 0.86, 0.18, 1) both;
@@ -2034,6 +2040,7 @@ p {
 .damage-number,
 .combat-feedback,
 .player-skill-vfx,
+.player-recovery-vfx,
 .enemy-skill-vfx,
 .enemy-summon-vfx,
 .boss-phase-vfx,
@@ -2077,6 +2084,41 @@ p {
   height: 220px;
   transform: translate(-50%, -50%);
   mix-blend-mode: screen;
+}
+
+.player-recovery-vfx {
+  width: 138px;
+  height: 118px;
+  transform: translate(-50%, -92%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.player-recovery-vfx .player-recovery-ring,
+.player-recovery-vfx .player-recovery-core,
+.player-recovery-vfx .player-recovery-aura {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+.player-recovery-vfx[data-player-recovery-vfx="wake-invulnerable"] .player-recovery-ring {
+  border: 2px solid rgba(219, 234, 254, 0.84);
+  box-shadow: 0 0 26px rgba(147, 197, 253, 0.68), inset 0 0 22px rgba(125, 211, 252, 0.28);
+  animation: player-quick-recover-ring 520ms ease-out both;
+}
+
+.player-recovery-vfx[data-player-recovery-vfx="wake-invulnerable"] .player-recovery-core {
+  inset: 22px 34px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.82), rgba(96, 165, 250, 0.5) 44%, transparent 72%);
+  filter: blur(1px);
+  animation: player-quick-recover-core 460ms cubic-bezier(0.14, 0.82, 0.18, 1) both;
+}
+
+.player-recovery-vfx[data-player-recovery-vfx="wake-invulnerable"] .player-recovery-aura {
+  inset: 12px 18px;
+  background: radial-gradient(circle, rgba(191, 219, 254, 0.34), rgba(34, 211, 238, 0.18) 52%, transparent 74%);
+  animation: player-quick-recover-aura 620ms ease-out both;
 }
 
 .boss-phase-vfx-taotie-forge-collapse .boss-phase-ring {
@@ -4934,6 +4976,31 @@ p {
   56% { transform: translateX(calc(var(--heavy-lunge-x, 34px) * 0.92)) translateY(-12px) rotate(13deg) scale(1.12) scaleX(var(--model-scale-x, 1)); filter: brightness(1.62) saturate(1.2); }
   76% { transform: translateX(calc(var(--heavy-lunge-x, 34px) * 0.34)) translateY(-4px) rotate(5deg) scale(1.05) scaleX(var(--model-scale-x, 1)); filter: brightness(1.28); }
   100% { transform: translateX(0) translateY(-14px) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
+}
+
+@keyframes player-quick-recover-rise {
+  0% { transform: translateY(18px) rotate(-7deg) scale(0.94) scaleX(var(--model-scale-x, 1)); filter: brightness(0.86) saturate(0.92); }
+  30% { transform: translateY(8px) rotate(4deg) scale(1.02) scaleX(var(--model-scale-x, 1)); filter: brightness(1.46) saturate(1.16); }
+  58% { transform: translateY(-10px) rotate(-2deg) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.7) saturate(1.22); }
+  100% { transform: translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.14) saturate(1.08); }
+}
+
+@keyframes player-quick-recover-ring {
+  0% { transform: scale(0.58); opacity: 0; }
+  28% { opacity: 0.9; }
+  100% { transform: scale(1.18); opacity: 0; }
+}
+
+@keyframes player-quick-recover-core {
+  0% { transform: translateY(16px) scale(0.56); opacity: 0; }
+  36% { opacity: 0.86; }
+  100% { transform: translateY(-8px) scale(1.08); opacity: 0; }
+}
+
+@keyframes player-quick-recover-aura {
+  0% { transform: scale(0.72); opacity: 0; }
+  30% { opacity: 0.68; }
+  100% { transform: scale(1.32); opacity: 0; }
 }
 
 @keyframes player-light-cross {

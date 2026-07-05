@@ -2352,3 +2352,32 @@
   - Review full suite passed: `npm test`, 13 files / 410 tests.
   - Review production build passed: `npm run build`.
   - Browser revalidation on `http://127.0.0.1:5178/.codex-local/tmp/dash-light-review-check.html` confirmed HP 180 -> 143 at the hit frame, hit-frame player/weapon/enemy dash hooks, computed animations `player-dash-light-strike`, `weapon-dash-light-slash`, `monster-dash-light-hit-react`, and `dash-light-impact-slash`, expired player state `motion=light` / `state=active` / `dashActive=false`, room reset dash timers all zero, hurt precharge zero, and empty warn/error logs. Temporary check page was deleted; dev server remains running on port 5178 for manual play.
+
+## Task 84 DNF-Style Quick Recover
+- Continued under the full objective: keep moving toward DNF-style controllable room combat. Character modeling can remain lightweight for this pass, but action timing, recovery control, invulnerability feedback, and keyboard feel remain strict.
+- User clarified again that character modeling may stay simpler for now, but combat model motion smoothness, action changes, skill effects, monster skill effects, and hit feedback are strict delivery criteria. AGENTS.md already records this as a project rule.
+- Used parallel read-only agents:
+  - Combat/input audit confirmed `KeyC` / `{ type: "jump" }` is the lowest-risk quick recover input path, and the recover branch must run before `hurtLockUntilMs` / `boundUntilMs` early return.
+  - UI/CSS audit confirmed `playerMotion()` must prioritize quick recover before recent hit, and the player actor needs recovery/invulnerability data hooks plus dedicated VFX.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires strong `ash-crawler-burst` hits to open a short C quick-recover window, clear hurt lock on recover, provide at least 500 ms invulnerability, remain grounded, and absorb a follow-up monster hit without losing HP.
+  - `src/tests/combat.test.ts` also requires light `ash-ember-spit` hits not to open quick recover, and expired recovery windows not to turn C into a recovery action.
+  - `src/tests/app-integration.test.ts` requires `KeyC` to stay mapped to jump while contextually rendering `quick-recover` motion/state after a strong hit.
+  - `src/tests/ui-smoke.test.ts` requires `quick-recover` player hooks and dedicated CSS keyframes.
+- RED evidence:
+  - Focused quick-recover suite failed before implementation because quick-recover timers were absent and UI still rendered `data-player-motion="hit"`.
+- Implemented:
+  - Added quick recover timing fields to `CombatPlayer` and initialized/cleared them through run creation, room transition, hit handling, and normal player actions.
+  - Strong non-bound monster hits now open a 260 ms quick-recover window; light hits and hard bound/control chains do not.
+  - `performAction(... jump ...)` now starts quick recover during the valid hurt-lock window, consumes the window, clears hurt lock at the current frame, extends invulnerability, clears buffered/active movement state, and keeps the player grounded.
+  - UI now exposes recovery state, recovery availability, hurt-lock, and invulnerability hooks; quick recover uses `data-player-motion="quick-recover"`, `data-player-state="recovering"`, and a `player-recovery-vfx` aura.
+  - CSS now defines `player-quick-recover-rise`, `player-quick-recover-ring`, `player-quick-recover-core`, and `player-quick-recover-aura`.
+- Verification:
+  - Focused RED confirmed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "quick recover|quick-recover"` failed on missing ready timers and missing quick-recover DOM before implementation.
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "quick recover|quick-recover"`, 4 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 318 tests.
+  - Full suite passed: `npm test`, 13 files / 414 tests.
+  - Production build initially failed on a test-only strict-null `model.combatRun` access, then passed after using a local narrowed `impactedRun` constant.
+  - Production build passed: `npm run build`.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/quick-recover-check.html` confirmed HP stayed 962 through a follow-up hit, quick recover started at 321 ms, invulnerability lasted until 881 ms, `quick-recover` player motion/state, computed animations `player-quick-recover-rise` and `player-quick-recover-ring`, recovery VFX pointer-events none, follow-up player-hit count 0, and empty warn/error logs. Temporary check page was deleted; dev server remains running on port 5178 for manual play.
+  - Fresh handoff verification passed: `git diff --check`, `npm run build`, `npm test` (13 files / 414 tests), HTTP 200 from `http://127.0.0.1:5178/`, and in-app browser reopened the game page with title `烬璃纪元`.

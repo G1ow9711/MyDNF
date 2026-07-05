@@ -31,6 +31,7 @@ export type CombatHitPhase =
   | "overdrive-pulse"
   | "overdrive-release"
   | "ink-bolt"
+  | "glass-cut"
   | "roll-shot"
   | "uppercut"
   | "chain-open"
@@ -54,6 +55,7 @@ export type CombatVfxCue =
   | "overdrive-core-pulse"
   | "overdrive-core-release"
   | "ink-shot-pierce"
+  | "glass-slash-cut"
   | "shadow-roll-shot"
   | "cinder-uppercut-rise"
   | "flowing-chain-open"
@@ -1372,6 +1374,10 @@ function skillMovementDistance(skill: ClassSkillDefinition): number {
     return -86;
   }
 
+  if (skill.id === "glass-cut") {
+    return 52;
+  }
+
   if (skill.tags.includes("dash")) {
     return Math.max(72, skill.animation.lungePx * 2);
   }
@@ -1564,6 +1570,48 @@ function applyCinderUppercut(run: CombatRun, skill: ClassSkillDefinition, cancel
     vfxCue: "cinder-uppercut-rise",
     vfxWindowMs: 320
   });
+}
+
+function glassCutHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 122,
+    laneRange: 46,
+    targetCap: 1,
+    frontOnly: true,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.9)),
+    hitstopMs: 50,
+    knockback: 24,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo
+  };
+}
+
+function applyGlassCut(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x + skillMovementDistance(skill) * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+
+  return schedulePlayerHitboxEffect(
+    movingRun,
+    glassCutHitbox(run, skill, canceledFromCombo),
+    { x: run.player.x, y: run.player.y },
+    run.player.facing,
+    {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-slash`,
+    hitPhase: "glass-cut",
+    vfxCue: "glass-slash-cut",
+    vfxWindowMs: 260
+    }
+  );
 }
 
 function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
@@ -4179,6 +4227,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "cinder-uppercut") {
     return completeSkillAction(run, applyCinderUppercut(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "glass-cut") {
+    return completeSkillAction(run, applyGlassCut(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "furnace-step") {

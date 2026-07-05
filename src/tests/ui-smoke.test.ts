@@ -643,6 +643,54 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes ink-shot-pierce-core");
   });
 
+  it("defines dedicated glass-cut player, weapon, slash, and impact animations", () => {
+    const state = selectBaseClass(createInitialState(), "liuli-blademage");
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 66 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "glass-cut" }
+    );
+    const [slashAtMs] = scheduledSkillTimes(castRun, "glass-cut");
+    const beforeSlashHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, slashAtMs - 1)
+    });
+    const hitRun = stepToElapsed(castRun, slashAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: hitRun
+    });
+
+    expect(skillHitEvents(castRun, "glass-cut")).toHaveLength(0);
+    expect(skillHitEvents(hitRun, "glass-cut")).toHaveLength(1);
+    expect(beforeSlashHtml).toContain('data-player-skill-move="glass-cut"');
+    expect(beforeSlashHtml).not.toContain('data-skill-impact-vfx="glass-cut"');
+    expect(html).toContain('data-hit-phase="glass-cut"');
+    expect(html).toContain('data-vfx-cue="glass-slash-cut"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-glass-slash"');
+    expect(stylesCss).toContain('[data-skill-animation-preset="liuli-cut"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="glass-slash"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-glass-slash");
+    expect(stylesCss).toContain(".skill-impact-shape-glass-slash");
+    expect(stylesCss).toContain("@keyframes player-liuli-glass-cut");
+    expect(stylesCss).toContain("@keyframes weapon-glass-slash");
+    expect(stylesCss).toContain("@keyframes glass-slash-cast-core");
+    expect(stylesCss).toContain("@keyframes glass-slash-impact-core");
+  });
+
   it("renders liuli-rain as staggered glass-rain impact waves", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const state = {

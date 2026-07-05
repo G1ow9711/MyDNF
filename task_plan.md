@@ -125,6 +125,8 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current cinder-uppercut progress: `cinder-uppercut` now has a strict 180 ms forward rising launcher timeline, dynamic hit-frame hitbox, delayed whiff feedback, monster-interruption cancellation, combo-cancel metadata, airborne target reaction, and dedicated flame-column cast/impact VFX.
 - Current combat-fidelity priority: character and monster models may stay lighter while the full loop is connected, but smooth model-following attacks, strict hit frames, cancelable delayed effects, target action changes, skill VFX, and monster skill VFX remain hard acceptance criteria.
 - Current Ink starter progress: `ink-shot` now uses a strict 120 ms delayed projectile timeline, stationary cancelable cast state, live dynamic target recheck, rushing-monster sampling before hit selection, single-target piercing impact metadata, cast-origin anchored bolt VFX, and dedicated player/weapon/cast/target animations.
+- Current Liuli starter progress: `glass-cut` now uses a strict 115 ms short forward slash timeline, model-following movement, swept-path dynamic target recheck from cast origin, same-frame monster-impact priority coverage, cancelable pending impact, and dedicated glass slash player/weapon/cast/target VFX.
+- Next strict-combat candidates from parallel agents: `spark-combo` still uses the generic instant path for the Ember starter, and `sword-prism-field` still needs dedicated Liuli ultimate field presentation and runtime anchoring.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

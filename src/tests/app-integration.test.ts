@@ -1474,6 +1474,76 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="ink-shot"')).toBe(1);
   });
 
+  it("renders glass-cut as a timed Liuli slash with glass impact metadata", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: selectBaseClass(createInitialState(), "liuli-blademage")
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 66 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "glass-cut" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after glass-cut");
+    }
+
+    const [slashAtMs] = scheduledSkillTimes(model.combatRun, "glass-cut");
+    const castHtml = renderAppHtml(model);
+    const beforeSlashRun = stepToElapsed(model.combatRun, slashAtMs - 1);
+    const beforeSlashHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeSlashRun
+    });
+    const hitRun = stepToElapsed(model.combatRun, slashAtMs);
+    const hitHtml = renderAppHtml({
+      ...model,
+      combatRun: hitRun
+    });
+
+    expect(model.combatRun.player.x).toBe(player.x);
+    expect(beforeSlashRun.player.x).toBeGreaterThan(player.x);
+    expect(skillHitEvents(model.combatRun, "glass-cut")).toHaveLength(0);
+    expect(skillHitEvents(hitRun, "glass-cut")).toHaveLength(1);
+    expect(castHtml).toContain('data-active-skill-id="glass-cut"');
+    expect(castHtml).toContain('data-skill-animation-preset="liuli-cut"');
+    expect(castHtml).toContain('data-skill-weapon-arc="glass-slash"');
+    expect(castHtml).toContain('data-skill-vfx-shape="glass-slash"');
+    expect(castHtml).toContain('data-player-skill-move="glass-cut"');
+    expect(beforeSlashHtml).not.toContain('data-skill-impact-vfx="glass-cut"');
+    expect(hitHtml).toContain('data-hit-phase="glass-cut"');
+    expect(hitHtml).toContain('data-vfx-cue="glass-slash-cut"');
+    expect(hitHtml).toContain('data-impact-vfx-shape="glass-slash"');
+    expect(hitHtml).toContain('class="skill-impact-burst skill-impact-shape-glass-slash"');
+    expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="glass-cut"')).toBe(1);
+  });
+
   it("keeps ink-shot bolt VFX anchored to the cast origin after the player moves", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

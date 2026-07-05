@@ -1444,6 +1444,198 @@ describe("combat actions and impact feel", () => {
     expect(uppercutHit.comboCount).toBeGreaterThan(1);
   });
 
+  it("delays glass-cut into a short forward slash hit frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 306, y: 340, hp: 180, maxHp: 180 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "glass-cut" });
+    const [slashAtMs] = scheduledSkillTimes(cast, "glass-cut");
+    const beforeSlash = stepToElapsed(cast, slashAtMs - 1);
+    const hit = stepToElapsed(cast, slashAtMs);
+    const [slashHit] = skillHitEvents(hit, "glass-cut");
+
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("glass-cut");
+    expect(skillHitEvents(cast, "glass-cut")).toHaveLength(0);
+    expect(slashAtMs).toBe(115);
+    expect(beforeSlash.player.x).toBeGreaterThan(run.player.x);
+    expect(beforeSlash.player.x).toBeLessThan(run.player.x + 52);
+    expect(beforeSlash.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(slashHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "glass-cut",
+      vfxCue: "glass-slash-cut",
+      vfxWindowMs: 260
+    });
+    expect(hit.player.activeSkillMovement).toBeUndefined();
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("rechecks glass-cut targets at the slash frame instead of locking cast-time targets", () => {
+    const inRangeRun = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 306, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const castWithTarget = performAction(inRangeRun, { type: "skill", skillId: "glass-cut" });
+    const [slashAtMs] = scheduledSkillTimes(castWithTarget, "glass-cut");
+    const movedOutBeforeSlash = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: castWithTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 520, y: 500 }
+              }
+            : enemy
+        )
+      },
+      slashAtMs
+    );
+
+    expect(skillHitEvents(movedOutBeforeSlash, "glass-cut")).toHaveLength(0);
+    expect(skillMissEvents(movedOutBeforeSlash, "glass-cut")).toHaveLength(1);
+    expect(movedOutBeforeSlash.enemies[0].hp).toBe(inRangeRun.enemies[0].hp);
+
+    const outOfRangeRun = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 520, y: 500, hp: 180, maxHp: 180 }]
+    );
+    const castWithoutTarget = performAction(outOfRangeRun, { type: "skill", skillId: "glass-cut" });
+    const [lateSlashAtMs] = scheduledSkillTimes(castWithoutTarget, "glass-cut");
+    const movedInBeforeSlash = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: castWithoutTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 306, y: 340 }
+              }
+            : enemy
+        )
+      },
+      lateSlashAtMs
+    );
+    const [lateHit] = skillHitEvents(movedInBeforeSlash, "glass-cut");
+
+    expect(lateHit).toMatchObject({
+      targetId: outOfRangeRun.enemies[0].id,
+      hitPhase: "glass-cut",
+      vfxCue: "glass-slash-cut"
+    });
+    expect(skillMissEvents(movedInBeforeSlash, "glass-cut")).toHaveLength(0);
+    expect(movedInBeforeSlash.enemies[0].hp).toBeLessThan(outOfRangeRun.enemies[0].hp);
+  });
+
+  it("sweeps glass-cut through enemies between the start and slash endpoint", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 246, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "glass-cut" });
+    const [slashAtMs] = scheduledSkillTimes(cast, "glass-cut");
+    const hit = stepToElapsed(cast, slashAtMs);
+    const [slashHit] = skillHitEvents(hit, "glass-cut");
+
+    expect(hit.player.x).toBe(292);
+    expect(slashHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "glass-cut",
+      vfxCue: "glass-slash-cut"
+    });
+    expect(skillMissEvents(hit, "glass-cut")).toHaveLength(0);
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("lets same-frame monster impact interrupt glass-cut before the queued slash resolves", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 306, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "glass-cut" });
+    const [slashAtMs] = scheduledSkillTimes(cast, "glass-cut");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: slashAtMs,
+            attackRecoverUntilMs: 320,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      slashAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: slashAtMs
+        })
+      ])
+    );
+    expect(skillHitEvents(interrupted, "glass-cut")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+  });
+
+  it("cancels glass-cut slash when monster damage interrupts before the cut frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "liuli-blademage"), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 306, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "glass-cut" });
+    const [slashAtMs] = scheduledSkillTimes(cast, "glass-cut");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 82,
+            attackRecoverUntilMs: 320,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      slashAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 82
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(skillHitEvents(interrupted, "glass-cut")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "glass-cut")).toHaveLength(0);
+  });
+
   it("fires ink-shot as a delayed ranged projectile instead of cast-frame damage", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),

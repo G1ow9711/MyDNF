@@ -405,3 +405,11 @@
 - RED evidence: focused combat/app/UI tests failed because `ink-shot` had no scheduled projectile hit, no 120 ms delayed target recheck, no interruption cancellation, and no dedicated `ink-bolt` / `ink-shot-pierce` presentation.
 - Implementation note: `ink-shot` now starts a stationary cancelable cast, schedules a 120 ms dynamic front hitbox, samples live enemy rush movement before target selection, hits one target in the projectile lane, and cancels cleanly if monster damage interrupts before impact.
 - Presentation note: the skill now carries `ink-bolt` / `ink-shot-pierce` metadata, uses cast-origin anchored front VFX so the bolt does not drift after later player movement, and has dedicated player, crossbow weapon, projectile cast, and pierce impact animations.
+
+## Glass Cut Starter Timeline Findings
+- Latest continuation keeps model geometry lightweight but requires starter skills to feel like real action states, not instant data mutations.
+- Parallel audits surfaced two next candidates: combat audit picked Ember `spark-combo` as the remaining generic starter; UI audit picked Liuli `sword-prism-field` as the remaining ultimate presentation gap. The controller selected `glass-cut` first because it is the Liuli high-frequency J starter and had no strict timeline yet.
+- RED evidence: focused tests failed because `glass-cut` had no scheduled hit effect, no delayed target recheck, no interruption behavior, and no dedicated `glass-slash` presentation.
+- Implementation note: `glass-cut` now starts a 115 ms active skill movement, keeps cast-frame enemy HP unchanged, resolves a dynamic swept-path slash from the cast origin at the hit frame, and cancels pending damage when enemy impact interrupts before or on the same frame.
+- Review follow-up: endpoint-only target selection could miss enemies passed through during the short slide. The dynamic hitbox now selects from the cast origin, and a regression covers a target between the start and slash endpoint.
+- Presentation note: browser computed-style validation confirmed `player-liuli-glass-cut`, `weapon-glass-slash`, `glass-slash-cast-core`, and `glass-slash-impact-core` animation names, with no warning/error console output.

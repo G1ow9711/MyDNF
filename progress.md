@@ -1914,3 +1914,29 @@
   - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "ink-shot"`, 8 tests.
   - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 217 tests.
   - Browser DOM/computed-style validation confirmed cast/pre-hit/hit/drift stages, 120 ms scheduled impact, no pre-hit impact, one `ink-bolt` / `ink-shot-pierce` target burst, stable `--actor-x` after player drift, actual player/weapon/cast/impact animation names, and empty browser console error log. Temporary check page was deleted.
+
+## Task 69 Glass Cut Starter Timeline
+- Continued the strict DNF-style combat goal without marking the overall goal complete. The current priority remains: character and monster model detail may be lighter, but starter skill timelines, hit frames, model-following motion, cancellation, hit feedback, and skill VFX must be strict.
+- Used parallel read-only agents:
+  - `019f32a6-a08e-7160-877c-d74e78dc5bde` recommended `spark-combo` as the next Ember starter still using the generic instant branch.
+  - `019f32a6-d0eb-7343-a007-457159a2b662` recommended `sword-prism-field` as the next Liuli ultimate presentation gap.
+- Selected `glass-cut` for this slice because it is the Liuli high-frequency J starter and still fell through the generic instant skill path.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires a 115 ms delayed slash, model-following short movement, no cast-frame damage, dynamic target recheck, swept-path target selection, same-frame monster-impact priority, and interruption cancellation.
+  - `src/tests/app-integration.test.ts` requires runtime DOM metadata for `liuli-cut`, `glass-slash`, no pre-hit target burst, and target-bound `glass-slash-cut` impact.
+  - `src/tests/ui-smoke.test.ts` requires dedicated player, weapon, cast, and impact CSS hooks/keyframes.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "glass-cut"` failed before implementation because no scheduled effects existed for `glass-cut`.
+  - Review regression `npm test -- src/tests/combat.test.ts -t "sweeps glass-cut"` failed before the swept-path fix because endpoint-only targeting missed a target between the start and slash endpoint.
+- Implemented:
+  - Added `glass-cut` hit phase and `glass-slash-cut` VFX cue.
+  - Added `applyGlassCut()` with 52 px timed forward movement, 115 ms dynamic swept-path hitbox from cast origin, delayed hit/miss behavior, and existing queue-based interruption cancellation.
+  - Added CSS for player `player-liuli-glass-cut`, weapon `weapon-glass-slash`, cast `glass-slash-*`, and target impact `glass-slash-impact-*` animations.
+- Code review follow-up:
+  - Read-only review found no Critical issues and two Important points: same-frame enemy impact priority needed explicit coverage, and endpoint-only target selection missed swept-path enemies.
+  - Kept the existing global queue rule that arena/monster impacts resolve before delayed player hits at the same timestamp, and added a same-frame `glass-cut` regression.
+  - Fixed swept-path selection by using cast origin as the dynamic hitbox origin while retaining endpoint movement for the player model.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "glass-cut"`, 7 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 224 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/glass-cut-check.html` confirmed 115 ms scheduled impact, zero pre-hit hits at 114 ms, one target impact at 115 ms, `glass-cut` / `glass-slash-cut` metadata, dedicated player/weapon/cast/impact animation names, and empty warning/error log. Temporary check page was deleted.

@@ -12,6 +12,7 @@ import {
   finishRoom,
   performAction,
   roomGateForRun,
+  skillCooldownRemaining,
   stepCombat,
   type CombatArenaHazardEvent,
   type CombatBossPhaseEvent,
@@ -941,6 +942,40 @@ describe("combat actions and impact feel", () => {
     expect(resolved.player.actionLockUntilMs).toBe(light.player.actionLockUntilMs);
   });
 
+  it("keeps command input reductions when a skill is released from the action buffer", () => {
+    const run = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 24), "cinder-kiln-alley"), {
+      hp: 220,
+      maxHp: 220,
+      nextAttackAtMs: 9999
+    });
+    const light = performAction(run, { type: "light" });
+    const locked = stepCombat(light, {}, 40);
+    const strictLocked = {
+      ...locked,
+      player: {
+        ...locked.player,
+        comboStep: 0,
+        cancelWindowUntilMs: 0
+      }
+    };
+    const queued = performAction(strictLocked, { type: "skill", skillId: "anvil-crash", inputMethod: "command" });
+    const queuedPlayer = queued.player as typeof queued.player & {
+      bufferedAction?: { type: string; skillId?: string; inputMethod?: string };
+      bufferedActionExecuteAtMs?: number;
+    };
+    const resolved = stepCombat(queued, {}, queuedPlayer.bufferedActionExecuteAtMs ?? 0);
+    const castEvent = resolved.events.find((event) => event.kind === "skill-cast" && event.skillId === "anvil-crash");
+
+    expect(queuedPlayer.bufferedAction).toEqual({ type: "skill", skillId: "anvil-crash", inputMethod: "command" });
+    expect(resolved.player.resource.current).toBe(strictLocked.player.resource.current - 22);
+    expect(resolved.player.skillCooldowns["anvil-crash"]).toBe((queuedPlayer.bufferedActionExecuteAtMs ?? 0) + 4784);
+    expect(castEvent).toMatchObject({
+      inputMethod: "command",
+      resourceCostPaid: 22,
+      cooldownDurationMs: 4784
+    });
+  });
+
   it("tracks per-skill cooldowns and blocks recasting until the timer expires", () => {
     const run = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"), {
       nextAttackAtMs: 9999
@@ -979,6 +1014,23 @@ describe("combat actions and impact feel", () => {
       hitPhase: "anvil-slam"
     });
     expect(recast.player.skillCooldowns["anvil-crash"]).toBe(ready.elapsedMs + 5200);
+  });
+
+  it("applies DNF-style command input resource and cooldown reductions to skill casts", () => {
+    const run = createCombatRun(withHeat(createInitialState(), 24), "cinder-kiln-alley");
+
+    expect(() => performAction(run, { type: "skill", skillId: "anvil-crash" })).toThrow(/Insufficient/i);
+
+    const commandCast = performAction(run, { type: "skill", skillId: "anvil-crash", inputMethod: "command" });
+    const castEvent = commandCast.events.find((event) => event.kind === "skill-cast" && event.skillId === "anvil-crash");
+
+    expect(commandCast.player.resource.current).toBe(2);
+    expect(skillCooldownRemaining(commandCast, "anvil-crash")).toBe(4784);
+    expect(castEvent).toMatchObject({
+      inputMethod: "command",
+      resourceCostPaid: 22,
+      cooldownDurationMs: 4784
+    });
   });
 
   it("uses catalog animation timing for skill hit frames and action locks", () => {

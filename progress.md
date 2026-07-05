@@ -2157,3 +2157,38 @@
   - `npm test` passed with 13 files / 367 tests.
   - `npm run build` passed.
   - `git diff --check` passed with line-ending warnings only.
+
+## Task 78 DNF-Style Command Input
+- Continued under the latest user clarification: model geometry can remain simple for now, but combat input feel, skill action flow, motion/VFX feedback, and DNF-like keyboard operation stay strict.
+- External reference pass:
+  - Official DFO update notes command customization via a Change Command window, and official convenience notes mention key-input UI guidance. This supports adding a manual command-input layer while keeping this project original.
+- Used parallel read-only agents:
+  - Combat/input explorer recommended keeping the temporary command buffer in `mountApp()`, matching `KeyZ` / `Space` before fallback actions, and applying command reductions inside `performAction()`.
+  - UI/CSS explorer recommended per-slot command hooks, separate direct/manual slot states, short command chips, and a 3x2 mobile DNF bar layout.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires command-cast cost and cooldown reduction, `skill-cast` metadata, and preservation of `inputMethod: "command"` through the action buffer.
+  - `src/tests/app-integration.test.ts` requires `↓→Z` to map to `anvil-crash` before `Z` heavy fallback, resource gating where direct `F` is unaffordable but command is usable, cooldown blocking, and mounted keyboard sequence behavior.
+  - `src/tests/ui-smoke.test.ts` requires command attributes, manual cost, discount percent, command chips, command toast CSS, and mobile 3x2 DNF hotbar layout.
+- RED evidence:
+  - Focused tests failed before implementation because command action mapping did not exist, `inputMethod` and event fields were absent, resource checks used base cost, mounted `KeyZ` fell back to heavy, and skill slots had no command hooks.
+- Implemented:
+  - Added `CombatSkillInputMethod`, command resource/cooldown multipliers, effective skill cost/cooldown helpers, and `skill-cast` metadata fields.
+  - `performAction()` and `canBufferAction()` now use command cost for command inputs; `completeSkillAction()` writes command cost, cooldown duration, and input method once for all scripted skills.
+  - Added six command sequences for the DNF hotbar, longest-sequence-first matching, `combatActionForCommandSequence()`, and mounted key buffering with repeat filtering and fallback-safe `Z` handling.
+  - Combat UI now shows command chips, manual cost/discount hooks, separate `data-command-slot-state`, scene-level command release metadata, player release source, and `COMMAND INPUT` toast.
+  - CSS now styles command chips, command-available slots, command toast, and a 3x2 mobile DNF skill bar.
+- Browser validation:
+  - In-app browser on `http://127.0.0.1:5174/` reloaded successfully.
+  - Live browser save was Ink with 0 resource, so `↓→Z` slot 4 could not be released; the same command system was verified through zero-cost `→Z`, which set `data-command-release-source="manual"`, `data-command-reduction-applied="true"`, `data-command-match-skill-id="ink-shot"`, player release source `manual`, command toast visible, and empty warn/error console logs.
+  - Automated mounted tests cover the Ember `↓→Z` / `anvil-crash` VFX path with 24 heat.
+- Code review follow-up:
+  - Read-only review found four issues: repeated keydown was ignored globally and broke held movement, generic fallback skills did not emit `skill-cast` metadata for command casts, command input could not buffer when cooldown would recover before action unlock, and command-available styling was overridden by locked slot styling.
+  - Added regressions for repeated arrow movement, command buffering when cooldown recovers before unlock, and command metadata/toast for generic Ink `ink-snare`.
+  - Fixed keydown repeat handling so repeats bypass command buffering but still reach movement/action fallback, appended `skill-cast` in the generic skill branch, allowed command mapping to return buffered actions when cooldown will recover inside the action buffer window, and moved command-available styling after locked styling.
+- Final verification:
+  - Focused command suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "command input|command key sequences|command reductions|command inputs|DNF-style command|action buffer"`, 6 tests.
+  - Review regressions passed: `npm test -- src/tests/app-integration.test.ts -t "repeated arrow|action buffer when cooldown|generic class skills"`, 3 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 279 tests.
+  - Full suite passed: `npm test`, 13 files / 375 tests.
+  - Production build passed: `npm run build`.
+  - `git diff --check` passed with line-ending warnings only.

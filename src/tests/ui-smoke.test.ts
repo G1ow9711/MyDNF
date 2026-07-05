@@ -1614,6 +1614,30 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("content: attr(data-dnf-hotkey)");
   });
 
+  it("renders DNF-style command inputs and manual-cast reduction hooks on skill slots", () => {
+    const state = createInitialState();
+    const combatRun = createCombatRun({ ...state, player: { ...state.player, heat: 24 } }, "cinder-kiln-alley");
+    const html = renderAppHtml({ state: { ...state, player: { ...state.player, heat: 24 } }, mode: "combat", combatRun });
+
+    expect(html).toContain('data-command-input="down,right,z"');
+    expect(html).toContain('data-command-display="↓→Z"');
+    expect(html).toContain('data-command-terminal-key="Z"');
+    expect(html).toContain('data-command-base-cost="25"');
+    expect(html).toContain('data-command-manual-cost="22"');
+    expect(html).toContain('data-command-discount-percent="12"');
+    expect(html).toContain('data-command-slot-state="available-by-command"');
+    expect(html).toContain('class="skill-slot-command"');
+    expect(html).toContain('class="command-key"');
+    expect(html).toContain('class="skill-slot-discount"');
+    expect(html).toContain("消耗-12%");
+    expect(stylesCss).toContain(".skill-slot-command");
+    expect(stylesCss).toContain(".command-key");
+    expect(stylesCss).toContain(".skill-slot-discount");
+    expect(stylesCss).toContain(".command-input-toast");
+    expect(stylesCss).toContain("@media (max-width: 860px)");
+    expect(stylesCss).toContain("grid-template-columns: repeat(3, minmax(92px, 1fr))");
+  });
+
   it("renders the playable town as the first screen instead of a landing page", () => {
     const html = renderAppHtml({ state: createInitialState(), mode: "town" });
 

@@ -486,3 +486,17 @@
 - Implementation note: direction movement now belongs to arrow keys, and `A/S/D/F/G/H` map to the first six current-class combat skills. Legacy `L/U/I/O/Space` skill keys still map to their catalog skills, so existing keyboard/button workflows remain available.
 - Presentation note: combat UI now renders a fixed six-slot DNF hotbar with visible key badges, slot index/state, old key labels such as `F/U`, and cooling/locked/empty styling hooks.
 - Browser validation note: in the live in-app browser, the DNF bar rendered one six-slot bar, slot badges included computed `F` pseudo content, the old WASD movement hint disappeared, pressing `A` after focusing the combat scene triggered the current Ink class `ink-shot` skill VFX, and console warn/error logs were empty.
+
+## DNF-Style Command Input Findings
+- Reference note: official DFO pages expose a Change Command flow and key-input UI guidance. The prototype now adapts that into original offline command inputs rather than copying any proprietary data.
+- Read-only combat/input audit found the safest command buffer location is `mountApp()` rather than `GameState`, `CombatRun`, save data, or localStorage. This keeps command input ephemeral and prevents stale save migrations.
+- Input priority note: `KeyZ` is both heavy attack and command terminal. Command matching now runs before heavy fallback; if a known command is matched but resource/cooldown blocks it, the terminal key is consumed instead of firing the wrong action.
+- Matching note: command sequences must be longest-match-first, otherwise `↓→Z` is stolen by the shorter `→Z` slot command.
+- Combat note: command casts pay 88% resource cost using `ceil()` and receive 92% cooldown duration. `anvil-crash` therefore costs 22 heat instead of 25 and sets 4784 ms cooldown instead of 5200 ms.
+- Buffer note: `CombatActionInput` carries `inputMethod`, and action buffering preserves it, so a command skill released on the unlock frame keeps the same cost/cooldown reductions.
+- UI note: direct hotkey availability and command availability are separate states. A slot can be direct-locked but command-available, which is shown with `data-command-slot-state="available-by-command"` and a command chip.
+- Browser validation note: the live browser save lacked resource for the `↓→Z` slot, so live verification used zero-cost `→Z` to prove the same command pathway sets manual release metadata and command toast without console warnings; automated tests cover the `↓→Z` Ember/anvil VFX path.
+- Review follow-up: repeated keydown must keep reaching movement/action fallback even when ignored by the command buffer. Command-buffer filtering and gameplay input dispatch cannot share the same early return.
+- Review follow-up: generic fallback skills still need `skill-cast` events, otherwise command casts on non-scripted class skills lose manual release metadata even though cost/cooldown reductions apply.
+- Review follow-up: command matching can return a buffered action when cooldown will recover before the current action lock ends; immediate cooldown bypass is still blocked.
+- Review follow-up: `available-by-command` visual styling must be ordered after locked-slot styling because the same button can be direct-locked but command-available.

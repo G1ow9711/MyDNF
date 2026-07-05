@@ -13,7 +13,12 @@ export type EnemyAttackProfileId =
   | "taotie-devour-pull"
   | "taotie-ash-summon"
   | "taotie-forge-shackle";
-export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "backstep" } | { type: "skill"; skillId: string };
+export type CombatSkillInputMethod = "hotkey" | "command";
+export type CombatActionInput =
+  | { type: "light" }
+  | { type: "heavy" }
+  | { type: "backstep" }
+  | { type: "skill"; skillId: string; inputMethod?: CombatSkillInputMethod };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
 export type CombatHitPhase =
@@ -262,6 +267,9 @@ export interface CombatSkillCastEvent {
   actionTags?: CombatActionTag[];
   casterPosition?: CombatVector;
   casterFacing?: 1 | -1;
+  inputMethod?: CombatSkillInputMethod;
+  resourceCostPaid?: number;
+  cooldownDurationMs?: number;
 }
 
 export interface CombatRoomClearedEvent {
@@ -3131,6 +3139,25 @@ function prismCooldownMs(run: CombatRun, skillId: string, baseCooldownMs: number
   return run.player.resource.id === "prism" && run.player.lastSkillId !== skillId ? Math.round(base * 0.88) : base;
 }
 
+export const commandInputResourceCostMultiplier = 0.88;
+export const commandInputCooldownMultiplier = 0.92;
+
+function skillInputMethod(action: CombatActionInput): CombatSkillInputMethod {
+  return action.type === "skill" && action.inputMethod === "command" ? "command" : "hotkey";
+}
+
+export function combatSkillResourceCost(skill: ClassSkillDefinition, inputMethod: CombatSkillInputMethod = "hotkey"): number {
+  return inputMethod === "command"
+    ? Math.max(0, Math.ceil(skill.resourceCost * commandInputResourceCostMultiplier))
+    : skill.resourceCost;
+}
+
+function combatSkillCooldownMs(run: CombatRun, skill: ClassSkillDefinition, inputMethod: CombatSkillInputMethod): number {
+  const base = prismCooldownMs(run, skill.id, skill.cooldownMs);
+
+  return inputMethod === "command" ? Math.max(0, Math.round(base * commandInputCooldownMultiplier)) : base;
+}
+
 function nextPrismChain(run: CombatRun, skillId: string): number {
   if (run.player.resource.id !== "prism") {
     return 0;
@@ -4647,14 +4674,28 @@ function completeSkillAction(
   run: CombatRun,
   hitRun: CombatRun,
   skill: ClassSkillDefinition,
-  statusTags: CombatSkillStatusTag[]
+  statusTags: CombatSkillStatusTag[],
+  inputMethod: CombatSkillInputMethod = "hotkey"
 ): CombatRun {
   const prismGain = prismCycleGain(run, skill.id);
-  const resourcePlayer = spendAndGainPlayerResource(hitRun.player, run, skill.resourceCost, skill.resourceGain + prismGain);
+  const resourceCostPaid = combatSkillResourceCost(skill, inputMethod);
+  const cooldownDurationMs = combatSkillCooldownMs(run, skill, inputMethod);
+  const resourcePlayer = spendAndGainPlayerResource(hitRun.player, run, resourceCostPaid, skill.resourceGain + prismGain);
   const statusPlayer = applyPlayerSkillStatus(resourcePlayer, run, statusTags, skill.id);
+  const events = hitRun.events.map((event) =>
+    event.kind === "skill-cast" && event.skillId === skill.id && event.occurredAtMs === run.elapsedMs
+      ? {
+          ...event,
+          inputMethod,
+          resourceCostPaid,
+          cooldownDurationMs
+        }
+      : event
+  );
 
   return {
     ...hitRun,
+    events,
     player: {
       ...statusPlayer,
       comboStep: 0,
@@ -4667,7 +4708,7 @@ function completeSkillAction(
       bufferedActionExecuteAtMs: undefined,
       skillCooldowns: {
         ...hitRun.player.skillCooldowns,
-        [skill.id]: run.elapsedMs + prismCooldownMs(run, skill.id, skill.cooldownMs)
+        [skill.id]: run.elapsedMs + cooldownDurationMs
       }
     }
   };
@@ -4684,7 +4725,7 @@ function canBufferAction(run: CombatRun, action: CombatActionInput, remainingLoc
 
   const skill = catalog.classSkills.find((item) => item.id === action.skillId && item.classId === run.state.player.classId);
 
-  if (!skill || run.player.resource.current < skill.resourceCost) {
+  if (!skill || run.player.resource.current < combatSkillResourceCost(skill, skillInputMethod(action))) {
     return false;
   }
 
@@ -4809,7 +4850,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     throw new Error(`Unknown class skill: ${action.skillId}`);
   }
 
-  if (run.player.resource.current < skill.resourceCost) {
+  const inputMethod = skillInputMethod(action);
+  const resourceCost = combatSkillResourceCost(skill, inputMethod);
+
+  if (run.player.resource.current < resourceCost) {
     throw new Error(`Insufficient ${run.player.resource.displayName} for skill: ${action.skillId}`);
   }
 
@@ -4819,88 +4863,89 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   const statusTags = skillStatusTags(skill.tags);
   const actionTags = actionTagsForSkill(skill.tags);
+  const finishSkillAction = (hitRun: CombatRun): CombatRun => completeSkillAction(run, hitRun, skill, statusTags, inputMethod);
 
   if (skill.id === "meteor-knuckle") {
-    return completeSkillAction(run, applyMeteorKnuckle(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyMeteorKnuckle(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "liuli-rain") {
-    return completeSkillAction(run, applyLiuliRain(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyLiuliRain(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "black-rain-volley") {
-    return completeSkillAction(run, applyBlackRainVolley(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyBlackRainVolley(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "sword-prism-field") {
-    return completeSkillAction(run, applySwordPrismField(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applySwordPrismField(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "spark-combo") {
-    return completeSkillAction(run, applySparkCombo(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applySparkCombo(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "iron-palm") {
-    return completeSkillAction(run, applyIronPalm(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyIronPalm(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "cinder-uppercut") {
-    return completeSkillAction(run, applyCinderUppercut(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyCinderUppercut(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "anvil-crash") {
-    return completeSkillAction(run, applyAnvilCrash(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyAnvilCrash(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "glass-cut") {
-    return completeSkillAction(run, applyGlassCut(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyGlassCut(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "furnace-step") {
-    return completeSkillAction(run, applyFurnaceStep(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyFurnaceStep(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "shadow-roll") {
-    return completeSkillAction(run, applyShadowRoll(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyShadowRoll(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "ink-shot") {
-    return completeSkillAction(run, applyInkShot(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyInkShot(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "heat-bloom") {
-    return completeSkillAction(run, applyHeatBloom(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyHeatBloom(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "furnace-heart-overdrive") {
-    return completeSkillAction(run, applyFurnaceHeartOverdrive(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyFurnaceHeartOverdrive(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "prism-step") {
-    return completeSkillAction(run, applyPrismStep(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyPrismStep(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "flowing-light-chain") {
-    return completeSkillAction(run, applyFlowingLightChain(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyFlowingLightChain(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "night-mark-detonation") {
-    return completeSkillAction(run, applyNightMarkDetonation(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyNightMarkDetonation(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "mechanism-shadow-net") {
-    return completeSkillAction(run, applyMechanismShadowNet(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyMechanismShadowNet(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "earth-furnace-breaker") {
-    return completeSkillAction(run, applyEarthFurnaceBreaker(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyEarthFurnaceBreaker(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "mountain-crack-hammer") {
-    return completeSkillAction(run, applyMountainCrackHammer(run, skill, canceledFromCombo), skill, statusTags);
+    return finishSkillAction(applyMountainCrackHammer(run, skill, canceledFromCombo));
   }
 
-  const scriptedRun = applySkillStartupMovement(run, skill);
+  const scriptedRun = appendSkillCastEvent(applySkillStartupMovement(run, skill), skill, canceledFromCombo);
   const hitRun = applyPlayerHitbox(scriptedRun, {
     action: "skill",
     skillId: action.skillId,
@@ -4923,7 +4968,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     actionTags
   });
 
-  return completeSkillAction(run, hitRun, skill, statusTags);
+  return finishSkillAction(hitRun);
 }
 
 export function skillCooldownRemaining(run: CombatRun, skillId: string): number {

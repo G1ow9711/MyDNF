@@ -2,6 +2,7 @@ import { catalog } from "../data/catalog";
 import {
   actionBufferWindowMs,
   canEnterRoomGate,
+  combatSkillResourceCost,
   createCombatRun,
   enterRoomGate,
   finishRoom,
@@ -20,7 +21,8 @@ import {
   type CombatMissEvent,
   type CombatPlayerHitEvent,
   type CombatRun,
-  type CombatSkillCastEvent
+  type CombatSkillCastEvent,
+  type CombatSkillInputMethod
 } from "../game/combat";
 import { addOwnedGear, createInitialState } from "../game/state";
 import type { AdvancementId, ClassId, ClassSkillDefinition, DungeonId, GameState, SkillAnimationDefinition } from "../game/types";
@@ -77,7 +79,7 @@ export type AppAction =
   | { type: "combatTick" }
   | { type: "combatMove"; moveX: number; moveY: number; dash: boolean }
   | { type: "combatAction"; action: "light" | "heavy" | "backstep" | "finish" }
-  | { type: "combatAction"; action: "skill"; skillId: string }
+  | { type: "combatAction"; action: "skill"; skillId: string; inputMethod?: CombatSkillInputMethod }
   | { type: "claimQuest"; questId: string }
   | { type: "selectBaseClass"; classId: ClassId }
   | { type: "advanceClass"; advancementId: AdvancementId }
@@ -191,6 +193,93 @@ function combatSkillForDnfHotkey(state: GameState, hotkey: string): ClassSkillDe
   return index >= 0 ? combatSkillsForState(state)[index] : undefined;
 }
 
+interface CombatCommandDefinition {
+  slotIndex: number;
+  codes: readonly string[];
+  input: string;
+  display: string;
+  terminalKey: "Z" | "Space";
+}
+
+const dnfCommandInputs: readonly CombatCommandDefinition[] = [
+  { slotIndex: 0, codes: ["ArrowRight", "KeyZ"], input: "right,z", display: "→Z", terminalKey: "Z" },
+  { slotIndex: 1, codes: ["ArrowUp", "KeyZ"], input: "up,z", display: "↑Z", terminalKey: "Z" },
+  { slotIndex: 2, codes: ["ArrowLeft", "KeyZ"], input: "left,z", display: "←Z", terminalKey: "Z" },
+  { slotIndex: 3, codes: ["ArrowDown", "ArrowRight", "KeyZ"], input: "down,right,z", display: "↓→Z", terminalKey: "Z" },
+  { slotIndex: 4, codes: ["ArrowDown", "ArrowUp", "KeyZ"], input: "down,up,z", display: "↓↑Z", terminalKey: "Z" },
+  { slotIndex: 5, codes: ["ArrowUp", "ArrowDown", "KeyZ"], input: "up,down,z", display: "↑↓Z", terminalKey: "Z" }
+];
+
+const commandInputDiscountPercent = 12;
+
+function commandDefinitionForSlot(slotIndex: number): CombatCommandDefinition | undefined {
+  return dnfCommandInputs.find((definition) => definition.slotIndex === slotIndex);
+}
+
+function commandDefinitionForSkill(state: GameState, skillId: string): CombatCommandDefinition | undefined {
+  const index = combatSkillsForState(state).findIndex((skill) => skill.id === skillId);
+
+  return index >= 0 ? commandDefinitionForSlot(index) : undefined;
+}
+
+function commandSequenceMatches(codes: readonly string[], command: readonly string[]): boolean {
+  if (codes.length < command.length) {
+    return false;
+  }
+
+  const offset = codes.length - command.length;
+
+  return command.every((code, index) => codes[offset + index] === code);
+}
+
+function combatCommandSkillForSequence(
+  state: GameState,
+  codes: readonly string[]
+): { definition: CombatCommandDefinition; skill: ClassSkillDefinition } | undefined {
+  const definitions = [...dnfCommandInputs].sort((left, right) => right.codes.length - left.codes.length);
+
+  for (const definition of definitions) {
+    if (!commandSequenceMatches(codes, definition.codes)) {
+      continue;
+    }
+
+    const skill = combatSkillsForState(state)[definition.slotIndex];
+
+    if (skill) {
+      return { definition, skill };
+    }
+  }
+
+  return undefined;
+}
+
+export function combatActionForCommandSequence(
+  state: GameState,
+  codes: readonly string[],
+  resourceValue?: number,
+  run?: CombatRun,
+  allowBuffered = false
+): AppAction | undefined {
+  const match = combatCommandSkillForSequence(state, codes);
+
+  if (!match) {
+    return undefined;
+  }
+
+  const manualCost = combatSkillResourceCost(match.skill, "command");
+
+  const cooldownRemaining = run !== undefined ? skillCooldownRemaining(run, match.skill.id) : 0;
+  const remainingLockMs = run !== undefined ? run.player.actionLockUntilMs - run.elapsedMs : 0;
+  const canBufferUntilReady =
+    allowBuffered && run !== undefined && remainingLockMs > 0 && remainingLockMs <= actionBufferWindowMs && cooldownRemaining <= remainingLockMs;
+
+  if ((resourceValue !== undefined && resourceValue < manualCost) || (cooldownRemaining > 0 && !canBufferUntilReady)) {
+    return undefined;
+  }
+
+  return { type: "combatAction", action: "skill", skillId: match.skill.id, inputMethod: "command" };
+}
+
 export function combatActionForKeyCode(
   state: GameState,
   code: string,
@@ -269,7 +358,9 @@ function toCombatActionInput(action: Extract<AppAction, { type: "combatAction" }
   }
 
   if (action.action === "skill") {
-    return { type: "skill", skillId: action.skillId };
+    return action.inputMethod
+      ? { type: "skill", skillId: action.skillId, inputMethod: action.inputMethod }
+      : { type: "skill", skillId: action.skillId };
   }
 
   return undefined;
@@ -571,6 +662,28 @@ function playerActionWindowMs(event: CombatHitEvent | CombatMissEvent | CombatSk
   }
 
   return recentHitWindowMs;
+}
+
+function latestSkillCastEvent(run: CombatRun): CombatSkillCastEvent | undefined {
+  return [...run.events].reverse().find((event): event is CombatSkillCastEvent => {
+    if (event.kind !== "skill-cast") {
+      return false;
+    }
+
+    const age = eventAge(run, event.occurredAtMs);
+
+    return age >= 0 && age <= playerActionWindowMs(event);
+  });
+}
+
+function latestSkillReleaseSource(run: CombatRun): "manual" | "hotkey" | "none" {
+  const cast = latestSkillCastEvent(run);
+
+  if (!cast) {
+    return "none";
+  }
+
+  return cast.inputMethod === "command" ? "manual" : "hotkey";
 }
 
 function latestPlayerSkillAnimation(
@@ -1070,6 +1183,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   const playerMotionName = playerMotion(run);
   const activeSkill = latestPlayerSkillAnimation(run);
+  const releaseSource = latestSkillReleaseSource(run);
   const activeSkillMovement = run.player.activeSkillMovement;
   const skillMotionClass =
     playerMotionName === "skill" && activeSkill ? ` actor-skill-${activeSkill.animation.preset}` : "";
@@ -1106,7 +1220,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   return `
     <div class="combat-actors" data-last-hit-target="${[...hitTargetIds].at(-1) ?? ""}">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-release-source="${releaseSource}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
         ${playerTrailMarkup(run, playerMotionName, activeSkill)}
         <img class="combat-player-art actor-model actor-model-${playerMotionName}${skillMotionClass}${normalComboMotionClass}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run, activeSkill?.animation)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
         ${weaponLayerMarkup(state, "combat", activeSkill?.animation)}
@@ -1141,19 +1255,42 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const availableCombatSkills = combatSkillsForState(state);
   const renderSkillButton = (skill: ClassSkillDefinition | undefined, dnfHotkey: string, slotIndex: number): string => {
     if (!skill) {
-      return `<button class="dnf-skill-slot is-empty" data-dnf-hotkey="${dnfHotkey}" data-dnf-slot-index="${slotIndex}" data-dnf-slot-state="empty" disabled><span class="dnf-keycap">${dnfHotkey}</span><span>空槽</span></button>`;
+      return `<button class="dnf-skill-slot is-empty" data-dnf-hotkey="${dnfHotkey}" data-dnf-slot-index="${slotIndex}" data-dnf-slot-state="empty" data-command-slot-state="empty" disabled><span class="dnf-keycap">${dnfHotkey}</span><span>空槽</span></button>`;
     }
 
       const cooldownRemaining = skillCooldownRemaining(run, skill.id);
       const cooldownLabel = cooldownRemaining > 0 ? ` · 冷却 ${(cooldownRemaining / 1000).toFixed(1)}s` : "";
       const cooldownState = cooldownRemaining > 0 ? "cooling" : "ready";
-      const disabled = roomCleared || roomFailed || run.player.resource.current < skill.resourceCost || cooldownRemaining > 0;
+      const command = commandDefinitionForSkill(state, skill.id);
+      const commandManualCost = combatSkillResourceCost(skill, "command");
+      const directAvailable = !roomCleared && !roomFailed && run.player.resource.current >= skill.resourceCost && cooldownRemaining <= 0;
+      const commandAvailable = Boolean(command) && !roomCleared && !roomFailed && run.player.resource.current >= commandManualCost && cooldownRemaining <= 0;
+      const disabled = !directAvailable;
       const hotkeyLabel = dnfHotkey ? `${dnfHotkey}/${skill.key}` : skill.key;
       const slotState = cooldownRemaining > 0 ? "cooling" : disabled ? "locked" : "ready";
+      const commandSlotState =
+        cooldownRemaining > 0
+          ? "cooling"
+          : commandAvailable && !directAvailable
+            ? "available-by-command"
+            : commandAvailable
+              ? "ready"
+              : command
+                ? "locked"
+                : "empty";
       const slotIndexAttribute = slotIndex >= 0 ? String(slotIndex) : "";
       const dnfClass = dnfHotkey ? "dnf-skill-slot" : "legacy-skill-slot";
+      const commandKeys = command
+        ? [...command.display].map((key) => `<span class="command-key">${key}</span>`).join("")
+        : "";
+      const commandMarkup = command
+        ? `<span class="skill-slot-command" aria-label="手搓指令 ${command.display}">${commandKeys}</span><span class="skill-slot-discount">消耗-${commandInputDiscountPercent}%</span>`
+        : "";
+      const commandAttributes = command
+        ? `data-command-input="${command.input}" data-command-display="${command.display}" data-command-terminal-key="${command.terminalKey}" data-command-base-cost="${skill.resourceCost}" data-command-manual-cost="${commandManualCost}" data-command-discount-percent="${commandInputDiscountPercent}"`
+        : `data-command-input="" data-command-display="" data-command-terminal-key="" data-command-base-cost="${skill.resourceCost}" data-command-manual-cost="${skill.resourceCost}" data-command-discount-percent="0"`;
 
-      return `<button class="${dnfClass}" data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-dnf-hotkey="${dnfHotkey}" data-dnf-slot-index="${slotIndexAttribute}" data-legacy-hotkey="${skill.key}" data-dnf-slot-state="${slotState}" data-resource-id="${run.player.resource.id}" data-skill-cost="${skill.resourceCost}" data-skill-cooldown-remaining="${cooldownRemaining}" data-cooldown-state="${cooldownState}" ${disabled ? "disabled" : ""}>${dnfHotkey ? `<span class="dnf-keycap">${dnfHotkey}</span>` : ""}<span class="skill-slot-name">${skill.displayName}</span><span class="skill-slot-meta">${hotkeyLabel} · ${skill.resourceCost}${cooldownLabel}</span><span class="dnf-cooldown-overlay" aria-hidden="true"></span></button>`;
+      return `<button class="${dnfClass}" data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-dnf-hotkey="${dnfHotkey}" data-dnf-slot-index="${slotIndexAttribute}" data-legacy-hotkey="${skill.key}" data-dnf-slot-state="${slotState}" data-command-slot-state="${commandSlotState}" ${commandAttributes} data-resource-id="${run.player.resource.id}" data-skill-cost="${skill.resourceCost}" data-skill-cooldown-remaining="${cooldownRemaining}" data-cooldown-state="${cooldownState}" ${disabled ? "disabled" : ""}>${dnfHotkey ? `<span class="dnf-keycap">${dnfHotkey}</span>` : ""}<span class="skill-slot-name">${skill.displayName}</span><span class="skill-slot-meta">${hotkeyLabel} · ${skill.resourceCost}${cooldownLabel}</span>${commandMarkup}<span class="dnf-cooldown-overlay" aria-hidden="true"></span></button>`;
   };
   const dnfSkillButtons = dnfSkillHotkeys
     .map((hotkey, index) => renderSkillButton(availableCombatSkills[index], hotkey, index))
@@ -1200,9 +1337,12 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   ]);
   const arenaHazardCount = arenaHazardIds.size;
   const arenaDanger = arenaHazardCount > 0 ? "taotie-forge-collapse" : "none";
+  const latestCast = latestSkillCastEvent(run);
+  const commandReleaseSource = latestSkillReleaseSource(run);
+  const commandReductionApplied = latestCast?.inputMethod === "command";
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
@@ -1212,6 +1352,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
       ${roomFailed ? `<div class="arena-hazard-layer" data-arena-hazard-layer="true" data-arena-hazard-count="0"></div>` : renderArenaHazards(run)}
       ${renderCombatVfx(run)}
       ${comboMeter}
+      ${commandReductionApplied ? `<div class="command-input-toast" data-command-toast="true">COMMAND INPUT</div>` : ""}
       ${
         roomCleared
           ? `<div class="room-clear-banner"><strong>房间已清理</strong><span>前往右侧房门进入下一段战斗</span></div>`
@@ -1555,7 +1696,10 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         } else if (action.action === "backstep") {
           combatRun = performAction(readyRun, { type: "backstep" });
         } else if (action.action === "skill") {
-          combatRun = performAction(readyRun, { type: "skill", skillId: action.skillId });
+          combatRun = performAction(
+            readyRun,
+            action.inputMethod ? { type: "skill", skillId: action.skillId, inputMethod: action.inputMethod } : { type: "skill", skillId: action.skillId }
+          );
         } else {
           return model;
         }
@@ -1930,9 +2074,62 @@ export function mountApp(root: HTMLDivElement): () => void {
       render();
     });
 
+    const commandDirectionCodes = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
+    const commandTerminalCodes = new Set(["KeyZ", "Space"]);
+    const commandBufferTtlMs = 700;
+    const commandBufferMaxTokens = 5;
+    let commandBuffer: Array<{ code: string; atMs: number }> = [];
+    const commandNow = (): number => globalThis.performance?.now?.() ?? Date.now();
+    const pruneCommandBuffer = (atMs: number): void => {
+      commandBuffer = commandBuffer.filter((item) => atMs - item.atMs <= commandBufferTtlMs).slice(-commandBufferMaxTokens);
+    };
+    const pushCommandCode = (code: string, atMs: number): void => {
+      pruneCommandBuffer(atMs);
+
+      if (commandDirectionCodes.has(code) && commandBuffer.at(-1)?.code === code) {
+        return;
+      }
+
+      commandBuffer = [...commandBuffer, { code, atMs }].slice(-commandBufferMaxTokens);
+    };
+    const commandCodes = (): string[] => commandBuffer.map((item) => item.code);
+
     const keydownHandler = (event: KeyboardEvent) => {
       if (model.mode !== "combat") {
+        commandBuffer = [];
         return;
+      }
+
+      const isRepeat = event.repeat;
+      const atMs = commandNow();
+      pruneCommandBuffer(atMs);
+
+      if (commandDirectionCodes.has(event.code) && !isRepeat) {
+        pushCommandCode(event.code, atMs);
+      }
+
+      if (commandTerminalCodes.has(event.code) && !isRepeat) {
+        pushCommandCode(event.code, atMs);
+        const codes = commandCodes();
+        const commandMatch = combatCommandSkillForSequence(model.state, codes);
+
+        if (commandMatch) {
+          const commandAction = combatActionForCommandSequence(model.state, codes, model.combatRun?.player.resource.current, model.combatRun, true);
+
+          event.preventDefault();
+          commandBuffer = [];
+
+          if (commandAction) {
+            dispatch(commandAction);
+          }
+
+          render();
+          return;
+        }
+
+        commandBuffer = [];
+      } else if (!isRepeat && !commandDirectionCodes.has(event.code) && event.code !== "ShiftLeft" && event.code !== "ShiftRight") {
+        commandBuffer = [];
       }
 
       const action = combatActionForKeyCode(

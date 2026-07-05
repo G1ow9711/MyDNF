@@ -5,7 +5,14 @@ import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
 import { advanceClass, selectBaseClass } from "../systems/classes";
 import { saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
-import { combatActionForKeyCode, createAppModel, mountApp, reduceAppAction, renderAppHtml } from "../ui/app";
+import {
+  combatActionForCommandSequence,
+  combatActionForKeyCode,
+  createAppModel,
+  mountApp,
+  reduceAppAction,
+  renderAppHtml
+} from "../ui/app";
 
 class MemoryStorage implements SaveStorage {
   readonly data = new Map<string, string>();
@@ -385,6 +392,82 @@ describe("playable app integration actions", () => {
 
     expect(moved.combatRun?.player.x).toBeGreaterThan(beforeX);
     expect(renderAppHtml(moved)).toContain('data-player-facing="1"');
+  });
+
+  it("keeps repeated arrow key movement while excluding repeats from command buffering", () => {
+    const previousLocalStorage = globalThis.localStorage;
+    const previousAddEventListener = globalThis.addEventListener;
+    const previousRemoveEventListener = globalThis.removeEventListener;
+    const storage = new MemoryStorage();
+    const listeners = new Map<string, EventListener>();
+    let clickHandler: ((event: Event) => void) | undefined;
+    const root = {
+      innerHTML: "",
+      addEventListener(type: string, handler: EventListener): void {
+        if (type === "click") {
+          clickHandler = handler as (event: Event) => void;
+        }
+      }
+    } as unknown as HTMLDivElement;
+
+    saveGame(storage, withHeat(createInitialState(), 80));
+
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: storage
+    });
+    Object.defineProperty(globalThis, "addEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => listeners.set(type, handler)
+    });
+    Object.defineProperty(globalThis, "removeEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => {
+        if (listeners.get(type) === handler) {
+          listeners.delete(type);
+        }
+      }
+    });
+
+    try {
+      const cleanup = mountApp(root);
+      const enterButton = {
+        dataset: { enterDungeon: "cinder-kiln-alley" },
+        closest: () => enterButton
+      };
+      const keydown = listeners.get("keydown") as ((event: KeyboardEvent) => void) | undefined;
+      const makeEvent = (repeat: boolean) =>
+        ({
+          code: "ArrowRight",
+          repeat,
+          shiftKey: false,
+          preventDefault: () => undefined
+        }) as KeyboardEvent;
+
+      clickHandler?.({ target: enterButton } as unknown as Event);
+      keydown?.(makeEvent(false));
+      const firstX = Number(root.innerHTML.match(/--actor-x: ([0-9.]+)%/)?.[1] ?? 0);
+      keydown?.(makeEvent(true));
+      const repeatedX = Number(root.innerHTML.match(/--actor-x: ([0-9.]+)%/)?.[1] ?? 0);
+
+      expect(repeatedX).toBeGreaterThan(firstX);
+      expect(root.innerHTML).not.toContain('data-command-release-source="manual"');
+
+      cleanup();
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: previousLocalStorage
+      });
+      Object.defineProperty(globalThis, "addEventListener", {
+        configurable: true,
+        value: previousAddEventListener
+      });
+      Object.defineProperty(globalThis, "removeEventListener", {
+        configurable: true,
+        value: previousRemoveEventListener
+      });
+    }
   });
 
   it("renders the active objective tracker while inside a dungeon", () => {
@@ -789,6 +872,101 @@ describe("playable app integration actions", () => {
       action: "skill",
       skillId: "anvil-crash"
     });
+  });
+
+  it("maps DNF-style command input before falling back to heavy attack", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 24)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    expect(combatActionForKeyCode(model.state, "KeyZ", 24, false, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "heavy"
+    });
+    expect(combatActionForKeyCode(model.state, "KeyF", 24, false, model.combatRun)).toBeUndefined();
+    expect(combatActionForCommandSequence(model.state, ["ArrowDown", "ArrowRight", "KeyZ"], 24, model.combatRun)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "anvil-crash",
+      inputMethod: "command"
+    });
+
+    const cast = reduceAppAction(model, {
+      type: "combatAction",
+      action: "skill",
+      skillId: "anvil-crash",
+      inputMethod: "command"
+    });
+    const html = renderAppHtml(cast);
+
+    expect(cast.combatRun?.player.resource.current).toBe(2);
+    expect(cast.combatRun?.player.skillCooldowns["anvil-crash"]).toBe(4784);
+    expect(html).toContain('data-command-release-source="manual"');
+    expect(html).toContain('data-command-reduction-applied="true"');
+    expect(html).toContain('data-skill-release-source="manual"');
+
+    expect(combatActionForCommandSequence(cast.state, ["ArrowDown", "ArrowRight", "KeyZ"], 80, cast.combatRun)).toBeUndefined();
+  });
+
+  it("allows command skills to enter the action buffer when cooldown recovers before unlock", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 24)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const lockedRun: CombatRun = {
+      ...model.combatRun,
+      elapsedMs: 100,
+      player: {
+        ...model.combatRun.player,
+        actionLockUntilMs: 220,
+        skillCooldowns: {
+          ...model.combatRun.player.skillCooldowns,
+          "anvil-crash": 210
+        }
+      }
+    };
+
+    expect(combatActionForCommandSequence(model.state, ["ArrowDown", "ArrowRight", "KeyZ"], 24, lockedRun)).toBeUndefined();
+    expect(combatActionForCommandSequence(model.state, ["ArrowDown", "ArrowRight", "KeyZ"], 24, lockedRun, true)).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "anvil-crash",
+      inputMethod: "command"
+    });
+  });
+
+  it("renders manual release metadata for command-cast generic class skills", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 20)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    const cast = reduceAppAction(model, {
+      type: "combatAction",
+      action: "skill",
+      skillId: "ink-snare",
+      inputMethod: "command"
+    });
+    const html = renderAppHtml(cast);
+
+    expect(cast.combatRun?.player.resource.current).toBe(0);
+    expect(cast.combatRun?.player.skillCooldowns["ink-snare"]).toBe(4784);
+    expect(html).toContain('data-command-release-source="manual"');
+    expect(html).toContain('data-command-match-skill-id="ink-snare"');
+    expect(html).toContain('data-skill-release-source="manual"');
+    expect(html).toContain('data-player-skill-vfx="ink-snare"');
   });
 
   it("queues combat input during the action buffer window instead of skipping past the lock", () => {
@@ -3620,6 +3798,82 @@ describe("playable app integration actions", () => {
 
       cleanup();
       expect(listeners.has("keydown")).toBe(false);
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: previousLocalStorage
+      });
+      Object.defineProperty(globalThis, "addEventListener", {
+        configurable: true,
+        value: previousAddEventListener
+      });
+      Object.defineProperty(globalThis, "removeEventListener", {
+        configurable: true,
+        value: previousRemoveEventListener
+      });
+    }
+  });
+
+  it("mounts DNF-style command key sequences without turning the final Z into heavy attack", () => {
+    const previousLocalStorage = globalThis.localStorage;
+    const previousAddEventListener = globalThis.addEventListener;
+    const previousRemoveEventListener = globalThis.removeEventListener;
+    const storage = new MemoryStorage();
+    const listeners = new Map<string, EventListener>();
+    let clickHandler: ((event: Event) => void) | undefined;
+    const root = {
+      innerHTML: "",
+      addEventListener(type: string, handler: EventListener): void {
+        if (type === "click") {
+          clickHandler = handler as (event: Event) => void;
+        }
+      }
+    } as unknown as HTMLDivElement;
+
+    saveGame(storage, withHeat(createInitialState(), 24));
+
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: storage
+    });
+    Object.defineProperty(globalThis, "addEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => listeners.set(type, handler)
+    });
+    Object.defineProperty(globalThis, "removeEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => {
+        if (listeners.get(type) === handler) {
+          listeners.delete(type);
+        }
+      }
+    });
+
+    try {
+      const cleanup = mountApp(root);
+      const enterButton = {
+        dataset: { enterDungeon: "cinder-kiln-alley" },
+        closest: () => enterButton
+      };
+      const keydown = listeners.get("keydown") as ((event: KeyboardEvent) => void) | undefined;
+
+      clickHandler?.({ target: enterButton } as unknown as Event);
+
+      for (const code of ["ArrowDown", "ArrowRight", "KeyZ"]) {
+        keydown?.({
+          code,
+          repeat: false,
+          shiftKey: false,
+          preventDefault: () => undefined
+        } as KeyboardEvent);
+      }
+
+      expect(root.innerHTML).toContain('data-player-skill-vfx="anvil-crash"');
+      expect(root.innerHTML).toContain('data-command-release-source="manual"');
+      expect(root.innerHTML).toContain('data-skill-release-source="manual"');
+      expect(root.innerHTML).toContain("热能 2");
+
+      cleanup();
     } finally {
       Object.defineProperty(globalThis, "localStorage", {
         configurable: true,

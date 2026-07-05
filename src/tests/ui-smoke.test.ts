@@ -786,6 +786,53 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('.combat-player[data-player-skill-move="prism-step"]');
   });
 
+  it("defines dedicated furnace-step player, weapon, trail, and impact animations", () => {
+    const state = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        heat: 80
+      }
+    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 70 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "furnace-step" }
+    );
+    const [impactAtMs] = scheduledSkillTimes(castRun, "furnace-step");
+    const impactRun = stepToElapsed(castRun, impactAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: impactRun
+    });
+
+    expect(skillHitEvents(impactRun, "furnace-step")).toHaveLength(1);
+    expect(html).toContain('data-impact-vfx-shape="furnace-trail"');
+    expect(html).toContain('data-vfx-cue="furnace-shoulder-impact"');
+    expect(html).toContain('data-hit-phase="shoulder-impact"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-furnace-trail"');
+    expect(stylesCss).toContain('[data-skill-animation-preset="ember-shoulder"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="dash-burst"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-furnace-trail");
+    expect(stylesCss).toContain(".skill-impact-shape-furnace-trail");
+    expect(stylesCss).toContain("@keyframes player-ember-shoulder-rush");
+    expect(stylesCss).toContain("@keyframes weapon-dash-burst");
+    expect(stylesCss).toContain("@keyframes furnace-trail-cast-core");
+    expect(stylesCss).toContain("@keyframes furnace-shoulder-impact-core");
+  });
+
   it("defines dedicated flowing-light-chain player, weapon, cast, and impact animations", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const advancedState = advanceClass(

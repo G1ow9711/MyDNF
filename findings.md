@@ -357,3 +357,11 @@
 - Presentation note: the skill now has dedicated player motion, weapon chain-cut arc, flowing-chain cast field, and target-bound open/cross/finish impact cues so the model and VFX follow the action instead of appearing as static stickers.
 - Review follow-up: delayed player skill hits, active monster impact frames, and arena hazards must resolve from one timestamp-sorted queue. Otherwise a large `stepCombat()` frame can let later player skill hits mutate enemies before an earlier off-target monster impact interrupts the player.
 - Timing note: delayed skill scheduling should not prewrite future `hitstopUntilMs`; hitstop belongs to the actual impact frame so interrupted skills cannot leave stale screen-shake/hitstop state.
+
+## Furnace Step Shoulder Rush Findings
+- User clarified the current prototype tradeoff: character model fidelity can stay simple, but combat action smoothness, model-following attack movement, hit feel, skill VFX, and monster skill VFX remain strict.
+- Read-only combat audit found `furnace-step` was still the clearest Ember movement defect because it used immediate startup movement and generic skill hit resolution instead of a visible shoulder-rush timeline.
+- Read-only UI/CSS audit found the catalog already exposed `ember-shoulder`, `dash-burst`, and `furnace-trail`; the missing work was scheduled impact logic plus actual player, weapon, cast-trail, and target-impact CSS.
+- Implementation note: `furnace-step` now starts an active timed player movement at cast time, keeps cast-frame x unchanged, samples the player through the 170 ms rush window, schedules one path target hit at the shoulder impact frame, and cancels the pending hit when monster damage interrupts the rush.
+- Presentation note: `furnace-step` now carries `shoulder-impact` / `furnace-shoulder-impact` hit metadata and has dedicated player rush, weapon dash-burst, furnace-trail cast, and furnace shoulder-impact burst styling.
+- Review follow-up: path-based player skills still need directional target filtering and delayed whiff resolution. `furnace-step` now requires target centers to be in front of the player and schedules miss feedback for the 170 ms hit frame instead of writing a cast-frame miss event.

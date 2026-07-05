@@ -18,6 +18,7 @@ import {
   type CombatEnemyAttackEvent,
   type CombatEnemy,
   type CombatHitEvent,
+  type CombatMissEvent,
   type CombatPlayerHitEvent,
   type CombatRun
 } from "../game/combat";
@@ -105,6 +106,10 @@ function skillHitEvents(run: CombatRun, skillId: string): CombatHitEvent[] {
   return run.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === skillId);
 }
 
+function skillMissEvents(run: CombatRun, skillId: string): CombatMissEvent[] {
+  return run.events.filter((event): event is CombatMissEvent => event.kind === "miss" && event.skillId === skillId);
+}
+
 function scheduledSkillTimes(run: CombatRun, skillId: string): number[] {
   const times = run.scheduledEnemyHitEffects
     .filter((effect) => effect.skillId === skillId)
@@ -113,6 +118,19 @@ function scheduledSkillTimes(run: CombatRun, skillId: string): number[] {
 
   if (times.length === 0) {
     throw new Error(`Expected scheduled effects for ${skillId}`);
+  }
+
+  return [...new Set(times)];
+}
+
+function scheduledMissTimes(run: CombatRun, skillId: string): number[] {
+  const times = run.scheduledMissEffects
+    .filter((effect) => effect.skillId === skillId)
+    .map((effect) => effect.applyAtMs)
+    .sort((left, right) => left - right);
+
+  if (times.length === 0) {
+    throw new Error(`Expected scheduled misses for ${skillId}`);
   }
 
   return [...new Set(times)];
@@ -1044,14 +1062,123 @@ describe("combat actions and impact feel", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1 },
-      [{ x: 470, y: 340 }]
+      [{ x: 310, y: 340, hp: 180, maxHp: 180 }]
     );
 
-    const dashed = performAction(run, { type: "skill", skillId: "furnace-step" });
+    const cast = performAction(run, { type: "skill", skillId: "furnace-step" });
+    const [impactAtMs] = scheduledSkillTimes(cast, "furnace-step");
+    const beforeImpact = stepToElapsed(cast, impactAtMs - 1);
+    const impact = stepToElapsed(cast, impactAtMs);
+    const stepHits = skillHitEvents(impact, "furnace-step");
 
-    expect(dashed.player.x).toBeGreaterThan(run.player.x + 80);
-    expect(latestHitForSkill(dashed, "furnace-step").targetId).toBe(run.enemies[0].id);
-    expect(dashed.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("furnace-step");
+    expect(skillHitEvents(cast, "furnace-step")).toHaveLength(0);
+    expect(impactAtMs).toBe(170);
+    expect(beforeImpact.player.x).toBeGreaterThan(run.player.x);
+    expect(beforeImpact.player.x).toBeLessThan(run.player.x + 124);
+    expect(beforeImpact.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(stepHits).toHaveLength(1);
+    expect(stepHits[0]).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "shoulder-impact",
+      vfxCue: "furnace-shoulder-impact",
+      vfxWindowMs: 300
+    });
+    expect(stepHits[0].hitstopMs).toBeGreaterThan(50);
+    expect(impact.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("keeps furnace-step targeting in front of the player during the rush", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 220, y: 340, hp: 180, maxHp: 180 },
+        { x: 310, y: 340, hp: 180, maxHp: 180 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "furnace-step" });
+    const [impactAtMs] = scheduledSkillTimes(cast, "furnace-step");
+    const impact = stepToElapsed(cast, impactAtMs);
+    const [stepHit] = skillHitEvents(impact, "furnace-step");
+
+    expect(stepHit.targetId).toBe(run.enemies[1].id);
+    expect(impact.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(impact.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
+  it("delays furnace-step whiff feedback until the rush hit frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 110, y: 340, hp: 180, maxHp: 180 },
+        { x: 118, y: 380, hp: 180, maxHp: 180 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "furnace-step" });
+    const [missAtMs] = scheduledMissTimes(cast, "furnace-step");
+    const beforeMiss = stepToElapsed(cast, missAtMs - 1);
+    const missed = stepToElapsed(cast, missAtMs);
+
+    expect(skillHitEvents(cast, "furnace-step")).toHaveLength(0);
+    expect(skillMissEvents(cast, "furnace-step")).toHaveLength(0);
+    expect(missAtMs).toBe(170);
+    expect(beforeMiss.player.x).toBeGreaterThan(run.player.x);
+    expect(skillMissEvents(beforeMiss, "furnace-step")).toHaveLength(0);
+    expect(skillMissEvents(missed, "furnace-step")).toEqual([
+      expect.objectContaining({
+        occurredAtMs: 170,
+        inputToHitMs: 170,
+        action: "skill",
+        skillId: "furnace-step"
+      })
+    ]);
+  });
+
+  it("cancels furnace-step path impact when monster damage interrupts the rush", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 310, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "furnace-step" });
+    const [impactAtMs] = scheduledSkillTimes(cast, "furnace-step");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 82,
+            attackRecoverUntilMs: 360,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      impactAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 82
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(skillHitEvents(interrupted, "furnace-step")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "furnace-step")).toHaveLength(0);
   });
 
   it("pull skills gather enemies toward the skill center instead of knocking them away", () => {

@@ -117,6 +117,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current boss-phase progress: Taotie now enters phase 2 at half HP, interrupts its current cast, emits a phase-burst event, schedules three arena forge-collapse hazards, and resolves hazard hit/miss based on player position at the impact frame with dedicated VFX/feedback.
 - Remaining strict-DNF combat gaps: deeper scripts for remaining skills, broader class-specific animation timelines, enemy hurtbox tuning, broader target-bound VFX coverage, weapon atlas/frame animation beyond static SVG assets, stronger room-transition staging, and a formal save migration from `heat` alias to class-resource storage.
 - Remaining monster-pattern gap: boss tier now has alternating attacks plus first half-HP arena hazard, but still needs broader control, summon/minion pressure, and later multi-phase behavior variety.
+- Current player-combat priority: character models may remain lightweight while the playable loop is built, but player skill movement must be timed and model-following, with delayed hit frames, cancelable pending impacts, and dedicated skill/weapon/cast/target VFX.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

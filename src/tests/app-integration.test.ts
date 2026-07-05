@@ -1188,6 +1188,74 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(hitFrameHtml, 'data-skill-impact-vfx="prism-step"')).toBe(2);
   });
 
+  it("renders furnace-step as a timed shoulder rush with target-bound furnace impact", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 80)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 70 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "furnace-step" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after furnace-step");
+    }
+
+    const [impactAtMs] = scheduledSkillTimes(model.combatRun, "furnace-step");
+    const castHtml = renderAppHtml(model);
+    const beforeImpactRun = stepToElapsed(model.combatRun, impactAtMs - 1);
+    const beforeImpactHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeImpactRun
+    });
+    const impactRun = stepToElapsed(model.combatRun, impactAtMs);
+    const impactHtml = renderAppHtml({
+      ...model,
+      combatRun: impactRun
+    });
+
+    expect(model.combatRun.player.x).toBe(player.x);
+    expect(beforeImpactRun.player.x).toBeGreaterThan(player.x);
+    expect(skillHitEvents(impactRun, "furnace-step")).toHaveLength(1);
+    expect(castHtml).toContain('data-active-skill-id="furnace-step"');
+    expect(castHtml).toContain('data-skill-animation-preset="ember-shoulder"');
+    expect(castHtml).toContain('data-skill-weapon-arc="dash-burst"');
+    expect(castHtml).toContain('data-skill-vfx-shape="furnace-trail"');
+    expect(castHtml).toContain('data-player-skill-move="furnace-step"');
+    expect(beforeImpactHtml).not.toContain('data-skill-impact-vfx="furnace-step"');
+    expect(impactHtml).toContain('data-hit-phase="shoulder-impact"');
+    expect(impactHtml).toContain('data-vfx-cue="furnace-shoulder-impact"');
+    expect(impactHtml).toContain('class="skill-impact-burst skill-impact-shape-furnace-trail"');
+    expect(countOccurrences(impactHtml, 'data-skill-impact-vfx="furnace-step"')).toBe(1);
+  });
+
   it("renders flowing-light-chain as a three-stage advancement chain slash", () => {
     const advancedState = advanceClass(
       readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),

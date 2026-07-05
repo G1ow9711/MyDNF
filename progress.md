@@ -1764,3 +1764,28 @@
   - `npm test -- src/tests/combat.test.ts -t "flowing-light-chain|prism-step|arena hazards inside|enemy hit interrupts|taotie devour|forge collapse|mountain-crack-hammer|mechanism-shadow-net|night marks"`: pass, 20 tests.
   - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 180 tests.
   - Browser re-validation after the queue fix confirmed the same 220/340/470 ms chain stages, 6 final impacts, dedicated player/weapon/cast/impact animation names, and empty browser console error log.
+
+## Task 63 Furnace Step Shoulder Rush Timeline
+- Started after user clarified that simple character models are acceptable for now, but combat motion smoothness, model-following attacks, hit feel, skill effects, and monster skill effects must stay strict.
+- Used two read-only parallel agents:
+  - `019f31c8-a109-74c2-8714-d56891f2da0c` audited combat scripts and found many generic skills; it recommended `furnace-step` because it still teleported through startup movement.
+  - `019f31c8-cc2f-7be3-a3f1-1acd44bebd81` audited UI/CSS and found catalog metadata existed for `ember-shoulder`, `dash-burst`, and `furnace-trail`, but CSS lacked dedicated presentation.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `furnace-step` to keep cast-frame x unchanged, move through the 170 ms rush window, delay damage until impact, attach `shoulder-impact` / `furnace-shoulder-impact`, and cancel pending impact on monster interruption.
+  - `src/tests/app-integration.test.ts` requires reducer-rendered skill movement and target-bound furnace impact DOM metadata.
+  - `src/tests/ui-smoke.test.ts` requires dedicated player, weapon, cast-trail, and impact CSS keyframes.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "furnace-step|dash skills through"` failed before implementation because no scheduled effects existed for `furnace-step`.
+- Implemented:
+  - Added a custom `furnace-step` branch that starts timed player skill movement, selects one target along the rush path, schedules the shoulder impact at 170 ms, and relies on the existing timestamp-ordered interruption path to cancel pending hits.
+  - Added dedicated CSS for `player-ember-shoulder-rush`, `weapon-dash-burst`, furnace-trail cast VFX, and target-bound furnace shoulder-impact bursts.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "furnace-step|dash skills through"`: pass, 4 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/furnace-step-check.html`: pass. Confirmed cast x 240, pre-impact x 363.99, impact x 364, one 170 ms scheduled impact, no pre-hit target burst, one `shoulder-impact` / `furnace-shoulder-impact` target burst, player animation `player-ember-shoulder-rush`, weapon animation `weapon-dash-burst`, furnace cast animations, furnace impact animations, and empty browser console error log.
+  - Code review found two Important issues: behind-target path selection and cast-frame whiff feedback. Added regression tests and fixed both by front-center filtering plus scheduled miss effects resolved through the combat effect queue.
+  - `npm test -- src/tests/combat.test.ts -t "furnace-step targeting|furnace-step whiff|dash skills through"`: pass, 3 tests.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "furnace-step|dash skills through"`: pass, 6 tests.
+  - Browser re-validation on `http://127.0.0.1:5174/.codex-local/tmp/furnace-step-check.html`: pass, same runtime DOM/computed animation checks and empty browser console error log.
+  - Final `npm test`: pass, 13 files and 281 tests.
+  - Final `npm run build`: pass.
+  - Final `git diff --check`: pass with Windows line-ending warnings only.

@@ -25,6 +25,7 @@ export type CombatHitPhase =
   | "trap-snap"
   | "hammer-stagger"
   | "hammer-impact"
+  | "shoulder-impact"
   | "chain-open"
   | "chain-cross"
   | "chain-finish";
@@ -40,6 +41,7 @@ export type CombatVfxCue =
   | "mechanism-net-snap"
   | "mountain-hammer-stagger"
   | "mountain-crack-impact"
+  | "furnace-shoulder-impact"
   | "flowing-chain-open"
   | "flowing-chain-cross"
   | "flowing-chain-finish";
@@ -315,6 +317,7 @@ export interface CombatRun {
   events: CombatEvent[];
   lootEvents: CombatLootEvent[];
   scheduledEnemyHitEffects: CombatScheduledEnemyHitEffect[];
+  scheduledMissEffects: CombatScheduledMissEffect[];
   scheduledArenaHazards: CombatScheduledArenaHazard[];
   completed: boolean;
   failed: boolean;
@@ -363,6 +366,17 @@ export interface CombatScheduledEnemyHitEffect {
   hitPhase?: CombatHitPhase;
   vfxCue?: CombatVfxCue;
   vfxWindowMs?: number;
+}
+
+export interface CombatScheduledMissEffect {
+  id: string;
+  applyAtMs: number;
+  action: CombatMissEvent["action"];
+  skillId?: string;
+  inputToHitMs: number;
+  canceledFromCombo: boolean;
+  statusTags?: CombatSkillStatusTag[];
+  actionTags?: CombatActionTag[];
 }
 
 export interface CombatScheduledArenaHazard {
@@ -581,6 +595,7 @@ function cancelScheduledEnemyHitEffectsForSkill(run: CombatRun, skillId: string)
   return {
     ...run,
     scheduledEnemyHitEffects: (run.scheduledEnemyHitEffects ?? []).filter((effect) => effect.skillId !== skillId),
+    scheduledMissEffects: (run.scheduledMissEffects ?? []).filter((effect) => effect.skillId !== skillId),
     player: {
       ...run.player,
       hitstopUntilMs: Math.min(run.player.hitstopUntilMs, run.elapsedMs)
@@ -734,6 +749,7 @@ function clearPendingCombatEffectsIfFailed(run: CombatRun): CombatRun {
   return {
     ...run,
     scheduledEnemyHitEffects: [],
+    scheduledMissEffects: [],
     scheduledArenaHazards: []
   };
 }
@@ -1574,6 +1590,81 @@ function selectPrismStepTargets(run: CombatRun, scriptedRun: CombatRun, skill: C
     .slice(0, 2);
 }
 
+function selectFurnaceStepTargets(run: CombatRun, endPosition: CombatVector, skill: ClassSkillDefinition): CombatEnemy[] {
+  const startX = run.player.x;
+  const endX = endPosition.x;
+  const minX = Math.min(startX, endX) - 30;
+  const maxX = Math.max(startX, endX) + 34;
+  const laneRange = Math.max(46, skillLaneRange(skill.tags));
+
+  return run.enemies
+    .filter((enemy) => {
+      if (enemy.hp <= 0) {
+        return false;
+      }
+
+      const enemyMinX = enemy.position.x - enemy.hurtbox.width / 2;
+      const enemyMaxX = enemy.position.x + enemy.hurtbox.width / 2;
+      const yDistance = axisDistanceOutsideHalfSize(enemy.position.y - run.player.y, enemy.hurtbox.height / 2);
+      const centerInFront = (enemy.position.x - run.player.x) * run.player.facing >= 0;
+
+      return centerInFront && enemyMaxX >= minX && enemyMinX <= maxX && yDistance <= laneRange;
+    })
+    .sort((left, right) => (left.position.x - right.position.x) * run.player.facing)
+    .slice(0, 1);
+}
+
+function applyFurnaceStep(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x + skillMovementDistance(skill) * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+  const targetingHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: Math.max(150, skillRangeX(skill.tags)),
+    laneRange: Math.max(46, skillLaneRange(skill.tags)),
+    targetCap: 1,
+    frontOnly: true,
+    damage: skillDamage(run, skill),
+    hitstopMs: 64,
+    knockback: 58,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    statusTags: ["stagger"]
+  };
+  const targets = selectFurnaceStepTargets(run, endPosition, skill);
+
+  if (targets.length === 0) {
+    return scheduleMissEffect(movingRun, targetingHitbox);
+  }
+
+  return targets.reduce((nextRun, target) => {
+    return scheduleEnemyHitEffect(nextRun, {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-shoulder-impact-${target.id}`,
+      targetId: target.id,
+      damage: Math.max(1, Math.round(skillDamage(run, skill) * 1.04)),
+      hitstopMs: 64,
+      knockback: 58,
+      juggle: false,
+      action: "skill",
+      skillId: skill.id,
+      inputToHitMs: skill.animation.hitFrameMs,
+      canceledFromCombo,
+      statusTags: ["stagger"],
+      hitPhase: "shoulder-impact",
+      vfxCue: "furnace-shoulder-impact",
+      vfxWindowMs: 300
+    });
+  }, movingRun);
+}
+
 function applyPrismStep(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const scriptedRun = applySkillStartupMovement(run, skill);
   const movingRun = appendSkillCastEvent(startPlayerSkillMovement(run, skill, scriptedRun.player), skill, canceledFromCombo);
@@ -2198,6 +2289,7 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
     events: [],
     lootEvents: [],
     scheduledEnemyHitEffects: [],
+    scheduledMissEffects: [],
     scheduledArenaHazards: [],
     completed: false,
     failed: false
@@ -2669,6 +2761,7 @@ function advanceEnemyAttacks(run: CombatRun): CombatRun {
       player,
       enemies,
       scheduledEnemyHitEffects: run.scheduledEnemyHitEffects.filter((effect) => !effect.skillId || !canceledSkillIds.has(effect.skillId)),
+      scheduledMissEffects: run.scheduledMissEffects.filter((effect) => !effect.skillId || !canceledSkillIds.has(effect.skillId)),
       events: [...run.events, ...events],
       failed
       },
@@ -2835,6 +2928,24 @@ function scheduleEnemyHitEffect(run: CombatRun, hit: HitDefinition): CombatRun {
   };
 }
 
+function scheduleMissEffect(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatRun {
+  const effect: CombatScheduledMissEffect = {
+    id: `miss-${run.elapsedMs}-${hitbox.action}${hitbox.skillId ? `-${hitbox.skillId}` : ""}`,
+    applyAtMs: run.elapsedMs + hitbox.inputToHitMs,
+    action: hitbox.action,
+    skillId: hitbox.skillId,
+    inputToHitMs: hitbox.inputToHitMs,
+    canceledFromCombo: hitbox.canceledFromCombo,
+    statusTags: hitbox.statusTags,
+    actionTags: hitbox.actionTags
+  };
+
+  return {
+    ...run,
+    scheduledMissEffects: [...(run.scheduledMissEffects ?? []), effect]
+  };
+}
+
 function applyScheduledEnemyHitEffect(
   run: CombatRun,
   effect: CombatScheduledEnemyHitEffect,
@@ -2965,6 +3076,27 @@ function applyScheduledEnemyHitEffect(
   );
 }
 
+function applyScheduledMissEffect(run: CombatRun, effect: CombatScheduledMissEffect): CombatRun {
+  const event: CombatMissEvent = {
+    kind: "miss",
+    id: effect.id,
+    action: effect.action,
+    skillId: effect.skillId,
+    occurredAtMs: effect.applyAtMs,
+    inputToHitMs: effect.inputToHitMs,
+    canceledFromCombo: effect.canceledFromCombo,
+    statusTags: effect.statusTags,
+    actionTags: effect.actionTags
+  };
+
+  return {
+    ...run,
+    comboCount: 0,
+    comboExpiresAtMs: 0,
+    events: [...run.events, event]
+  };
+}
+
 function resolveTargetEnemyImpactsBeforeScheduledEffect(
   run: CombatRun,
   effect: CombatScheduledEnemyHitEffect
@@ -3008,6 +3140,7 @@ function resolveScheduledEnemyHitEffects(run: CombatRun): CombatRun {
 
 type ScheduledCombatEffectItem =
   | { kind: "enemy-hit"; effect: CombatScheduledEnemyHitEffect; occurredAtMs: number }
+  | { kind: "player-miss"; effect: CombatScheduledMissEffect; occurredAtMs: number }
   | { kind: "enemy-impact"; enemyId: string; occurredAtMs: number }
   | { kind: "arena-hazard"; hazard: CombatScheduledArenaHazard; occurredAtMs: number };
 
@@ -3047,10 +3180,13 @@ function uncanceledMovementSample(
 function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovementSample): CombatRun {
   const dueEnemyEffects = (run.scheduledEnemyHitEffects ?? []).filter((effect) => effect.applyAtMs <= run.elapsedMs);
   const pendingEnemyEffects = (run.scheduledEnemyHitEffects ?? []).filter((effect) => effect.applyAtMs > run.elapsedMs);
+  const dueMissEffects = (run.scheduledMissEffects ?? []).filter((effect) => effect.applyAtMs <= run.elapsedMs);
+  const pendingMissEffects = (run.scheduledMissEffects ?? []).filter((effect) => effect.applyAtMs > run.elapsedMs);
   const dueArenaHazards = (run.scheduledArenaHazards ?? []).filter((hazard) => hazard.impactAtMs <= run.elapsedMs);
   const pendingArenaHazards = (run.scheduledArenaHazards ?? []).filter((hazard) => hazard.impactAtMs > run.elapsedMs);
   const queue: ScheduledCombatEffectItem[] = [
     ...dueEnemyEffects.map((effect) => ({ kind: "enemy-hit" as const, effect, occurredAtMs: effect.applyAtMs })),
+    ...dueMissEffects.map((effect) => ({ kind: "player-miss" as const, effect, occurredAtMs: effect.applyAtMs })),
     ...dueEnemyImpactItems(run),
     ...dueArenaHazards.map((hazard) => ({ kind: "arena-hazard" as const, hazard, occurredAtMs: hazard.impactAtMs }))
   ].sort((left, right) => {
@@ -3075,6 +3211,7 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
   let nextRun: CombatRun = {
     ...run,
     scheduledEnemyHitEffects: pendingEnemyEffects,
+    scheduledMissEffects: pendingMissEffects,
     scheduledArenaHazards: pendingArenaHazards
   };
   const canceledSkillIds = new Set<string>();
@@ -3100,6 +3237,15 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
         nextRun = cancelScheduledEnemyHitEffectsForSkill(nextRun, interruptedSkillId);
       }
 
+      continue;
+    }
+
+    if (item.kind === "player-miss") {
+      if (item.effect.skillId && canceledSkillIds.has(item.effect.skillId)) {
+        continue;
+      }
+
+      nextRun = applyScheduledMissEffect(nextRun, item.effect);
       continue;
     }
 
@@ -3495,6 +3641,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     return completeSkillAction(run, applyLiuliRain(run, skill, canceledFromCombo), skill, statusTags);
   }
 
+  if (skill.id === "furnace-step") {
+    return completeSkillAction(run, applyFurnaceStep(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
   if (skill.id === "prism-step") {
     return completeSkillAction(run, applyPrismStep(run, skill, canceledFromCombo), skill, statusTags);
   }
@@ -3652,6 +3802,7 @@ export function finishRoom(run: CombatRun): CombatRun {
     events: [clearedEvent],
     lootEvents: [...run.lootEvents, lootEvent],
     scheduledEnemyHitEffects: [],
+    scheduledMissEffects: [],
     scheduledArenaHazards: [],
     completed
   };

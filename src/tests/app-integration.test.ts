@@ -1405,6 +1405,135 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(shotHtml, 'data-skill-impact-vfx="shadow-roll"')).toBe(1);
   });
 
+  it("renders ink-shot as a delayed crossbow bolt with dedicated impact metadata", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: selectBaseClass(createInitialState(), "ink-shadow-ranger")
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 280 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "ink-shot" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after ink-shot");
+    }
+
+    const [boltAtMs] = scheduledSkillTimes(model.combatRun, "ink-shot");
+    const castHtml = renderAppHtml(model);
+    const beforeBoltHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, boltAtMs - 1)
+    });
+    const hitRun = stepToElapsed(model.combatRun, boltAtMs);
+    const hitHtml = renderAppHtml({
+      ...model,
+      combatRun: hitRun
+    });
+
+    expect(model.combatRun.player.x).toBe(player.x);
+    expect(skillHitEvents(model.combatRun, "ink-shot")).toHaveLength(0);
+    expect(castHtml).toContain('data-active-skill-id="ink-shot"');
+    expect(castHtml).toContain('data-skill-animation-preset="ink-shot"');
+    expect(castHtml).toContain('data-skill-weapon-arc="crossbow-shot"');
+    expect(castHtml).toContain('data-skill-vfx-shape="ink-bolt"');
+    expect(castHtml).toContain('data-player-skill-move="ink-shot"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-ink-shot skill-vfx-shape-ink-bolt"');
+    expect(beforeBoltHtml).not.toContain('data-skill-impact-vfx="ink-shot"');
+    expect(skillHitEvents(hitRun, "ink-shot")).toHaveLength(1);
+    expect(hitHtml).toContain('data-hit-phase="ink-bolt"');
+    expect(hitHtml).toContain('data-vfx-cue="ink-shot-pierce"');
+    expect(hitHtml).toContain('data-impact-vfx-shape="ink-bolt"');
+    expect(hitHtml).toContain('class="skill-impact-burst skill-impact-shape-ink-bolt"');
+    expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="ink-shot"')).toBe(1);
+  });
+
+  it("keeps ink-shot bolt VFX anchored to the cast origin after the player moves", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: selectBaseClass(createInitialState(), "ink-shadow-ranger")
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 280 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "ink-shot" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after ink-shot");
+    }
+
+    const [boltAtMs] = scheduledSkillTimes(model.combatRun, "ink-shot");
+    const hitRun = stepToElapsed(model.combatRun, boltAtMs);
+    const driftedHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...hitRun,
+        elapsedMs: boltAtMs + 90,
+        player: {
+          ...hitRun.player,
+          x: 420
+        }
+      }
+    });
+    const driftedStyle = playerSkillVfxStyleFor(driftedHtml, "ink-shot");
+
+    expect(driftedHtml).toContain('data-player-skill-vfx="ink-shot"');
+    expect(driftedStyle).toContain("--actor-x: 38.33%");
+    expect(driftedStyle).not.toContain("--actor-x: 57.08%");
+  });
+
   it("renders heat-bloom as a delayed pull and eruption field", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

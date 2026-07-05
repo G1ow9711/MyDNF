@@ -1891,3 +1891,26 @@
   - Added RED app integration coverage for the cast flame-column `--actor-x` anchor and fixed `playerSkillVfxStyle()` to anchor `cinder-uppercut` at the 64 px uppercut endpoint.
   - Added dynamic hit-frame regressions for target moving out before 180 ms and target moving in before 180 ms.
   - Focused review regressions passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "cinder-uppercut"`, 8 tests.
+
+## Task 68 Ink Shot Projectile Timeline
+- Started from the user's latest clarification: character and monster models may stay simpler while the full playable loop is connected, but fighting flow, action smoothness, model-following motion, hit frames, hit feedback, skill effects, and monster skill effects remain strict.
+- Used parallel read-only agent input:
+  - `019f323b-a1c0-75b3-931e-b3965c946a05` audited combat scripts and recommended `ink-shot` as the next starter-ranged strict projectile slice.
+  - `019f323b-b5d9-7af1-b2cd-84c48dacfc95` audited UI/CSS and confirmed catalog metadata existed but dedicated runtime and animation verification was missing.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires no cast-frame damage, a 120 ms delayed projectile hit, dynamic moved-out/moved-in target recheck, rushing-monster sampling before target selection, and interruption cancellation.
+  - `src/tests/app-integration.test.ts` requires reducer-rendered `ink-shot` metadata, no pre-hit target impact, `ink-bolt` / `ink-shot-pierce` impact DOM, and stable cast-origin VFX anchoring after player drift.
+  - `src/tests/ui-smoke.test.ts` requires dedicated player, crossbow weapon, projectile cast, and pierce impact CSS hooks/keyframes.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "ink-shot"` failed before implementation because no scheduled effects existed for `ink-shot` and CSS lacked ink-bolt presentation.
+- Implemented:
+  - Added `applyInkShot()` with stationary cancelable cast movement, 120 ms dynamic front hitbox, single-target lane selection, `ink-bolt` hit phase, `ink-shot-pierce` VFX cue, and interruption-safe scheduled effect cancellation.
+  - Added dedicated CSS for `player-ink-shot`, `weapon-crossbow-shot`, `ink-bolt` cast VFX, and `ink-shot-pierce` target impacts.
+- Code review follow-up:
+  - Read-only review found two Important issues: delayed projectile target selection did not sample live enemy rush movement, and front anchored VFX could drift from the original caster position.
+  - Added RED regressions for a rushing enemy entering the lane before 120 ms and for VFX anchor drift after player position changes.
+  - Fixed scheduled target selection by sampling rushing enemy movement at the projectile impact frame, and fixed `playerSkillVfxStyle()` to anchor `ink-shot` from caster position.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "ink-shot"`, 8 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 217 tests.
+  - Browser DOM/computed-style validation confirmed cast/pre-hit/hit/drift stages, 120 ms scheduled impact, no pre-hit impact, one `ink-bolt` / `ink-shot-pierce` target burst, stable `--actor-x` after player drift, actual player/weapon/cast/impact animation names, and empty browser console error log. Temporary check page was deleted.

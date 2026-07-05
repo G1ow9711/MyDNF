@@ -124,6 +124,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current shadow-roll progress: `shadow-roll` now uses backward timed player movement, a 160 ms dynamic endpoint roll-shot hit/miss frame, cancelable pending impact, hit-frame target recheck, monster-miss-safe movement continuation, and dedicated `ink-roll` / `roll-shot` / `shadow-smoke` player, weapon, cast, and target-impact VFX.
 - Current cinder-uppercut progress: `cinder-uppercut` now has a strict 180 ms forward rising launcher timeline, dynamic hit-frame hitbox, delayed whiff feedback, monster-interruption cancellation, combo-cancel metadata, airborne target reaction, and dedicated flame-column cast/impact VFX.
 - Current combat-fidelity priority: character and monster models may stay lighter while the full loop is connected, but smooth model-following attacks, strict hit frames, cancelable delayed effects, target action changes, skill VFX, and monster skill VFX remain hard acceptance criteria.
+- Current Ink starter progress: `ink-shot` now uses a strict 120 ms delayed projectile timeline, stationary cancelable cast state, live dynamic target recheck, rushing-monster sampling before hit selection, single-target piercing impact metadata, cast-origin anchored bolt VFX, and dedicated player/weapon/cast/target animations.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

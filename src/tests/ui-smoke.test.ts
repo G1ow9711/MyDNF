@@ -591,6 +591,58 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes cinder-uppercut-rise-core");
   });
 
+  it("renders ink-shot with a delayed bolt cast and dedicated crossbow impact styling", () => {
+    const state = selectBaseClass(createInitialState(), "ink-shadow-ranger");
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 280 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "ink-shot" }
+    );
+    const [boltAtMs] = scheduledSkillTimes(castRun, "ink-shot");
+    const beforeBoltHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, boltAtMs - 1)
+    });
+    const hitRun = stepToElapsed(castRun, boltAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: hitRun
+    });
+
+    expect(skillHitEvents(castRun, "ink-shot")).toHaveLength(0);
+    expect(beforeBoltHtml).toContain('data-player-skill-move="ink-shot"');
+    expect(beforeBoltHtml).not.toContain('data-skill-impact-vfx="ink-shot"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="ink-shot"')).toBe(1);
+    expect(html).toContain('data-impact-vfx-shape="ink-bolt"');
+    expect(html).toContain('data-vfx-cue="ink-shot-pierce"');
+    expect(html).toContain('data-hit-phase="ink-bolt"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-ink-bolt"');
+  });
+
+  it("defines dedicated ink-shot player, crossbow, bolt, and impact animations", () => {
+    expect(stylesCss).toContain('[data-skill-animation-preset="ink-shot"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="crossbow-shot"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-ink-bolt");
+    expect(stylesCss).toContain(".skill-impact-shape-ink-bolt");
+    expect(stylesCss).toContain("@keyframes player-ink-shot");
+    expect(stylesCss).toContain("@keyframes weapon-crossbow-shot");
+    expect(stylesCss).toContain("@keyframes ink-bolt-cast-core");
+    expect(stylesCss).toContain("@keyframes ink-shot-pierce-core");
+  });
+
   it("renders liuli-rain as staggered glass-rain impact waves", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const state = {

@@ -398,3 +398,10 @@
 - Implementation note: `cinder-uppercut` now starts a forward timed skill movement, schedules a dynamic 180 ms hitbox, delays whiff feedback to the hit frame, cancels cleanly when monster damage lands first, and preserves combo-cancel metadata from a light hit.
 - Presentation note: browser validation confirmed cast x 25.00% with no impact, 179 ms x 31.67% with no impact, 180 ms one `uppercut` / `cinder-uppercut-rise` impact, enemy airborne state, player animation `player-ember-uppercut`, weapon animation `weapon-uppercut-arc`, cast animation `flame-column-cast-core`, impact animation `cinder-uppercut-rise-core`, and empty browser warning/error log.
 - Review follow-up: cast flame-column VFX now anchors at the 64 px uppercut endpoint instead of falling through to the generic 128 px front anchor, and tests cover target moving out/in before the 180 ms dynamic hit frame.
+
+## Ink Shot Projectile Timeline Findings
+- Latest user clarification keeps character/monster geometry simple for now, but treats combat action smoothness, model-following motion, strict hit frames, hit feedback, skill VFX, and monster skill VFX as hard acceptance criteria.
+- Parallel read-only audits selected `ink-shot` because it is the Ink Shadow Ranger starter ranged skill and still needed a real projectile timing slice instead of generic instant skill behavior.
+- RED evidence: focused combat/app/UI tests failed because `ink-shot` had no scheduled projectile hit, no 120 ms delayed target recheck, no interruption cancellation, and no dedicated `ink-bolt` / `ink-shot-pierce` presentation.
+- Implementation note: `ink-shot` now starts a stationary cancelable cast, schedules a 120 ms dynamic front hitbox, samples live enemy rush movement before target selection, hits one target in the projectile lane, and cancels cleanly if monster damage interrupts before impact.
+- Presentation note: the skill now carries `ink-bolt` / `ink-shot-pierce` metadata, uses cast-origin anchored front VFX so the bolt does not drift after later player movement, and has dedicated player, crossbow weapon, projectile cast, and pierce impact animations.

@@ -778,6 +778,10 @@ function playerSkillVfxStyle(
     return `${combatActorStyle(run, origin.x + 64 * facing, origin.y)}${durationStyle}`;
   }
 
+  if (skillId === "ink-shot") {
+    return `${combatActorStyle(run, origin.x + 128 * facing, origin.y)}${durationStyle}`;
+  }
+
   if (animation?.vfxAnchor === "self") {
     return `${combatActorStyle(run, run.player.x, run.player.y)}${durationStyle}`;
   }

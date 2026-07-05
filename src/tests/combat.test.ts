@@ -1444,6 +1444,186 @@ describe("combat actions and impact feel", () => {
     expect(uppercutHit.comboCount).toBeGreaterThan(1);
   });
 
+  it("fires ink-shot as a delayed ranged projectile instead of cast-frame damage", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 520, y: 340, hp: 180, maxHp: 180 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "ink-shot" });
+    const [boltAtMs] = scheduledSkillTimes(cast, "ink-shot");
+    const beforeBolt = stepToElapsed(cast, boltAtMs - 1);
+    const hit = stepToElapsed(cast, boltAtMs);
+    const [boltHit] = skillHitEvents(hit, "ink-shot");
+
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("ink-shot");
+    expect(skillHitEvents(cast, "ink-shot")).toHaveLength(0);
+    expect(boltAtMs).toBe(120);
+    expect(beforeBolt.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(skillHitEvents(beforeBolt, "ink-shot")).toHaveLength(0);
+    expect(boltHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "ink-bolt",
+      vfxCue: "ink-shot-pierce",
+      vfxWindowMs: 260
+    });
+    expect(hit.player.activeSkillMovement).toBeUndefined();
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("rechecks ink-shot targets when the bolt reaches the hit frame", () => {
+    const inRangeRun = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 520, y: 340, hp: 180, maxHp: 180 },
+        { x: 760, y: 500, hp: 180, maxHp: 180 }
+      ]
+    );
+    const castWithTarget = performAction(inRangeRun, { type: "skill", skillId: "ink-shot" });
+    const [boltAtMs] = scheduledSkillTimes(castWithTarget, "ink-shot");
+    const movedOutBeforeBolt = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: castWithTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 760, y: 500 }
+              }
+            : enemy
+        )
+      },
+      boltAtMs
+    );
+
+    expect(skillHitEvents(movedOutBeforeBolt, "ink-shot")).toHaveLength(0);
+    expect(skillMissEvents(movedOutBeforeBolt, "ink-shot")).toHaveLength(1);
+    expect(movedOutBeforeBolt.enemies[0].hp).toBe(inRangeRun.enemies[0].hp);
+
+    const outOfRangeRun = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 760, y: 500, hp: 180, maxHp: 180 },
+        { x: 820, y: 500, hp: 180, maxHp: 180 }
+      ]
+    );
+    const castWithoutTarget = performAction(outOfRangeRun, { type: "skill", skillId: "ink-shot" });
+    const [lateBoltAtMs] = scheduledSkillTimes(castWithoutTarget, "ink-shot");
+    const movedInBeforeBolt = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: castWithoutTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 520, y: 340 }
+              }
+            : enemy
+        )
+      },
+      lateBoltAtMs
+    );
+    const [lateHit] = skillHitEvents(movedInBeforeBolt, "ink-shot");
+
+    expect(lateHit).toMatchObject({
+      targetId: outOfRangeRun.enemies[0].id,
+      hitPhase: "ink-bolt",
+      vfxCue: "ink-shot-pierce"
+    });
+    expect(skillMissEvents(movedInBeforeBolt, "ink-shot")).toHaveLength(0);
+    expect(movedInBeforeBolt.enemies[0].hp).toBeLessThan(outOfRangeRun.enemies[0].hp);
+  });
+
+  it("samples rushing monster positions before resolving ink-shot projectile targets", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 700, y: 340, hp: 180, maxHp: 180 },
+        { x: 820, y: 500, hp: 180, maxHp: 180 }
+      ]
+    );
+    const rushingRun: CombatRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackSkillId: "ash-crawler-burst",
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 200,
+              attackRecoverUntilMs: 420,
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              attackRushStartPosition: { x: 700, y: 340 },
+              attackRushTargetPosition: { x: 520, y: 340 }
+            }
+          : enemy
+      )
+    };
+
+    const cast = performAction(rushingRun, { type: "skill", skillId: "ink-shot" });
+    const [boltAtMs] = scheduledSkillTimes(cast, "ink-shot");
+    const hit = stepToElapsed(cast, boltAtMs);
+    const [boltHit] = skillHitEvents(hit, "ink-shot");
+
+    expect(boltAtMs).toBe(120);
+    expect(boltHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "ink-bolt",
+      vfxCue: "ink-shot-pierce"
+    });
+    expect(hit.enemies[0].position.x).toBeLessThan(700);
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(skillMissEvents(hit, "ink-shot")).toHaveLength(0);
+  });
+
+  it("cancels ink-shot projectile when monster damage interrupts the shot windup", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 300, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "ink-shot" });
+    const [boltAtMs] = scheduledSkillTimes(cast, "ink-shot");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 80,
+            attackRecoverUntilMs: 300,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      boltAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 80
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(skillHitEvents(interrupted, "ink-shot")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "ink-shot")).toHaveLength(0);
+  });
+
   it("moves shadow-roll backward before firing the roll-shot hit frame", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),

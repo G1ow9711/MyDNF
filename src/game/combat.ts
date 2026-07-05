@@ -30,6 +30,7 @@ export type CombatHitPhase =
   | "heat-eruption"
   | "overdrive-pulse"
   | "overdrive-release"
+  | "ink-bolt"
   | "roll-shot"
   | "uppercut"
   | "chain-open"
@@ -52,6 +53,7 @@ export type CombatVfxCue =
   | "heat-bloom-eruption"
   | "overdrive-core-pulse"
   | "overdrive-core-release"
+  | "ink-shot-pierce"
   | "shadow-roll-shot"
   | "cinder-uppercut-rise"
   | "flowing-chain-open"
@@ -1775,6 +1777,47 @@ function applyShadowRoll(run: CombatRun, skill: ClassSkillDefinition, canceledFr
   });
 }
 
+function inkShotHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: skillRangeX(skill.tags),
+    laneRange: 56,
+    targetCap: 1,
+    frontOnly: true,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.9)),
+    hitstopMs: 48,
+    knockback: 28,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    statusTags: ["stagger"]
+  };
+}
+
+function applyInkShot(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const castingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(
+      run,
+      skill,
+      {
+        x: run.player.x,
+        y: run.player.y
+      },
+      run.elapsedMs + skill.animation.hitFrameMs
+    ),
+    skill,
+    canceledFromCombo
+  );
+
+  return schedulePlayerHitboxEffect(castingRun, inkShotHitbox(run, skill, canceledFromCombo), run.player, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-ink-bolt`,
+    hitPhase: "ink-bolt",
+    vfxCue: "ink-shot-pierce",
+    vfxWindowMs: 260
+  });
+}
+
 const heatBloomDrawDelayMs = 240;
 const heatBloomEruptionDelayMs = 390;
 
@@ -3363,8 +3406,12 @@ function applyScheduledPlayerHitboxEffect(
     return run;
   }
 
-  const targetingRun: CombatRun = {
+  const sampledRun: CombatRun = {
     ...run,
+    enemies: run.enemies.map((enemy) => advanceEnemyRushMovement(enemy, effect.applyAtMs))
+  };
+  const targetingRun: CombatRun = {
+    ...sampledRun,
     elapsedMs: effect.applyAtMs,
     player: {
       ...run.player,
@@ -3376,7 +3423,7 @@ function applyScheduledPlayerHitboxEffect(
   const targets = selectPlayerTargets(targetingRun, hitbox);
 
   if (targets.length === 0) {
-    return applyScheduledMissEffect(run, {
+    return applyScheduledMissEffect(sampledRun, {
       id: `miss-${effect.id}`,
       applyAtMs: effect.applyAtMs,
       action: hitbox.action,
@@ -3402,7 +3449,7 @@ function applyScheduledPlayerHitboxEffect(
     };
 
     return applyScheduledEnemyHitEffect(nextRun, fixedEffect, activeMovementSkillId);
-  }, run);
+  }, sampledRun);
 }
 
 function applyScheduledEnemyHitEffect(
@@ -4140,6 +4187,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "shadow-roll") {
     return completeSkillAction(run, applyShadowRoll(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "ink-shot") {
+    return completeSkillAction(run, applyInkShot(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "heat-bloom") {

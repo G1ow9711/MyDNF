@@ -786,6 +786,62 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('.combat-player[data-player-skill-move="prism-step"]');
   });
 
+  it("defines dedicated flowing-light-chain player, weapon, cast, and impact animations", () => {
+    const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
+    const advancedState = advanceClass(
+      {
+        ...liuliState,
+        player: {
+          ...liuliState.player,
+          level: 15,
+          heat: 100,
+          quests: {
+            ...liuliState.player.quests,
+            "prologue-ember-warden": "completed"
+          }
+        }
+      },
+      "flowing-light-swordmaster"
+    );
+    const baseRun = createCombatRun(advancedState, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 54 + index * 68, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "flowing-light-chain" }
+    );
+    const [, , finishAtMs] = scheduledSkillTimes(castRun, "flowing-light-chain");
+    const finishRun = stepToElapsed(castRun, finishAtMs);
+    const html = renderAppHtml({
+      state: advancedState,
+      mode: "combat",
+      combatRun: finishRun
+    });
+
+    expect(skillHitEvents(finishRun, "flowing-light-chain")).toHaveLength(6);
+    expect(html).toContain('data-impact-vfx-shape="flowing-chain"');
+    expect(html).toContain('data-vfx-cue="flowing-chain-finish"');
+    expect(html).toContain('data-hit-phase="chain-finish"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-flowing-chain"');
+    expect(stylesCss).toContain('[data-skill-animation-preset="liuli-light-chain"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="chain-cut"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-flowing-chain");
+    expect(stylesCss).toContain(".skill-impact-shape-flowing-chain");
+    expect(stylesCss).toContain("@keyframes player-liuli-light-chain-cast");
+    expect(stylesCss).toContain("@keyframes weapon-chain-cut");
+    expect(stylesCss).toContain("@keyframes flowing-chain-cast-core");
+    expect(stylesCss).toContain("@keyframes flowing-chain-impact-core");
+  });
+
   it("renders meteor-knuckle with ultimate impact VFX instead of generic skill feedback", () => {
     const state = {
       ...createInitialState(),

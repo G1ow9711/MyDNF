@@ -24,7 +24,10 @@ export type CombatHitPhase =
   | "trap-bind"
   | "trap-snap"
   | "hammer-stagger"
-  | "hammer-impact";
+  | "hammer-impact"
+  | "chain-open"
+  | "chain-cross"
+  | "chain-finish";
 export type CombatVfxCue =
   | "meteor-fall"
   | "meteor-impact"
@@ -36,7 +39,10 @@ export type CombatVfxCue =
   | "mechanism-net-bind"
   | "mechanism-net-snap"
   | "mountain-hammer-stagger"
-  | "mountain-crack-impact";
+  | "mountain-crack-impact"
+  | "flowing-chain-open"
+  | "flowing-chain-cross"
+  | "flowing-chain-finish";
 export type CombatEnemyVfxCue =
   | "ash-ember-spit-impact"
   | "ash-crawler-burst-explode"
@@ -574,7 +580,11 @@ function skillMovementIdAt(movement: CombatMovementSample | undefined, elapsedMs
 function cancelScheduledEnemyHitEffectsForSkill(run: CombatRun, skillId: string): CombatRun {
   return {
     ...run,
-    scheduledEnemyHitEffects: (run.scheduledEnemyHitEffects ?? []).filter((effect) => effect.skillId !== skillId)
+    scheduledEnemyHitEffects: (run.scheduledEnemyHitEffects ?? []).filter((effect) => effect.skillId !== skillId),
+    player: {
+      ...run.player,
+      hitstopUntilMs: Math.min(run.player.hitstopUntilMs, run.elapsedMs)
+    }
   };
 }
 
@@ -1333,7 +1343,7 @@ function applySkillStartupMovement(run: CombatRun, skill: ClassSkillDefinition):
   };
 }
 
-function startPlayerSkillMovement(run: CombatRun, skill: ClassSkillDefinition, endPosition: CombatVector): CombatRun {
+function startPlayerSkillMovement(run: CombatRun, skill: ClassSkillDefinition, endPosition: CombatVector, endAtMs?: number): CombatRun {
   return {
     ...run,
     player: {
@@ -1341,7 +1351,7 @@ function startPlayerSkillMovement(run: CombatRun, skill: ClassSkillDefinition, e
       activeSkillMovement: {
         skillId: skill.id,
         startAtMs: run.elapsedMs,
-        endAtMs: run.elapsedMs + skill.animation.hitFrameMs,
+        endAtMs: endAtMs ?? run.elapsedMs + skill.animation.hitFrameMs,
         startX: run.player.x,
         startY: run.player.y,
         endX: endPosition.x,
@@ -1605,6 +1615,116 @@ function applyPrismStep(run: CombatRun, skill: ClassSkillDefinition, canceledFro
       vfxCue: "prism-pierce",
       vfxWindowMs: 340
     });
+  }, movingRun);
+}
+
+const flowingLightChainEndDelayMs = 470;
+const flowingLightChainStages: Array<{
+  phase: CombatHitPhase;
+  cue: CombatVfxCue;
+  delayMs: number;
+  damageMultiplier: number;
+  hitstopMs: number;
+  knockback: number;
+  statusTags?: CombatSkillStatusTag[];
+}> = [
+  {
+    phase: "chain-open",
+    cue: "flowing-chain-open",
+    delayMs: 220,
+    damageMultiplier: 0.58,
+    hitstopMs: 44,
+    knockback: 18
+  },
+  {
+    phase: "chain-cross",
+    cue: "flowing-chain-cross",
+    delayMs: 340,
+    damageMultiplier: 0.68,
+    hitstopMs: 50,
+    knockback: 22
+  },
+  {
+    phase: "chain-finish",
+    cue: "flowing-chain-finish",
+    delayMs: flowingLightChainEndDelayMs,
+    damageMultiplier: 0.92,
+    hitstopMs: 68,
+    knockback: 46,
+    statusTags: ["stagger"]
+  }
+];
+
+function selectFlowingLightChainTargets(run: CombatRun, endPosition: CombatVector, skill: ClassSkillDefinition): CombatEnemy[] {
+  const minX = Math.min(run.player.x, endPosition.x) - 24;
+  const maxX = Math.max(run.player.x, endPosition.x) + 28;
+  const laneRange = Math.max(46, skillLaneRange(skill.tags));
+
+  return run.enemies
+    .filter((enemy) => {
+      if (enemy.hp <= 0) {
+        return false;
+      }
+
+      const enemyMinX = enemy.position.x - enemy.hurtbox.width / 2;
+      const enemyMaxX = enemy.position.x + enemy.hurtbox.width / 2;
+      const yDistance = axisDistanceOutsideHalfSize(enemy.position.y - run.player.y, enemy.hurtbox.height / 2);
+
+      return enemyMaxX >= minX && enemyMinX <= maxX && yDistance <= laneRange;
+    })
+    .sort((left, right) => (left.position.x - right.position.x) * run.player.facing)
+    .slice(0, 2);
+}
+
+function applyFlowingLightChain(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x + run.player.facing * 142, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + flowingLightChainEndDelayMs),
+    skill,
+    canceledFromCombo
+  );
+  const targetingHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 172,
+    laneRange: 52,
+    targetCap: 2,
+    frontOnly: false,
+    damage: skillDamage(run, skill),
+    hitstopMs: 52,
+    knockback: 24,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo
+  };
+  const targets = selectFlowingLightChainTargets(run, endPosition, skill);
+
+  if (targets.length === 0) {
+    return applyMiss(movingRun, targetingHitbox);
+  }
+
+  return targets.reduce((targetRun, target, targetIndex) => {
+    return flowingLightChainStages.reduce((stageRun, stage) => {
+      return scheduleEnemyHitEffect(stageRun, {
+        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${targetIndex}-${target.id}`,
+        targetId: target.id,
+        damage: Math.max(1, Math.round(skillDamage(run, skill) * stage.damageMultiplier)),
+        hitstopMs: stage.hitstopMs,
+        knockback: stage.knockback,
+        juggle: false,
+        action: "skill",
+        skillId: skill.id,
+        inputToHitMs: stage.delayMs,
+        canceledFromCombo,
+        statusTags: stage.statusTags,
+        hitPhase: stage.phase,
+        vfxCue: stage.cue,
+        vfxWindowMs: 260
+      });
+    }, targetRun);
   }, movingRun);
 }
 
@@ -2711,11 +2831,7 @@ function scheduleEnemyHitEffect(run: CombatRun, hit: HitDefinition): CombatRun {
 
   return {
     ...run,
-    scheduledEnemyHitEffects: [...(run.scheduledEnemyHitEffects ?? []), effect],
-    player: {
-      ...run.player,
-      hitstopUntilMs: Math.max(run.player.hitstopUntilMs, impactAtMs + hitstopMs)
-    }
+    scheduledEnemyHitEffects: [...(run.scheduledEnemyHitEffects ?? []), effect]
   };
 }
 
@@ -2892,7 +3008,41 @@ function resolveScheduledEnemyHitEffects(run: CombatRun): CombatRun {
 
 type ScheduledCombatEffectItem =
   | { kind: "enemy-hit"; effect: CombatScheduledEnemyHitEffect; occurredAtMs: number }
+  | { kind: "enemy-impact"; enemyId: string; occurredAtMs: number }
   | { kind: "arena-hazard"; hazard: CombatScheduledArenaHazard; occurredAtMs: number };
+
+function dueEnemyImpactItems(run: CombatRun): ScheduledCombatEffectItem[] {
+  return run.enemies.flatMap((enemy) => {
+    if (enemy.hp <= 0 || !enemy.attackSkillId || enemy.attackImpactAtMs === undefined) {
+      return [];
+    }
+
+    const attack = enemyAttackDefinition(enemy);
+    const resolvedHits = enemy.attackResolvedHits ?? (enemy.attackHitResolved ? attack.hitCount : 0);
+    const items: ScheduledCombatEffectItem[] = [];
+
+    for (let hitIndex = resolvedHits; hitIndex < attack.hitCount; hitIndex += 1) {
+      const hitTime = enemy.attackImpactAtMs + hitIndex * attack.hitIntervalMs;
+
+      if (hitTime <= run.elapsedMs) {
+        items.push({ kind: "enemy-impact", enemyId: enemy.id, occurredAtMs: hitTime });
+      }
+    }
+
+    return items;
+  });
+}
+
+function uncanceledMovementSample(
+  movement: CombatMovementSample | undefined,
+  canceledSkillIds: Set<string>
+): CombatMovementSample | undefined {
+  if (!movement?.skillMovement || !canceledSkillIds.has(movement.skillMovement.skillId)) {
+    return movement;
+  }
+
+  return undefined;
+}
 
 function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovementSample): CombatRun {
   const dueEnemyEffects = (run.scheduledEnemyHitEffects ?? []).filter((effect) => effect.applyAtMs <= run.elapsedMs);
@@ -2901,13 +3051,26 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
   const pendingArenaHazards = (run.scheduledArenaHazards ?? []).filter((hazard) => hazard.impactAtMs > run.elapsedMs);
   const queue: ScheduledCombatEffectItem[] = [
     ...dueEnemyEffects.map((effect) => ({ kind: "enemy-hit" as const, effect, occurredAtMs: effect.applyAtMs })),
+    ...dueEnemyImpactItems(run),
     ...dueArenaHazards.map((hazard) => ({ kind: "arena-hazard" as const, hazard, occurredAtMs: hazard.impactAtMs }))
   ].sort((left, right) => {
     if (left.occurredAtMs !== right.occurredAtMs) {
       return left.occurredAtMs - right.occurredAtMs;
     }
 
-    return left.kind === right.kind ? 0 : left.kind === "arena-hazard" ? -1 : 1;
+    if (left.kind === right.kind) {
+      return 0;
+    }
+
+    if (left.kind === "arena-hazard" || right.kind === "enemy-hit") {
+      return -1;
+    }
+
+    if (right.kind === "arena-hazard" || left.kind === "enemy-hit") {
+      return 1;
+    }
+
+    return 0;
   });
   let nextRun: CombatRun = {
     ...run,
@@ -2927,7 +3090,8 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
       }
 
       const beforePlayer = nextRun.player;
-      const activeMovementSkillId = skillMovementIdAt(movement, item.occurredAtMs);
+      const itemMovement = uncanceledMovementSample(movement, canceledSkillIds);
+      const activeMovementSkillId = skillMovementIdAt(itemMovement, item.occurredAtMs);
       nextRun = applyScheduledEnemyHitEffect(nextRun, item.effect, activeMovementSkillId);
       const interruptedSkillId = interruptedActiveSkillId(beforePlayer, nextRun.player, activeMovementSkillId);
 
@@ -2939,9 +3103,25 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
       continue;
     }
 
+    if (item.kind === "enemy-impact") {
+      const beforePlayer = nextRun.player;
+      const itemMovement = uncanceledMovementSample(movement, canceledSkillIds);
+      const activeMovementSkillId = skillMovementIdAt(itemMovement, item.occurredAtMs);
+      nextRun = applyQueuedEnemyImpact(nextRun, item.enemyId, item.occurredAtMs, itemMovement);
+      const interruptedSkillId = interruptedActiveSkillId(beforePlayer, nextRun.player, activeMovementSkillId);
+
+      if (interruptedSkillId) {
+        canceledSkillIds.add(interruptedSkillId);
+        nextRun = cancelScheduledEnemyHitEffectsForSkill(nextRun, interruptedSkillId);
+      }
+
+      continue;
+    }
+
     const beforePlayer = nextRun.player;
-    nextRun = applyScheduledArenaHazard(nextRun, item.hazard, movement);
-    const interruptedSkillId = interruptedActiveSkillId(beforePlayer, nextRun.player, skillMovementIdAt(movement, item.occurredAtMs));
+    const itemMovement = uncanceledMovementSample(movement, canceledSkillIds);
+    nextRun = applyScheduledArenaHazard(nextRun, item.hazard, itemMovement);
+    const interruptedSkillId = interruptedActiveSkillId(beforePlayer, nextRun.player, skillMovementIdAt(itemMovement, item.occurredAtMs));
 
     if (interruptedSkillId) {
       canceledSkillIds.add(interruptedSkillId);
@@ -2952,12 +3132,12 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
   return nextRun;
 }
 
-function samplePlayerForMovement(player: CombatPlayer, hazard: CombatScheduledArenaHazard, movement?: CombatMovementSample): CombatPlayer {
+function samplePlayerAtElapsed(player: CombatPlayer, elapsedMs: number, movement?: CombatMovementSample): CombatPlayer {
   if (!movement) {
     return player;
   }
 
-  if (hazard.impactAtMs <= movement.startElapsedMs) {
+  if (elapsedMs <= movement.startElapsedMs) {
     return {
       ...player,
       x: movement.startX,
@@ -2966,12 +3146,12 @@ function samplePlayerForMovement(player: CombatPlayer, hazard: CombatScheduledAr
     };
   }
 
-  if (hazard.impactAtMs >= movement.endElapsedMs) {
+  if (elapsedMs >= movement.endElapsedMs) {
     return player;
   }
 
-  if (movement.skillMovement && hazard.impactAtMs <= movement.skillMovement.endAtMs) {
-    const sampled = playerSkillMovementPosition(movement.skillMovement, hazard.impactAtMs);
+  if (movement.skillMovement && elapsedMs <= movement.skillMovement.endAtMs) {
+    const sampled = playerSkillMovementPosition(movement.skillMovement, elapsedMs);
 
     return {
       ...player,
@@ -2981,9 +3161,9 @@ function samplePlayerForMovement(player: CombatPlayer, hazard: CombatScheduledAr
     };
   }
 
-  if (movement.skillMovement && hazard.impactAtMs > movement.skillMovement.endAtMs) {
+  if (movement.skillMovement && elapsedMs > movement.skillMovement.endAtMs) {
     const skillEnd = playerSkillMovementPosition(movement.skillMovement, movement.skillMovement.endAtMs);
-    const remainingMs = hazard.impactAtMs - movement.skillMovement.endAtMs;
+    const remainingMs = elapsedMs - movement.skillMovement.endAtMs;
     const facing = movement.moveX === 0 ? movement.facing : movement.moveX > 0 ? 1 : -1;
 
     return {
@@ -2994,7 +3174,7 @@ function samplePlayerForMovement(player: CombatPlayer, hazard: CombatScheduledAr
     };
   }
 
-  const progress = clamp((hazard.impactAtMs - movement.startElapsedMs) / Math.max(1, movement.endElapsedMs - movement.startElapsedMs), 0, 1);
+  const progress = clamp((elapsedMs - movement.startElapsedMs) / Math.max(1, movement.endElapsedMs - movement.startElapsedMs), 0, 1);
 
   return {
     ...player,
@@ -3002,6 +3182,39 @@ function samplePlayerForMovement(player: CombatPlayer, hazard: CombatScheduledAr
     y: lerp(movement.startY, movement.endY, progress),
     facing: movement.facing
   };
+}
+
+function applyQueuedEnemyImpact(run: CombatRun, enemyId: string, occurredAtMs: number, movement?: CombatMovementSample): CombatRun {
+  const enemy = run.enemies.find((item) => item.id === enemyId);
+
+  if (!enemy || enemy.hp <= 0) {
+    return run;
+  }
+
+  const sampledPlayer = samplePlayerAtElapsed(run.player, occurredAtMs, movement);
+  const advanced = advanceEnemyWindupState(enemy, sampledPlayer, occurredAtMs);
+  const impacted = applyEnemyImpact(advanced.enemy, advanced.player, occurredAtMs, run.combatProfile);
+
+  if (impacted.events.length === 0) {
+    return run;
+  }
+
+  return clearPendingCombatEffectsIfFailed(
+    triggerBossPhaseTransitions(
+      {
+        ...run,
+        player: impacted.player,
+        enemies: run.enemies.map((item) => (item.id === enemy.id ? impacted.enemy : item)),
+        events: [...run.events, ...impacted.events],
+        failed: run.failed || impacted.failed
+      },
+      impacted.phaseTransitionAtMs ?? occurredAtMs
+    )
+  );
+}
+
+function samplePlayerForMovement(player: CombatPlayer, hazard: CombatScheduledArenaHazard, movement?: CombatMovementSample): CombatPlayer {
+  return samplePlayerAtElapsed(player, hazard.impactAtMs, movement);
 }
 
 function playerInArenaHazard(player: CombatPlayer, hazard: CombatScheduledArenaHazard): boolean {
@@ -3284,6 +3497,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "prism-step") {
     return completeSkillAction(run, applyPrismStep(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "flowing-light-chain") {
+    return completeSkillAction(run, applyFlowingLightChain(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "night-mark-detonation") {

@@ -1188,6 +1188,61 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(hitFrameHtml, 'data-skill-impact-vfx="prism-step"')).toBe(2);
   });
 
+  it("renders flowing-light-chain as a three-stage advancement chain slash", () => {
+    const advancedState = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),
+      "flowing-light-swordmaster"
+    );
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: advancedState
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "flowing-light-chain" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after flowing-light-chain");
+    }
+
+    const [openAtMs, crossAtMs, finishAtMs] = scheduledSkillTimes(model.combatRun, "flowing-light-chain");
+    const castHtml = renderAppHtml(model);
+    const beforeOpenHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, openAtMs - 1)
+    });
+    const openHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, openAtMs)
+    });
+    const crossHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, crossAtMs)
+    });
+    const finishHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, finishAtMs)
+    });
+    const finishHits = skillHitEvents(stepToElapsed(model.combatRun, finishAtMs), "flowing-light-chain");
+
+    expect(finishHits).toHaveLength(6);
+    expect(castHtml).toContain('data-active-skill-id="flowing-light-chain"');
+    expect(castHtml).toContain('data-skill-animation-preset="liuli-light-chain"');
+    expect(castHtml).toContain('data-skill-weapon-arc="chain-cut"');
+    expect(castHtml).toContain('data-skill-vfx-shape="flowing-chain"');
+    expect(castHtml).toContain('data-player-skill-move="flowing-light-chain"');
+    expect(beforeOpenHtml).not.toContain('data-skill-impact-vfx="flowing-light-chain"');
+    expect(openHtml).toContain('data-hit-phase="chain-open"');
+    expect(openHtml).toContain('data-vfx-cue="flowing-chain-open"');
+    expect(crossHtml).toContain('data-hit-phase="chain-cross"');
+    expect(crossHtml).toContain('data-vfx-cue="flowing-chain-cross"');
+    expect(finishHtml).toContain('data-hit-phase="chain-finish"');
+    expect(finishHtml).toContain('data-vfx-cue="flowing-chain-finish"');
+    expect(finishHtml).toContain('class="skill-impact-burst skill-impact-shape-flowing-chain"');
+    expect(countOccurrences(finishHtml, 'data-skill-impact-vfx="flowing-light-chain"')).toBe(6);
+  });
+
   it("renders per-target impact sparks, hitstop shake, and player motion trails for multi-target skills", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

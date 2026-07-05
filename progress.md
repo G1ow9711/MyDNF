@@ -1736,3 +1736,31 @@
   - Read-only review found no P0/P1 issues and one P2 coverage gap: black-rain runtime DOM attrs for caster metadata and target hit cue/phase were not asserted.
   - Added app integration assertions for `data-active-skill-id`, `ink-volley`, `rain-volley`, `black-rain`, `black-rain-volley`, `black-rain-fall`, and `rain`.
   - `npm test -- src/tests/app-integration.test.ts -t "skill-specific impact bursts"`: pass.
+
+## Task 62 Flowing Light Chain Advancement Script
+- Started after user clarified that character model complexity can be lowered only for the prototype, while action smoothness, model-following combat motion, hit feel, skill effects, and monster effects remain strict.
+- Used two read-only parallel agents:
+  - `019f31b1-c44c-7883-9c3c-94617347747b` audited combat gaps and recommended `flowing-light-chain` because it was still a generic single-frame skill despite being a Liuli advancement chain slash.
+  - `019f31b1-ee63-70c0-a3bf-ae14c3d3f036` audited UI/CSS gaps and confirmed the catalog metadata existed but dedicated player, weapon, cast, and impact presentation was missing.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires delayed 220/340/470 ms chain stages, timed player movement, no cast-frame damage, two-target path selection, final stagger, and interruption cancellation.
+  - `src/tests/app-integration.test.ts` requires reducer-rendered chain-slash DOM metadata, no pre-hit target burst, open/cross/finish hit cues, and six final target-bound impacts.
+  - `src/tests/ui-smoke.test.ts` requires dedicated CSS selectors/keyframes for the Liuli light-chain player animation, chain-cut weapon arc, flowing-chain cast field, and target impact.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "flowing-light-chain|flowing light"` failed before implementation because no scheduled effects existed for `flowing-light-chain`.
+- Implemented:
+  - Added a custom `flowing-light-chain` combat branch with timed skill movement ending at 470 ms, three delayed path-slash stages, per-stage `hitPhase`/`vfxCue`, target-bound VFX windows, final stagger, and interruption-safe pending-hit cancellation through the existing scheduled-effect cleanup.
+  - Added dedicated CSS for player `player-liuli-light-chain-cast`, weapon `weapon-chain-cut`, cast `flowing-chain-cast-*`, and impact `flowing-chain-impact-*` animations.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "flowing-light-chain|flowing light"`: pass, 4 tests.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 179 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/flowing-light-chain-check.html`: confirmed 220/340/470 ms stages, no pre-open target impact, open/cross/finish VFX cues, 6 final target impacts, player animation `player-liuli-light-chain-cast`, weapon animation `weapon-chain-cut`, cast animations `flowing-chain-cast-core` / `flowing-chain-cast-ring` / `flowing-chain-cast-sparks`, impact animations `flowing-chain-impact-core` / `flowing-chain-impact-ring` / `flowing-chain-impact-shards`, and empty browser console error log.
+- Code review follow-up:
+  - Read-only review found one P1 timing issue: an unselected monster hit inside the same large frame could resolve after the queued chain slash hits, so interruption would cancel too late.
+  - Added RED coverage for a third off-path monster hitting at 180 ms while `flowing-light-chain` has queued 220/340/470 ms hits; initial focused test failed with 6 chain hits and no early player-hit.
+  - Implemented a unified scheduled-combat queue that includes active monster impact frames, arena hazards, and delayed player skill hits in timestamp order, with skill movement sampled at each event time and canceled movement ignored for later events.
+  - Removed future hitstop prewrites from delayed enemy hit scheduling so canceled queued hits do not leave stale hitstop state.
+  - `npm test -- src/tests/combat.test.ts -t "unselected enemy hits earlier"`: failed before the fix, passed after the fix.
+  - `npm test -- src/tests/combat.test.ts -t "flowing-light-chain|prism-step|arena hazards inside|enemy hit interrupts|taotie devour|forge collapse|mountain-crack-hammer|mechanism-shadow-net|night marks"`: pass, 20 tests.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 180 tests.
+  - Browser re-validation after the queue fix confirmed the same 220/340/470 ms chain stages, 6 final impacts, dedicated player/weapon/cast/impact animation names, and empty browser console error log.

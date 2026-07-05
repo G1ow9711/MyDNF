@@ -1217,6 +1217,179 @@ describe("combat actions and impact feel", () => {
     expect(jumped.player.hp).toBeLessThan(cast.player.hp);
   });
 
+  it("flowing-light-chain moves through delayed three-stage path slashes", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),
+      "flowing-light-swordmaster"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 294, y: 340, hp: 180, maxHp: 180 },
+        { x: 362, y: 348, hp: 180, maxHp: 180 }
+      ]
+    );
+    const castingEnemyRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackSkillId: "ash-ember-spit" as const,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 820,
+              attackRecoverUntilMs: 980,
+              attackHitResolved: false,
+              attackResolvedHits: 0
+            }
+          : enemy
+      )
+    };
+
+    const cast = performAction(castingEnemyRun, { type: "skill", skillId: "flowing-light-chain" });
+    const [openAtMs, crossAtMs, finishAtMs] = scheduledSkillTimes(cast, "flowing-light-chain");
+    const beforeOpen = stepToElapsed(cast, openAtMs - 1);
+    const final = stepToElapsed(cast, finishAtMs);
+    const chainHits = skillHitEvents(final, "flowing-light-chain");
+    const targetIds = [...new Set(chainHits.map((event) => event.targetId))];
+
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("flowing-light-chain");
+    expect(cast.enemies.map((enemy) => enemy.hp)).toEqual(castingEnemyRun.enemies.map((enemy) => enemy.hp));
+    expect(skillHitEvents(cast, "flowing-light-chain")).toHaveLength(0);
+    expect([openAtMs, crossAtMs, finishAtMs]).toEqual([220, 340, 470]);
+    expect(beforeOpen.player.x).toBeGreaterThan(run.player.x);
+    expect(skillHitEvents(beforeOpen, "flowing-light-chain")).toHaveLength(0);
+    expect(chainHits).toHaveLength(6);
+    expect(targetIds).toHaveLength(2);
+    expect(targetIds.every((targetId) => chainHits.filter((event) => event.targetId === targetId).length === 3)).toBe(true);
+    expect([...new Set(chainHits.map((event) => event.hitPhase))]).toEqual(["chain-open", "chain-cross", "chain-finish"]);
+    expect([...new Set(chainHits.map((event) => event.vfxCue))]).toEqual([
+      "flowing-chain-open",
+      "flowing-chain-cross",
+      "flowing-chain-finish"
+    ]);
+    expect(chainHits.every((event) => event.vfxWindowMs === 260)).toBe(true);
+    expect(chainHits.filter((event) => event.hitPhase === "chain-finish").every((event) => event.statusTags?.includes("stagger"))).toBe(
+      true
+    );
+    expect(final.enemies[0].attackSkillId).toBeUndefined();
+    expect(final.enemies[0].controlledUntilMs).toBeGreaterThan(finishAtMs);
+  });
+
+  it("cancels pending flowing-light-chain hits when monster damage interrupts the dash", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),
+      "flowing-light-swordmaster"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 294, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "flowing-light-chain" });
+    const [, , finishAtMs] = scheduledSkillTimes(cast, "flowing-light-chain");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 180,
+            attackRecoverUntilMs: 360,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      180
+    );
+    const afterQueuedWindows = stepCombat(interrupted, {}, finishAtMs);
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 180
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(skillHitEvents(afterQueuedWindows, "flowing-light-chain")).toHaveLength(0);
+    expect(afterQueuedWindows.enemies.map((enemy) => enemy.hp)).toEqual(interrupted.enemies.map((enemy) => enemy.hp));
+  });
+
+  it("cancels flowing-light-chain before queued slashes when an unselected enemy hits earlier in a large frame", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),
+      "flowing-light-swordmaster"
+    );
+    const twoTargetRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [
+        { x: 294, y: 340, hp: 180, maxHp: 180 },
+        { x: 362, y: 348, hp: 180, maxHp: 180 }
+      ]
+    );
+    const run = {
+      ...twoTargetRun,
+      enemies: [
+        ...twoTargetRun.enemies,
+        {
+          ...twoTargetRun.enemies[0],
+          id: "off-path-ash-attacker",
+          hp: 180,
+          maxHp: 180,
+          position: { x: 160, y: 340 },
+          nextAttackAtMs: 9999
+        }
+      ]
+    };
+    const cast = performAction(run, { type: "skill", skillId: "flowing-light-chain" });
+    const [, , finishAtMs] = scheduledSkillTimes(cast, "flowing-light-chain");
+    const firstTwoHpBefore = cast.enemies.slice(0, 2).map((enemy) => enemy.hp);
+    const jumped = stepCombat(
+      {
+        ...cast,
+        enemies: cast.enemies.map((enemy, index) =>
+          index === 2
+            ? {
+                ...enemy,
+                attackSkillId: "ash-ember-spit" as const,
+                attackStartedAtMs: 0,
+                attackImpactAtMs: 180,
+                attackRecoverUntilMs: 360,
+                attackHitResolved: false,
+                attackResolvedHits: 0
+              }
+            : enemy
+        )
+      },
+      {},
+      finishAtMs
+    );
+
+    expect(jumped.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 180
+        })
+      ])
+    );
+    expect(skillHitEvents(jumped, "flowing-light-chain")).toHaveLength(0);
+    expect(jumped.enemies.slice(0, 2).map((enemy) => enemy.hp)).toEqual(firstTwoHpBefore);
+    expect(jumped.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "flowing-light-chain")).toHaveLength(0);
+    expect(jumped.player.hitstopUntilMs).toBeLessThan(finishAtMs);
+  });
+
   it("clears active prism-step movement when an enemy hit interrupts the dash", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40);
     const run = withPlayerAndEnemies(

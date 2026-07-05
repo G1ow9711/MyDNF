@@ -348,3 +348,12 @@
 - Read-only UI audit found catalog metadata already exposed `ink-volley`, `rain-volley`, and `black-rain` through combat DOM, but CSS still lacked dedicated caster, weapon, and cast-field animations for the skill.
 - Implementation note: repeated `black-rain-volley` hits now carry `hitPhase: "rain"`, `vfxCue: "black-rain-fall"`, and a short VFX window so each target burst is tied to the actual rain hit frame.
 - Presentation note: the skill now has a dedicated player cast animation, weapon rain-volley arc, black-rain cast core/ring/streak field, and existing target-bound black-rain burst styling. Browser computed-style validation confirmed actual animation names instead of only static class presence.
+
+## Flowing Light Chain Findings
+- User clarified the priority split again: character models can stay simpler while the full playable loop is being connected, but combat animation flow, model-following attacks, hit feel, player/enemy action changes, skill VFX, and monster VFX are strict acceptance criteria.
+- Read-only combat audit selected `flowing-light-chain` because it was still falling through the generic skill branch even though its advancement fantasy is a fast multi-stage Liuli chain slash.
+- Read-only UI/CSS audit found the catalog already carried `liuli-light-chain`, `chain-cut`, and `flowing-chain`; the missing work was dedicated combat staging plus actual player, weapon, cast-field, and target-impact animations.
+- Implementation note: `flowing-light-chain` now starts timed player skill movement at cast time, delays target mutation until three path-slash hit frames at 220/340/470 ms, hits up to two enemies along the travel path, staggers on the final slash, and cancels pending hits when monster damage interrupts the dash.
+- Presentation note: the skill now has dedicated player motion, weapon chain-cut arc, flowing-chain cast field, and target-bound open/cross/finish impact cues so the model and VFX follow the action instead of appearing as static stickers.
+- Review follow-up: delayed player skill hits, active monster impact frames, and arena hazards must resolve from one timestamp-sorted queue. Otherwise a large `stepCombat()` frame can let later player skill hits mutate enemies before an earlier off-target monster impact interrupts the player.
+- Timing note: delayed skill scheduling should not prewrite future `hitstopUntilMs`; hitstop belongs to the actual impact frame so interrupted skills cannot leave stale screen-shake/hitstop state.

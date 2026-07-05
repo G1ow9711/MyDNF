@@ -1565,6 +1565,11 @@ p {
   filter: drop-shadow(0 0 26px rgba(168, 85, 247, 0.62)) brightness(1.14) saturate(1.18);
 }
 
+.combat-enemy[data-enemy-motion="attack"][data-enemy-attack-skill-id="taotie-ash-summon"] .enemy-art {
+  animation: monster-taotie-ash-summon 980ms cubic-bezier(0.1, 0.78, 0.14, 1) both;
+  filter: drop-shadow(0 0 28px rgba(251, 191, 36, 0.62)) drop-shadow(0 0 18px rgba(148, 163, 184, 0.35)) brightness(1.16) saturate(1.18);
+}
+
 .combat-enemy[data-enemy-motion="attack"][data-enemy-attack-skill-id="zheng-shockwave"] .enemy-art {
   animation: monster-zheng-stomp 640ms cubic-bezier(0.16, 0.82, 0.18, 1) both;
   filter: drop-shadow(0 0 18px rgba(125, 211, 252, 0.5)) brightness(1.12);
@@ -1611,6 +1616,11 @@ p {
 .actor-model-idle,
 .combat-enemy[data-enemy-motion="idle"] .enemy-art {
   animation: monster-idle-breathe 2.8s ease-in-out infinite;
+}
+
+.combat-enemy[data-enemy-spawn-source="taotie-ash-summon"][data-enemy-motion="idle"] .enemy-art {
+  animation: ash-minion-summon-emerge 720ms cubic-bezier(0.1, 0.82, 0.16, 1) both;
+  filter: drop-shadow(0 0 22px rgba(251, 146, 60, 0.54)) brightness(1.12);
 }
 
 .enemy-sprite {
@@ -1751,6 +1761,7 @@ p {
 .combat-feedback,
 .player-skill-vfx,
 .enemy-skill-vfx,
+.enemy-summon-vfx,
 .boss-phase-vfx,
 .arena-hazard {
   position: absolute;
@@ -3720,6 +3731,31 @@ p {
   animation: taotie-devour-pull-telegraph-edge 720ms ease-in-out infinite;
 }
 
+.enemy-telegraph-taotie-ash-summon {
+  width: 292px;
+  height: 176px;
+}
+
+.enemy-telegraph-taotie-ash-summon .enemy-telegraph-zone {
+  inset: 0 13%;
+  border-color: rgba(253, 186, 116, 0.86);
+  background:
+    radial-gradient(circle, rgba(251, 146, 60, 0.28), rgba(127, 29, 29, 0.14), transparent 68%),
+    conic-gradient(from 36deg, transparent, rgba(250, 204, 21, 0.2), transparent, rgba(15, 23, 42, 0.28), transparent);
+  box-shadow: 0 0 36px rgba(251, 146, 60, 0.56), inset 0 0 28px rgba(15, 23, 42, 0.44);
+  animation: taotie-ash-summon-telegraph 760ms ease-in-out infinite;
+}
+
+.enemy-telegraph-taotie-ash-summon .enemy-telegraph-edge {
+  width: 72%;
+  height: 72%;
+  bottom: 12%;
+  border: 1px dashed rgba(254, 240, 138, 0.68);
+  border-radius: 50%;
+  background: transparent;
+  animation: taotie-ash-summon-telegraph-edge 760ms linear infinite;
+}
+
 .enemy-cast-ring {
   left: 50%;
   bottom: -8px;
@@ -3935,6 +3971,104 @@ p {
     linear-gradient(90deg, transparent, rgba(88, 28, 135, 0.28), rgba(168, 85, 247, 0.72), rgba(253, 224, 71, 0.56), transparent),
     radial-gradient(ellipse at 50% 50%, rgba(216, 180, 254, 0.66), transparent 64%);
   animation: taotie-devour-vortex-trail 620ms ease-out both;
+}
+
+.enemy-skill-taotie-ash-summon {
+  width: 286px;
+  height: 182px;
+}
+
+.enemy-skill-taotie-ash-summon .enemy-cast-ring {
+  left: 50%;
+  bottom: -18px;
+  width: 224px;
+  height: 66px;
+  border-color: rgba(253, 186, 116, 0.86);
+  box-shadow: 0 0 42px rgba(251, 146, 60, 0.72), inset 0 0 24px rgba(15, 23, 42, 0.5);
+  animation: taotie-ash-summon-rift-ring 720ms cubic-bezier(0.1, 0.78, 0.14, 1) both;
+}
+
+.enemy-skill-taotie-ash-summon .enemy-cast-core {
+  top: 48%;
+  width: 82px;
+  height: 82px;
+  background:
+    radial-gradient(circle, rgba(255, 247, 237, 0.98), rgba(251, 146, 60, 0.82), rgba(127, 29, 29, 0.46), transparent 74%),
+    conic-gradient(from 18deg, rgba(15, 23, 42, 0.56), rgba(254, 240, 138, 0.28), rgba(127, 29, 29, 0.48), rgba(15, 23, 42, 0.56));
+  animation: taotie-ash-summon-rift-core 720ms ease-out both;
+}
+
+.enemy-skill-taotie-ash-summon .enemy-cast-trail {
+  left: -8%;
+  top: 42%;
+  width: 316px;
+  height: 48px;
+  background:
+    linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.42), rgba(251, 146, 60, 0.78), rgba(254, 240, 138, 0.66), transparent),
+    radial-gradient(ellipse at 50% 50%, rgba(239, 68, 68, 0.52), transparent 64%);
+  animation: taotie-ash-summon-rift-trail 720ms ease-out both;
+}
+
+.enemy-summon-vfx {
+  width: 156px;
+  height: 116px;
+  transform: translate(-50%, -72%);
+  mix-blend-mode: screen;
+  z-index: 4;
+}
+
+.summon-rift-shadow,
+.summon-rift-ring,
+.summon-rift-core,
+.summon-rift-embers {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.enemy-summon-rift-taotie-ash-summon .summon-rift-shadow {
+  left: 50%;
+  bottom: 8px;
+  width: 112px;
+  height: 34px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(15, 23, 42, 0.78), rgba(127, 29, 29, 0.2), transparent 70%);
+  transform: translateX(-50%);
+  animation: taotie-ash-summon-spawn-shadow 720ms ease-out both;
+}
+
+.enemy-summon-rift-taotie-ash-summon .summon-rift-ring {
+  left: 50%;
+  bottom: 8px;
+  width: 118px;
+  height: 42px;
+  border: 2px solid rgba(253, 186, 116, 0.82);
+  border-radius: 50%;
+  box-shadow: 0 0 30px rgba(251, 146, 60, 0.64), inset 0 0 16px rgba(15, 23, 42, 0.52);
+  transform: translateX(-50%);
+  animation: taotie-ash-summon-spawn-ring 720ms ease-out both;
+}
+
+.enemy-summon-rift-taotie-ash-summon .summon-rift-core {
+  left: 50%;
+  bottom: 20px;
+  width: 56px;
+  height: 66px;
+  border-radius: 50% 50% 44% 44%;
+  background:
+    radial-gradient(circle at 50% 26%, rgba(255, 247, 237, 0.98), rgba(251, 146, 60, 0.8), transparent 52%),
+    linear-gradient(180deg, rgba(127, 29, 29, 0.84), rgba(15, 23, 42, 0.16));
+  transform: translateX(-50%);
+  animation: taotie-ash-summon-spawn-core 720ms cubic-bezier(0.1, 0.82, 0.16, 1) both;
+}
+
+.enemy-summon-rift-taotie-ash-summon .summon-rift-embers {
+  inset: 8px 14px 16px;
+  background:
+    radial-gradient(circle at 22% 34%, rgba(254, 240, 138, 0.88) 0 3px, transparent 4px),
+    radial-gradient(circle at 72% 24%, rgba(251, 146, 60, 0.8) 0 4px, transparent 5px),
+    radial-gradient(circle at 64% 68%, rgba(248, 113, 113, 0.68) 0 3px, transparent 4px);
+  animation: taotie-ash-summon-spawn-embers 720ms ease-out both;
 }
 
 .room-gate {
@@ -4586,6 +4720,21 @@ p {
   52% { transform: translateX(calc(var(--enemy-lunge-x, 28px) * 0.42)) translateY(2px) scale(1.16) scaleX(var(--model-scale-x, 1)); filter: brightness(1.92) saturate(1.42); }
   72% { transform: translateX(calc(var(--enemy-lunge-x, 28px) * 0.16)) translateY(6px) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.58) saturate(1.3); }
   100% { transform: translateX(0) translateY(0) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
+}
+
+@keyframes monster-taotie-ash-summon {
+  0% { transform: translateY(0) scale(0.96) scaleX(var(--model-scale-x, 1)); filter: brightness(0.88) saturate(0.96); }
+  24% { transform: translateX(calc(var(--enemy-lunge-x, 28px) * -0.36)) translateY(-14px) scale(1.06) scaleX(var(--model-scale-x, 1)); filter: brightness(1.36) saturate(1.18); }
+  48% { transform: translateX(calc(var(--enemy-lunge-x, 28px) * 0.12)) translateY(-22px) scale(1.14) scaleX(var(--model-scale-x, 1)); filter: brightness(1.86) saturate(1.34); }
+  72% { transform: translateX(calc(var(--enemy-lunge-x, 28px) * 0.24)) translateY(5px) scale(1.09) scaleX(var(--model-scale-x, 1)); filter: brightness(1.62) saturate(1.28); }
+  100% { transform: translateY(0) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08) saturate(1.08); }
+}
+
+@keyframes ash-minion-summon-emerge {
+  0% { transform: translateY(34px) scale(0.58) scaleX(var(--model-scale-x, 1)); opacity: 0; filter: blur(2px) brightness(1.7); }
+  28% { opacity: 1; transform: translateY(8px) scale(0.92) scaleX(var(--model-scale-x, 1)); filter: blur(0) brightness(1.42); }
+  62% { transform: translateY(-8px) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.2); }
+  100% { transform: translateY(0) scale(1) scaleX(var(--model-scale-x, 1)); opacity: 1; filter: brightness(1.06); }
 }
 
 @keyframes monster-zheng-stomp {
@@ -5610,6 +5759,61 @@ p {
   0% { opacity: 0; transform: translateX(-88px) rotate(-10deg) scaleX(1.46); filter: blur(2.2px); }
   32% { opacity: 0.98; transform: translateX(-10px) rotate(-4deg) scaleX(0.92); filter: blur(0.5px); }
   100% { opacity: 0; transform: translateX(72px) rotate(6deg) scaleX(0.24); filter: blur(2.4px); }
+}
+
+@keyframes taotie-ash-summon-telegraph {
+  0%, 100% { opacity: 0.28; transform: scale(0.84) rotate(0deg); filter: blur(1.4px); }
+  50% { opacity: 0.94; transform: scale(1.08) rotate(18deg); filter: blur(0); }
+}
+
+@keyframes taotie-ash-summon-telegraph-edge {
+  0% { opacity: 0.22; transform: translateX(-50%) scale(0.72) rotate(0deg); }
+  50% { opacity: 0.9; transform: translateX(-50%) scale(1.05) rotate(120deg); }
+  100% { opacity: 0.22; transform: translateX(-50%) scale(0.72) rotate(240deg); }
+}
+
+@keyframes taotie-ash-summon-rift-ring {
+  0% { opacity: 0; transform: translateX(-50%) scaleX(0.36) scaleY(0.54) rotate(-8deg); filter: blur(2px); }
+  30% { opacity: 1; transform: translateX(-50%) scaleX(1.04) scaleY(0.9) rotate(8deg); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(-50%) scaleX(1.62) scaleY(1.16) rotate(18deg); filter: blur(2.2px); }
+}
+
+@keyframes taotie-ash-summon-rift-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.38) rotate(-38deg); filter: brightness(1); }
+  26% { opacity: 1; transform: translate(-50%, -50%) scale(1.08) rotate(34deg); filter: brightness(1.75); }
+  62% { opacity: 0.94; transform: translate(-50%, -50%) scale(0.82) rotate(138deg); filter: brightness(1.34); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.42) rotate(236deg); filter: brightness(0.9); }
+}
+
+@keyframes taotie-ash-summon-rift-trail {
+  0% { opacity: 0; transform: translateX(-72px) rotate(-12deg) scaleX(0.28); filter: blur(2.2px); }
+  32% { opacity: 0.98; transform: translateX(-6px) rotate(-4deg) scaleX(1.08); filter: blur(0.4px); }
+  100% { opacity: 0; transform: translateX(78px) rotate(8deg) scaleX(1.38); filter: blur(2.4px); }
+}
+
+@keyframes taotie-ash-summon-spawn-shadow {
+  0% { opacity: 0; transform: translateX(-50%) scaleX(0.38) scaleY(0.72); }
+  34% { opacity: 0.88; transform: translateX(-50%) scaleX(1.02) scaleY(1); }
+  100% { opacity: 0; transform: translateX(-50%) scaleX(1.34) scaleY(1.14); }
+}
+
+@keyframes taotie-ash-summon-spawn-ring {
+  0% { opacity: 0; transform: translateX(-50%) scaleX(0.38) scaleY(0.62) rotate(-8deg); filter: blur(1.6px); }
+  26% { opacity: 1; transform: translateX(-50%) scaleX(0.96) scaleY(0.92) rotate(8deg); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(-50%) scaleX(1.52) scaleY(1.18) rotate(24deg); filter: blur(2px); }
+}
+
+@keyframes taotie-ash-summon-spawn-core {
+  0% { opacity: 0; transform: translateX(-50%) translateY(42px) scaleY(0.24) scaleX(0.58); filter: blur(2px) brightness(1.4); }
+  30% { opacity: 1; transform: translateX(-50%) translateY(10px) scaleY(0.78) scaleX(0.86); filter: blur(0) brightness(1.7); }
+  62% { opacity: 0.9; transform: translateX(-50%) translateY(-4px) scaleY(1.14) scaleX(1.08); filter: brightness(1.24); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-18px) scaleY(1.24) scaleX(1.14); filter: brightness(0.96); }
+}
+
+@keyframes taotie-ash-summon-spawn-embers {
+  0% { opacity: 0; transform: translateY(22px) scale(0.58); filter: blur(1.2px); }
+  28% { opacity: 1; transform: translateY(2px) scale(0.94); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-46px) translateX(18px) scale(1.24); filter: blur(1.8px); }
 }
 
 @keyframes zheng-shockwave-expand {

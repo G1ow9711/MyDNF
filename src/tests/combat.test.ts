@@ -17,6 +17,7 @@ import {
   type CombatBossPhaseEvent,
   type CombatEnemyAttackEvent,
   type CombatEnemy,
+  type CombatEnemySummonEvent,
   type CombatHitEvent,
   type CombatMissEvent,
   type CombatPlayerHitEvent,
@@ -3588,11 +3589,11 @@ describe("enemy attacks and player defeat", () => {
 
     expect(run.enemies.map((enemy) => enemy.kind)).toEqual(["boss"]);
     expect(boss.attackProfileId).toBe("taotie-flame-breath");
-    expect(boss.attackPatternIds).toEqual(["taotie-flame-breath", "taotie-devour-pull"]);
+    expect(boss.attackPatternIds).toEqual(["taotie-flame-breath", "taotie-devour-pull", "taotie-ash-summon"]);
     expect(boss.nextAttackPatternIndex).toBe(0);
   });
 
-  it("rotates the boss next cast from flame breath into devour pull", () => {
+  it("rotates the boss casts through flame breath, devour pull, and ash summon", () => {
     const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
     const run = {
       ...baseRun,
@@ -3626,13 +3627,240 @@ describe("enemy attacks and player defeat", () => {
       ]
     };
     const secondWindup = stepCombat(readySecond, {}, 1);
+    const afterSecondRecovery = stepCombat(secondWindup, {}, 1380);
+    const readyThird = {
+      ...afterSecondRecovery,
+      enemies: [
+        {
+          ...afterSecondRecovery.enemies[0],
+          nextAttackAtMs: afterSecondRecovery.elapsedMs
+        }
+      ]
+    };
+    const thirdWindup = stepCombat(readyThird, {}, 1);
 
     expect(firstWindup.enemies[0].attackSkillId).toBe("taotie-flame-breath");
     expect((firstWindup.enemies[0] as { attackProfileId?: string; nextAttackPatternIndex?: number }).attackProfileId).toBe("taotie-devour-pull");
     expect((firstWindup.enemies[0] as { nextAttackPatternIndex?: number }).nextAttackPatternIndex).toBe(1);
     expect(secondWindup.enemies[0].attackSkillId).toBe("taotie-devour-pull");
-    expect((secondWindup.enemies[0] as { attackProfileId?: string; nextAttackPatternIndex?: number }).attackProfileId).toBe("taotie-flame-breath");
-    expect((secondWindup.enemies[0] as { nextAttackPatternIndex?: number }).nextAttackPatternIndex).toBe(0);
+    expect((secondWindup.enemies[0] as { attackProfileId?: string; nextAttackPatternIndex?: number }).attackProfileId).toBe("taotie-ash-summon");
+    expect((secondWindup.enemies[0] as { nextAttackPatternIndex?: number }).nextAttackPatternIndex).toBe(2);
+    expect(thirdWindup.enemies[0].attackSkillId).toBe("taotie-ash-summon");
+    expect((thirdWindup.enemies[0] as { attackProfileId?: string; nextAttackPatternIndex?: number }).attackProfileId).toBe("taotie-flame-breath");
+    expect((thirdWindup.enemies[0] as { nextAttackPatternIndex?: number }).nextAttackPatternIndex).toBe(0);
+  });
+
+  it("summons ash crawler minions only on the taotie ash summon impact frame", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 180,
+        y: 340,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          attackProfileId: "taotie-ash-summon",
+          attackPatternIds: ["taotie-ash-summon"],
+          nextAttackPatternIndex: 0,
+          position: {
+            x: 520,
+            y: 340
+          },
+          nextAttackAtMs: 1
+        } as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const impactAtMs = telegraph.enemies[0].attackImpactAtMs;
+
+    if (impactAtMs === undefined) {
+      throw new Error("Expected taotie ash summon impact frame");
+    }
+
+    const beforeImpact = stepToElapsed(telegraph, impactAtMs - 1);
+    const impacted = stepToElapsed(beforeImpact, impactAtMs);
+    const summonEvent = impacted.events.find(
+      (event): event is CombatEnemySummonEvent => event.kind === "enemy-summon" && event.skillId === "taotie-ash-summon"
+    );
+    const summoned = impacted.enemies.filter((enemy) => enemy.id !== telegraph.enemies[0].id);
+
+    expect(telegraph.enemies).toHaveLength(1);
+    expect(beforeImpact.enemies).toHaveLength(1);
+    expect(beforeImpact.events.some((event) => event.kind === "enemy-summon")).toBe(false);
+    expect(impacted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          skillId: "taotie-ash-summon",
+          phase: "active",
+          vfxCue: "taotie-ash-summon-rift"
+        })
+      ])
+    );
+    expect(summonEvent).toBeDefined();
+    expect(summonEvent?.summonedEnemyIds).toHaveLength(2);
+    expect(summonEvent?.positions).toHaveLength(2);
+    expect(summonEvent?.vfxCue).toBe("taotie-ash-summon-rift");
+    expect(summoned).toHaveLength(2);
+    expect(summoned.map((enemy) => enemy.kind)).toEqual(["trash", "trash"]);
+    expect(summoned.map((enemy) => enemy.attackProfileId)).toEqual(["ash-crawler-burst", "ash-crawler-burst"]);
+    expect(summoned.every((enemy) => enemy.nextAttackAtMs > impactAtMs)).toBe(true);
+  });
+
+  it("cancels taotie ash summon when the boss is staggered before the rift opens", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          attackProfileId: "taotie-ash-summon",
+          attackPatternIds: ["taotie-ash-summon"],
+          nextAttackPatternIndex: 0,
+          nextAttackAtMs: 1
+        } as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const interrupted = applyHit(telegraph, {
+      id: "test-stagger-taotie-ash-summon",
+      targetId: telegraph.enemies[0].id,
+      damage: 1,
+      hitstopMs: 40,
+      knockback: 0,
+      juggle: false,
+      statusTags: ["stagger"]
+    });
+    const afterImpact = stepCombat(interrupted, {}, 900);
+
+    expect(telegraph.enemies[0].attackSkillId).toBe("taotie-ash-summon");
+    expect(interrupted.enemies[0].attackSkillId).toBeUndefined();
+    expect(afterImpact.enemies).toHaveLength(1);
+    expect(afterImpact.events.some((event) => event.kind === "enemy-summon")).toBe(false);
+    expect(afterImpact.events.some((event) => event.kind === "enemy-attack" && event.skillId === "taotie-ash-summon" && event.phase !== "windup")).toBe(false);
+  });
+
+  it("lets a large-frame scheduled boss-phase hit cancel taotie ash summon before the rift opens", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 180,
+        y: 340,
+        facing: 1,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          hp: Math.floor(baseRun.enemies[0].maxHp / 2) + 16,
+          armor: 0,
+          attackProfileId: "taotie-ash-summon",
+          attackPatternIds: ["taotie-ash-summon"],
+          nextAttackPatternIndex: 0,
+          position: {
+            x: 520,
+            y: 340
+          },
+          nextAttackAtMs: 1
+        } as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const impactAtMs = telegraph.enemies[0].attackImpactAtMs;
+
+    if (impactAtMs === undefined) {
+      throw new Error("Expected taotie ash summon impact frame");
+    }
+
+    const phaseCutAtMs = impactAtMs - 120;
+    const queuedPhaseCut: CombatRun = {
+      ...telegraph,
+      scheduledEnemyHitEffects: [
+        ...telegraph.scheduledEnemyHitEffects,
+        {
+          id: "test-phase-cut-before-taotie-summon",
+          targetId: telegraph.enemies[0].id,
+          applyAtMs: phaseCutAtMs,
+          action: "skill",
+          skillId: "test-phase-cut",
+          inputToHitMs: 0,
+          canceledFromCombo: false,
+          damage: 40,
+          hitstopMs: 40,
+          knockback: 0,
+          juggle: false,
+          playerFacing: 1
+        }
+      ]
+    };
+    const advanced = stepCombat(queuedPhaseCut, {}, impactAtMs - queuedPhaseCut.elapsedMs + 160);
+
+    expect(advanced.enemies).toHaveLength(1);
+    expect((advanced.enemies[0] as { bossPhase?: number }).bossPhase).toBe(2);
+    expect(advanced.enemies[0].attackSkillId).toBeUndefined();
+    expect(advanced.events.some((event) => event.kind === "hit" && event.skillId === "test-phase-cut" && event.occurredAtMs === phaseCutAtMs)).toBe(true);
+    expect(advanced.events.some((event) => event.kind === "boss-phase" && event.occurredAtMs === phaseCutAtMs)).toBe(true);
+    expect(advanced.events.some((event) => event.kind === "enemy-summon")).toBe(false);
+    expect(advanced.events.some((event) => event.kind === "enemy-attack" && event.skillId === "taotie-ash-summon" && event.phase !== "windup")).toBe(false);
+  });
+
+  it("keeps taotie ash summons as live room enemies until every spawned crawler is defeated", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 180,
+        y: 340,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          attackProfileId: "taotie-ash-summon",
+          attackPatternIds: ["taotie-ash-summon"],
+          nextAttackPatternIndex: 0,
+          position: {
+            x: 520,
+            y: 340
+          },
+          nextAttackAtMs: 1
+        } as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const impactAtMs = telegraph.enemies[0].attackImpactAtMs;
+
+    if (impactAtMs === undefined) {
+      throw new Error("Expected taotie ash summon impact frame");
+    }
+
+    const summoned = stepToElapsed(telegraph, impactAtMs);
+    const bossDefeated = applyHit(summoned, {
+      id: "test-kill-taotie-after-summon",
+      targetId: summoned.enemies[0].id,
+      damage: 9999,
+      hitstopMs: 1,
+      knockback: 0,
+      juggle: false
+    });
+    const allDefeated = defeatAll(bossDefeated);
+    const finished = finishRoom(allDefeated);
+
+    expect(summoned.enemies).toHaveLength(3);
+    expect(roomGateForRun(bossDefeated).state).toBe("locked");
+    expect(() => finishRoom(bossDefeated)).toThrow("Cannot finish room while enemies are alive");
+    expect(roomGateForRun(allDefeated).state).toBe("complete");
+    expect(finished.completed).toBe(true);
   });
 
   it("triggers taotie forge collapse once when the boss drops below half hp", () => {

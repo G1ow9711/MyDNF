@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { performAction, stepCombat, type CombatEnemy, type CombatHitEvent, type CombatRun } from "../game/combat";
+import { performAction, stepCombat, type CombatEnemy, type CombatEnemySummonEvent, type CombatHitEvent, type CombatRun } from "../game/combat";
 import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
 import { advanceClass, selectBaseClass } from "../systems/classes";
@@ -3019,6 +3019,78 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('data-feedback-skill-id="taotie-devour-pull"');
     expect(hitHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-devour-pull"');
     expect(hitHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
+  });
+
+  it("renders taotie ash summon as a boss cast, rift VFX, and newly spawned crawlers", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+
+    if (!model.combatRun) {
+      throw new Error("Expected boss combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: {
+          ...model.combatRun.player,
+          x: 180,
+          y: 340,
+          hp: 999,
+          maxHp: 999
+        },
+        enemies: [
+          {
+            ...model.combatRun.enemies[0],
+            attackProfileId: "taotie-ash-summon",
+            attackPatternIds: ["taotie-ash-summon"],
+            nextAttackPatternIndex: 0,
+            position: {
+              x: 520,
+              y: 340
+            },
+            nextAttackAtMs: 1
+          } as CombatEnemy
+        ]
+      }
+    };
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const windupHtml = renderAppHtml(model);
+
+    expect(windupHtml).toContain('data-enemy-telegraph="taotie-ash-summon"');
+    expect(windupHtml).toContain('data-telegraph-shape="circle"');
+    expect(windupHtml).toContain('data-enemy-attack-skill-id="taotie-ash-summon"');
+    expect(windupHtml).toContain('actor-enemy-skill-taotie-ash-summon');
+    expect(windupHtml).not.toContain('data-enemy-summon-vfx="taotie-ash-summon"');
+    expect(countOccurrences(windupHtml, 'class="combat-actor combat-enemy combat-enemy-trash"')).toBe(0);
+
+    let guard = 0;
+    while (
+      model.combatRun &&
+      !model.combatRun.events.some(
+        (event): event is CombatEnemySummonEvent => event.kind === "enemy-summon" && event.skillId === "taotie-ash-summon"
+      ) &&
+      guard < 10
+    ) {
+      model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+      guard += 1;
+    }
+
+    const summonHtml = renderAppHtml(model);
+
+    expect(summonHtml).toContain('data-enemy-skill-vfx="taotie-ash-summon"');
+    expect(summonHtml).toContain('data-enemy-vfx-cue="taotie-ash-summon-rift"');
+    expect(summonHtml).toContain('data-enemy-summon-vfx="taotie-ash-summon"');
+    expect(summonHtml).toContain('data-summon-vfx-cue="taotie-ash-summon-rift"');
+    expect(countOccurrences(summonHtml, 'data-summoned-enemy-id=')).toBe(2);
+    expect(countOccurrences(summonHtml, 'class="combat-actor combat-enemy combat-enemy-trash"')).toBe(2);
+    expect(summonHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
   });
 
   it("renders crawler burst as a rushing monster skill with explosion feedback", () => {

@@ -2045,3 +2045,31 @@
   - Focused `earth-furnace-breaker` suite passed after review fixes: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "earth-furnace-breaker"`, 6 tests.
   - Related combat/app/UI suite passed after review fixes: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 250 tests.
   - Browser re-validation confirmed `eruptionMoveOutMissCount: 1`, facing-aware lunge/rotation keyframes present, no cast/pre-crack damage, two crack impacts, four eruption impacts, ultimate shake/flash, and empty warning/error console output. Temporary check page was deleted.
+
+## Task 74 Taotie Ash Summon Boss Pattern
+- Continued under the latest user clarification: character/monster model fidelity can stay simpler while strict gameplay focus stays on smooth combat motion, real action state changes, skill timing, hit feedback, and monster/Boss VFX.
+- Used parallel read-only agents:
+  - Combat explorer recommended a dedicated `enemy-summon` event, `taotie-ash-summon` boss profile, and reuse of the existing enemy-impact queue instead of a separate summon queue.
+  - UI/CSS explorer confirmed exact hooks needed in `enemySkillEffect()`, `enemyTelegraphShape()`, summon VFX DOM, and CSS keyframes to avoid falling back to flame breath.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires the Boss pattern rotation to include `taotie-ash-summon`, no cast-frame spawn, two `ash-crawler-burst` minions on the impact frame, interruption/phase-transition cancellation, delayed minion attack readiness, and summoned enemies blocking room completion until defeated.
+  - `src/tests/app-integration.test.ts` requires windup DOM, active rift VFX, two summon-rift nodes, two spawned trash actors, and no flame-breath fallback.
+  - `src/tests/ui-smoke.test.ts` requires dedicated summon telegraph, Boss/model VFX CSS hooks, summon rift keyframes, and idle-only summon emerge selector coverage.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "taotie ash summon|boss casts through|monster skill effects"` failed before implementation because the new Boss profile and UI/CSS hooks did not exist.
+  - `npm test -- src/tests/ui-smoke.test.ts -t "limits taotie summon emerge"` failed before the CSS selector fix because a broad spawn selector could mask later non-idle motion.
+- Implemented:
+  - Added `CombatEnemySummonEvent`, `taotie-ash-summon`, `taotie-ash-summon-rift`, and helper logic to spawn two real ash crawler minions at the summon impact frame.
+  - Updated Boss pattern rotation to flame breath -> devour pull -> ash summon, with summon minions delayed before their first attack to avoid same-frame instant actions.
+  - Added UI rendering for summon events, per-minion rift nodes, spawn-source actor metadata, and exact `taotie-ash-summon` effect/telegraph mapping.
+  - Added CSS for Boss summon motion, circular summon telegraph, active rift, per-minion rift, and idle spawn emergence.
+- Code review follow-up:
+  - Read-only review found no Critical issues and two Important gaps: missing large-frame phase-cancel coverage and missing room-clear coverage for spawned enemies.
+  - Added regressions for a scheduled phase-cut hit canceling summon before the rift opens, and for summoned crawlers keeping the room gate locked until defeated.
+  - Tightened summon emergence CSS so it applies only to idle spawned monsters, allowing later attack animations to take over.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "taotie ash summon|boss casts through|monster skill effects"`, 5 tests.
+  - Review regressions passed: `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts -t "large-frame scheduled boss-phase hit|live room enemies|limits taotie summon emerge"`, 3 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 256 tests.
+  - Browser DOM/CSS validation on `http://127.0.0.1:5174/.codex-local/tmp/taotie-summon-check.html` confirmed one summon telegraph, no flame-breath fallback, one Boss summon VFX, two summon-rift nodes, two spawned trash actors, animations `monster-taotie-ash-summon`, `taotie-ash-summon-rift-core`, `taotie-ash-summon-spawn-core`, `ash-minion-summon-emerge`, and empty warning/error console output. Temporary check page was deleted.
+  - Final full verification passed: `npm test` passed with 352 tests, `npm run build` passed, and `git diff --check` passed with line-ending warnings only.

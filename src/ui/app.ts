@@ -14,6 +14,7 @@ import {
   type CombatBossPhaseEvent,
   type CombatEnemy,
   type CombatEnemyAttackEvent,
+  type CombatEnemySummonEvent,
   type CombatHitEvent,
   type CombatLootEvent,
   type CombatMissEvent,
@@ -479,6 +480,18 @@ function recentEnemyAttackEvents(run: CombatRun): CombatEnemyAttackEvent[] {
   return [...latestByEnemy.values()];
 }
 
+function recentEnemySummonEvents(run: CombatRun): CombatEnemySummonEvent[] {
+  return run.events.filter((event): event is CombatEnemySummonEvent => {
+    if (event.kind !== "enemy-summon") {
+      return false;
+    }
+
+    const age = eventAge(run, event.occurredAtMs);
+
+    return age >= 0 && age <= event.vfxWindowMs;
+  });
+}
+
 function latestBossPhaseEvent(run: CombatRun): CombatBossPhaseEvent | undefined {
   return [...run.events].reverse().find((event): event is CombatBossPhaseEvent => {
     if (event.kind !== "boss-phase") {
@@ -711,6 +724,10 @@ function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { 
     return { id: "taotie-devour-pull", label: "饕餮吞吸" };
   }
 
+  if (skillId === "taotie-ash-summon") {
+    return { id: "taotie-ash-summon", label: "饕餮唤烬" };
+  }
+
   if (skillId === "taotie-flame-breath" || enemy.kind === "boss") {
     return { id: "taotie-flame-breath", label: "饕餮炉火" };
   }
@@ -727,7 +744,7 @@ function enemyTelegraphShape(effectId: string): "cone" | "line" | "circle" {
     return "line";
   }
 
-  if (effectId === "zheng-shockwave" || effectId === "ash-crawler-burst") {
+  if (effectId === "zheng-shockwave" || effectId === "ash-crawler-burst" || effectId === "taotie-ash-summon") {
     return "circle";
   }
 
@@ -937,6 +954,22 @@ function renderCombatVfx(run: CombatRun): string {
       `;
     })
     .join("");
+  const summonVfx = recentEnemySummonEvents(run)
+    .flatMap((event) =>
+      event.positions.map((position, index) => {
+        const summonedEnemyId = event.summonedEnemyIds[index] ?? "";
+
+        return `
+          <div class="enemy-summon-vfx enemy-summon-rift-${event.skillId}" data-enemy-summon-vfx="${event.skillId}" data-summoned-enemy-id="${summonedEnemyId}" data-summon-index="${index}" data-summon-vfx-cue="${event.vfxCue}" style="${combatActorStyle(run, position.x, position.y)} --summon-index: ${index};">
+            <span class="summon-rift-shadow"></span>
+            <span class="summon-rift-ring"></span>
+            <span class="summon-rift-core"></span>
+            <span class="summon-rift-embers"></span>
+          </div>
+        `;
+      })
+    )
+    .join("");
   const bossPhaseVfx = bossPhase
     ? `
         <div class="boss-phase-vfx boss-phase-vfx-${bossPhase.skillId}" data-boss-phase-vfx="${bossPhase.skillId}" data-boss-phase="${bossPhase.phase}" data-boss-phase-enemy-id="${bossPhase.enemyId}" data-boss-phase-hazard-count="${bossPhase.hazardCount}" data-boss-phase-cue="${bossPhase.vfxCue}" style="${combatActorStyle(run, run.arena.width / 2, run.arena.minY + 84)}">
@@ -951,6 +984,7 @@ function renderCombatVfx(run: CombatRun): string {
     <div class="combat-vfx-layer" data-hitstop-active="${hitstopActive ? "true" : "false"}" data-screen-shake="${screenShake}" data-screen-flash="${screenFlash}" data-impact-skill-id="${impactSkillId}">
       ${bossPhaseVfx}
       ${enemyVfx}
+      ${summonVfx}
       ${hitVfx}
       ${skillVfx}
     </div>
@@ -999,6 +1033,14 @@ function renderArenaHazards(run: CombatRun): string {
 function renderCombatActors(run: CombatRun, state: GameState): string {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
   const hitTargetIds = new Set(recentHitEvents(run).map((event) => event.targetId));
+  const summonedById = new Map<string, string>();
+
+  for (const event of recentEnemySummonEvents(run)) {
+    for (const enemyId of event.summonedEnemyIds) {
+      summonedById.set(enemyId, event.skillId);
+    }
+  }
+
   const playerMotionName = playerMotion(run);
   const activeSkill = latestPlayerSkillAnimation(run);
   const activeSkillMovement = run.player.activeSkillMovement;
@@ -1019,9 +1061,10 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const controlState = enemyControlState(enemy, run.elapsedMs);
       const airborneState = enemyAirborneState(enemy);
       const armorState = enemyArmorState(enemy, run.elapsedMs);
+      const spawnSource = summonedById.get(enemy.id);
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-hit-recent="${hitRecent ? "true" : "false"}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
             <img class="enemy-art actor-model actor-model-${motion}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />

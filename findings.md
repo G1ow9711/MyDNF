@@ -451,3 +451,13 @@
 - Browser validation confirmed scheduled times `[260, 410]`, no cast/pre-crack damage, 2 crack impacts, 4 cumulative eruption impacts, knockdown feedback, ultimate shake/flash, dedicated computed animations, stable cast VFX anchor, and no warning/error console output.
 - Review follow-up: the eruption stage now emits MISS when a target leaves after the crack frame but before the 410 ms eruption frame, preserving dynamic hitbox semantics for both stages.
 - Review follow-up: `weapon-furnace-breaker` keyframes now multiply lunge and rotation offsets by `--weapon-facing`, so left-facing casts no longer keep right-facing weapon travel.
+
+## Taotie Ash Summon Boss Pattern Findings
+- Current strict-combat priority remains: character and monster geometry can stay lighter for the prototype, but Boss actions, timed hit frames, interrupt behavior, summoned monster participation, and monster skill VFX must be real gameplay states.
+- Parallel read-only audits agreed that summoning should not reuse `player-hit` or generic active/miss semantics. The implementation adds a dedicated `enemy-summon` event while still using `enemy-attack active` for the Boss impact/VFX frame.
+- RED evidence: focused combat/app/UI tests failed before implementation because `taotie-ash-summon` was not a valid boss profile, fell back to flame breath in UI, spawned no minions, and had no summon rift CSS or Boss model animation.
+- Implementation note: Taotie now rotates through flame breath, devour pull, and ash summon. The ash summon windup has no cast-frame spawn; the impact frame emits a rift VFX and adds two `ash-crawler-burst` trash enemies with delayed attack readiness.
+- Timing note: summon resolution reuses the existing timestamp-sorted enemy-impact queue. Large-frame scheduled hits that trigger Boss phase 2 before the summon frame now clear the cast and prevent stale summons.
+- Room-flow note: summoned crawlers are real room enemies. Killing the Boss alone keeps the room gate locked; the final gate opens only after the spawned crawlers are defeated too.
+- Presentation note: UI renders a circle summon telegraph, Boss `monster-taotie-ash-summon` action, `taotie-ash-summon-rift-core` active VFX, two per-minion summon rifts, and `ash-minion-summon-emerge` for newly spawned monsters.
+- Review follow-up: summon emerge styling is now limited to idle spawned monsters, so later attack motion can take over instead of being masked by the spawn animation.

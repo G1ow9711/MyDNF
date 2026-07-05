@@ -10,7 +10,8 @@ export type EnemyAttackProfileId =
   | "zheng-shockwave"
   | "zheng-horn-charge"
   | "taotie-flame-breath"
-  | "taotie-devour-pull";
+  | "taotie-devour-pull"
+  | "taotie-ash-summon";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "backstep" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
@@ -79,7 +80,8 @@ export type CombatEnemyVfxCue =
   | "zheng-shockwave-impact"
   | "zheng-horn-charge-impact"
   | "taotie-flame-breath-sustain"
-  | "taotie-devour-bite";
+  | "taotie-devour-bite"
+  | "taotie-ash-summon-rift";
 export type CombatPlayerFeedbackCue =
   | "player-hurt-light"
   | "player-hurt-heavy"
@@ -288,6 +290,18 @@ export interface CombatPlayerHitEvent {
   vfxWindowMs?: number;
 }
 
+export interface CombatEnemySummonEvent {
+  kind: "enemy-summon";
+  id: string;
+  enemyId: string;
+  skillId: string;
+  summonedEnemyIds: string[];
+  positions: CombatVector[];
+  occurredAtMs: number;
+  vfxCue: CombatEnemyVfxCue;
+  vfxWindowMs: number;
+}
+
 export interface CombatBossPhaseEvent {
   kind: "boss-phase";
   id: string;
@@ -324,6 +338,7 @@ export type CombatEvent =
   | CombatRoomClearedEvent
   | CombatEnemyAttackEvent
   | CombatPlayerHitEvent
+  | CombatEnemySummonEvent
   | CombatBossPhaseEvent
   | CombatArenaHazardEvent;
 
@@ -472,6 +487,7 @@ interface EnemyAttackDefinition {
   hurtLockMs: number;
   windupRushPx?: number;
   windupPullPx?: number;
+  summonProfileIds?: EnemyAttackProfileId[];
 }
 
 interface PlayerHitboxDefinition {
@@ -525,6 +541,7 @@ const taotieForgeCollapseHazardHitstopMs = 72;
 const taotieForgeCollapseHazardKnockback = 36;
 const taotieForgeCollapseRadiusX = 86;
 const taotieForgeCollapseLaneRange = 36;
+const taotieAshSummonMinionDelayMs = 540;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -913,12 +930,13 @@ function isEnemyAttackProfileId(value: string | undefined): value is EnemyAttack
     value === "zheng-shockwave" ||
     value === "zheng-horn-charge" ||
     value === "taotie-flame-breath" ||
-    value === "taotie-devour-pull"
+    value === "taotie-devour-pull" ||
+    value === "taotie-ash-summon"
   );
 }
 
 function enemyAttackProfileKind(profileId: EnemyAttackProfileId): EnemyKind {
-  if (profileId === "taotie-flame-breath" || profileId === "taotie-devour-pull") {
+  if (profileId === "taotie-flame-breath" || profileId === "taotie-devour-pull" || profileId === "taotie-ash-summon") {
     return "boss";
   }
 
@@ -956,6 +974,28 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
         : enemyAttackProfileKind(enemy.attackProfileId) === enemy.kind
           ? enemy.attackProfileId
           : defaultEnemyAttackProfile(enemy.kind);
+
+  if (profileId === "taotie-ash-summon") {
+    return {
+      skillId: "taotie-ash-summon",
+      damage: 0,
+      rangeX: 0,
+      laneRange: 0,
+      windupMs: 540,
+      recoveryMs: 520,
+      cooldownMs: 3100,
+      hitstopMs: 0,
+      knockback: 0,
+      hitCount: 1,
+      hitIntervalMs: 0,
+      vfxCue: "taotie-ash-summon-rift",
+      vfxWindowMs: 720,
+      feedbackCue: "player-hurt-heavy",
+      invulnerabilityMs: 0,
+      hurtLockMs: 0,
+      summonProfileIds: ["ash-crawler-burst", "ash-crawler-burst"]
+    };
+  }
 
   if (profileId === "taotie-devour-pull") {
     return {
@@ -1094,7 +1134,7 @@ function createEnemy(
 ): CombatEnemy {
   const stats = enemyStats(kind);
   const attackPatternIds: EnemyAttackProfileId[] | undefined =
-    kind === "boss" ? ["taotie-flame-breath", "taotie-devour-pull"] : undefined;
+    kind === "boss" ? ["taotie-flame-breath", "taotie-devour-pull", "taotie-ash-summon"] : undefined;
   const nextAttackPatternIndex = attackPatternIds
     ? attackPatternIds.includes(attackProfileId)
       ? attackPatternIds.indexOf(attackProfileId)
@@ -1148,6 +1188,39 @@ function createRoomEnemies(dungeonId: DungeonId, roomIndex: number): CombatEnemy
     createEnemy(dungeonId, roomIndex, 0, "trash", "ash-ember-spit"),
     createEnemy(dungeonId, roomIndex, 1, "trash", "ash-crawler-burst")
   ];
+}
+
+function createTaotieAshSummons(
+  run: Pick<CombatRun, "dungeonId" | "roomIndex" | "arena" | "enemies">,
+  boss: CombatEnemy,
+  profileIds: EnemyAttackProfileId[],
+  occurredAtMs: number
+): CombatEnemy[] {
+  const offsets = [-128, 128];
+
+  return profileIds.map((profileId, index) => {
+    const base = createEnemy(run.dungeonId, run.roomIndex, run.enemies.length + index, "trash", profileId);
+    const x = clamp(boss.position.x + (offsets[index] ?? 128 * (index + 1)), 72, run.arena.width - 72);
+    const yOffset = index % 2 === 0 ? -34 : 34;
+    const y = clamp(boss.position.y + yOffset, run.arena.minY, run.arena.maxY);
+
+    return {
+      ...base,
+      id: `${run.dungeonId}-room-${run.roomIndex}-summon-${occurredAtMs}-${boss.id}-${index}`,
+      position: { x, y },
+      nextAttackAtMs: occurredAtMs + taotieAshSummonMinionDelayMs + index * 160,
+      attackStartedAtMs: undefined,
+      attackImpactAtMs: undefined,
+      attackRecoverUntilMs: undefined,
+      attackSkillId: undefined,
+      attackHitResolved: undefined,
+      attackResolvedHits: undefined,
+      attackRushStartPosition: undefined,
+      attackRushTargetPosition: undefined,
+      attackPullStartPosition: undefined,
+      attackPullTargetPosition: undefined
+    };
+  });
 }
 
 function eventHitstop(enemy: CombatEnemy, hitstopMs: number): number {
@@ -3282,8 +3355,9 @@ function applyEnemyImpact(
   enemy: CombatEnemy,
   player: CombatPlayer,
   elapsedMs: number,
-  combatProfile: CombatProfile
-): { enemy: CombatEnemy; player: CombatPlayer; events: CombatEvent[]; failed: boolean; phaseTransitionAtMs?: number } {
+  combatProfile: CombatProfile,
+  runContext: Pick<CombatRun, "dungeonId" | "roomIndex" | "arena" | "enemies">
+): { enemy: CombatEnemy; player: CombatPlayer; events: CombatEvent[]; failed: boolean; phaseTransitionAtMs?: number; spawnedEnemies?: CombatEnemy[] } {
   if (
     enemy.hp <= 0 ||
     !enemy.attackSkillId ||
@@ -3300,6 +3374,7 @@ function applyEnemyImpact(
   let failed = player.defeated;
   let phaseTransitionAtMs: number | undefined;
   const events: CombatEvent[] = [];
+  const spawnedEnemies: CombatEnemy[] = [];
 
   while (resolvedHits < attack.hitCount) {
     const hitTime = enemy.attackImpactAtMs + resolvedHits * attack.hitIntervalMs;
@@ -3309,6 +3384,54 @@ function applyEnemyImpact(
     }
 
     const hitIndex = resolvedHits + 1;
+    const summonProfileIds = attack.summonProfileIds;
+
+    if (summonProfileIds && summonProfileIds.length > 0) {
+      const attackEvent: CombatEnemyAttackEvent = {
+        kind: "enemy-attack",
+        id: `enemy-attack-${hitTime}-${enemy.id}-active-${hitIndex}`,
+        enemyId: enemy.id,
+        skillId: attack.skillId,
+        phase: "active",
+        occurredAtMs: hitTime,
+        impactAtMs: hitTime,
+        hitIndex,
+        totalHits: attack.hitCount,
+        vfxCue: attack.vfxCue,
+        vfxWindowMs: attack.vfxWindowMs
+      };
+      const summoned = createTaotieAshSummons(
+        {
+          ...runContext,
+          enemies: [...runContext.enemies, ...spawnedEnemies]
+        },
+        nextEnemy,
+        summonProfileIds,
+        hitTime
+      );
+      const summonEvent: CombatEnemySummonEvent = {
+        kind: "enemy-summon",
+        id: `enemy-summon-${hitTime}-${enemy.id}-${hitIndex}`,
+        enemyId: enemy.id,
+        skillId: attack.skillId,
+        summonedEnemyIds: summoned.map((item) => item.id),
+        positions: summoned.map((item) => item.position),
+        occurredAtMs: hitTime,
+        vfxCue: attack.vfxCue,
+        vfxWindowMs: attack.vfxWindowMs
+      };
+
+      resolvedHits = hitIndex;
+      nextEnemy = {
+        ...nextEnemy,
+        attackResolvedHits: resolvedHits,
+        attackHitResolved: resolvedHits >= attack.hitCount
+      };
+      spawnedEnemies.push(...summoned);
+      events.push(attackEvent, summonEvent);
+      continue;
+    }
+
     const inRange = playerInEnemyAttackRange(nextEnemy, nextPlayer, attack);
     const evaded = inRange && hitTime < nextPlayer.evadeUntilMs;
     const phase = inRange && !evaded ? "active" : "miss";
@@ -3423,7 +3546,7 @@ function applyEnemyImpact(
     }
   }
 
-  return { enemy: nextEnemy, player: nextPlayer, events, failed, phaseTransitionAtMs };
+  return { enemy: nextEnemy, player: nextPlayer, events, failed, phaseTransitionAtMs, spawnedEnemies };
 }
 
 function advanceEnemyAttacks(run: CombatRun): CombatRun {
@@ -3432,6 +3555,7 @@ function advanceEnemyAttacks(run: CombatRun): CombatRun {
   let phaseTransitionAtMs: number | undefined;
   const canceledSkillIds = new Set<string>();
   const events: CombatEvent[] = [];
+  const spawnedEnemies: CombatEnemy[] = [];
   const enemies = run.enemies.map((enemy) => {
     const started = beginEnemyAttack(enemy, run.elapsedMs, player);
 
@@ -3441,11 +3565,15 @@ function advanceEnemyAttacks(run: CombatRun): CombatRun {
 
     const advanced = advanceEnemyWindupState(started.enemy, player, run.elapsedMs);
     const beforeImpactPlayer = player;
-    const impacted = applyEnemyImpact(advanced.enemy, advanced.player, run.elapsedMs, run.combatProfile);
+    const impacted = applyEnemyImpact(advanced.enemy, advanced.player, run.elapsedMs, run.combatProfile, {
+      ...run,
+      enemies: [...run.enemies, ...spawnedEnemies]
+    });
     const interruptedSkillId = interruptedActiveSkillId(beforeImpactPlayer, impacted.player);
 
     player = impacted.player;
     failed = failed || impacted.failed;
+    spawnedEnemies.push(...(impacted.spawnedEnemies ?? []));
     if (interruptedSkillId) {
       canceledSkillIds.add(interruptedSkillId);
     }
@@ -3462,7 +3590,7 @@ function advanceEnemyAttacks(run: CombatRun): CombatRun {
       {
       ...run,
       player,
-      enemies,
+      enemies: [...enemies, ...spawnedEnemies],
       scheduledEnemyHitEffects: run.scheduledEnemyHitEffects.filter((effect) => !effect.skillId || !canceledSkillIds.has(effect.skillId)),
       scheduledMissEffects: run.scheduledMissEffects.filter((effect) => !effect.skillId || !canceledSkillIds.has(effect.skillId)),
       events: [...run.events, ...events],
@@ -3941,7 +4069,7 @@ function resolveTargetEnemyImpactsBeforeScheduledEffect(
   }
 
   const advanced = advanceEnemyWindupState(target, run.player, effect.applyAtMs);
-  const impacted = applyEnemyImpact(advanced.enemy, advanced.player, effect.applyAtMs, run.combatProfile);
+  const impacted = applyEnemyImpact(advanced.enemy, advanced.player, effect.applyAtMs, run.combatProfile, run);
 
   if (impacted.events.length === 0) {
     return run;
@@ -3950,7 +4078,7 @@ function resolveTargetEnemyImpactsBeforeScheduledEffect(
   return {
     ...run,
     player: impacted.player,
-    enemies: run.enemies.map((enemy) => (enemy.id === target.id ? impacted.enemy : enemy)),
+    enemies: [...run.enemies.map((enemy) => (enemy.id === target.id ? impacted.enemy : enemy)), ...(impacted.spawnedEnemies ?? [])],
     events: [...run.events, ...impacted.events],
     failed: run.failed || impacted.failed
   };
@@ -4180,7 +4308,7 @@ function applyQueuedEnemyImpact(run: CombatRun, enemyId: string, occurredAtMs: n
 
   const sampledPlayer = samplePlayerAtElapsed(run.player, occurredAtMs, movement);
   const advanced = advanceEnemyWindupState(enemy, sampledPlayer, occurredAtMs);
-  const impacted = applyEnemyImpact(advanced.enemy, advanced.player, occurredAtMs, run.combatProfile);
+  const impacted = applyEnemyImpact(advanced.enemy, advanced.player, occurredAtMs, run.combatProfile, run);
 
   if (impacted.events.length === 0) {
     return run;
@@ -4193,7 +4321,7 @@ function applyQueuedEnemyImpact(run: CombatRun, enemyId: string, occurredAtMs: n
       {
         ...run,
         player: playerWasHit ? impacted.player : run.player,
-        enemies: run.enemies.map((item) => (item.id === enemy.id ? impacted.enemy : item)),
+        enemies: [...run.enemies.map((item) => (item.id === enemy.id ? impacted.enemy : item)), ...(impacted.spawnedEnemies ?? [])],
         events: [...run.events, ...impacted.events],
         failed: run.failed || impacted.failed
       },

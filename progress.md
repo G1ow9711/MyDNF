@@ -1940,3 +1940,24 @@
   - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "glass-cut"`, 7 tests.
   - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 224 tests.
   - Browser DOM/computed-style validation on `http://127.0.0.1:5174/glass-cut-check.html` confirmed 115 ms scheduled impact, zero pre-hit hits at 114 ms, one target impact at 115 ms, `glass-cut` / `glass-slash-cut` metadata, dedicated player/weapon/cast/impact animation names, and empty warning/error log. Temporary check page was deleted.
+
+## Task 70 Spark Combo Starter Timeline
+- Continued under the user's clarified priority: character/monster geometry may stay lighter for now, but fighting flow, model-following attack movement, hit frames, hit feedback, skill VFX, and monster VFX remain strict.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires `spark-combo` to schedule a 120 ms jab hit, move the player forward during startup, recheck targets at the jab frame, delay whiff feedback, preserve combo-cancel metadata, and cancel pending damage when monster impact interrupts first.
+  - `src/tests/app-integration.test.ts` now requires runtime DOM metadata for `ember-combo`, `jab-chain`, `ember-sparks`, no pre-hit target burst, and target-bound `ember-jab-chain` impact.
+  - `src/tests/ui-smoke.test.ts` now requires dedicated player, weapon, cast sparks, and target impact CSS hooks/keyframes.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "spark-combo"` failed before implementation because no scheduled effects existed for `spark-combo`.
+- Implemented:
+  - Added `jab-chain` hit phase and `ember-jab-chain` VFX cue.
+  - Added `applySparkCombo()` with 26 px timed forward movement, 120 ms dynamic hitbox, delayed whiff behavior, combo-cancel metadata, and queue-based monster interruption cancellation.
+  - Added dedicated CSS for player `player-ember-spark-combo`, weapon `weapon-jab-chain`, cast `ember-sparks-*`, and target impact `ember-jab-chain-*` animations.
+- Code review follow-up:
+  - Read-only review found one Important issue: the first implementation moved the model to the 26 px endpoint but sampled the delayed hitbox from the cast origin.
+  - Added RED regression for an enemy reachable only from the forward step endpoint; it failed before the fix and passed after changing `spark-combo` dynamic hitbox origin to `endPosition`.
+  - Added same-frame monster-impact interruption coverage for `spark-combo`.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts -t "spark-combo"`, 8 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 232 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/spark-combo-check.html` confirmed 120 ms scheduled impact, zero cast/pre-hit hits, endpoint-only target hit after the player moves from x 240 to x 266, one target-bound impact, `jab-chain` / `ember-jab-chain` metadata, dedicated player/weapon/cast/impact animation names, and empty warning/error log. Temporary check page was deleted.

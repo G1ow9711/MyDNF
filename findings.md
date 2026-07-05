@@ -413,3 +413,11 @@
 - Implementation note: `glass-cut` now starts a 115 ms active skill movement, keeps cast-frame enemy HP unchanged, resolves a dynamic swept-path slash from the cast origin at the hit frame, and cancels pending damage when enemy impact interrupts before or on the same frame.
 - Review follow-up: endpoint-only target selection could miss enemies passed through during the short slide. The dynamic hitbox now selects from the cast origin, and a regression covers a target between the start and slash endpoint.
 - Presentation note: browser computed-style validation confirmed `player-liuli-glass-cut`, `weapon-glass-slash`, `glass-slash-cast-core`, and `glass-slash-impact-core` animation names, with no warning/error console output.
+
+## Spark Combo Starter Timeline Findings
+- Current user priority keeps player/monster geometry light for now, but requires starter actions to have strict timing, model-following movement, delayed hit frames, cancelable impacts, and dedicated VFX.
+- RED evidence: focused tests failed because `spark-combo` still used the generic instant skill branch, had no scheduled 120 ms hitbox, no delayed whiff, no dynamic target recheck, and no dedicated `ember-combo` / `jab-chain` / `ember-sparks` presentation.
+- Implementation note: `spark-combo` now starts a 26 px active forward movement, keeps cast-frame HP unchanged, resolves one front target at the 120 ms jab frame, delays miss feedback, and carries `jab-chain` / `ember-jab-chain` hit metadata for target-bound VFX.
+- Review follow-up: the first implementation moved the model but sampled the hitbox from the cast origin. The delayed dynamic hitbox now samples from the movement endpoint, with a regression where only the endpoint can reach the target.
+- Same-frame priority note: a `spark-combo` regression now covers monster impact and queued player jab at the same timestamp, relying on the shared scheduled queue priority that resolves monster impacts before delayed player hits.
+- Presentation note: browser computed-style validation confirmed `player-ember-spark-combo`, `weapon-jab-chain`, `ember-sparks-cast-core`, and `ember-jab-chain-impact-core` animation names, with no warning/error console output.

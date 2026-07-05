@@ -32,6 +32,7 @@ export type CombatHitPhase =
   | "overdrive-release"
   | "ink-bolt"
   | "glass-cut"
+  | "jab-chain"
   | "roll-shot"
   | "uppercut"
   | "chain-open"
@@ -56,6 +57,7 @@ export type CombatVfxCue =
   | "overdrive-core-release"
   | "ink-shot-pierce"
   | "glass-slash-cut"
+  | "ember-jab-chain"
   | "shadow-roll-shot"
   | "cinder-uppercut-rise"
   | "flowing-chain-open"
@@ -1358,6 +1360,10 @@ function skillDamage(run: CombatRun, skill: { resourceCost: number; tags: string
 }
 
 function skillMovementDistance(skill: ClassSkillDefinition): number {
+  if (skill.id === "spark-combo") {
+    return 26;
+  }
+
   if (skill.id === "cinder-uppercut") {
     return 64;
   }
@@ -1452,6 +1458,48 @@ function repeatedSkillHitPresentation(skillId: string | undefined): Pick<HitDefi
   }
 
   return {};
+}
+
+function sparkComboHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 118,
+    laneRange: 48,
+    targetCap: 1,
+    frontOnly: true,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.92)),
+    hitstopMs: 52,
+    knockback: 22,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo
+  };
+}
+
+function applySparkCombo(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x + skillMovementDistance(skill) * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+
+  return schedulePlayerHitboxEffect(
+    movingRun,
+    sparkComboHitbox(run, skill, canceledFromCombo),
+    endPosition,
+    run.player.facing,
+    {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-jab-chain`,
+      hitPhase: "jab-chain",
+      vfxCue: "ember-jab-chain",
+      vfxWindowMs: 240
+    }
+  );
 }
 
 function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
@@ -4223,6 +4271,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "liuli-rain") {
     return completeSkillAction(run, applyLiuliRain(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "spark-combo") {
+    return completeSkillAction(run, applySparkCombo(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "cinder-uppercut") {

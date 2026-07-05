@@ -1262,6 +1262,76 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(impactHtml, 'data-skill-impact-vfx="furnace-step"')).toBe(1);
   });
 
+  it("renders spark-combo as a timed ember jab chain with target sparks", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: createInitialState()
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 64 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "spark-combo" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after spark-combo");
+    }
+
+    const [jabAtMs] = scheduledSkillTimes(model.combatRun, "spark-combo");
+    const castHtml = renderAppHtml(model);
+    const beforeJabRun = stepToElapsed(model.combatRun, jabAtMs - 1);
+    const beforeJabHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeJabRun
+    });
+    const hitRun = stepToElapsed(model.combatRun, jabAtMs);
+    const hitHtml = renderAppHtml({
+      ...model,
+      combatRun: hitRun
+    });
+
+    expect(model.combatRun.player.x).toBe(player.x);
+    expect(beforeJabRun.player.x).toBeGreaterThan(player.x);
+    expect(skillHitEvents(model.combatRun, "spark-combo")).toHaveLength(0);
+    expect(skillHitEvents(hitRun, "spark-combo")).toHaveLength(1);
+    expect(castHtml).toContain('data-active-skill-id="spark-combo"');
+    expect(castHtml).toContain('data-skill-animation-preset="ember-combo"');
+    expect(castHtml).toContain('data-skill-weapon-arc="jab-chain"');
+    expect(castHtml).toContain('data-skill-vfx-shape="ember-sparks"');
+    expect(castHtml).toContain('data-player-skill-move="spark-combo"');
+    expect(beforeJabHtml).not.toContain('data-skill-impact-vfx="spark-combo"');
+    expect(hitHtml).toContain('data-hit-phase="jab-chain"');
+    expect(hitHtml).toContain('data-vfx-cue="ember-jab-chain"');
+    expect(hitHtml).toContain('data-impact-vfx-shape="ember-sparks"');
+    expect(hitHtml).toContain('class="skill-impact-burst skill-impact-shape-ember-sparks"');
+    expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="spark-combo"')).toBe(1);
+  });
+
   it("renders cinder-uppercut as a timed forward launcher with flame-column impact", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

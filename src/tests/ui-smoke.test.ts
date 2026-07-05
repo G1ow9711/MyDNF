@@ -531,6 +531,57 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes heat-bloom-eruption-core");
   });
 
+  it("defines dedicated spark-combo player, weapon, sparks, and jab-chain animations", () => {
+    const state = createInitialState();
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 64 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "spark-combo" }
+    );
+    const [jabAtMs] = scheduledSkillTimes(castRun, "spark-combo");
+    const beforeJabHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, jabAtMs - 1)
+    });
+    const hitRun = stepToElapsed(castRun, jabAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: hitRun
+    });
+
+    expect(skillHitEvents(castRun, "spark-combo")).toHaveLength(0);
+    expect(skillHitEvents(hitRun, "spark-combo")).toHaveLength(1);
+    expect(beforeJabHtml).toContain('data-player-skill-move="spark-combo"');
+    expect(beforeJabHtml).not.toContain('data-skill-impact-vfx="spark-combo"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="spark-combo"')).toBe(1);
+    expect(html).toContain('data-impact-vfx-shape="ember-sparks"');
+    expect(html).toContain('data-vfx-cue="ember-jab-chain"');
+    expect(html).toContain('data-hit-phase="jab-chain"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-ember-sparks"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="spark-combo"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="ember-combo"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="jab-chain"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-ember-sparks");
+    expect(stylesCss).toContain(".skill-impact-shape-ember-sparks");
+    expect(stylesCss).toContain("@keyframes player-ember-spark-combo");
+    expect(stylesCss).toContain("@keyframes weapon-jab-chain");
+    expect(stylesCss).toContain("@keyframes ember-sparks-cast-core");
+    expect(stylesCss).toContain("@keyframes ember-jab-chain-impact-core");
+  });
+
   it("renders cinder-uppercut with delayed flame-column launcher impact metadata", () => {
     const state = {
       ...createInitialState(),

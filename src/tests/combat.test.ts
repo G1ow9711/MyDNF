@@ -372,23 +372,31 @@ describe("combat actions and impact feel", () => {
     expect(latestHitForSkill(slammed, "anvil-crash").comboCount).toBeGreaterThan(1);
   });
 
-  it("allows a class skill cancel during the hit-confirm window", () => {
+  it("allows spark-combo cancel during the hit-confirm window and lands on its jab frame", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), { nextAttackAtMs: 9999 });
     const light = performAction(run, { type: "light" });
     const canceled = performAction(light, { type: "skill", skillId: "spark-combo" });
-    const skillHit = lastHitEvent(canceled);
+    const [jabAtMs] = scheduledSkillTimes(canceled, "spark-combo");
+    const beforeJab = stepToElapsed(canceled, jabAtMs - 1);
+    const jab = stepToElapsed(canceled, jabAtMs);
+    const [skillHit] = skillHitEvents(jab, "spark-combo");
 
     expect(skillHit).toMatchObject({
       kind: "hit",
       action: "skill",
       skillId: "spark-combo",
-      canceledFromCombo: true
+      canceledFromCombo: true,
+      hitPhase: "jab-chain",
+      vfxCue: "ember-jab-chain"
     });
+    expect(skillHitEvents(canceled, "spark-combo")).toHaveLength(0);
+    expect(skillHitEvents(beforeJab, "spark-combo")).toHaveLength(0);
     expect(canceled.player.actionLockUntilMs).toBeGreaterThan(light.player.actionLockUntilMs);
-    expect(canceled.enemies[0].hp).toBeLessThan(light.enemies[0].hp);
+    expect(canceled.enemies[0].hp).toBe(light.enemies[0].hp);
+    expect(jab.enemies[0].hp).toBeLessThan(light.enemies[0].hp);
   });
 
-  it("allows a class skill cancel after the third normal combo step", () => {
+  it("allows spark-combo cancel after the third normal combo step", () => {
     const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
     const run = withEnemyInRange(baseRun, {
       hp: 420,
@@ -403,11 +411,228 @@ describe("combat actions and impact feel", () => {
     const second = performAction(stepCombat(first, {}, first.player.actionLockUntilMs - first.elapsedMs), { type: "light" });
     const third = performAction(stepCombat(second, {}, second.player.actionLockUntilMs - second.elapsedMs), { type: "light" });
     const canceled = performAction(third, { type: "skill", skillId: "spark-combo" });
-    const skillHit = latestHitForSkill(canceled, "spark-combo");
+    const [jabAtMs] = scheduledSkillTimes(canceled, "spark-combo");
+    const jab = stepToElapsed(canceled, jabAtMs);
+    const skillHit = latestHitForSkill(jab, "spark-combo");
 
     expect(third.player.comboStep).toBe(3);
     expect(skillHit.canceledFromCombo).toBe(true);
     expect(canceled.player.actionLockUntilMs).toBeGreaterThan(third.player.actionLockUntilMs);
+  });
+
+  it("delays spark-combo into a forward ember jab-chain hit frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 304, y: 340, hp: 180, maxHp: 180 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "spark-combo" });
+    const [jabAtMs] = scheduledSkillTimes(cast, "spark-combo");
+    const midJab = stepToElapsed(cast, 60);
+    const beforeJab = stepToElapsed(cast, jabAtMs - 1);
+    const hit = stepToElapsed(cast, jabAtMs);
+    const [jabHit] = skillHitEvents(hit, "spark-combo");
+
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("spark-combo");
+    expect(skillHitEvents(cast, "spark-combo")).toHaveLength(0);
+    expect(jabAtMs).toBe(120);
+    expect(midJab.player.x).toBeGreaterThan(run.player.x);
+    expect(midJab.player.x).toBeLessThan(run.player.x + 26);
+    expect(beforeJab.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(jabHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "jab-chain",
+      vfxCue: "ember-jab-chain",
+      vfxWindowMs: 240
+    });
+    expect(hit.player.activeSkillMovement).toBeUndefined();
+    expect(hit.player.x).toBe(266);
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("rechecks spark-combo targets at the jab frame instead of locking cast-time targets", () => {
+    const inRangeRun = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 304, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const castWithTarget = performAction(inRangeRun, { type: "skill", skillId: "spark-combo" });
+    const [jabAtMs] = scheduledSkillTimes(castWithTarget, "spark-combo");
+    const movedOutBeforeJab = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: castWithTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 520, y: 500 }
+              }
+            : enemy
+        )
+      },
+      jabAtMs
+    );
+
+    expect(skillHitEvents(movedOutBeforeJab, "spark-combo")).toHaveLength(0);
+    expect(skillMissEvents(movedOutBeforeJab, "spark-combo")).toHaveLength(1);
+    expect(movedOutBeforeJab.enemies[0].hp).toBe(inRangeRun.enemies[0].hp);
+
+    const outOfRangeRun = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 520, y: 500, hp: 180, maxHp: 180 }]
+    );
+    const castWithoutTarget = performAction(outOfRangeRun, { type: "skill", skillId: "spark-combo" });
+    const [lateJabAtMs] = scheduledSkillTimes(castWithoutTarget, "spark-combo");
+    const movedInBeforeJab = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: castWithoutTarget.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: 304, y: 340 }
+              }
+            : enemy
+        )
+      },
+      lateJabAtMs
+    );
+    const [lateHit] = skillHitEvents(movedInBeforeJab, "spark-combo");
+
+    expect(lateHit).toMatchObject({
+      targetId: outOfRangeRun.enemies[0].id,
+      hitPhase: "jab-chain",
+      vfxCue: "ember-jab-chain"
+    });
+    expect(skillMissEvents(movedInBeforeJab, "spark-combo")).toHaveLength(0);
+    expect(movedInBeforeJab.enemies[0].hp).toBeLessThan(outOfRangeRun.enemies[0].hp);
+  });
+
+  it("uses spark-combo forward step as the jab-frame hitbox origin", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 425, y: 340, hp: 180, maxHp: 180 },
+        { x: 650, y: 500, hp: 0, maxHp: 180 }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "spark-combo" });
+    const [jabAtMs] = scheduledSkillTimes(cast, "spark-combo");
+    const hit = stepToElapsed(cast, jabAtMs);
+    const [jabHit] = skillHitEvents(hit, "spark-combo");
+
+    expect(hit.player.x).toBe(266);
+    expect(jabHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "jab-chain",
+      vfxCue: "ember-jab-chain"
+    });
+    expect(skillMissEvents(hit, "spark-combo")).toHaveLength(0);
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("delays spark-combo whiff feedback until the jab frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 520, y: 500, hp: 180, maxHp: 180 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "spark-combo" });
+    const [jabAtMs] = scheduledSkillTimes(cast, "spark-combo");
+    const beforeJab = stepToElapsed(cast, jabAtMs - 1);
+    const missed = stepToElapsed(cast, jabAtMs);
+
+    expect(skillMissEvents(cast, "spark-combo")).toHaveLength(0);
+    expect(skillMissEvents(beforeJab, "spark-combo")).toHaveLength(0);
+    expect(skillMissEvents(missed, "spark-combo")).toHaveLength(1);
+    expect(missed.enemies[0].hp).toBe(run.enemies[0].hp);
+  });
+
+  it("cancels spark-combo jab when monster damage interrupts before the jab frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 304, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "spark-combo" });
+    const [jabAtMs] = scheduledSkillTimes(cast, "spark-combo");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 80,
+            attackRecoverUntilMs: 320,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      jabAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 80
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(skillHitEvents(interrupted, "spark-combo")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "spark-combo")).toHaveLength(0);
+  });
+
+  it("lets same-frame monster impact interrupt spark-combo before the queued jab resolves", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 304, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "spark-combo" });
+    const [jabAtMs] = scheduledSkillTimes(cast, "spark-combo");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: jabAtMs,
+            attackRecoverUntilMs: 320,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      jabAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: jabAtMs
+        })
+      ])
+    );
+    expect(skillHitEvents(interrupted, "spark-combo")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
   });
 
   it("buffers a queued action near the end of an action lock and releases it on the unlock frame", () => {

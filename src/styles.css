@@ -1293,7 +1293,7 @@ p {
 }
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="ember-anvil"] .combat-player-art {
-  animation: player-ember-anvil-crash var(--skill-duration, 620ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
+  animation: player-ember-anvil-jump var(--skill-duration, 620ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="ember-meteor"] .combat-player-art {
@@ -1362,6 +1362,16 @@ p {
 .combat-player[data-player-skill-move="cinder-uppercut"] .player-motion-trail {
   opacity: 0.9;
   filter: drop-shadow(0 0 20px rgba(253, 224, 71, 0.7));
+}
+
+.combat-player[data-player-motion="skill"][data-player-skill-move="anvil-crash"] .combat-player-art {
+  animation: player-ember-anvil-jump var(--skill-duration, 620ms) cubic-bezier(0.16, 0.84, 0.18, 1) both;
+  filter: drop-shadow(0 0 26px rgba(251, 146, 60, 0.76)) brightness(1.2) saturate(1.2);
+}
+
+.combat-player[data-player-motion="skill"][data-player-skill-move="anvil-crash"] .player-motion-trail {
+  opacity: 0.9;
+  filter: drop-shadow(0 0 22px rgba(248, 113, 113, 0.72));
 }
 
 .combat-player[data-player-skill-move="glass-cut"] .combat-player-art {
@@ -2000,6 +2010,44 @@ p {
     radial-gradient(circle at 28% 72%, rgba(254, 240, 138, 0.92) 0 5px, transparent 6px),
     radial-gradient(circle at 70% 40%, rgba(255, 247, 237, 0.88) 0 4px, transparent 5px);
   animation: cinder-uppercut-rise-shards 430ms ease-out both;
+}
+
+.skill-impact-shape-anvil-sparks {
+  width: 196px;
+  height: 132px;
+  transform: translate(-50%, -88%) scaleX(1.08);
+  filter: drop-shadow(0 0 22px rgba(251, 146, 60, 0.68));
+}
+
+.skill-impact-shape-anvil-sparks .skill-impact-core {
+  top: 58%;
+  width: 96px;
+  height: 34px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(255, 247, 237, 0.98), rgba(254, 240, 138, 0.88) 18%, transparent 42%),
+    radial-gradient(ellipse at 50% 70%, rgba(249, 115, 22, 0.86), rgba(127, 29, 29, 0) 68%);
+  filter: blur(0.2px) drop-shadow(0 0 20px rgba(251, 146, 60, 0.82));
+  animation: anvil-crash-impact-core 340ms cubic-bezier(0.1, 0.82, 0.16, 1) both;
+}
+
+.skill-impact-shape-anvil-sparks .skill-impact-ring {
+  top: 64%;
+  width: 156px;
+  height: 48px;
+  border-color: rgba(253, 186, 116, 0.84);
+  box-shadow: 0 0 30px rgba(248, 113, 113, 0.58), inset 0 0 22px rgba(250, 204, 21, 0.3);
+  animation: anvil-crash-impact-ring 430ms ease-out both;
+}
+
+.skill-impact-shape-anvil-sparks .skill-impact-shards {
+  background:
+    linear-gradient(78deg, transparent 14%, rgba(255, 247, 237, 0.96) 15% 18%, transparent 19%),
+    linear-gradient(105deg, transparent 34%, rgba(253, 186, 116, 0.88) 35% 40%, transparent 41%),
+    linear-gradient(64deg, transparent 60%, rgba(248, 113, 113, 0.84) 61% 67%, transparent 68%),
+    radial-gradient(circle at 22% 68%, rgba(254, 240, 138, 0.96) 0 5px, transparent 6px),
+    radial-gradient(circle at 78% 44%, rgba(255, 247, 237, 0.9) 0 4px, transparent 5px);
+  animation: anvil-crash-impact-shards 520ms ease-out both;
 }
 
 .skill-impact-shape-black-rain .skill-impact-core {
@@ -3105,6 +3153,7 @@ p {
   border-radius: 50%;
   background:
     radial-gradient(circle at 50% 55%, rgba(255, 247, 237, 0.98), rgba(251, 146, 60, 0.78) 30%, rgba(127, 29, 29, 0) 70%);
+  animation: anvil-sparks-cast-core var(--skill-duration, 620ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
 
 .skill-vfx-shape-anvil-sparks .skill-wave {
@@ -3112,6 +3161,7 @@ p {
   border-color: rgba(251, 146, 60, 0.78);
   border-radius: 50%;
   box-shadow: 0 0 34px rgba(248, 113, 113, 0.5), inset 0 0 20px rgba(250, 204, 21, 0.34);
+  animation: anvil-sparks-cast-ring var(--skill-duration, 620ms) ease-out both;
 }
 
 .skill-vfx-shape-anvil-sparks .skill-sparks {
@@ -3120,6 +3170,7 @@ p {
     radial-gradient(circle at 42% 42%, rgba(251, 146, 60, 0.96) 0 5px, transparent 6px),
     radial-gradient(circle at 67% 62%, rgba(248, 113, 113, 0.9) 0 4px, transparent 5px),
     radial-gradient(circle at 84% 38%, rgba(255, 247, 237, 0.95) 0 3px, transparent 4px);
+  animation: anvil-sparks-cast-sparks var(--skill-duration, 620ms) ease-out both;
 }
 
 .skill-vfx-shape-meteor-impact {
@@ -4098,6 +4149,14 @@ p {
   100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
 }
 
+@keyframes player-ember-anvil-jump {
+  0% { transform: translateX(calc(var(--skill-lunge-x, 34px) * -0.32)) translateY(4px) rotate(-5deg) scale(0.96) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
+  24% { transform: translateX(calc(var(--skill-lunge-x, 34px) * 0.18)) translateY(-34px) rotate(3deg) scale(1.04) scaleX(var(--model-scale-x, 1)); filter: brightness(1.52) saturate(1.12); }
+  52% { transform: translateX(calc(var(--skill-lunge-x, 34px) * 0.82)) translateY(-42px) rotate(7deg) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.82) saturate(1.2); }
+  72% { transform: translateX(var(--skill-lunge-x, 34px)) translateY(12px) rotate(9deg) scale(1.12) scaleX(var(--model-scale-x, 1)); filter: brightness(2.05) saturate(1.28); }
+  100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
+}
+
 @keyframes player-ember-meteor-crash {
   0% { transform: translateX(calc(var(--skill-lunge-x, 38px) * -0.45)) translateY(6px) rotate(-6deg) scale(0.96) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
   24% { transform: translateX(calc(var(--skill-lunge-x, 38px) * -0.12)) translateY(-42px) rotate(3deg) scale(1.05) scaleX(var(--model-scale-x, 1)); filter: brightness(1.62) saturate(1.14); }
@@ -5027,6 +5086,27 @@ p {
   100% { opacity: 0; transform: translateX(66px) translateY(-8px) scale(1.34); filter: blur(2px); }
 }
 
+@keyframes anvil-sparks-cast-core {
+  0% { opacity: 0; transform: translateY(32px) scaleX(0.44) scaleY(0.24); filter: blur(2px) brightness(0.94); }
+  26% { opacity: 0.72; transform: translateY(8px) scaleX(0.82) scaleY(0.72); filter: blur(0.7px) brightness(1.36); }
+  58% { opacity: 1; transform: translateY(-10px) scaleX(1.06) scaleY(1.08); filter: blur(0.1px) brightness(1.78); }
+  100% { opacity: 0; transform: translateY(36px) scaleX(1.32) scaleY(0.4); filter: blur(2.4px) brightness(1); }
+}
+
+@keyframes anvil-sparks-cast-ring {
+  0% { opacity: 0; transform: scaleX(0.26) scaleY(0.44); }
+  30% { opacity: 0.72; transform: scaleX(0.78) scaleY(0.72); }
+  66% { opacity: 0.96; transform: scaleX(1.14) scaleY(0.94); }
+  100% { opacity: 0; transform: scaleX(1.62) scaleY(1.16); }
+}
+
+@keyframes anvil-sparks-cast-sparks {
+  0% { opacity: 0; transform: translateY(20px) scale(0.58); filter: blur(1.4px); }
+  34% { opacity: 0.9; transform: translateY(-4px) scale(0.92); filter: blur(0.2px); }
+  72% { opacity: 1; transform: translateY(-18px) scale(1.18); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(16px) translateX(26px) scale(1.38); filter: blur(2.2px); }
+}
+
 @keyframes flame-column-cast-core {
   0% { opacity: 0; transform: translateY(38px) scaleX(0.54) scaleY(0.28); filter: blur(2px) brightness(0.94); }
   22% { opacity: 0.86; transform: translateY(12px) scaleX(0.82) scaleY(0.72); filter: blur(0.8px) brightness(1.36); }
@@ -5082,6 +5162,24 @@ p {
   0% { opacity: 0; transform: translateY(28px) scale(0.58) rotate(-10deg); }
   24% { opacity: 1; transform: translateY(0) scale(0.94) rotate(4deg); }
   100% { opacity: 0; transform: translateY(-78px) translateX(22px) scale(1.26) rotate(26deg); }
+}
+
+@keyframes anvil-crash-impact-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.24) scaleY(0.28); filter: blur(2px) brightness(1); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scaleX(1.04) scaleY(0.88); filter: blur(0.1px) brightness(1.8); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scaleX(1.72) scaleY(0.32); filter: blur(2.4px) brightness(0.96); }
+}
+
+@keyframes anvil-crash-impact-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.18) scaleY(0.4); }
+  24% { opacity: 0.95; transform: translate(-50%, -50%) scaleX(0.96) scaleY(0.86); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scaleX(1.78) scaleY(1.18); }
+}
+
+@keyframes anvil-crash-impact-shards {
+  0% { opacity: 0; transform: translateY(12px) scale(0.58); filter: blur(1.2px); }
+  22% { opacity: 1; transform: translateY(-4px) scale(1.08); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-36px) translateX(34px) scale(1.42); filter: blur(2.2px); }
 }
 
 @keyframes overdrive-core-cast-core {

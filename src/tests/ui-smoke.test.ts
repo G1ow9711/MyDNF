@@ -582,6 +582,69 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes ember-jab-chain-impact-core");
   });
 
+  it("renders anvil-crash as a delayed hammer-drop slam with target sparks", () => {
+    const state = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        heat: 80
+      }
+    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 220,
+          maxHp: 220,
+          position: { x: player.x + 92 + index * 62, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "anvil-crash" }
+    );
+    const [slamAtMs] = scheduledSkillTimes(castRun, "anvil-crash");
+    const beforeSlamHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, slamAtMs - 1)
+    });
+    const slamRun = stepToElapsed(castRun, slamAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: slamRun
+    });
+
+    expect(skillHitEvents(castRun, "anvil-crash")).toHaveLength(0);
+    expect(skillHitEvents(slamRun, "anvil-crash")).toHaveLength(2);
+    expect(beforeSlamHtml).toContain('data-player-skill-move="anvil-crash"');
+    expect(beforeSlamHtml).not.toContain('data-skill-impact-vfx="anvil-crash"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="anvil-crash"')).toBe(2);
+    expect(html).toContain('data-impact-vfx-shape="anvil-sparks"');
+    expect(html).toContain('data-vfx-cue="anvil-crash-impact"');
+    expect(html).toContain('data-hit-phase="anvil-slam"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-anvil-sparks"');
+    expect(html).toContain('data-enemy-knockdown="true"');
+    expect(html).toContain('data-control-state="downed"');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="skill"][data-player-skill-move="anvil-crash"]');
+    expect(stylesCss).toContain(
+      '.combat-player[data-player-motion="skill"][data-skill-animation-preset="ember-anvil"] .combat-player-art {\n  animation: player-ember-anvil-jump'
+    );
+    expect(stylesCss).toContain('[data-skill-animation-preset="ember-anvil"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="hammer-drop"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-anvil-sparks");
+    expect(stylesCss).toContain(".skill-impact-shape-anvil-sparks");
+    expect(stylesCss).toContain("@keyframes player-ember-anvil-crash");
+    expect(stylesCss).toContain("@keyframes player-ember-anvil-jump");
+    expect(stylesCss).toContain("@keyframes weapon-hammer-drop");
+    expect(stylesCss).toContain("@keyframes anvil-sparks-cast-core");
+    expect(stylesCss).toContain("@keyframes anvil-crash-impact-core");
+  });
+
   it("renders cinder-uppercut with delayed flame-column launcher impact metadata", () => {
     const state = {
       ...createInitialState(),

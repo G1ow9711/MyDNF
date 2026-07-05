@@ -364,12 +364,160 @@ describe("combat actions and impact feel", () => {
         actionLockUntilMs: 0
       }
     };
-    const slammed = performAction(ready, { type: "skill", skillId: "anvil-crash" });
+    const cast = performAction(ready, { type: "skill", skillId: "anvil-crash" });
+    const [slamAtMs] = scheduledSkillTimes(cast, "anvil-crash");
+    const beforeSlam = stepToElapsed(cast, slamAtMs - 1);
+    const slammed = stepToElapsed(cast, slamAtMs);
 
+    expect(skillHitEvents(cast, "anvil-crash")).toHaveLength(0);
+    expect(skillHitEvents(beforeSlam, "anvil-crash")).toHaveLength(0);
     expect(slammed.enemies[0].airborne).toBe(false);
     expect(slammed.enemies[0].downed).toBe(true);
     expect(slammed.enemies[0].downedUntilMs).toBeGreaterThan(slammed.elapsedMs);
     expect(latestHitForSkill(slammed, "anvil-crash").comboCount).toBeGreaterThan(1);
+  });
+
+  it("delays anvil-crash into a forward hammer-drop slam frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 332, y: 340, hp: 220, maxHp: 220 },
+        { x: 394, y: 350, hp: 220, maxHp: 220 }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "anvil-crash" });
+    const [slamAtMs] = scheduledSkillTimes(cast, "anvil-crash");
+    const beforeSlam = stepToElapsed(cast, slamAtMs - 1);
+    const slammed = stepToElapsed(cast, slamAtMs);
+    const slamHits = skillHitEvents(slammed, "anvil-crash");
+
+    expect(slamAtMs - run.elapsedMs).toBe(260);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("anvil-crash");
+    expect(cast.player.x).toBe(run.player.x);
+    expect(beforeSlam.player.x).toBeGreaterThan(run.player.x);
+    expect(skillHitEvents(cast, "anvil-crash")).toHaveLength(0);
+    expect(skillHitEvents(beforeSlam, "anvil-crash")).toHaveLength(0);
+    expect(slamHits).toHaveLength(2);
+    expect(slamHits.every((event) => event.hitPhase === "anvil-slam")).toBe(true);
+    expect(slamHits.every((event) => event.vfxCue === "anvil-crash-impact")).toBe(true);
+    expect(slamHits.every((event) => event.actionTags?.includes("slam"))).toBe(true);
+    expect(slamHits.every((event) => event.inputToHitMs === 260)).toBe(true);
+    expect(slammed.enemies[0].downed).toBe(true);
+  });
+
+  it("rechecks anvil-crash targets at the hammer-drop landing point", () => {
+    const inRangeRun = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 330, y: 340, hp: 220, maxHp: 220 }]
+    );
+    const castWithTarget = performAction(inRangeRun, { type: "skill", skillId: "anvil-crash" });
+    const [slamAtMs] = scheduledSkillTimes(castWithTarget, "anvil-crash");
+    const movedOutBeforeSlam = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: [
+          {
+            ...castWithTarget.enemies[0],
+            position: { x: 560, y: 500 }
+          }
+        ]
+      },
+      slamAtMs
+    );
+
+    expect(skillHitEvents(movedOutBeforeSlam, "anvil-crash")).toHaveLength(0);
+    expect(skillMissEvents(movedOutBeforeSlam, "anvil-crash")).toHaveLength(1);
+
+    const outOfRangeRun = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 520, y: 340, hp: 220, maxHp: 220 }]
+    );
+    const castWithoutTarget = performAction(outOfRangeRun, { type: "skill", skillId: "anvil-crash" });
+    const [lateSlamAtMs] = scheduledSkillTimes(castWithoutTarget, "anvil-crash");
+    const movedInBeforeSlam = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: [
+          {
+            ...castWithoutTarget.enemies[0],
+            position: { x: 452, y: 340 }
+          }
+        ]
+      },
+      lateSlamAtMs
+    );
+    const [lateHit] = skillHitEvents(movedInBeforeSlam, "anvil-crash");
+
+    expect(lateHit).toMatchObject({
+      hitPhase: "anvil-slam",
+      vfxCue: "anvil-crash-impact"
+    });
+    expect(skillMissEvents(movedInBeforeSlam, "anvil-crash")).toHaveLength(0);
+  });
+
+  it("lets anvil-crash slam around a wall-clamped landing point", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 930, y: 340, facing: 1 },
+      [{ x: 910, y: 340, hp: 220, maxHp: 220 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "anvil-crash" });
+    const [slamAtMs] = scheduledSkillTimes(cast, "anvil-crash");
+    const slammed = stepToElapsed(cast, slamAtMs);
+    const [wallHit] = skillHitEvents(slammed, "anvil-crash");
+
+    expect(cast.player.activeSkillMovement?.endX).toBe(run.arena.width);
+    expect(wallHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "anvil-slam",
+      vfxCue: "anvil-crash-impact"
+    });
+    expect(skillMissEvents(slammed, "anvil-crash")).toHaveLength(0);
+  });
+
+  it("cancels anvil-crash slam when monster damage interrupts before landing", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 332, y: 340, hp: 220, maxHp: 220 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "anvil-crash" });
+    const [slamAtMs] = scheduledSkillTimes(cast, "anvil-crash");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: slamAtMs,
+            attackRecoverUntilMs: 420,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      slamAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: slamAtMs
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(skillHitEvents(interrupted, "anvil-crash")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "anvil-crash")).toHaveLength(0);
   });
 
   it("allows spark-combo cancel during the hit-confirm window and lands on its jab frame", () => {
@@ -736,11 +884,14 @@ describe("combat actions and impact feel", () => {
       }
     };
     const recast = performAction(ready, { type: "skill", skillId: "anvil-crash" });
+    const [recastAtMs] = scheduledSkillTimes(recast, "anvil-crash");
+    const recastHit = stepToElapsed(recast, recastAtMs);
 
-    expect(lastHitEvent(recast)).toMatchObject({
+    expect(latestHitForSkill(recastHit, "anvil-crash")).toMatchObject({
       kind: "hit",
       action: "skill",
-      skillId: "anvil-crash"
+      skillId: "anvil-crash",
+      hitPhase: "anvil-slam"
     });
     expect(recast.player.skillCooldowns["anvil-crash"]).toBe(ready.elapsedMs + 5200);
   });
@@ -756,11 +907,14 @@ describe("combat actions and impact feel", () => {
     }
 
     const cast = performAction(run, { type: "skill", skillId: skill.id });
-    const hit = latestHitForSkill(cast, skill.id);
+    const [hitAtMs] = scheduledSkillTimes(cast, skill.id);
+    const hitRun = stepToElapsed(cast, hitAtMs);
+    const hit = latestHitForSkill(hitRun, skill.id);
 
+    expect(skillHitEvents(cast, skill.id)).toHaveLength(0);
     expect(hit.inputToHitMs).toBe(skill.animation.hitFrameMs);
     expect(hit.occurredAtMs - run.elapsedMs).toBe(skill.animation.hitFrameMs);
-    expect(cast.player.hitstopUntilMs).toBe(hit.occurredAtMs + hit.hitstopMs);
+    expect(hitRun.player.hitstopUntilMs).toBe(hit.occurredAtMs + hit.hitstopMs);
     expect(cast.player.actionLockUntilMs - run.elapsedMs).toBe(skill.animation.durationMs);
   });
 
@@ -1069,8 +1223,12 @@ describe("combat actions and impact feel", () => {
 
     const normal = performAction(lowHeat, { type: "skill", skillId: "anvil-crash" });
     const burst = performAction(highHeat, { type: "skill", skillId: "anvil-crash" });
+    const [normalAtMs] = scheduledSkillTimes(normal, "anvil-crash");
+    const [burstAtMs] = scheduledSkillTimes(burst, "anvil-crash");
+    const normalHit = stepToElapsed(normal, normalAtMs);
+    const burstHit = stepToElapsed(burst, burstAtMs);
 
-    expect(latestHitForSkill(burst, "anvil-crash").damage).toBeGreaterThan(latestHitForSkill(normal, "anvil-crash").damage);
+    expect(latestHitForSkill(burstHit, "anvil-crash").damage).toBeGreaterThan(latestHitForSkill(normalHit, "anvil-crash").damage);
   });
 
   it("rewards liuli prism cycling with resource refund and shorter cooldown", () => {

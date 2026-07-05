@@ -430,3 +430,13 @@
 - Presentation note: events now carry `prism-field-lock` / `prism-field-burst` phases and `sword-prism-field-lock` / `sword-prism-field-burst` VFX cues; the burst triggers ultimate shake plus `prism-field` screen flash.
 - CSS note: dedicated player cast, prism-field weapon arc, field core/ring/sparks, target burst core/ring/shards, and prism-field screen flash animations now exist for this skill.
 - Review follow-up: dynamic multi-stage fields should suppress later-stage empty MISS events after the first lock/whiff signal, and weapon keyframes must preserve `--weapon-facing` in every frame so left-facing casts stay mirrored.
+
+## Anvil Crash Slam Timeline Findings
+- Current user priority remains unchanged: character/monster mesh detail can stay lighter while combat motion, model-following attacks, strict hit frames, hit feedback, player/enemy action changes, and skill VFX stay strict.
+- Parallel read-only combat audit selected `anvil-crash` because it is a high-frequency Ember U skill with a clear jump-slam fantasy but still used the generic instant skill branch.
+- RED evidence: focused tests failed because `anvil-crash` had no scheduled effects, damaged at cast time, lacked dynamic landing-point target recheck, and had no target-bound `anvil-slam` / `anvil-crash-impact` presentation.
+- Implementation note: `anvil-crash` now starts a 260 ms active hammer-drop movement, keeps cast-frame HP unchanged, resolves a dynamic landing-point hitbox at the slam frame, forces knockdown with strong hitstop, and cancels pending damage when a monster hit interrupts first or on the same frame.
+- Presentation note: dedicated CSS now covers full-skill player jump-slam motion, hammer-drop weapon motion, anvil-sparks cast VFX, and target-bound anvil impact bursts.
+- Review follow-up: the slam hitbox now behaves as a landing-area burst rather than a front-only wall-facing hitbox, so a right-wall clamp can still hit a target just left of the landing point.
+- Review follow-up: `anvil-crash` cast VFX now anchors at the actual 74 px landing point, and the `ember-anvil` preset uses the same jump-slam animation after `activeSkillMovement` clears at the hit frame.
+- Browser validation confirmed no pre-slam impact, two target-bound impact bursts, persistent `player-ember-anvil-jump` through recovery, correct 74 px cast VFX anchor, right-wall hit without MISS, and no warning/error console output.

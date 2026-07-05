@@ -725,7 +725,16 @@ describe("playable app integration actions", () => {
     const cast = reduceAppAction(model, action);
     const lastEvent = cast.combatRun?.events.at(-1);
 
-    expect(lastEvent).toMatchObject({ kind: "hit", action: "skill", skillId: "anvil-crash" });
+    if (!cast.combatRun) {
+      throw new Error("Expected active combat run after anvil-crash");
+    }
+
+    const [slamAtMs] = scheduledSkillTimes(cast.combatRun, "anvil-crash");
+    const slamRun = stepToElapsed(cast.combatRun, slamAtMs);
+    const [slamHit] = skillHitEvents(slamRun, "anvil-crash");
+
+    expect(lastEvent).toMatchObject({ kind: "skill-cast", action: "skill", skillId: "anvil-crash" });
+    expect(slamHit).toMatchObject({ kind: "hit", action: "skill", skillId: "anvil-crash", hitPhase: "anvil-slam" });
     expect(cast.combatRun?.player.heat).toBeLessThan(model.combatRun?.player.heat ?? 0);
     expect(cast.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "skill-burst" }]));
   });
@@ -1067,7 +1076,7 @@ describe("playable app integration actions", () => {
     });
   });
 
-  it("renders player skill burst VFX after casting a combat skill", () => {
+  it("renders anvil-crash player skill burst VFX after the hammer-drop frame", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),
       initialState: withHeat(createInitialState(), 80)
@@ -1078,23 +1087,36 @@ describe("playable app integration actions", () => {
     model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "anvil-crash" });
 
     const castHtml = renderAppHtml(model);
-    const hitEvent = firstHitEvent(model);
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after anvil-crash");
+    }
+
+    const [slamAtMs] = scheduledSkillTimes(model.combatRun, "anvil-crash");
+    const beforeSlamHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, slamAtMs - 1)
+    });
+    const slamRun = stepToElapsed(model.combatRun, slamAtMs);
     const html = renderAppHtml({
       ...model,
-      combatRun: model.combatRun
-        ? {
-            ...model.combatRun,
-            elapsedMs: hitEvent.occurredAtMs
-          }
-        : undefined
+      combatRun: slamRun
     });
+    const castSkillVfxStyle = playerSkillVfxStyleFor(castHtml, "anvil-crash");
 
     expect(castHtml).toContain('class="combat-vfx-layer"');
     expect(castHtml).toContain('class="combat-player-art actor-model actor-model-skill actor-skill-ember-anvil"');
     expect(castHtml).toContain('data-player-skill-vfx="anvil-crash"');
+    expect(castSkillVfxStyle).toContain("--actor-x: 34.79%");
+    expect(castSkillVfxStyle).not.toContain("--actor-x: 40.42%");
     expect(castHtml).not.toContain('data-damage-number="true"');
-    expect(html).toContain('class="enemy-art actor-model actor-model-hit"');
+    expect(beforeSlamHtml).not.toContain('data-skill-impact-vfx="anvil-crash"');
+    expect(html).toContain('class="enemy-art actor-model actor-model-knockdown"');
+    expect(html).toContain('data-enemy-knockdown="true"');
     expect(html).toContain('data-player-skill-vfx="anvil-crash"');
+    expect(html).toContain('data-hit-phase="anvil-slam"');
+    expect(html).toContain('data-vfx-cue="anvil-crash-impact"');
+    expect(html).toContain('data-impact-vfx-shape="anvil-sparks"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-anvil-sparks"');
     expect(html).toContain('data-vfx-action="skill"');
     expect(html).toContain('data-damage-number="true"');
   });

@@ -30,6 +30,7 @@ export type CombatHitPhase =
   | "heat-eruption"
   | "overdrive-pulse"
   | "overdrive-release"
+  | "anvil-slam"
   | "ink-bolt"
   | "glass-cut"
   | "jab-chain"
@@ -57,6 +58,7 @@ export type CombatVfxCue =
   | "heat-bloom-eruption"
   | "overdrive-core-pulse"
   | "overdrive-core-release"
+  | "anvil-crash-impact"
   | "ink-shot-pierce"
   | "glass-slash-cut"
   | "ember-jab-chain"
@@ -1373,6 +1375,10 @@ function skillMovementDistance(skill: ClassSkillDefinition): number {
     return 64;
   }
 
+  if (skill.id === "anvil-crash") {
+    return 74;
+  }
+
   if (skill.id === "furnace-step") {
     return 124;
   }
@@ -1503,6 +1509,49 @@ function applySparkCombo(run: CombatRun, skill: ClassSkillDefinition, canceledFr
       hitPhase: "jab-chain",
       vfxCue: "ember-jab-chain",
       vfxWindowMs: 240
+    }
+  );
+}
+
+function anvilCrashHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: skillRangeX(skill.tags),
+    laneRange: skillLaneRange(skill.tags),
+    targetCap: skillTargetCap(skill.tags),
+    frontOnly: false,
+    damage: skillDamage(run, skill),
+    hitstopMs: 94,
+    knockback: 58,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    actionTags: ["slam", "knockdown"]
+  };
+}
+
+function applyAnvilCrash(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x + skillMovementDistance(skill) * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+
+  return schedulePlayerHitboxEffect(
+    movingRun,
+    anvilCrashHitbox(run, skill, canceledFromCombo),
+    endPosition,
+    run.player.facing,
+    {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-anvil-slam`,
+      hitPhase: "anvil-slam",
+      vfxCue: "anvil-crash-impact",
+      vfxWindowMs: 360
     }
   );
 }
@@ -4373,6 +4422,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "cinder-uppercut") {
     return completeSkillAction(run, applyCinderUppercut(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "anvil-crash") {
+    return completeSkillAction(run, applyAnvilCrash(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "glass-cut") {

@@ -1991,3 +1991,28 @@
   - Related combat/app/UI suite passed after review fixes: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 239 tests.
   - Browser re-validation confirmed exactly one empty-field MISS at 390 ms, left-facing weapon computed transform determinant below 0, 390/610 timing, three lock impacts, six burst-frame cumulative impacts, prism-field flash/shake, actual animation names, and empty warning/error console output. Temporary check page was deleted.
   - Final full verification passed after review fixes: `npm test` passed with 335 tests, `npm run build` passed, and `git diff --check` passed with line-ending warnings only.
+
+## Task 72 Anvil Crash Slam Timeline
+- Continued under the latest user clarification: character/monster modeling can stay lighter while combat smoothness, model-following actions, strict hit frames, cancellation, hit feedback, and skill VFX remain hard acceptance criteria.
+- Used parallel read-only agents:
+  - Combat explorer recommended `anvil-crash` because it still fell through the generic instant skill branch despite being a high-value jump-slam skill.
+  - UI/CSS explorer found `anvil-crash` had partial player/weapon/cast styling but no target-bound impact styling; it also flagged Iron ultimate as the next larger visual candidate.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires no cast-frame damage, a 260 ms landing hit, active hammer-drop movement, dynamic landing target recheck, forced knockdown, wall-clamped landing hitbox behavior, and monster-interruption cancellation.
+  - `src/tests/app-integration.test.ts` requires cast/pre-slam/landing DOM states, 74 px landing-point VFX anchor, target-bound `anvil-slam` / `anvil-crash-impact` metadata, knockdown model feedback, and damage numbers only after the landing frame.
+  - `src/tests/ui-smoke.test.ts` requires dedicated full-duration player jump-slam, hammer-drop weapon, cast sparks, and target impact CSS hooks/keyframes.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "anvil-crash"` failed before implementation because no scheduled effects existed for `anvil-crash`.
+  - Review regressions failed before fixes for right-wall landing hits, cast VFX landing anchor, and full-duration `ember-anvil` player animation coverage.
+- Implemented:
+  - Added `anvil-slam` hit phase and `anvil-crash-impact` VFX cue.
+  - Added `applyAnvilCrash()` with 74 px model-following hammer-drop movement, a 260 ms dynamic landing-area hitbox, strong hitstop, forced knockdown, and queue-based monster interruption cancellation.
+  - Added dedicated CSS for `player-ember-anvil-jump`, `weapon-hammer-drop`, `anvil-sparks-cast-*`, and `anvil-crash-impact-*`.
+- Code review follow-up:
+  - Read-only review found no Critical issues and three Important issues: post-hit recovery could fall back to the old `ember-anvil` animation, right-wall clamped landings missed enemies just left of the landing point, and cast VFX anchored at the generic 128 px front point.
+  - Fixed by changing the `ember-anvil` preset to the new full-duration jump-slam animation, making the slam hitbox a landing-area burst, and anchoring `anvil-crash` VFX at the 74 px landing point.
+- Verification:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "wall-clamped|anvil-crash player skill burst|anvil-crash as a delayed|anvil-crash"`, 6 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 244 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/anvil-crash-check.html` confirmed cast/pre-slam/slam/recovery/right-wall stages, no pre-slam impact, two target-bound slam bursts, 74 px cast VFX anchor, persistent `player-ember-anvil-jump`, `weapon-hammer-drop`, `anvil-sparks-cast-core`, `anvil-crash-impact-core`, right-wall hit without MISS, and empty warning/error console output. Temporary check page was deleted.
+  - Final full verification passed: `npm test` passed with 340 tests, `npm run build` passed, and `git diff --check` passed with line-ending warnings only.

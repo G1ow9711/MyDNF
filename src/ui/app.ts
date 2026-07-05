@@ -782,6 +782,10 @@ function playerSkillVfxStyle(
     return `${combatActorStyle(run, origin.x + 64 * facing, origin.y)}${durationStyle}`;
   }
 
+  if (skillId === "anvil-crash") {
+    return `${combatActorStyle(run, origin.x + 74 * facing, origin.y)}${durationStyle}`;
+  }
+
   if (skillId === "ink-shot") {
     return `${combatActorStyle(run, origin.x + 128 * facing, origin.y)}${durationStyle}`;
   }

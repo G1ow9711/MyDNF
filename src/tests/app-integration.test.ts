@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { performAction, stepCombat, type CombatEnemy, type CombatEnemySummonEvent, type CombatHitEvent, type CombatRun } from "../game/combat";
+import { performAction, stepCombat, type CombatEnemy, type CombatEnemySummonEvent, type CombatHitEvent, type CombatPlayerHitEvent, type CombatRun } from "../game/combat";
 import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
 import { advanceClass, selectBaseClass } from "../systems/classes";
@@ -3091,6 +3091,98 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(summonHtml, 'data-summoned-enemy-id=')).toBe(2);
     expect(countOccurrences(summonHtml, 'class="combat-actor combat-enemy combat-enemy-trash"')).toBe(2);
     expect(summonHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
+  });
+
+  it("renders taotie forge shackle as a bind windup, chain lock, and furnace slam", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+
+    if (!model.combatRun) {
+      throw new Error("Expected boss combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: {
+          ...model.combatRun.player,
+          x: 230,
+          y: 340,
+          hp: 999,
+          maxHp: 999,
+          actionLockUntilMs: 0,
+          hurtLockUntilMs: 0
+        },
+        enemies: [
+          {
+            ...model.combatRun.enemies[0],
+            bossPhase: 2,
+            attackProfileId: "taotie-forge-shackle",
+            attackPatternIds: ["taotie-forge-shackle"],
+            nextAttackPatternIndex: 0,
+            position: {
+              x: 470,
+              y: 340
+            },
+            nextAttackAtMs: 1
+          } as unknown as CombatEnemy
+        ]
+      }
+    };
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const windupHtml = renderAppHtml(model);
+
+    expect(windupHtml).toContain('data-enemy-telegraph="taotie-forge-shackle"');
+    expect(windupHtml).toContain('data-telegraph-shape="circle"');
+    expect(windupHtml).toContain('data-enemy-attack-skill-id="taotie-forge-shackle"');
+    expect(windupHtml).toContain('actor-enemy-skill-taotie-forge-shackle');
+    expect(windupHtml).not.toContain('data-enemy-skill-vfx="taotie-forge-shackle"');
+    expect(windupHtml).not.toContain('data-enemy-telegraph="taotie-flame-breath"');
+
+    let guard = 0;
+    while (
+      model.combatRun &&
+      !model.combatRun.events.some(
+        (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-forge-shackle" && event.hitIndex === 1
+      ) &&
+      guard < 10
+    ) {
+      model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+      guard += 1;
+    }
+
+    const bindHtml = renderAppHtml(model);
+
+    expect(bindHtml).toContain('data-player-bound-active="true"');
+    expect(bindHtml).toContain('data-enemy-skill-vfx="taotie-forge-shackle"');
+    expect(bindHtml).toContain('data-enemy-vfx-cue="taotie-forge-shackle-bind"');
+    expect(bindHtml).toContain('data-feedback-skill-id="taotie-forge-shackle"');
+    expect(bindHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-forge-shackle"');
+    expect(bindHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
+
+    while (
+      model.combatRun &&
+      !model.combatRun.events.some(
+        (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-forge-shackle" && event.hitIndex === 2
+      ) &&
+      guard < 16
+    ) {
+      model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+      guard += 1;
+    }
+
+    const slamHtml = renderAppHtml(model);
+
+    expect(slamHtml).toContain('data-enemy-skill-vfx="taotie-forge-shackle"');
+    expect(slamHtml).toContain('data-enemy-vfx-cue="taotie-forge-shackle-slam"');
+    expect(slamHtml).toContain('data-player-feedback-cue="player-hurt-forge-slam"');
+    expect(slamHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
   });
 
   it("renders crawler burst as a rushing monster skill with explosion feedback", () => {

@@ -11,7 +11,8 @@ export type EnemyAttackProfileId =
   | "zheng-horn-charge"
   | "taotie-flame-breath"
   | "taotie-devour-pull"
-  | "taotie-ash-summon";
+  | "taotie-ash-summon"
+  | "taotie-forge-shackle";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "backstep" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
@@ -81,13 +82,17 @@ export type CombatEnemyVfxCue =
   | "zheng-horn-charge-impact"
   | "taotie-flame-breath-sustain"
   | "taotie-devour-bite"
-  | "taotie-ash-summon-rift";
+  | "taotie-ash-summon-rift"
+  | "taotie-forge-shackle-bind"
+  | "taotie-forge-shackle-slam";
 export type CombatPlayerFeedbackCue =
   | "player-hurt-light"
   | "player-hurt-heavy"
   | "player-hurt-boss-breath"
   | "player-hurt-devoured"
-  | "player-hurt-forge-collapse";
+  | "player-hurt-forge-collapse"
+  | "player-hurt-forge-shackle"
+  | "player-hurt-forge-slam";
 export type CombatBossPhaseSkillId = "taotie-forge-collapse";
 export type CombatArenaHazardPhase = "telegraph" | "active" | "miss";
 export type CombatArenaHazardVfxCue = "taotie-forge-collapse-telegraph" | "taotie-forge-collapse-impact";
@@ -157,6 +162,7 @@ export interface CombatPlayer {
   hitstopUntilMs: number;
   invulnerableUntilMs: number;
   hurtLockUntilMs: number;
+  boundUntilMs: number;
   shieldUntilMs: number;
   shieldReduction: number;
   evadeUntilMs: number;
@@ -465,6 +471,7 @@ interface CombatMovementSample {
   moveX: number;
   moveY: number;
   speed: number;
+  boundUntilMs?: number;
   skillMovement?: CombatPlayerSkillMovement;
 }
 
@@ -481,10 +488,17 @@ interface EnemyAttackDefinition {
   hitCount: number;
   hitIntervalMs: number;
   vfxCue: CombatEnemyVfxCue;
+  hitVfxCues?: CombatEnemyVfxCue[];
   vfxWindowMs: number;
   feedbackCue: CombatPlayerFeedbackCue;
+  feedbackCues?: CombatPlayerFeedbackCue[];
   invulnerabilityMs: number;
+  invulnerabilityMsByHit?: number[];
   hurtLockMs: number;
+  hurtLockMsByHit?: number[];
+  damageMultipliers?: number[];
+  knockbackByHit?: number[];
+  boundMsByHit?: number[];
   windupRushPx?: number;
   windupPullPx?: number;
   summonProfileIds?: EnemyAttackProfileId[];
@@ -542,6 +556,8 @@ const taotieForgeCollapseHazardKnockback = 36;
 const taotieForgeCollapseRadiusX = 86;
 const taotieForgeCollapseLaneRange = 36;
 const taotieAshSummonMinionDelayMs = 540;
+const taotieBossPhaseOnePattern: EnemyAttackProfileId[] = ["taotie-flame-breath", "taotie-devour-pull", "taotie-ash-summon"];
+const taotieBossPhaseTwoPattern: EnemyAttackProfileId[] = [...taotieBossPhaseOnePattern, "taotie-forge-shackle"];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -579,6 +595,34 @@ function advancePlayerFramePosition(
   const moveX = input.moveX ?? 0;
   const moveY = input.moveY ?? 0;
   const speed = input.dash ? 0.42 : 0.24;
+
+  if (run.elapsedMs < run.player.boundUntilMs) {
+    if (elapsedMs > run.player.boundUntilMs) {
+      const movableMs = elapsedMs - run.player.boundUntilMs;
+      const facing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
+
+      return {
+        x: clamp(startPosition.x + moveX * speed * movableMs, 0, run.arena.width),
+        y: clamp(startPosition.y + moveY * speed * movableMs, run.arena.minY, run.arena.maxY),
+        facing,
+        movementFinished: true,
+        moveX,
+        moveY,
+        speed
+      };
+    }
+
+    return {
+      x: startPosition.x,
+      y: startPosition.y,
+      facing: run.player.facing,
+      movementFinished: true,
+      moveX: 0,
+      moveY: 0,
+      speed: 0
+    };
+  }
+
   const movement = run.player.activeSkillMovement;
   const skillMovementActive = movement !== undefined && run.elapsedMs < movement.endAtMs;
 
@@ -777,6 +821,9 @@ function triggerBossPhaseTransitions(run: CombatRun, occurredAtMs = run.elapsedM
       ...enemy,
       bossPhase: 2 as const,
       bossPhaseTriggeredAtMs: occurredAtMs,
+      attackProfileId: "taotie-forge-shackle" as const,
+      attackPatternIds: taotieBossPhaseTwoPattern,
+      nextAttackPatternIndex: taotieBossPhaseTwoPattern.indexOf("taotie-forge-shackle"),
       nextAttackAtMs: Math.max(enemy.nextAttackAtMs, occurredAtMs + 760),
       attackStartedAtMs: undefined,
       attackImpactAtMs: undefined,
@@ -931,12 +978,18 @@ function isEnemyAttackProfileId(value: string | undefined): value is EnemyAttack
     value === "zheng-horn-charge" ||
     value === "taotie-flame-breath" ||
     value === "taotie-devour-pull" ||
-    value === "taotie-ash-summon"
+    value === "taotie-ash-summon" ||
+    value === "taotie-forge-shackle"
   );
 }
 
 function enemyAttackProfileKind(profileId: EnemyAttackProfileId): EnemyKind {
-  if (profileId === "taotie-flame-breath" || profileId === "taotie-devour-pull" || profileId === "taotie-ash-summon") {
+  if (
+    profileId === "taotie-flame-breath" ||
+    profileId === "taotie-devour-pull" ||
+    profileId === "taotie-ash-summon" ||
+    profileId === "taotie-forge-shackle"
+  ) {
     return "boss";
   }
 
@@ -974,6 +1027,34 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
         : enemyAttackProfileKind(enemy.attackProfileId) === enemy.kind
           ? enemy.attackProfileId
           : defaultEnemyAttackProfile(enemy.kind);
+
+  if (profileId === "taotie-forge-shackle") {
+    return {
+      skillId: "taotie-forge-shackle",
+      damage: 44,
+      rangeX: 270,
+      laneRange: 24,
+      windupMs: 520,
+      recoveryMs: 520,
+      cooldownMs: 3300,
+      hitstopMs: 70,
+      knockback: 18,
+      hitCount: 2,
+      hitIntervalMs: 240,
+      vfxCue: "taotie-forge-shackle-bind",
+      hitVfxCues: ["taotie-forge-shackle-bind", "taotie-forge-shackle-slam"],
+      vfxWindowMs: 620,
+      feedbackCue: "player-hurt-forge-shackle",
+      feedbackCues: ["player-hurt-forge-shackle", "player-hurt-forge-slam"],
+      invulnerabilityMs: 0,
+      invulnerabilityMsByHit: [0, 520],
+      hurtLockMs: 540,
+      hurtLockMsByHit: [560, 520],
+      damageMultipliers: [0.55, 1.45],
+      knockbackByHit: [0, 74],
+      boundMsByHit: [360, 0]
+    };
+  }
 
   if (profileId === "taotie-ash-summon") {
     return {
@@ -1133,8 +1214,7 @@ function createEnemy(
   attackProfileId = defaultEnemyAttackProfile(kind)
 ): CombatEnemy {
   const stats = enemyStats(kind);
-  const attackPatternIds: EnemyAttackProfileId[] | undefined =
-    kind === "boss" ? ["taotie-flame-breath", "taotie-devour-pull", "taotie-ash-summon"] : undefined;
+  const attackPatternIds: EnemyAttackProfileId[] | undefined = kind === "boss" ? taotieBossPhaseOnePattern : undefined;
   const nextAttackPatternIndex = attackPatternIds
     ? attackPatternIds.includes(attackProfileId)
       ? attackPatternIds.indexOf(attackProfileId)
@@ -3053,6 +3133,7 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       hitstopUntilMs: 0,
       invulnerableUntilMs: 0,
       hurtLockUntilMs: 0,
+      boundUntilMs: 0,
       shieldUntilMs: 0,
       shieldReduction: 0,
       evadeUntilMs: 0,
@@ -3087,6 +3168,7 @@ function advanceCombatFrame(run: CombatRun, input: CombatInput, dtMs: number): C
     moveX: framePosition.moveX,
     moveY: framePosition.moveY,
     speed: framePosition.speed,
+    boundUntilMs: run.player.boundUntilMs,
     skillMovement: run.player.activeSkillMovement
   };
   const comboActiveAtElapsed = comboStillActive(run, elapsedMs);
@@ -3122,6 +3204,7 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
     run.elapsedMs < bufferExecuteAtMs &&
     elapsedMs >= bufferExecuteAtMs &&
     run.player.hurtLockUntilMs <= bufferExecuteAtMs &&
+    run.player.boundUntilMs <= bufferExecuteAtMs &&
     !run.completed &&
     !run.failed &&
     !run.player.defeated;
@@ -3385,6 +3468,13 @@ function applyEnemyImpact(
 
     const hitIndex = resolvedHits + 1;
     const summonProfileIds = attack.summonProfileIds;
+    const hitVfxCue = attack.hitVfxCues?.[resolvedHits] ?? attack.vfxCue;
+    const hitFeedbackCue = attack.feedbackCues?.[resolvedHits] ?? attack.feedbackCue;
+    const hitDamage = Math.max(1, Math.round(attack.damage * (attack.damageMultipliers?.[resolvedHits] ?? 1)));
+    const hitKnockback = attack.knockbackByHit?.[resolvedHits] ?? attack.knockback;
+    const hitInvulnerabilityMs = attack.invulnerabilityMsByHit?.[resolvedHits] ?? attack.invulnerabilityMs;
+    const hitHurtLockMs = attack.hurtLockMsByHit?.[resolvedHits] ?? attack.hurtLockMs;
+    const hitBoundMs = attack.boundMsByHit?.[resolvedHits] ?? 0;
 
     if (summonProfileIds && summonProfileIds.length > 0) {
       const attackEvent: CombatEnemyAttackEvent = {
@@ -3397,7 +3487,7 @@ function applyEnemyImpact(
         impactAtMs: hitTime,
         hitIndex,
         totalHits: attack.hitCount,
-        vfxCue: attack.vfxCue,
+        vfxCue: hitVfxCue,
         vfxWindowMs: attack.vfxWindowMs
       };
       const summoned = createTaotieAshSummons(
@@ -3417,7 +3507,7 @@ function applyEnemyImpact(
         summonedEnemyIds: summoned.map((item) => item.id),
         positions: summoned.map((item) => item.position),
         occurredAtMs: hitTime,
-        vfxCue: attack.vfxCue,
+        vfxCue: hitVfxCue,
         vfxWindowMs: attack.vfxWindowMs
       };
 
@@ -3445,7 +3535,7 @@ function applyEnemyImpact(
       impactAtMs: hitTime,
       hitIndex,
       totalHits: attack.hitCount,
-      vfxCue: attack.vfxCue,
+      vfxCue: hitVfxCue,
       vfxWindowMs: attack.vfxWindowMs
     };
 
@@ -3463,7 +3553,7 @@ function applyEnemyImpact(
     }
 
     if (hitTime < nextPlayer.reflectUntilMs) {
-      const reflectDamage = Math.max(1, Math.round(attack.damage * 0.65));
+      const reflectDamage = Math.max(1, Math.round(hitDamage * 0.65));
       const armorDamage = Math.min(nextEnemy.armor, reflectDamage);
       const hpDamage = reflectDamage - armorDamage;
       const reflectedEnemy: CombatEnemy = {
@@ -3504,7 +3594,7 @@ function applyEnemyImpact(
 
     const shieldActive = hitTime < nextPlayer.shieldUntilMs;
     const mitigation = shieldActive ? clamp(nextPlayer.shieldReduction, 0, 0.85) : 0;
-    const damage = Math.max(1, Math.round(attack.damage * combatProfile.damageTakenMultiplier * (1 - mitigation)));
+    const damage = Math.max(1, Math.round(hitDamage * combatProfile.damageTakenMultiplier * (1 - mitigation)));
     const nextHp = Math.max(0, nextPlayer.hp - damage);
     const nextFacing: 1 | -1 = nextEnemy.position.x >= nextPlayer.x ? 1 : -1;
     const hitEvent: CombatPlayerHitEvent = {
@@ -3517,17 +3607,18 @@ function applyEnemyImpact(
       hitstopMs: attack.hitstopMs,
       hitIndex,
       totalHits: attack.hitCount,
-      feedbackCue: attack.feedbackCue,
+      feedbackCue: hitFeedbackCue,
       vfxWindowMs: attack.vfxWindowMs
     };
     const damagedPlayer: CombatPlayer = {
       ...nextPlayer,
       hp: nextHp,
-      x: clamp(nextPlayer.x - nextFacing * attack.knockback, 0, arena.width),
+      x: clamp(nextPlayer.x - nextFacing * hitKnockback, 0, arena.width),
       facing: nextFacing,
       hitstopUntilMs: Math.max(nextPlayer.hitstopUntilMs, hitTime + attack.hitstopMs),
-      invulnerableUntilMs: hitTime + attack.invulnerabilityMs,
-      hurtLockUntilMs: hitTime + Math.max(attack.hitstopMs, attack.hurtLockMs),
+      invulnerableUntilMs: hitTime + hitInvulnerabilityMs,
+      hurtLockUntilMs: hitTime + Math.max(attack.hitstopMs, hitHurtLockMs),
+      boundUntilMs: Math.max(nextPlayer.boundUntilMs, hitBoundMs > 0 ? hitTime + hitBoundMs : 0),
       shieldUntilMs: shieldActive ? hitTime : nextPlayer.shieldUntilMs,
       shieldReduction: shieldActive ? 0 : nextPlayer.shieldReduction,
       bufferedAction: undefined,
@@ -4248,6 +4339,31 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
 }
 
 function samplePlayerAtElapsed(player: CombatPlayer, elapsedMs: number, movement?: CombatMovementSample): CombatPlayer {
+  if (movement?.boundUntilMs && movement.startElapsedMs < movement.boundUntilMs) {
+    if (elapsedMs <= movement.boundUntilMs) {
+      return {
+        ...player,
+        x: movement.startX,
+        y: movement.startY
+      };
+    }
+
+    if (movement.endElapsedMs > movement.boundUntilMs && elapsedMs < movement.endElapsedMs) {
+      const progress = clamp((elapsedMs - movement.boundUntilMs) / Math.max(1, movement.endElapsedMs - movement.boundUntilMs), 0, 1);
+
+      return {
+        ...player,
+        x: lerp(movement.startX, movement.endX, progress),
+        y: lerp(movement.startY, movement.endY, progress),
+        facing: movement.facing
+      };
+    }
+  }
+
+  if (elapsedMs < player.boundUntilMs) {
+    return player;
+  }
+
   if (!movement) {
     return player;
   }
@@ -4492,7 +4608,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     return run;
   }
 
-  if (run.elapsedMs < run.player.hurtLockUntilMs) {
+  if (run.elapsedMs < run.player.hurtLockUntilMs || run.elapsedMs < run.player.boundUntilMs) {
     return run;
   }
 
@@ -4807,7 +4923,8 @@ export function finishRoom(run: CombatRun): CombatRun {
       comboStep: 0,
       actionLockUntilMs: 0,
       cancelWindowUntilMs: 0,
-      hitstopUntilMs: 0
+      hitstopUntilMs: 0,
+      boundUntilMs: 0
     },
     enemies: completed ? [] : createRoomEnemies(run.dungeonId, nextRoomIndex),
     events: [clearedEvent],

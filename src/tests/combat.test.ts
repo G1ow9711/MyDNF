@@ -252,6 +252,24 @@ describe("combat run setup and movement", () => {
       max: classDef?.resource.max
     });
   });
+
+  it("resumes player movement inside a frame that crosses the bound control expiry", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const run: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 160,
+        y: 345,
+        boundUntilMs: 100
+      }
+    };
+    const moved = stepCombat(run, { moveX: 1, moveY: 0, dash: false }, 160);
+
+    expect(moved.player.x).toBeGreaterThan(run.player.x);
+    expect(moved.player.x).toBeLessThan(run.player.x + 0.24 * 160);
+    expect(moved.player.x).toBeCloseTo(run.player.x + 0.24 * 60, 5);
+  });
 });
 
 describe("combat actions and impact feel", () => {
@@ -3593,6 +3611,41 @@ describe("enemy attacks and player defeat", () => {
     expect(boss.nextAttackPatternIndex).toBe(0);
   });
 
+  it("unlocks taotie forge shackle as the first phase-two control-chain cast", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const lowHpRun: CombatRun = {
+      ...baseRun,
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          hp: Math.floor(baseRun.enemies[0].maxHp / 2),
+          armor: 0,
+          nextAttackAtMs: 9999
+        } as CombatEnemy
+      ]
+    };
+    const phased = stepCombat(lowHpRun, {}, 1);
+    const boss = phased.enemies[0] as CombatEnemy & { attackPatternIds?: string[]; nextAttackPatternIndex?: number };
+    const ready = {
+      ...phased,
+      enemies: [
+        {
+          ...phased.enemies[0],
+          nextAttackAtMs: phased.elapsedMs
+        } as CombatEnemy
+      ]
+    };
+    const windup = stepCombat(ready, {}, 1);
+
+    expect(boss.bossPhase).toBe(2);
+    expect(boss.attackPatternIds).toEqual(["taotie-flame-breath", "taotie-devour-pull", "taotie-ash-summon", "taotie-forge-shackle"]);
+    expect(boss.attackProfileId).toBe("taotie-forge-shackle");
+    expect(boss.nextAttackPatternIndex).toBe(3);
+    expect(windup.enemies[0].attackSkillId).toBe("taotie-forge-shackle");
+    expect((windup.enemies[0] as { attackProfileId?: string; nextAttackPatternIndex?: number }).attackProfileId).toBe("taotie-flame-breath");
+    expect((windup.enemies[0] as { nextAttackPatternIndex?: number }).nextAttackPatternIndex).toBe(0);
+  });
+
   it("rotates the boss casts through flame breath, devour pull, and ash summon", () => {
     const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
     const run = {
@@ -3648,6 +3701,176 @@ describe("enemy attacks and player defeat", () => {
     expect(thirdWindup.enemies[0].attackSkillId).toBe("taotie-ash-summon");
     expect((thirdWindup.enemies[0] as { attackProfileId?: string; nextAttackPatternIndex?: number }).attackProfileId).toBe("taotie-flame-breath");
     expect((thirdWindup.enemies[0] as { nextAttackPatternIndex?: number }).nextAttackPatternIndex).toBe(0);
+  });
+
+  it("casts taotie forge shackle as a two-stage bind and furnace slam with strict hit frames", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 230,
+        y: 340,
+        hp: 999,
+        maxHp: 999,
+        actionLockUntilMs: 0,
+        hurtLockUntilMs: 0
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          bossPhase: 2,
+          attackProfileId: "taotie-forge-shackle",
+          attackPatternIds: ["taotie-forge-shackle"],
+          nextAttackPatternIndex: 0,
+          position: {
+            x: 470,
+            y: 340
+          },
+          nextAttackAtMs: 1
+        } as unknown as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const impactAtMs = telegraph.enemies[0].attackImpactAtMs;
+
+    if (impactAtMs === undefined) {
+      throw new Error("Expected taotie forge shackle impact frame");
+    }
+
+    const beforeBind = stepToElapsed(telegraph, impactAtMs - 1);
+    const bind = stepToElapsed(beforeBind, impactAtMs);
+    const actionDuringBind = performAction(bind, { type: "light" });
+    const moveDuringBind = stepCombat(bind, { moveX: -1, moveY: 1, dash: true }, 120);
+    const slamAtMs = impactAtMs + 240;
+    const beforeSlam = stepToElapsed(bind, slamAtMs - 1);
+    const slammed = stepToElapsed(beforeSlam, slamAtMs);
+    const shackleAttacks = slammed.events.filter(
+      (event): event is CombatEnemyAttackEvent => event.kind === "enemy-attack" && event.skillId === "taotie-forge-shackle"
+    );
+    const playerHits = slammed.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-forge-shackle"
+    );
+
+    expect(telegraph.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          skillId: "taotie-forge-shackle",
+          phase: "windup",
+          totalHits: 2
+        })
+      ])
+    );
+    expect(beforeBind.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-forge-shackle")).toBe(false);
+    expect(playerHits).toHaveLength(2);
+    expect(playerHits.map((event) => event.occurredAtMs)).toEqual([impactAtMs, slamAtMs]);
+    expect(playerHits.map((event) => event.feedbackCue)).toEqual(["player-hurt-forge-shackle", "player-hurt-forge-slam"]);
+    expect(shackleAttacks.filter((event) => event.phase === "active").map((event) => event.vfxCue)).toEqual([
+      "taotie-forge-shackle-bind",
+      "taotie-forge-shackle-slam"
+    ]);
+    expect(actionDuringBind.events.some((event) => event.kind === "hit" && event.action === "light" && event.occurredAtMs === bind.elapsedMs)).toBe(false);
+    expect(moveDuringBind.player.x).toBe(bind.player.x);
+    expect(moveDuringBind.player.y).toBe(bind.player.y);
+    expect(bind.player.hurtLockUntilMs).toBeGreaterThan(slamAtMs);
+    expect(slammed.player.hp).toBeLessThan(bind.player.hp);
+    expect(slammed.player.hurtLockUntilMs).toBeGreaterThan(slammed.elapsedMs);
+  });
+
+  it("lets lane movement dodge taotie forge shackle before the bind frame", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 230,
+        y: 340,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          bossPhase: 2,
+          attackProfileId: "taotie-forge-shackle",
+          attackPatternIds: ["taotie-forge-shackle"],
+          nextAttackPatternIndex: 0,
+          position: {
+            x: 470,
+            y: 340
+          },
+          nextAttackAtMs: 1
+        } as unknown as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const impactAtMs = telegraph.enemies[0].attackImpactAtMs;
+
+    if (impactAtMs === undefined) {
+      throw new Error("Expected taotie forge shackle impact frame");
+    }
+
+    const sidestepped = {
+      ...telegraph,
+      player: {
+        ...telegraph.player,
+        y: telegraph.arena.maxY
+      }
+    };
+    const missed = stepToElapsed(sidestepped, impactAtMs + 260);
+
+    expect(missed.player.hp).toBe(run.player.hp);
+    expect(missed.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          skillId: "taotie-forge-shackle",
+          phase: "miss",
+          vfxCue: "taotie-forge-shackle-bind"
+        }),
+        expect.objectContaining({
+          kind: "enemy-attack",
+          skillId: "taotie-forge-shackle",
+          phase: "miss",
+          vfxCue: "taotie-forge-shackle-slam"
+        })
+      ])
+    );
+    expect(missed.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-forge-shackle")).toBe(false);
+  });
+
+  it("cancels taotie forge shackle when the boss is staggered before the chain locks", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          bossPhase: 2,
+          attackProfileId: "taotie-forge-shackle",
+          attackPatternIds: ["taotie-forge-shackle"],
+          nextAttackPatternIndex: 0,
+          nextAttackAtMs: 1
+        } as unknown as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const interrupted = applyHit(telegraph, {
+      id: "test-stagger-taotie-forge-shackle",
+      targetId: telegraph.enemies[0].id,
+      damage: 1,
+      hitstopMs: 40,
+      knockback: 0,
+      juggle: false,
+      statusTags: ["stagger"]
+    });
+    const afterImpact = stepCombat(interrupted, {}, 900);
+
+    expect(telegraph.enemies[0].attackSkillId).toBe("taotie-forge-shackle");
+    expect(interrupted.enemies[0].attackSkillId).toBeUndefined();
+    expect(afterImpact.events.some((event) => event.kind === "enemy-attack" && event.skillId === "taotie-forge-shackle" && event.phase !== "windup")).toBe(false);
+    expect(afterImpact.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-forge-shackle")).toBe(false);
   });
 
   it("summons ash crawler minions only on the taotie ash summon impact frame", () => {

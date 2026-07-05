@@ -2073,3 +2073,32 @@
   - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 256 tests.
   - Browser DOM/CSS validation on `http://127.0.0.1:5174/.codex-local/tmp/taotie-summon-check.html` confirmed one summon telegraph, no flame-breath fallback, one Boss summon VFX, two summon-rift nodes, two spawned trash actors, animations `monster-taotie-ash-summon`, `taotie-ash-summon-rift-core`, `taotie-ash-summon-spawn-core`, `ash-minion-summon-emerge`, and empty warning/error console output. Temporary check page was deleted.
   - Final full verification passed: `npm test` passed with 352 tests, `npm run build` passed, and `git diff --check` passed with line-ending warnings only.
+
+## Task 75 Taotie Forge Shackle Boss Control Chain
+- Continued under the latest user clarification: character/monster geometry may stay simpler while combat flow, model-following attacks, action changes, strict hit frames, player/enemy VFX, and monster/Boss skill VFX remain strict acceptance criteria.
+- Used parallel read-only agents:
+  - Combat explorer confirmed Boss profile, rotation, phase transition, enemy impact, and player lock entry points, and flagged that `hurtLockUntilMs` blocks actions but not movement.
+  - UI/CSS explorer confirmed `enemySkillEffect()`, `enemyTelegraphShape()`, enemy VFX rendering, actor motion metadata, and CSS hooks needed to avoid flame-breath fallback.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires phase 2 to unlock `taotie-forge-shackle` as the first control-chain cast, strict no-damage windup, bind/slam hit frames, per-hit VFX/feedback cues, real movement/action lock during bind, lane dodge miss behavior, and stagger cancellation.
+  - `src/tests/app-integration.test.ts` requires windup DOM, bind active VFX, bound player data, slam VFX/feedback, and no flame-breath fallback.
+  - `src/tests/ui-smoke.test.ts` requires the new Boss skill to appear in monster-skill rendering plus dedicated CSS selectors/keyframes.
+- RED evidence: focused combat/app/UI tests failed before implementation because the new profile was absent, phase 2 rotation stayed at three Boss attacks, UI fell back to `taotie-flame-breath`, and bound player/CSS hooks did not exist.
+- Implemented:
+  - Added `taotie-forge-shackle` as a phase-2 Boss profile with two impact frames: lock bind then furnace slam.
+  - Added per-hit enemy VFX cues, per-hit player feedback cues, damage multipliers, knockback, and bound-time metadata in the shared enemy attack resolver.
+  - Added `CombatPlayer.boundUntilMs`; movement, action input, buffered release, and large-frame movement sampling now respect the control lock.
+  - Phase 2 now expands Taotie rotation to flame breath, devour pull, ash summon, and forge shackle, with forge shackle as the first post-phase attack.
+  - UI renders `饕餮炉锁` before the generic Boss fallback, circle telegraph, active bind/slam VFX, player bound metadata, and dedicated CSS animations for Boss model, telegraph, bind, slam, and feedback.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "taotie forge shackle|monster skill effects"`, 6 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 261 tests.
+  - Browser DOM/CSS validation on `http://127.0.0.1:5174/.codex-local/tmp/taotie-shackle-check.html` confirmed one forge-shackle telegraph, zero flame-breath fallback nodes, bound player data, locked movement during bind, bind/slam VFX cues, slam feedback cue, computed animations `monster-taotie-forge-shackle`, `taotie-forge-shackle-telegraph`, `taotie-forge-shackle-bind-core`, `taotie-forge-shackle-slam-core`, and `taotie-forge-shackle-hit-feedback`, plus empty warning/error console output. Temporary check page was deleted.
+- Code review follow-up:
+  - Read-only review found no Critical issues and one Important issue: `boundUntilMs` froze a whole frame even when the frame crossed the lock expiry.
+  - Added a RED regression requiring partial movement after the bound expiry inside a single large frame; it failed before the fix and passed after movement sampling was adjusted.
+  - `advancePlayerFramePosition()` and `samplePlayerAtElapsed()` now subtract the bound portion of a large frame before applying movement, so the player does not lose an extra tick after control ends.
+  - Review regression passed: `npm test -- src/tests/combat.test.ts -t "resumes player movement inside a frame that crosses the bound control expiry"`.
+  - Related combat/app/UI suite passed after review fix: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 262 tests.
+  - Build passed after review fix: `npm run build`.
+  - Final full verification passed: `npm test` passed with 13 files / 358 tests, `npm run build` passed, and `git diff --check` exited 0 with line-ending warnings only.

@@ -588,6 +588,10 @@ function playerReflectActive(run: CombatRun): boolean {
   return run.elapsedMs < run.player.reflectUntilMs;
 }
 
+function playerBoundActive(run: CombatRun): boolean {
+  return run.elapsedMs < run.player.boundUntilMs;
+}
+
 function playerDodgeResult(run: CombatRun): "missed" | "none" {
   return recentEnemyAttackEvents(run).some((event) => event.phase === "miss") ? "missed" : "none";
 }
@@ -614,6 +618,10 @@ function playerMotion(run: CombatRun): string {
     return "hit";
   }
 
+  if (playerBoundActive(run)) {
+    return "bound";
+  }
+
   const action = latestPlayerActionEvent(run);
 
   if (playerDodgeResult(run) === "missed" && playerEvadeActive(run)) {
@@ -638,6 +646,10 @@ function playerMotion(run: CombatRun): string {
 function playerState(run: CombatRun): string {
   if (run.player.defeated) {
     return "defeated";
+  }
+
+  if (playerBoundActive(run)) {
+    return "bound";
   }
 
   return latestPlayerHitEvent(run) ? "hit" : "active";
@@ -728,6 +740,10 @@ function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { 
     return { id: "taotie-ash-summon", label: "饕餮唤烬" };
   }
 
+  if (skillId === "taotie-forge-shackle") {
+    return { id: "taotie-forge-shackle", label: "饕餮炉锁" };
+  }
+
   if (skillId === "taotie-flame-breath" || enemy.kind === "boss") {
     return { id: "taotie-flame-breath", label: "饕餮炉火" };
   }
@@ -744,7 +760,7 @@ function enemyTelegraphShape(effectId: string): "cone" | "line" | "circle" {
     return "line";
   }
 
-  if (effectId === "zheng-shockwave" || effectId === "ash-crawler-burst" || effectId === "taotie-ash-summon") {
+  if (effectId === "zheng-shockwave" || effectId === "ash-crawler-burst" || effectId === "taotie-ash-summon" || effectId === "taotie-forge-shackle") {
     return "circle";
   }
 
@@ -1079,7 +1095,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   return `
     <div class="combat-actors" data-last-hit-target="${[...hitTargetIds].at(-1) ?? ""}">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
         ${playerTrailMarkup(run, playerMotionName, activeSkill)}
         <img class="combat-player-art actor-model actor-model-${playerMotionName}${skillMotionClass}${normalComboMotionClass}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run, activeSkill?.animation)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
         ${weaponLayerMarkup(state, "combat", activeSkill?.animation)}

@@ -461,3 +461,9 @@
 - Room-flow note: summoned crawlers are real room enemies. Killing the Boss alone keeps the room gate locked; the final gate opens only after the spawned crawlers are defeated too.
 - Presentation note: UI renders a circle summon telegraph, Boss `monster-taotie-ash-summon` action, `taotie-ash-summon-rift-core` active VFX, two per-minion summon rifts, and `ash-minion-summon-emerge` for newly spawned monsters.
 - Review follow-up: summon emerge styling is now limited to idle spawned monsters, so later attack motion can take over instead of being masked by the spawn animation.
+
+## Taotie Forge Shackle Control-Chain Findings
+- Current user priority allows simpler character/monster geometry, but strict combat timing, model-following actions, hit feedback, skill VFX, and monster/Boss skill VFX remain mandatory.
+- Read-only audits found that Boss profile/rotation is driven by `EnemyAttackProfileId`, `enemyAttackDefinition()`, `beginEnemyAttack()`, and `applyEnemyImpact()`, while UI must add exact hooks before the boss flame-breath fallback in `enemySkillEffect()`.
+- Control note: `hurtLockUntilMs` already blocks `performAction()`, but movement still flows through `advancePlayerFramePosition()`. A real Boss bind needs a separate player movement/control lock so the model cannot slide during the chain lock.
+- RED evidence: focused combat/app/UI tests fail because `taotie-forge-shackle` is not a valid Boss profile, phase 2 does not add it to rotation, UI falls back to flame breath, and no bind/slam CSS or player bound data exists yet.

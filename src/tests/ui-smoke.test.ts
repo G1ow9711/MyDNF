@@ -278,6 +278,8 @@ describe("town app shell", () => {
     const taotieDevourRun = stepCombat(withSingleReadyEnemy(bossBaseRun, taotieDevourPatch), {}, 80);
     const taotieSummonPatch = { attackProfileId: "taotie-ash-summon", attackPatternIds: ["taotie-ash-summon"], nextAttackPatternIndex: 0 } as unknown as Partial<CombatEnemy>;
     const taotieSummonRun = stepCombat(withSingleReadyEnemy(bossBaseRun, taotieSummonPatch), {}, 80);
+    const taotieShacklePatch = { bossPhase: 2, attackProfileId: "taotie-forge-shackle", attackPatternIds: ["taotie-forge-shackle"], nextAttackPatternIndex: 0 } as unknown as Partial<CombatEnemy>;
+    const taotieShackleRun = stepCombat(withSingleReadyEnemy(bossBaseRun, taotieShacklePatch), {}, 80);
     const activeTrashRun = stepCombat(trashRun, {}, 500);
     const activeCrawlerRun = stepCombat(crawlerRun, {}, 500);
     const activeEliteRun = stepCombat(eliteRun, {}, 500);
@@ -285,6 +287,8 @@ describe("town app shell", () => {
     const activeBossRun = stepCombat(bossRun, {}, 500);
     const activeTaotieDevourRun = stepCombat(taotieDevourRun, {}, 520);
     const activeTaotieSummonRun = stepCombat(taotieSummonRun, {}, 620);
+    const activeTaotieShackleBindRun = stepCombat(taotieShackleRun, {}, 520);
+    const activeTaotieShackleSlamRun = stepCombat(activeTaotieShackleBindRun, {}, 240);
     const activeTrashHtml = renderAppHtml({ state, mode: "combat", combatRun: activeTrashRun });
     const crawlerHtml = renderAppHtml({ state, mode: "combat", combatRun: crawlerRun });
     const activeCrawlerHtml = renderAppHtml({ state, mode: "combat", combatRun: activeCrawlerRun });
@@ -296,6 +300,9 @@ describe("town app shell", () => {
     const activeTaotieDevourHtml = renderAppHtml({ state, mode: "combat", combatRun: activeTaotieDevourRun });
     const taotieSummonHtml = renderAppHtml({ state, mode: "combat", combatRun: taotieSummonRun });
     const activeTaotieSummonHtml = renderAppHtml({ state, mode: "combat", combatRun: activeTaotieSummonRun });
+    const taotieShackleHtml = renderAppHtml({ state, mode: "combat", combatRun: taotieShackleRun });
+    const activeTaotieShackleBindHtml = renderAppHtml({ state, mode: "combat", combatRun: activeTaotieShackleBindRun });
+    const activeTaotieShackleSlamHtml = renderAppHtml({ state, mode: "combat", combatRun: activeTaotieShackleSlamRun });
 
     expect(quietHtml).not.toContain("data-enemy-skill-vfx");
 
@@ -320,6 +327,9 @@ describe("town app shell", () => {
     expect(taotieSummonHtml).toContain('data-enemy-telegraph="taotie-ash-summon"');
     expect(taotieSummonHtml).toContain('data-telegraph-shape="circle"');
     expect(taotieSummonHtml).toContain('actor-enemy-skill-taotie-ash-summon');
+    expect(taotieShackleHtml).toContain('data-enemy-telegraph="taotie-forge-shackle"');
+    expect(taotieShackleHtml).toContain('data-telegraph-shape="circle"');
+    expect(taotieShackleHtml).toContain('actor-enemy-skill-taotie-forge-shackle');
     expect(activeTrashHtml).toContain('data-enemy-skill-vfx="ash-ember-spit"');
     expect(activeTrashHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-ash-ember-spit"');
     expect(activeCrawlerHtml).toContain('data-enemy-skill-vfx="ash-crawler-burst"');
@@ -350,6 +360,14 @@ describe("town app shell", () => {
     expect(countOccurrences(activeTaotieSummonHtml, 'data-summoned-enemy-id=')).toBe(2);
     expect(countOccurrences(activeTaotieSummonHtml, 'class="combat-actor combat-enemy combat-enemy-trash"')).toBe(2);
     expect(activeTaotieSummonHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
+    expect(activeTaotieShackleBindHtml).toContain('data-enemy-skill-vfx="taotie-forge-shackle"');
+    expect(activeTaotieShackleBindHtml).toContain('data-enemy-vfx-cue="taotie-forge-shackle-bind"');
+    expect(activeTaotieShackleBindHtml).toContain('data-player-bound-active="true"');
+    expect(activeTaotieShackleBindHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-forge-shackle"');
+    expect(activeTaotieShackleSlamHtml).toContain('data-enemy-skill-vfx="taotie-forge-shackle"');
+    expect(activeTaotieShackleSlamHtml).toContain('data-enemy-vfx-cue="taotie-forge-shackle-slam"');
+    expect(activeTaotieShackleSlamHtml).toContain('data-player-feedback-cue="player-hurt-forge-slam"');
+    expect(activeTaotieShackleSlamHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
     expect(renderAppHtml({ state, mode: "combat", combatRun: trashRun })).toContain(
       'data-telegraph-phase="windup"'
     );
@@ -362,6 +380,8 @@ describe("town app shell", () => {
     expect(stylesCss).toContain(".enemy-skill-taotie-devour-pull .enemy-cast-core");
     expect(stylesCss).toContain(".enemy-telegraph-taotie-ash-summon");
     expect(stylesCss).toContain(".enemy-skill-taotie-ash-summon .enemy-cast-core");
+    expect(stylesCss).toContain(".enemy-telegraph-taotie-forge-shackle");
+    expect(stylesCss).toContain(".enemy-skill-taotie-forge-shackle .enemy-cast-core");
     expect(stylesCss).toContain(".enemy-summon-rift-taotie-ash-summon");
     expect(stylesCss).toContain(".combat-feedback-skill-ash-ember-spit");
     expect(stylesCss).toContain(".combat-feedback-skill-ash-crawler-burst");
@@ -369,7 +389,9 @@ describe("town app shell", () => {
     expect(stylesCss).toContain(".combat-feedback-skill-zheng-horn-charge");
     expect(stylesCss).toContain(".combat-feedback-skill-taotie-flame-breath");
     expect(stylesCss).toContain(".combat-feedback-skill-taotie-devour-pull");
+    expect(stylesCss).toContain(".combat-feedback-skill-taotie-forge-shackle");
     expect(stylesCss).toContain("@keyframes monster-taotie-ash-summon");
+    expect(stylesCss).toContain("@keyframes monster-taotie-forge-shackle");
     expect(stylesCss).toContain("@keyframes monster-ash-crawler-burst");
     expect(stylesCss).toContain("@keyframes monster-zheng-horn-charge");
     expect(stylesCss).toContain("@keyframes monster-taotie-devour-pull");
@@ -386,6 +408,9 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes taotie-devour-hit-feedback");
     expect(stylesCss).toContain("@keyframes taotie-ash-summon-rift-core");
     expect(stylesCss).toContain("@keyframes taotie-ash-summon-spawn-core");
+    expect(stylesCss).toContain("@keyframes taotie-forge-shackle-bind-core");
+    expect(stylesCss).toContain("@keyframes taotie-forge-shackle-slam-core");
+    expect(stylesCss).toContain("@keyframes taotie-forge-shackle-hit-feedback");
   });
 
   it("limits taotie summon emerge animation to idle spawned monsters so attack motion can take over", () => {

@@ -306,3 +306,11 @@
 - Implementation note: normal trash rooms now spawn one ranged `ash-ember-spit` enemy and one close-range `ash-crawler-burst` enemy. The crawler rushes toward the player during windup, explodes at a short-range impact frame, can miss on lane sidestep, and loses the pending explosion when staggered.
 - Presentation note: browser computed styles confirmed dedicated animation names for crawler windup, circle telegraph, explosion ring/core/trail, hit feedback, and player hurt reaction.
 - Code review follow-up: crawler rush is now a windup-time interpolated logic movement rather than an instant position jump at cast start, and app integration coverage now checks crawler miss feedback rendering.
+
+## Zheng Horn Charge Elite Pattern Findings
+- DFO reference pass reinforced that movement, X/Z style combo actions, skill hotkeys, and combo scoring are core brawler loops; this slice targets the matching monster-side need for readable attack lanes and punishable rush patterns.
+- Read-only combat audit found `enemyAttackDefinition()` still ignored non-trash `attackProfileId`, so elite profile patches fell back to `zheng-shockwave`; active `attackSkillId` still needed to remain the priority to lock already-started attacks.
+- Read-only UI audit found `enemySkillEffect()` also had an elite-kind fallback that would map every elite-only new skill back to `zheng-shockwave`; exact `zheng-horn-charge` matching must happen before kind fallback.
+- RED evidence: focused combat/UI tests failed because elite rooms only spawned `elite + trash`, `zheng-horn-charge` produced no windup/active/miss events, and UI rendered `zheng-shockwave` circle telegraph instead of line charge.
+- Implementation note: elite rooms now spawn two elite profiles plus one trash minion. `zheng-horn-charge` uses a narrow line lane, windup-time rush movement, heavier hitstop/knockback, `zheng-horn-charge-impact` VFX cue, and stagger interruption through the existing attack clear path.
+- Presentation note: `zheng-horn-charge` has independent model charge, line telegraph, electric trail/core/ring VFX, and hit/miss feedback keyframes so it does not read like the old circular quake.

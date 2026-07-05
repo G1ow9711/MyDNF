@@ -1575,3 +1575,30 @@
   - Final `npm test`: pass, 13 files and 244 tests.
   - Final `npm run build`: pass.
   - Final `git diff --check`: pass with Windows line-ending warnings only.
+
+## Task 57 Zheng Horn Charge Elite Pattern
+- Started from the remaining monster-pattern gap: elite and boss tiers still needed alternate archetypes beyond one skill per tier. This slice targets elite monsters first.
+- Used two read-only parallel agents:
+  - `019f308e-6dbe-73c0-ae37-b06966c3a9de` audited combat state and found non-trash `attackProfileId` was ignored, so elite alternate profiles could not work.
+  - `019f308e-9ba6-7a21-8292-dd1db08342df` audited UI/CSS and identified the exact `enemySkillEffect`, line telegraph, VFX, and feedback hooks for `zheng-horn-charge`.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires elite rooms to spawn `zheng-shockwave`, `zheng-horn-charge`, and a trash minion.
+  - `src/tests/combat.test.ts` requires `zheng-horn-charge` to wind up, rush across the line lane, hit on the impact frame, miss when sidestepped, and cancel when staggered mid-rush.
+  - `src/tests/ui-smoke.test.ts` requires line telegraph, active VFX cue, hit feedback class, and dedicated CSS selectors/keyframes for `zheng-horn-charge`.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts` initially failed 5 tests because the elite room lacked the new profile and the patched elite attack still rendered/resolved as `zheng-shockwave`.
+- Implemented:
+  - Added `zheng-horn-charge` to `EnemyAttackProfileId` and `CombatEnemyVfxCue`.
+  - Added profile-kind validation so elite and boss profiles can use `attackProfileId` while active `attackSkillId` still locks the already-started attack definition.
+  - Added the elite line-rush attack definition, elite room profile mix, display name `雷角狰`, and independent UI/CSS for model motion, line telegraph, electric impact VFX, and hit/miss feedback.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts`: pass, 92 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/zheng-horn-charge-check.html`: confirmed 3 panels, line windup telegraph, enemy animation `monster-zheng-horn-charge`, active cue `zheng-horn-charge-impact`, ring/core/trail animations, hit and miss feedback animations, and player hurt animation.
+  - Browser screenshot saved at `.codex-local/tmp/zheng-horn-charge-check.png`.
+- Code review follow-up:
+  - Read-only review found no Critical or Important issues.
+  - Minor coverage follow-up added UI smoke coverage for the real elite room rendering two elite actors (`窑巷卫士`, `雷角狰`) plus one trash minion.
+  - `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts`: pass, 93 tests.
+  - Final `npm test`: pass, 13 files and 249 tests.
+  - Final `npm run build`: pass.
+  - Final `git diff --check`: pass with Windows line-ending warnings only.

@@ -623,6 +623,10 @@ function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { 
     return { id: "ash-crawler-burst", label: "灰爬虫爆冲" };
   }
 
+  if (skillId === "zheng-horn-charge") {
+    return { id: "zheng-horn-charge", label: "雷角狰突" };
+  }
+
   if (skillId === "taotie-flame-breath" || enemy.kind === "boss") {
     return { id: "taotie-flame-breath", label: "饕餮炉火" };
   }
@@ -635,7 +639,7 @@ function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { 
 }
 
 function enemyTelegraphShape(effectId: string): "cone" | "line" | "circle" {
-  if (effectId === "taotie-flame-breath") {
+  if (effectId === "taotie-flame-breath" || effectId === "zheng-horn-charge") {
     return "line";
   }
 

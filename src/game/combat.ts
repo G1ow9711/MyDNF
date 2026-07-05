@@ -4,7 +4,12 @@ import type { CombatInput } from "./input";
 import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
 
 export type EnemyKind = "trash" | "elite" | "boss";
-export type EnemyAttackProfileId = "ash-ember-spit" | "ash-crawler-burst" | "zheng-shockwave" | "taotie-flame-breath";
+export type EnemyAttackProfileId =
+  | "ash-ember-spit"
+  | "ash-crawler-burst"
+  | "zheng-shockwave"
+  | "zheng-horn-charge"
+  | "taotie-flame-breath";
 export type CombatActionInput = { type: "light" } | { type: "heavy" } | { type: "backstep" } | { type: "skill"; skillId: string };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
@@ -34,6 +39,7 @@ export type CombatEnemyVfxCue =
   | "ash-ember-spit-impact"
   | "ash-crawler-burst-explode"
   | "zheng-shockwave-impact"
+  | "zheng-horn-charge-impact"
   | "taotie-flame-breath-sustain";
 export type CombatPlayerFeedbackCue = "player-hurt-light" | "player-hurt-heavy" | "player-hurt-boss-breath";
 
@@ -460,8 +466,21 @@ function isEnemyAttackProfileId(value: string | undefined): value is EnemyAttack
     value === "ash-ember-spit" ||
     value === "ash-crawler-burst" ||
     value === "zheng-shockwave" ||
+    value === "zheng-horn-charge" ||
     value === "taotie-flame-breath"
   );
+}
+
+function enemyAttackProfileKind(profileId: EnemyAttackProfileId): EnemyKind {
+  if (profileId === "taotie-flame-breath") {
+    return "boss";
+  }
+
+  if (profileId === "zheng-shockwave" || profileId === "zheng-horn-charge") {
+    return "elite";
+  }
+
+  return "trash";
 }
 
 function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileId" | "attackSkillId"> | EnemyKind): EnemyAttackDefinition {
@@ -470,8 +489,8 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       ? defaultEnemyAttackProfile(enemy)
       : isEnemyAttackProfileId(enemy.attackSkillId)
         ? enemy.attackSkillId
-        : enemy.kind === "trash"
-          ? enemy.attackProfileId ?? defaultEnemyAttackProfile(enemy.kind)
+        : enemyAttackProfileKind(enemy.attackProfileId) === enemy.kind
+          ? enemy.attackProfileId
           : defaultEnemyAttackProfile(enemy.kind);
 
   if (profileId === "taotie-flame-breath") {
@@ -513,6 +532,28 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       feedbackCue: "player-hurt-heavy",
       invulnerabilityMs: 560,
       hurtLockMs: 420
+    };
+  }
+
+  if (profileId === "zheng-horn-charge") {
+    return {
+      skillId: "zheng-horn-charge",
+      damage: 46,
+      rangeX: 92,
+      laneRange: 30,
+      windupMs: 420,
+      recoveryMs: 360,
+      cooldownMs: 2100,
+      hitstopMs: 54,
+      knockback: 82,
+      hitCount: 1,
+      hitIntervalMs: 0,
+      vfxCue: "zheng-horn-charge-impact",
+      vfxWindowMs: 480,
+      feedbackCue: "player-hurt-heavy",
+      invulnerabilityMs: 560,
+      hurtLockMs: 460,
+      windupRushPx: 260
     };
   }
 
@@ -571,7 +612,12 @@ function createEnemy(
     id: `${dungeonId}-room-${roomIndex}-enemy-${enemyIndex}`,
     kind,
     ...stats,
-    displayName: attackProfileId === "ash-crawler-burst" ? "灰烬爬妖" : stats.displayName,
+    displayName:
+      attackProfileId === "ash-crawler-burst"
+        ? "灰烬爬妖"
+        : attackProfileId === "zheng-horn-charge"
+          ? "雷角狰"
+          : stats.displayName,
     attackProfileId,
     marks: 0,
     position: {
@@ -596,7 +642,11 @@ function createRoomEnemies(dungeonId: DungeonId, roomIndex: number): CombatEnemy
   }
 
   if (roomIndex === dungeon.rooms - 2) {
-    return [createEnemy(dungeonId, roomIndex, 0, "elite"), createEnemy(dungeonId, roomIndex, 1, "trash")];
+    return [
+      createEnemy(dungeonId, roomIndex, 0, "elite", "zheng-shockwave"),
+      createEnemy(dungeonId, roomIndex, 1, "elite", "zheng-horn-charge"),
+      createEnemy(dungeonId, roomIndex, 2, "trash", "ash-ember-spit")
+    ];
   }
 
   return [

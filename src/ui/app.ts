@@ -510,15 +510,31 @@ function recentArenaHazardEvents(run: CombatRun): CombatArenaHazardEvent[] {
 }
 
 function latestPlayerActionEvent(run: CombatRun): CombatHitEvent | CombatMissEvent | CombatSkillCastEvent | undefined {
-  return [...run.events].reverse().find((event): event is CombatHitEvent | CombatMissEvent | CombatSkillCastEvent => {
-    if (event.kind !== "hit" && event.kind !== "miss" && event.kind !== "skill-cast") {
-      return false;
+  let blockingPlayerHitAtMs: number | undefined;
+
+  for (const event of [...run.events].reverse()) {
+    if (event.kind === "player-hit" && run.elapsedMs >= event.occurredAtMs) {
+      blockingPlayerHitAtMs = event.occurredAtMs;
+      continue;
     }
 
-    const actionAge = run.elapsedMs - actionStartedAtMs(event);
+    if (event.kind !== "hit" && event.kind !== "miss" && event.kind !== "skill-cast") {
+      continue;
+    }
 
-    return actionAge >= 0 && actionAge <= playerActionWindowMs(event);
-  });
+    const actionStartAtMs = actionStartedAtMs(event);
+    const actionAge = run.elapsedMs - actionStartAtMs;
+
+    if (blockingPlayerHitAtMs !== undefined && blockingPlayerHitAtMs >= actionStartAtMs) {
+      return undefined;
+    }
+
+    if (actionAge >= 0 && actionAge <= playerActionWindowMs(event)) {
+      return event;
+    }
+  }
+
+  return undefined;
 }
 
 function classSkillById(skillId: string | undefined): ClassSkillDefinition | undefined {

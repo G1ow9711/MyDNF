@@ -1253,6 +1253,178 @@ describe("combat actions and impact feel", () => {
     expect(rain.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
   });
 
+  it("furnace-heart-overdrive charges in place before pulsing and releasing around the player", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(createInitialState(), 100)),
+      "ember-furnace-master"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 320, y: 340, facing: 1 },
+      [
+        { x: 238, y: 340, hp: 240, maxHp: 240, armor: 18 },
+        { x: 420, y: 350, hp: 240, maxHp: 240, armor: 18 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "furnace-heart-overdrive" });
+    const [pulseAtMs, releaseAtMs] = scheduledSkillTimes(cast, "furnace-heart-overdrive");
+    const beforePulse = stepToElapsed(cast, pulseAtMs - 1);
+    const pulseRun = stepToElapsed(cast, pulseAtMs);
+    const releaseRun = stepToElapsed(pulseRun, releaseAtMs);
+    const jumpedReleaseRun = stepToElapsed(cast, releaseAtMs);
+    const overdriveHits = skillHitEvents(releaseRun, "furnace-heart-overdrive");
+    const jumpedOverdriveHits = skillHitEvents(jumpedReleaseRun, "furnace-heart-overdrive");
+
+    expect(cast.player.activeSkillMovement?.skillId).toBe("furnace-heart-overdrive");
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(skillHitEvents(cast, "furnace-heart-overdrive")).toHaveLength(0);
+    expect([pulseAtMs, releaseAtMs]).toEqual([360, 560]);
+    expect(beforePulse.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(skillHitEvents(pulseRun, "furnace-heart-overdrive")).toHaveLength(2);
+    expect(overdriveHits).toHaveLength(4);
+    expect(overdriveHits.map((event) => event.hitPhase)).toEqual([
+      "overdrive-pulse",
+      "overdrive-pulse",
+      "overdrive-release",
+      "overdrive-release"
+    ]);
+    expect(overdriveHits.map((event) => event.vfxCue)).toEqual([
+      "overdrive-core-pulse",
+      "overdrive-core-pulse",
+      "overdrive-core-release",
+      "overdrive-core-release"
+    ]);
+    expect(jumpedOverdriveHits.map((event) => event.hitPhase)).toEqual(overdriveHits.map((event) => event.hitPhase));
+    expect(jumpedReleaseRun.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "furnace-heart-overdrive")).toHaveLength(0);
+    expect(overdriveHits.filter((event) => event.hitPhase === "overdrive-release").every((event) => event.statusTags?.includes("stagger"))).toBe(
+      true
+    );
+    expect(releaseRun.enemies.every((enemy) => enemy.hp < run.enemies.find((source) => source.id === enemy.id)!.hp)).toBe(true);
+    expect(releaseRun.enemies.every((enemy) => enemy.downed && (enemy.downedUntilMs ?? 0) > releaseRun.elapsedMs)).toBe(true);
+  });
+
+  it("delays furnace-heart-overdrive whiff feedback and cancels it when interrupted", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(createInitialState(), 100)),
+      "ember-furnace-master"
+    );
+    const missRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 320, y: 340, facing: 1 },
+      [
+        { x: 40, y: 430 },
+        { x: 760, y: 430 }
+      ]
+    );
+    const whiffCast = performAction(missRun, { type: "skill", skillId: "furnace-heart-overdrive" });
+    const [missAtMs] = scheduledMissTimes(whiffCast, "furnace-heart-overdrive");
+    const beforeMiss = stepToElapsed(whiffCast, missAtMs - 1);
+    const whiffed = stepToElapsed(whiffCast, missAtMs);
+
+    expect(skillMissEvents(whiffCast, "furnace-heart-overdrive")).toHaveLength(0);
+    expect(skillMissEvents(beforeMiss, "furnace-heart-overdrive")).toHaveLength(0);
+    expect(skillMissEvents(whiffed, "furnace-heart-overdrive")).toEqual([
+      expect.objectContaining({
+        occurredAtMs: 360,
+        inputToHitMs: 360
+      })
+    ]);
+
+    const hitRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 320, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [
+        { x: 238, y: 340, hp: 240, maxHp: 240 },
+        { x: 420, y: 350, hp: 240, maxHp: 240 }
+      ]
+    );
+    const cast = performAction(hitRun, { type: "skill", skillId: "furnace-heart-overdrive" });
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: cast.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                attackSkillId: "ash-ember-spit" as const,
+                attackStartedAtMs: 0,
+                attackImpactAtMs: 220,
+                attackRecoverUntilMs: 420,
+                attackHitResolved: false,
+                attackResolvedHits: 0
+              }
+            : enemy
+        )
+      },
+      {},
+      560
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 220
+        })
+      ])
+    );
+    expect(skillHitEvents(interrupted, "furnace-heart-overdrive")).toHaveLength(0);
+    expect(interrupted.enemies.map((enemy) => enemy.hp)).toEqual(cast.enemies.map((enemy) => enemy.hp));
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "furnace-heart-overdrive")).toHaveLength(0);
+  });
+
+  it("lets same-frame enemy interruption cancel furnace-heart-overdrive whiff feedback", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(createInitialState(), 100)),
+      "ember-furnace-master"
+    );
+    const missRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 320, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [
+        { x: 40, y: 430 },
+        { x: 760, y: 430 }
+      ]
+    );
+    const whiffCast = performAction(missRun, { type: "skill", skillId: "furnace-heart-overdrive" });
+    const interrupted = stepCombat(
+      {
+        ...whiffCast,
+        enemies: whiffCast.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: whiffCast.player.x + 80, y: whiffCast.player.y },
+                attackSkillId: "ash-ember-spit" as const,
+                attackStartedAtMs: 80,
+                attackImpactAtMs: 360,
+                attackRecoverUntilMs: 600,
+                attackHitResolved: false,
+                attackResolvedHits: 0
+              }
+            : enemy
+        )
+      },
+      {},
+      360
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 360
+        })
+      ])
+    );
+    expect(skillMissEvents(interrupted, "furnace-heart-overdrive")).toHaveLength(0);
+    expect(interrupted.scheduledMissEffects.filter((effect) => effect.skillId === "furnace-heart-overdrive")).toHaveLength(0);
+  });
+
   it("prism-step pierces enemies along the dash path instead of only checking the landing point", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40);
     const run = withPlayerAndEnemies(

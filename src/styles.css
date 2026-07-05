@@ -936,6 +936,10 @@ p {
   animation: weapon-dash-burst var(--skill-duration, 500ms) cubic-bezier(0.1, 0.84, 0.14, 1) both;
 }
 
+.combat-player[data-player-motion="skill"][data-skill-weapon-arc="core-overdrive"] .combat-weapon {
+  animation: weapon-core-overdrive var(--skill-duration, 820ms) cubic-bezier(0.13, 0.82, 0.16, 1) both;
+}
+
 .combat-player[data-player-motion="skill"][data-skill-weapon-arc="chain-cut"] .combat-weapon {
   animation: weapon-chain-cut var(--skill-duration, 760ms) cubic-bezier(0.1, 0.82, 0.15, 1) both;
 }
@@ -1276,6 +1280,10 @@ p {
   animation: player-ember-shoulder-rush var(--skill-duration, 500ms) cubic-bezier(0.1, 0.84, 0.14, 1) both;
 }
 
+.combat-player[data-player-motion="skill"][data-skill-animation-preset="ember-overdrive"] .combat-player-art {
+  animation: player-ember-overdrive-cast var(--skill-duration, 820ms) cubic-bezier(0.13, 0.82, 0.16, 1) both;
+}
+
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="liuli-rain"] .combat-player-art {
   animation: player-liuli-rain-cast var(--skill-duration, 680ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
@@ -1304,6 +1312,15 @@ p {
 .combat-player[data-player-skill-move="furnace-step"] .player-motion-trail {
   opacity: 0.94;
   filter: drop-shadow(0 0 22px rgba(248, 113, 113, 0.72));
+}
+
+.combat-player[data-player-skill-move="furnace-heart-overdrive"] .combat-player-art {
+  filter: drop-shadow(0 0 28px rgba(253, 186, 116, 0.84)) brightness(1.26) saturate(1.24);
+}
+
+.combat-player[data-player-skill-move="furnace-heart-overdrive"] .player-motion-trail {
+  opacity: 0.9;
+  filter: drop-shadow(0 0 26px rgba(251, 146, 60, 0.78));
 }
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="ink-snare"] .combat-player-art {
@@ -2199,6 +2216,65 @@ p {
   animation: furnace-shoulder-impact-shards 560ms ease-out both;
 }
 
+.skill-impact-shape-overdrive-core {
+  width: 206px;
+  height: 158px;
+  margin-top: -36px;
+  filter: drop-shadow(0 0 24px rgba(251, 146, 60, 0.62));
+}
+
+.skill-impact-shape-overdrive-core .skill-impact-core {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 48% 46%, rgba(255, 247, 237, 0.98), rgba(253, 186, 116, 0.94) 24%, rgba(249, 115, 22, 0.7) 52%, rgba(127, 29, 29, 0) 76%),
+    conic-gradient(from 28deg, rgba(254, 240, 138, 0.78), rgba(239, 68, 68, 0.2), rgba(251, 146, 60, 0.72), rgba(127, 29, 29, 0.08), rgba(254, 240, 138, 0.78));
+  filter: blur(0.2px) drop-shadow(0 0 20px rgba(251, 146, 60, 0.9));
+  animation: overdrive-core-release-core 560ms cubic-bezier(0.12, 0.86, 0.16, 1) both;
+}
+
+.skill-impact-shape-overdrive-core .skill-impact-ring {
+  width: 154px;
+  height: 82px;
+  border-color: rgba(253, 186, 116, 0.84);
+  box-shadow: 0 0 32px rgba(248, 113, 113, 0.58), inset 0 0 26px rgba(250, 204, 21, 0.32);
+  animation: overdrive-core-release-ring 620ms ease-out both;
+}
+
+.skill-impact-shape-overdrive-core .skill-impact-shards {
+  background:
+    linear-gradient(20deg, transparent 12%, rgba(255, 247, 237, 0.94) 13% 16%, transparent 17%),
+    linear-gradient(110deg, transparent 34%, rgba(253, 186, 116, 0.88) 35% 39%, transparent 40%),
+    linear-gradient(70deg, transparent 56%, rgba(248, 113, 113, 0.84) 57% 61%, transparent 62%),
+    linear-gradient(138deg, transparent 76%, rgba(250, 204, 21, 0.82) 77% 81%, transparent 82%),
+    radial-gradient(circle at 24% 70%, rgba(254, 240, 138, 0.92) 0 5px, transparent 6px),
+    radial-gradient(circle at 78% 34%, rgba(255, 247, 237, 0.88) 0 4px, transparent 5px);
+  animation: overdrive-core-release-shards 650ms ease-out both;
+}
+
+.skill-impact-shape-overdrive-core[data-vfx-cue="overdrive-core-pulse"] {
+  width: 174px;
+  height: 132px;
+  margin-top: -44px;
+}
+
+.skill-impact-shape-overdrive-core[data-vfx-cue="overdrive-core-pulse"] .skill-impact-core {
+  width: 54px;
+  height: 54px;
+  animation: overdrive-core-pulse-core 360ms ease-out both;
+}
+
+.skill-impact-shape-overdrive-core[data-vfx-cue="overdrive-core-pulse"] .skill-impact-ring {
+  width: 116px;
+  height: 58px;
+  animation: overdrive-core-pulse-ring 420ms ease-out both;
+}
+
+.skill-impact-shape-overdrive-core[data-vfx-cue="overdrive-core-pulse"] .skill-impact-shards {
+  animation: overdrive-core-pulse-shards 440ms ease-out both;
+}
+
 .skill-impact-shape-meteor-impact {
   width: 230px;
   height: 158px;
@@ -2463,6 +2539,43 @@ p {
     linear-gradient(78deg, transparent 76%, rgba(250, 204, 21, 0.76) 77% 80%, transparent 81%),
     radial-gradient(circle at 82% 48%, rgba(255, 255, 255, 0.92) 0 4px, transparent 5px);
   animation: furnace-trail-cast-sparks var(--skill-duration, 500ms) ease-out both;
+}
+
+.skill-vfx-shape-overdrive-core {
+  width: 280px;
+  height: 238px;
+  margin-top: -96px;
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 28px rgba(251, 146, 60, 0.52));
+}
+
+.skill-vfx-shape-overdrive-core .skill-core {
+  inset: 24% 28% 28%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 48% 48%, rgba(255, 247, 237, 0.98), rgba(253, 186, 116, 0.92) 22%, rgba(249, 115, 22, 0.62) 50%, rgba(127, 29, 29, 0) 74%),
+    conic-gradient(from 18deg, rgba(254, 240, 138, 0.82), rgba(239, 68, 68, 0.18), rgba(251, 146, 60, 0.72), rgba(127, 29, 29, 0.12), rgba(254, 240, 138, 0.82));
+  filter: blur(0.4px) drop-shadow(0 0 24px rgba(251, 146, 60, 0.86));
+  animation: overdrive-core-cast-core var(--skill-duration, 820ms) cubic-bezier(0.13, 0.82, 0.16, 1) both;
+}
+
+.skill-vfx-shape-overdrive-core .skill-wave {
+  inset: 18% 10% 18%;
+  border-color: rgba(253, 186, 116, 0.78);
+  border-radius: 50%;
+  box-shadow: 0 0 42px rgba(248, 113, 113, 0.52), inset 0 0 28px rgba(250, 204, 21, 0.34);
+  animation: overdrive-core-cast-ring var(--skill-duration, 820ms) ease-out both;
+}
+
+.skill-vfx-shape-overdrive-core .skill-sparks {
+  background:
+    linear-gradient(24deg, transparent 12%, rgba(255, 247, 237, 0.92) 13% 15%, transparent 16%),
+    linear-gradient(112deg, transparent 31%, rgba(253, 186, 116, 0.84) 32% 35%, transparent 36%),
+    linear-gradient(68deg, transparent 53%, rgba(248, 113, 113, 0.78) 54% 58%, transparent 59%),
+    linear-gradient(134deg, transparent 75%, rgba(250, 204, 21, 0.78) 76% 80%, transparent 81%),
+    radial-gradient(circle at 22% 66%, rgba(254, 240, 138, 0.92) 0 5px, transparent 6px),
+    radial-gradient(circle at 78% 34%, rgba(255, 247, 237, 0.88) 0 4px, transparent 5px);
+  animation: overdrive-core-cast-sparks var(--skill-duration, 820ms) ease-out both;
 }
 
 .skill-vfx-shape-flame-column {
@@ -3457,6 +3570,14 @@ p {
   100% { transform: translateX(0) translateY(0) skewX(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
 }
 
+@keyframes player-ember-overdrive-cast {
+  0% { transform: translateY(0) scale(0.98) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
+  22% { transform: translateY(6px) scale(1.04) scaleX(var(--model-scale-x, 1)); filter: brightness(1.46) saturate(1.12); }
+  44% { transform: translateY(-8px) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.9) saturate(1.24); }
+  68% { transform: translateY(3px) scale(1.12) scaleX(var(--model-scale-x, 1)); filter: brightness(2.18) saturate(1.34); }
+  100% { transform: translateY(0) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.12) saturate(1.08); }
+}
+
 @keyframes player-liuli-rain-cast {
   0% { transform: translateX(calc(var(--skill-lunge-x, 18px) * -0.26)) translateY(0) rotate(-2deg) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
   32% { transform: translateX(calc(var(--skill-lunge-x, 18px) * 0.4)) translateY(-10px) rotate(4deg) scale(1.04) scaleX(var(--model-scale-x, 1)); filter: brightness(1.62) saturate(1.2); }
@@ -3619,6 +3740,14 @@ p {
   0% { transform: translate(calc(-50% - var(--weapon-skill-lunge, 46px) * 0.52), -50%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 18deg)) scale(calc(var(--weapon-scale, 1) * 0.96)); opacity: 0.86; }
   32% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 46px) * 0.62), -58%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 8deg)) scale(calc(var(--weapon-scale, 1) * 1.1)); opacity: 1; filter: drop-shadow(0 0 34px color-mix(in srgb, var(--weapon-glow, #fb923c) 94%, transparent)) brightness(1.36); }
   58% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 46px) * 1.34), -44%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 26deg)) scale(calc(var(--weapon-scale, 1) * 1.18)); opacity: 0.82; filter: drop-shadow(0 0 42px color-mix(in srgb, var(--weapon-glow, #fb923c) 98%, transparent)) brightness(1.62); }
+  100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 1; filter: brightness(1); }
+}
+
+@keyframes weapon-core-overdrive {
+  0% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(calc(var(--weapon-scale, 1) * 0.96)); opacity: 0.9; }
+  24% { transform: translate(-50%, -66%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 18deg)) scale(calc(var(--weapon-scale, 1) * 1.08)); opacity: 1; filter: drop-shadow(0 0 34px color-mix(in srgb, var(--weapon-glow, #fb923c) 92%, transparent)) brightness(1.34); }
+  48% { transform: translate(-50%, -42%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 20deg)) scale(calc(var(--weapon-scale, 1) * 1.16)); opacity: 0.92; filter: drop-shadow(0 0 42px color-mix(in srgb, var(--weapon-glow, #facc15) 96%, transparent)) brightness(1.58); }
+  72% { transform: translate(-50%, -58%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 42deg)) scale(calc(var(--weapon-scale, 1) * 1.2)); opacity: 1; filter: drop-shadow(0 0 48px color-mix(in srgb, var(--weapon-glow, #fb923c) 98%, transparent)) brightness(1.74); }
   100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 1; filter: brightness(1); }
 }
 
@@ -3907,6 +4036,45 @@ p {
   100% { opacity: 0; transform: translateY(28px) skewX(-4deg) scale(1.16); }
 }
 
+@keyframes overdrive-core-pulse-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.26) rotate(-18deg); }
+  30% { opacity: 0.96; transform: translate(-50%, -50%) scale(1.04) rotate(16deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.34) rotate(54deg); }
+}
+
+@keyframes overdrive-core-pulse-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-10deg) scaleX(0.28) scaleY(0.58); }
+  36% { opacity: 0.9; transform: translate(-50%, -50%) rotate(-4deg) scaleX(0.96) scaleY(0.86); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(16deg) scaleX(1.28) scaleY(1.08); }
+}
+
+@keyframes overdrive-core-pulse-shards {
+  0% { opacity: 0; transform: translateY(10px) scale(0.58) rotate(-5deg); }
+  28% { opacity: 0.94; transform: translateY(-2px) scale(0.98) rotate(4deg); }
+  100% { opacity: 0; transform: translateY(-24px) translateX(14px) scale(1.18) rotate(18deg); }
+}
+
+@keyframes overdrive-core-release-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.22) rotate(-24deg); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(1.16) rotate(20deg); }
+  54% { opacity: 0.86; transform: translate(-50%, -50%) scale(1.42) rotate(96deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.82) rotate(172deg); }
+}
+
+@keyframes overdrive-core-release-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-16deg) scaleX(0.22) scaleY(0.56); }
+  24% { opacity: 0.98; transform: translate(-50%, -50%) rotate(-6deg) scaleX(1.06) scaleY(0.9); }
+  66% { opacity: 0.62; transform: translate(-50%, -50%) rotate(18deg) scaleX(1.44) scaleY(1.12); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(42deg) scaleX(1.82) scaleY(1.28); }
+}
+
+@keyframes overdrive-core-release-shards {
+  0% { opacity: 0; transform: translateY(18px) scale(0.48) rotate(-8deg); }
+  20% { opacity: 1; transform: translateY(-2px) scale(1) rotate(3deg); }
+  60% { opacity: 0.86; transform: translateY(-22px) scale(1.22) rotate(14deg); }
+  100% { opacity: 0; transform: translateY(-50px) translateX(28px) scale(1.46) rotate(30deg); }
+}
+
 @keyframes night-mark-lock-core {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(0.28) rotate(-18deg); }
   36% { opacity: 0.95; transform: translate(-50%, -50%) scale(1.02) rotate(12deg); }
@@ -4159,6 +4327,28 @@ p {
   18% { opacity: 0.82; transform: translateX(-32px) skewX(-10deg) scale(0.82); }
   52% { opacity: 1; transform: translateX(50px) skewX(-7deg) scale(1.06); }
   100% { opacity: 0; transform: translateX(142px) translateY(-9px) skewX(-4deg) scale(1.24); }
+}
+
+@keyframes overdrive-core-cast-core {
+  0% { opacity: 0; transform: scale(0.28) rotate(-28deg); filter: blur(3px) brightness(0.86); }
+  22% { opacity: 0.82; transform: scale(0.82) rotate(18deg); filter: blur(1px) brightness(1.42); }
+  48% { opacity: 1; transform: scale(1.18) rotate(96deg); filter: blur(0.2px) brightness(1.82); }
+  74% { opacity: 0.9; transform: scale(1.34) rotate(188deg); filter: blur(0.8px) brightness(2.08); }
+  100% { opacity: 0; transform: scale(1.52) rotate(260deg); filter: blur(3px) brightness(1.02); }
+}
+
+@keyframes overdrive-core-cast-ring {
+  0% { opacity: 0; transform: scale(0.28) rotate(-18deg); }
+  26% { opacity: 0.76; transform: scale(0.86) rotate(6deg); }
+  58% { opacity: 0.96; transform: scale(1.18) rotate(24deg); }
+  100% { opacity: 0; transform: scale(1.62) rotate(58deg); }
+}
+
+@keyframes overdrive-core-cast-sparks {
+  0% { opacity: 0; transform: translateY(20px) scale(0.54) rotate(-8deg); }
+  20% { opacity: 0.82; transform: translateY(4px) scale(0.86) rotate(6deg); }
+  54% { opacity: 1; transform: translateY(-12px) scale(1.12) rotate(18deg); }
+  100% { opacity: 0; transform: translateY(-38px) translateX(26px) scale(1.32) rotate(36deg); }
 }
 
 @keyframes glass-rain-fall {

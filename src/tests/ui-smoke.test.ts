@@ -833,6 +833,57 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes furnace-shoulder-impact-core");
   });
 
+  it("defines dedicated furnace-heart-overdrive player, weapon, core, and release animations", () => {
+    const advancedState = advanceClass(
+      readyForAdvancement({
+        ...createInitialState(),
+        player: {
+          ...createInitialState().player,
+          heat: 100
+        }
+      }),
+      "ember-furnace-master"
+    );
+    const baseRun = createCombatRun(advancedState, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 320, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 240,
+          maxHp: 240,
+          armor: 18,
+          position: { x: index === 0 ? player.x - 82 : player.x + 100, y: player.y + index * 10 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "furnace-heart-overdrive" }
+    );
+    const [, releaseAtMs] = scheduledSkillTimes(castRun, "furnace-heart-overdrive");
+    const releaseRun = stepToElapsed(castRun, releaseAtMs);
+    const html = renderAppHtml({
+      state: advancedState,
+      mode: "combat",
+      combatRun: releaseRun
+    });
+
+    expect(skillHitEvents(releaseRun, "furnace-heart-overdrive")).toHaveLength(4);
+    expect(html).toContain('data-impact-vfx-shape="overdrive-core"');
+    expect(html).toContain('data-vfx-cue="overdrive-core-release"');
+    expect(html).toContain('data-hit-phase="overdrive-release"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-overdrive-core"');
+    expect(stylesCss).toContain('[data-skill-animation-preset="ember-overdrive"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="core-overdrive"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-overdrive-core");
+    expect(stylesCss).toContain(".skill-impact-shape-overdrive-core");
+    expect(stylesCss).toContain("@keyframes player-ember-overdrive-cast");
+    expect(stylesCss).toContain("@keyframes weapon-core-overdrive");
+    expect(stylesCss).toContain("@keyframes overdrive-core-cast-core");
+    expect(stylesCss).toContain("@keyframes overdrive-core-release-core");
+  });
+
   it("defines dedicated flowing-light-chain player, weapon, cast, and impact animations", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const advancedState = advanceClass(

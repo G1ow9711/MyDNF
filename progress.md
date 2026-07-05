@@ -1789,3 +1789,33 @@
   - Final `npm test`: pass, 13 files and 281 tests.
   - Final `npm run build`: pass.
   - Final `git diff --check`: pass with Windows line-ending warnings only.
+
+## Task 64 Furnace Heart Overdrive Advancement Timeline
+- Started from the latest user clarification: character/monster models may stay lighter for now, but combat motion smoothness, model-following attacks, hit frames, skill effects, monster effects, and hit feedback remain strict.
+- Used two read-only parallel agents:
+  - `019f31de-ba61-7750-b5b1-5b51e3e44e4b` audited combat scripts and recommended `furnace-heart-overdrive` because it still used the generic front-hit branch despite advancement metadata.
+  - `019f31de-ce76-72a2-a6a5-479e6b09403f` audited UI/CSS and recommended `heat-bloom` as the next visual gap; this remains a follow-up candidate.
+- Selected `furnace-heart-overdrive` first because it is an Ember advancement skill and needed a self-centered overdrive release timeline instead of instant generic damage.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires cast-frame no-damage, stationary active skill movement, area targeting around the player, delayed 360 ms pulse, delayed 560 ms release, delayed whiff feedback, and interruption cancellation.
+  - `src/tests/app-integration.test.ts` requires DOM metadata and staged target-bound impact bursts for `overdrive-pulse` and `overdrive-release`.
+  - `src/tests/ui-smoke.test.ts` requires dedicated player, weapon, cast, pulse, and release CSS hooks/keyframes.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "furnace-heart-overdrive"` failed because no scheduled effects or scheduled misses existed for the skill.
+- Implemented:
+  - Added `overdrive-pulse` / `overdrive-release` hit phases and `overdrive-core-pulse` / `overdrive-core-release` VFX cues.
+  - Added `applyFurnaceHeartOverdrive()` with stationary `activeSkillMovement`, 360 ms area pulse, 560 ms release/knockdown, delayed miss, and interruption-safe scheduled effects.
+  - Added dedicated CSS for player `player-ember-overdrive-cast`, weapon `weapon-core-overdrive`, `overdrive-core` cast VFX, and pulse/release target impacts.
+- Verification so far:
+  - Focused RED failed before implementation as expected.
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "furnace-heart-overdrive"`.
+  - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 189 tests.
+- Code review follow-up:
+  - Read-only review found no Critical issues and two Important issues: interrupted overdrive could leave stale player cast VFX in UI, and same-frame monster impact could resolve after delayed whiff feedback.
+  - Added RED regressions for both issues. Initial focused run failed with one false overdrive miss at the 360 ms interruption frame and stale `data-active-skill-id="furnace-heart-overdrive"` / `skill-vfx-furnace-heart-overdrive` in rendered HTML.
+  - Implemented explicit same-timestamp scheduled-effect priority (`arena-hazard`, `enemy-impact`, `enemy-hit`, `player-miss`) and made later `player-hit` events block stale player action/VFX lookup.
+  - Added the review-suggested large-frame release test: `stepCombat(cast, {}, releaseAtMs)` now verifies pulse/release order and clears pending overdrive effects.
+  - Focused review regressions passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts -t "same-frame enemy interruption|removes furnace-heart-overdrive"`.
+  - Focused overdrive suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "furnace-heart-overdrive|same-frame enemy interruption|removes furnace-heart-overdrive"`, 6 tests.
+  - Related combat/app/UI suite passed after review fixes: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 191 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/furnace-heart-overdrive-check.html`: confirmed 360/560 ms timings, stationary x 320 charge, `ember-overdrive`, `core-overdrive`, `overdrive-core`, two pulse target bursts, two release target bursts, skill screen shake/hitstop, actual player/weapon/cast/pulse/release animation names, and empty browser console error log.

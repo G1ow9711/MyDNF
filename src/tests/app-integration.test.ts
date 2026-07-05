@@ -1256,6 +1256,174 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(impactHtml, 'data-skill-impact-vfx="furnace-step"')).toBe(1);
   });
 
+  it("renders furnace-heart-overdrive as a staged self-centered core release", () => {
+    const advancedState = advanceClass(
+      readyForAdvancement(withHeat(createInitialState(), 100)),
+      "ember-furnace-master"
+    );
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: advancedState
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 320,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 240,
+          maxHp: 240,
+          armor: 18,
+          position: { x: index === 0 ? player.x - 82 : player.x + 100, y: player.y + index * 10 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "furnace-heart-overdrive" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after furnace-heart-overdrive");
+    }
+
+    const [pulseAtMs, releaseAtMs] = scheduledSkillTimes(model.combatRun, "furnace-heart-overdrive");
+    const castHtml = renderAppHtml(model);
+    const beforePulseHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, pulseAtMs - 1)
+    });
+    const pulseHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, pulseAtMs)
+    });
+    const releaseRun = stepToElapsed(model.combatRun, releaseAtMs);
+    const releaseHtml = renderAppHtml({
+      ...model,
+      combatRun: releaseRun
+    });
+
+    expect(skillHitEvents(model.combatRun, "furnace-heart-overdrive")).toHaveLength(0);
+    expect(castHtml).toContain('data-advancement-id="ember-furnace-master"');
+    expect(castHtml).toContain('data-active-skill-id="furnace-heart-overdrive"');
+    expect(castHtml).toContain('data-skill-animation-preset="ember-overdrive"');
+    expect(castHtml).toContain('data-skill-weapon-arc="core-overdrive"');
+    expect(castHtml).toContain('data-skill-vfx-shape="overdrive-core"');
+    expect(castHtml).toContain('data-player-skill-move="furnace-heart-overdrive"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-furnace-heart-overdrive skill-vfx-shape-overdrive-core"');
+    expect(beforePulseHtml).not.toContain('data-skill-impact-vfx="furnace-heart-overdrive"');
+    expect(pulseHtml).toContain('data-hit-phase="overdrive-pulse"');
+    expect(pulseHtml).toContain('data-vfx-cue="overdrive-core-pulse"');
+    expect(countOccurrences(pulseHtml, 'data-skill-impact-vfx="furnace-heart-overdrive"')).toBe(2);
+    expect(releaseHtml).toContain('data-hitstop-active="true"');
+    expect(releaseHtml).toContain('data-screen-shake="skill"');
+    expect(releaseHtml).toContain('data-hit-phase="overdrive-release"');
+    expect(releaseHtml).toContain('data-vfx-cue="overdrive-core-release"');
+    expect(releaseHtml).toContain('data-impact-vfx-shape="overdrive-core"');
+    expect(releaseHtml).toContain('class="skill-impact-burst skill-impact-shape-overdrive-core"');
+    expect(countOccurrences(releaseHtml, 'data-skill-impact-vfx="furnace-heart-overdrive"')).toBe(4);
+    expect(skillHitEvents(releaseRun, "furnace-heart-overdrive")).toHaveLength(4);
+  });
+
+  it("removes furnace-heart-overdrive cast VFX after enemy interruption", () => {
+    const advancedState = advanceClass(
+      readyForAdvancement(withHeat(createInitialState(), 100)),
+      "ember-furnace-master"
+    );
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: advancedState
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 320,
+      y: 340,
+      facing: 1 as const,
+      hp: 500,
+      maxHp: 500,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 240,
+          maxHp: 240,
+          position: { x: index === 0 ? player.x - 82 : player.x + 100, y: player.y + index * 10 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "furnace-heart-overdrive" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after furnace-heart-overdrive");
+    }
+
+    const interruptedRun = stepCombat(
+      {
+        ...model.combatRun,
+        enemies: model.combatRun.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                attackSkillId: "ash-ember-spit" as const,
+                attackStartedAtMs: 0,
+                attackImpactAtMs: 220,
+                attackRecoverUntilMs: 420,
+                attackHitResolved: false,
+                attackResolvedHits: 0
+              }
+            : enemy
+        )
+      },
+      {},
+      560
+    );
+    const interruptedHtml = renderAppHtml({
+      ...model,
+      combatRun: interruptedRun
+    });
+
+    expect(interruptedRun.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit"
+        })
+      ])
+    );
+    expect(skillHitEvents(interruptedRun, "furnace-heart-overdrive")).toHaveLength(0);
+    expect(interruptedHtml).not.toContain('data-active-skill-id="furnace-heart-overdrive"');
+    expect(interruptedHtml).not.toContain('data-player-skill-vfx="furnace-heart-overdrive"');
+    expect(interruptedHtml).not.toContain('skill-vfx-furnace-heart-overdrive');
+  });
+
   it("renders flowing-light-chain as a three-stage advancement chain slash", () => {
     const advancedState = advanceClass(
       readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),

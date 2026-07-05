@@ -26,6 +26,8 @@ export type CombatHitPhase =
   | "hammer-stagger"
   | "hammer-impact"
   | "shoulder-impact"
+  | "overdrive-pulse"
+  | "overdrive-release"
   | "chain-open"
   | "chain-cross"
   | "chain-finish";
@@ -42,6 +44,8 @@ export type CombatVfxCue =
   | "mountain-hammer-stagger"
   | "mountain-crack-impact"
   | "furnace-shoulder-impact"
+  | "overdrive-core-pulse"
+  | "overdrive-core-release"
   | "flowing-chain-open"
   | "flowing-chain-cross"
   | "flowing-chain-finish";
@@ -1665,6 +1669,122 @@ function applyFurnaceStep(run: CombatRun, skill: ClassSkillDefinition, canceledF
   }, movingRun);
 }
 
+const furnaceHeartOverdrivePulseDelayMs = 360;
+const furnaceHeartOverdriveReleaseDelayMs = 560;
+
+function selectFurnaceHeartOverdriveTargets(run: CombatRun): CombatEnemy[] {
+  const hitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: "furnace-heart-overdrive",
+    rangeX: 220,
+    laneRange: 108,
+    targetCap: 3,
+    frontOnly: false,
+    damage: 1,
+    hitstopMs: 1,
+    knockback: 0,
+    juggle: false,
+    inputToHitMs: furnaceHeartOverdrivePulseDelayMs,
+    canceledFromCombo: false
+  };
+
+  return selectPlayerTargets(run, hitbox);
+}
+
+function applyFurnaceHeartOverdrive(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const castRun = appendSkillCastEvent(
+    startPlayerSkillMovement(
+      run,
+      skill,
+      {
+        x: run.player.x,
+        y: run.player.y
+      },
+      run.elapsedMs + furnaceHeartOverdriveReleaseDelayMs
+    ),
+    skill,
+    canceledFromCombo
+  );
+  const targetingHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 220,
+    laneRange: 108,
+    targetCap: 3,
+    frontOnly: false,
+    damage: skillDamage(run, skill),
+    hitstopMs: 66,
+    knockback: 18,
+    juggle: false,
+    inputToHitMs: furnaceHeartOverdrivePulseDelayMs,
+    canceledFromCombo,
+    statusTags: ["stagger"]
+  };
+  const targets = selectFurnaceHeartOverdriveTargets(run);
+
+  if (targets.length === 0) {
+    return scheduleMissEffect(castRun, targetingHitbox);
+  }
+
+  const baseDamage = skillDamage(run, skill);
+  const stages: Array<{
+    phase: CombatHitPhase;
+    vfxCue: CombatVfxCue;
+    delayMs: number;
+    damageMultiplier: number;
+    hitstopMs: number;
+    knockback: number;
+    statusTags: CombatSkillStatusTag[];
+    actionTags: CombatActionTag[];
+    vfxWindowMs: number;
+  }> = [
+    {
+      phase: "overdrive-pulse",
+      vfxCue: "overdrive-core-pulse",
+      delayMs: furnaceHeartOverdrivePulseDelayMs,
+      damageMultiplier: 0.5,
+      hitstopMs: 62,
+      knockback: 14,
+      statusTags: ["stagger"],
+      actionTags: [],
+      vfxWindowMs: 360
+    },
+    {
+      phase: "overdrive-release",
+      vfxCue: "overdrive-core-release",
+      delayMs: furnaceHeartOverdriveReleaseDelayMs,
+      damageMultiplier: 1.05,
+      hitstopMs: 104,
+      knockback: 68,
+      statusTags: ["stagger"],
+      actionTags: ["knockdown"],
+      vfxWindowMs: 560
+    }
+  ];
+
+  return stages.reduce((nextRun, stage) => {
+    return targets.reduce((stageRun, target) => {
+      return scheduleEnemyHitEffect(stageRun, {
+        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${target.id}`,
+        targetId: target.id,
+        damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
+        hitstopMs: stage.hitstopMs,
+        knockback: stage.knockback,
+        juggle: false,
+        action: "skill",
+        skillId: skill.id,
+        inputToHitMs: stage.delayMs,
+        canceledFromCombo,
+        statusTags: stage.statusTags,
+        actionTags: stage.actionTags,
+        hitPhase: stage.phase,
+        vfxCue: stage.vfxCue,
+        vfxWindowMs: stage.vfxWindowMs
+      });
+    }, nextRun);
+  }, castRun);
+}
+
 function applyPrismStep(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const scriptedRun = applySkillStartupMovement(run, skill);
   const movingRun = appendSkillCastEvent(startPlayerSkillMovement(run, skill, scriptedRun.player), skill, canceledFromCombo);
@@ -3144,6 +3264,22 @@ type ScheduledCombatEffectItem =
   | { kind: "enemy-impact"; enemyId: string; occurredAtMs: number }
   | { kind: "arena-hazard"; hazard: CombatScheduledArenaHazard; occurredAtMs: number };
 
+function scheduledCombatEffectPriority(item: ScheduledCombatEffectItem): number {
+  if (item.kind === "arena-hazard") {
+    return 0;
+  }
+
+  if (item.kind === "enemy-impact") {
+    return 1;
+  }
+
+  if (item.kind === "enemy-hit") {
+    return 2;
+  }
+
+  return 3;
+}
+
 function dueEnemyImpactItems(run: CombatRun): ScheduledCombatEffectItem[] {
   return run.enemies.flatMap((enemy) => {
     if (enemy.hp <= 0 || !enemy.attackSkillId || enemy.attackImpactAtMs === undefined) {
@@ -3198,15 +3334,7 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
       return 0;
     }
 
-    if (left.kind === "arena-hazard" || right.kind === "enemy-hit") {
-      return -1;
-    }
-
-    if (right.kind === "arena-hazard" || left.kind === "enemy-hit") {
-      return 1;
-    }
-
-    return 0;
+    return scheduledCombatEffectPriority(left) - scheduledCombatEffectPriority(right);
   });
   let nextRun: CombatRun = {
     ...run,
@@ -3643,6 +3771,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "furnace-step") {
     return completeSkillAction(run, applyFurnaceStep(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "furnace-heart-overdrive") {
+    return completeSkillAction(run, applyFurnaceHeartOverdrive(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "prism-step") {

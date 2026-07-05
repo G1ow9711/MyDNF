@@ -508,6 +508,17 @@ describe("town app shell", () => {
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-black-rain"');
   });
 
+  it("defines dedicated black rain volley player, weapon, cast, and impact animations", () => {
+    expect(stylesCss).toContain('[data-skill-animation-preset="ink-volley"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="rain-volley"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-black-rain");
+    expect(stylesCss).toContain(".skill-impact-shape-black-rain");
+    expect(stylesCss).toContain("@keyframes player-ink-volley-cast");
+    expect(stylesCss).toContain("@keyframes weapon-rain-volley");
+    expect(stylesCss).toContain("@keyframes black-rain-cast-core");
+    expect(stylesCss).toContain("@keyframes black-rain-target-burst");
+  });
+
   it("renders liuli-rain as staggered glass-rain impact waves", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const state = {

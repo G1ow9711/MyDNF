@@ -1091,6 +1091,10 @@ describe("combat actions and impact feel", () => {
     expect(volleyHits).toHaveLength(6);
     expect(hitTimes.length).toBeGreaterThan(1);
     expect(Math.max(...hitTimes) - Math.min(...hitTimes)).toBeGreaterThanOrEqual(180);
+    expect([...new Set(volleyHits.map((event) => event.inputToHitMs))]).toEqual([340, 450, 560]);
+    expect(volleyHits.every((event) => event.hitPhase === "rain")).toBe(true);
+    expect(volleyHits.every((event) => event.vfxCue === "black-rain-fall")).toBe(true);
+    expect(volleyHits.every((event) => event.vfxWindowMs === 300)).toBe(true);
     expect(volley.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
     expect(volley.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
   });

@@ -341,3 +341,10 @@
 - Timing note: delayed enemy hit effects now append `CombatHitEvent` only when `applyAtMs` is reached. This prevents cast-time target VFX/damage from appearing before the model reaches the hit frame.
 - Review follow-up note: large-frame processing now splits buffered input release before later arena hazards, samples hazards against active player skill movement, and clears skill movement when monster or arena damage interrupts the player.
 - Browser note: DOM/computed-style validation confirmed `prism-step` panels at x 240 -> 291 -> 344, no target impacts before the hit frame, two target-bound prism impacts at the endpoint, actor animation `player-liuli-step-dash`, and no browser console errors.
+
+## Black Rain Volley Caster VFX Findings
+- Latest user clarification lowers near-term character mesh/model-detail priority only; combat action smoothness, model-following attack motion, hit feel, skill VFX, and monster VFX remain strict acceptance criteria.
+- Read-only combat audit found `black-rain-volley` already produced staggered repeated hits, but those hits lacked per-hit presentation metadata, so target-bound VFX could not distinguish the rain phase from generic repeated damage.
+- Read-only UI audit found catalog metadata already exposed `ink-volley`, `rain-volley`, and `black-rain` through combat DOM, but CSS still lacked dedicated caster, weapon, and cast-field animations for the skill.
+- Implementation note: repeated `black-rain-volley` hits now carry `hitPhase: "rain"`, `vfxCue: "black-rain-fall"`, and a short VFX window so each target burst is tied to the actual rain hit frame.
+- Presentation note: the skill now has a dedicated player cast animation, weapon rain-volley arc, black-rain cast core/ring/streak field, and existing target-bound black-rain burst styling. Browser computed-style validation confirmed actual animation names instead of only static class presence.

@@ -1709,3 +1709,30 @@
   - Final post-review `npm test`: pass, 13 files and 270 tests.
   - Final post-review `npm run build`: pass.
   - Final post-review `git diff --check`: pass with Windows line-ending warnings only.
+
+## Task 61 Black Rain Volley Caster VFX
+- Started after user clarified the current priority split: character models may remain simpler while the playable loop is built, but combat action flow, skill effects, and model-following attack motion must stay strict.
+- Used two read-only parallel agents:
+  - `019f31a3-7af4-7b21-a866-18601dcd9e36` audited combat timing and found `black-rain-volley` had staggered repeat hits but no hit-phase/VFX metadata.
+  - `019f31a3-a20d-7021-a9db-a3cf5e0010e3` audited UI/CSS and found catalog DOM hooks existed for `ink-volley`, `rain-volley`, and `black-rain`, but CSS lacked dedicated caster, weapon, and cast-field animations.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `black-rain-volley` to emit three distinct repeat hit timings with `rain` phase, `black-rain-fall` VFX cue, and a 300 ms VFX window.
+  - `src/tests/ui-smoke.test.ts` requires dedicated player, weapon, cast, and impact animation hooks for black rain volley.
+- RED evidence:
+  - Focused tests initially failed because repeat hits had no `hitPhase`, no `vfxCue`, and CSS did not define the dedicated black-rain caster/weapon/cast animations.
+- Implemented:
+  - Added repeat-hit presentation metadata for `black-rain-volley` without changing the generic repeat-hit timing for other skills.
+  - Added player `player-ink-volley-cast`, weapon `weapon-rain-volley`, and black-rain cast core/ring/streak animations.
+- Verification so far:
+  - `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts -t "volley skills|black rain volley"`: pass, 2 tests.
+  - `npm test -- src/tests/app-integration.test.ts -t "skill-specific impact bursts"`: pass, 1 test.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/black-rain-volley-cast-check.html`: confirmed `activeSkillId=black-rain-volley`, player animation `player-ink-volley-cast`, weapon animation `weapon-rain-volley`, cast animations `black-rain-cast-core`, `black-rain-cast-ring`, and `black-rain-cast-streaks`, first-wave 2 impacts, final-wave 6 impacts, and final target bursts with `black-rain-fall` cue plus `rain` phase.
+  - Browser console error log for the current verification page: empty.
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`: pass, 175 tests.
+  - Final `npm test`: pass, 13 files and 271 tests.
+  - Final `npm run build`: pass.
+  - Final `git diff --check`: pass with Windows line-ending warnings only.
+- Code review follow-up:
+  - Read-only review found no P0/P1 issues and one P2 coverage gap: black-rain runtime DOM attrs for caster metadata and target hit cue/phase were not asserted.
+  - Added app integration assertions for `data-active-skill-id`, `ink-volley`, `rain-volley`, `black-rain`, `black-rain-volley`, `black-rain-fall`, and `rain`.
+  - `npm test -- src/tests/app-integration.test.ts -t "skill-specific impact bursts"`: pass.

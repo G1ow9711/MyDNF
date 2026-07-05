@@ -1269,6 +1269,7 @@ describe("playable app integration actions", () => {
     const firstWaveAtMs = Math.min(...volleyHits.map((event) => event.occurredAtMs));
     const finalWaveAtMs = Math.max(...volleyHits.map((event) => event.occurredAtMs));
     const targetIds = [...new Set(volleyHits.map((event) => event.targetId))];
+    const castHtml = renderAppHtml(model);
     const firstWaveHtml = renderAppHtml({
       ...model,
       combatRun: {
@@ -1286,9 +1287,16 @@ describe("playable app integration actions", () => {
 
     expect(volleyHits).toHaveLength(6);
     expect(targetIds).toHaveLength(2);
+    expect(castHtml).toContain('data-active-skill-id="black-rain-volley"');
+    expect(castHtml).toContain('data-skill-animation-preset="ink-volley"');
+    expect(castHtml).toContain('data-skill-weapon-arc="rain-volley"');
+    expect(castHtml).toContain('data-skill-vfx-shape="black-rain"');
+    expect(castHtml).toContain('data-player-skill-vfx="black-rain-volley"');
     expect(countOccurrences(firstWaveHtml, 'data-skill-impact-vfx="black-rain-volley"')).toBe(2);
     expect(countOccurrences(finalWaveHtml, 'data-skill-impact-vfx="black-rain-volley"')).toBe(6);
     expect(finalWaveHtml).toContain('data-impact-vfx-shape="black-rain"');
+    expect(finalWaveHtml).toContain('data-vfx-cue="black-rain-fall"');
+    expect(finalWaveHtml).toContain('data-hit-phase="rain"');
     expect(finalWaveHtml).toContain('class="skill-impact-burst skill-impact-shape-black-rain"');
     expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[0]}"`);
     expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[1]}"`);

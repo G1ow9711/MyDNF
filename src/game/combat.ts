@@ -29,6 +29,7 @@ export type CombatVfxCue =
   | "meteor-fall"
   | "meteor-impact"
   | "glass-rain-fall"
+  | "black-rain-fall"
   | "prism-pierce"
   | "night-mark-lock"
   | "night-mark-burst"
@@ -1199,7 +1200,8 @@ function applyPlayerHitbox(run: CombatRun, hitbox: PlayerHitboxDefinition): Comb
         bonusDamagePerMark: hitbox.bonusDamagePerMark,
         pullCenter: hitbox.pullCenter,
         statusTags: hitbox.statusTags,
-        actionTags: hitbox.actionTags
+        actionTags: hitbox.actionTags,
+        ...repeatedSkillHitPresentation(hitbox.skillId)
       });
     }
 
@@ -1366,6 +1368,18 @@ function skillRepeatHits(skill: ClassSkillDefinition): Partial<Pick<PlayerHitbox
       repeatHits: 3,
       repeatIntervalMs: 110,
       repeatDamageMultiplier: 0.42
+    };
+  }
+
+  return {};
+}
+
+function repeatedSkillHitPresentation(skillId: string | undefined): Pick<HitDefinition, "hitPhase" | "vfxCue" | "vfxWindowMs"> {
+  if (skillId === "black-rain-volley") {
+    return {
+      hitPhase: "rain",
+      vfxCue: "black-rain-fall",
+      vfxWindowMs: 300
     };
   }
 

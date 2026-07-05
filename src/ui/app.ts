@@ -688,11 +688,25 @@ function latestSkillCastEvent(run: CombatRun): CombatSkillCastEvent | undefined 
   });
 }
 
-function latestSkillReleaseSource(run: CombatRun): "manual" | "hotkey" | "none" {
+function latestComboCancelCastEvent(run: CombatRun): CombatSkillCastEvent | undefined {
+  const cast = latestSkillCastEvent(run);
+
+  return cast?.canceledFromCombo ? cast : undefined;
+}
+
+function comboCancelWindowActive(run: CombatRun): boolean {
+  return run.player.comboStep > 0 && run.player.cancelWindowUntilMs > run.elapsedMs;
+}
+
+function latestSkillReleaseSource(run: CombatRun): "cancel" | "manual" | "hotkey" | "none" {
   const cast = latestSkillCastEvent(run);
 
   if (!cast) {
     return "none";
+  }
+
+  if (cast.canceledFromCombo) {
+    return "cancel";
   }
 
   return cast.inputMethod === "command" ? "manual" : "hotkey";
@@ -1332,6 +1346,8 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   const airState = playerAirState(run);
   const activeSkill = latestPlayerSkillAnimation(run);
   const releaseSource = latestSkillReleaseSource(run);
+  const comboCancelCast = latestComboCancelCastEvent(run);
+  const comboCancelWindow = comboCancelWindowActive(run);
   const activeSkillMovement = run.player.activeSkillMovement;
   const skillMotionClass =
     playerMotionName === "skill" && activeSkill ? ` actor-skill-${activeSkill.animation.preset}` : "";
@@ -1371,7 +1387,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   return `
     <div class="combat-actors" data-last-hit-target="${[...hitTargetIds].at(-1) ?? ""}">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-player-hurt-lock-active="${playerHurtLockActive(run) ? "true" : "false"}" data-player-invulnerable-active="${playerInvulnerableActive(run) ? "true" : "false"}" data-player-invulnerable-until-ms="${run.player.invulnerableUntilMs || ""}" data-player-recovery-state="${playerQuickRecoverActive(run) ? "quick-recover" : playerQuickRecoverReady(run) ? "ready" : "none"}" data-player-recovery-available="${playerQuickRecoverReady(run) ? "true" : "false"}" data-player-quick-recover-active="${playerQuickRecoverActive(run) ? "true" : "false"}" data-player-quick-recover-ready-until-ms="${playerQuickRecoverReady(run) ? run.player.quickRecoverReadyUntilMs : ""}" data-player-quick-recover-started-at-ms="${run.player.quickRecoverStartedAtMs || ""}" data-player-quick-recover-until-ms="${run.player.quickRecoverUntilMs || ""}" data-player-air-state="${airState}" data-player-airborne-active="${playerAirborneActive(run) ? "true" : "false"}" data-player-air-attack-active="${playerAirAttackActive(run) ? "true" : "false"}" data-player-air-attack-used="${run.player.airAttackUsed ? "true" : "false"}" data-player-air-attack-type="${run.player.airAttackType}" data-player-air-attack-started-at-ms="${run.player.airAttackStartedAtMs || ""}" data-player-air-attack-until-ms="${run.player.airAttackUntilMs || ""}" data-player-dash-attack-active="${playerDashAttackActive(run) ? "true" : "false"}" data-player-dash-attack-ready-until-ms="${run.player.dashAttackReadyUntilMs || ""}" data-player-dash-attack-started-at-ms="${run.player.dashAttackStartedAtMs || ""}" data-player-dash-attack-until-ms="${run.player.dashAttackUntilMs || ""}" data-player-airborne-until-ms="${run.player.airborneUntilMs || ""}" data-player-landing-until-ms="${run.player.landingUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-release-source="${releaseSource}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-player-hurt-lock-active="${playerHurtLockActive(run) ? "true" : "false"}" data-player-invulnerable-active="${playerInvulnerableActive(run) ? "true" : "false"}" data-player-invulnerable-until-ms="${run.player.invulnerableUntilMs || ""}" data-player-recovery-state="${playerQuickRecoverActive(run) ? "quick-recover" : playerQuickRecoverReady(run) ? "ready" : "none"}" data-player-recovery-available="${playerQuickRecoverReady(run) ? "true" : "false"}" data-player-quick-recover-active="${playerQuickRecoverActive(run) ? "true" : "false"}" data-player-quick-recover-ready-until-ms="${playerQuickRecoverReady(run) ? run.player.quickRecoverReadyUntilMs : ""}" data-player-quick-recover-started-at-ms="${run.player.quickRecoverStartedAtMs || ""}" data-player-quick-recover-until-ms="${run.player.quickRecoverUntilMs || ""}" data-player-air-state="${airState}" data-player-airborne-active="${playerAirborneActive(run) ? "true" : "false"}" data-player-air-attack-active="${playerAirAttackActive(run) ? "true" : "false"}" data-player-air-attack-used="${run.player.airAttackUsed ? "true" : "false"}" data-player-air-attack-type="${run.player.airAttackType}" data-player-air-attack-started-at-ms="${run.player.airAttackStartedAtMs || ""}" data-player-air-attack-until-ms="${run.player.airAttackUntilMs || ""}" data-player-dash-attack-active="${playerDashAttackActive(run) ? "true" : "false"}" data-player-dash-attack-ready-until-ms="${run.player.dashAttackReadyUntilMs || ""}" data-player-dash-attack-started-at-ms="${run.player.dashAttackStartedAtMs || ""}" data-player-dash-attack-until-ms="${run.player.dashAttackUntilMs || ""}" data-player-airborne-until-ms="${run.player.airborneUntilMs || ""}" data-player-landing-until-ms="${run.player.landingUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-release-source="${releaseSource}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}">
         ${playerTrailMarkup(run, playerMotionName, activeSkill)}
         <img class="combat-player-art actor-model actor-model-${playerMotionName}${skillMotionClass}${normalComboMotionClass}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run, activeSkill?.animation)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
         ${weaponLayerMarkup(state, "combat", activeSkill?.animation, playerMotionName, normalComboStep)}
@@ -1404,6 +1420,14 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         : "前往下一房";
   const doorStatus = `<div class="door-status-button" data-door-state="${roomGate.state}" data-room-gate-state="${roomGate.state}">${doorStatusLabel}</div>`;
   const availableCombatSkills = combatSkillsForState(state);
+  const comboCancelWindow = comboCancelWindowActive(run);
+  const comboCancelCast = latestComboCancelCastEvent(run);
+  const comboCancelAvailable =
+    comboCancelWindow &&
+    !roomCleared &&
+    !roomFailed &&
+    availableCombatSkills.some((skill) => run.player.resource.current >= skill.resourceCost && skillCooldownRemaining(run, skill.id) <= 0);
+  const comboCancelState = comboCancelCast ? "used" : comboCancelAvailable ? "available" : comboCancelWindow ? "blocked" : "none";
   const renderSkillButton = (skill: ClassSkillDefinition | undefined, dnfHotkey: string, slotIndex: number): string => {
     if (!skill) {
       return `<button class="dnf-skill-slot is-empty" data-dnf-hotkey="${dnfHotkey}" data-dnf-slot-index="${slotIndex}" data-dnf-slot-state="empty" data-command-slot-state="empty" disabled><span class="dnf-keycap">${dnfHotkey}</span><span>空槽</span></button>`;
@@ -1441,7 +1465,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         ? `data-command-input="${command.input}" data-command-display="${command.display}" data-command-terminal-key="${command.terminalKey}" data-command-base-cost="${skill.resourceCost}" data-command-manual-cost="${commandManualCost}" data-command-discount-percent="${commandInputDiscountPercent}"`
         : `data-command-input="" data-command-display="" data-command-terminal-key="" data-command-base-cost="${skill.resourceCost}" data-command-manual-cost="${skill.resourceCost}" data-command-discount-percent="0"`;
 
-      return `<button class="${dnfClass}" data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-dnf-hotkey="${dnfHotkey}" data-dnf-slot-index="${slotIndexAttribute}" data-legacy-hotkey="${skill.key}" data-dnf-slot-state="${slotState}" data-command-slot-state="${commandSlotState}" ${commandAttributes} data-resource-id="${run.player.resource.id}" data-skill-cost="${skill.resourceCost}" data-skill-cooldown-remaining="${cooldownRemaining}" data-cooldown-state="${cooldownState}" ${disabled ? "disabled" : ""}>${dnfHotkey ? `<span class="dnf-keycap">${dnfHotkey}</span>` : ""}<span class="skill-slot-name">${skill.displayName}</span><span class="skill-slot-meta">${hotkeyLabel} · ${skill.resourceCost}${cooldownLabel}</span>${commandMarkup}<span class="dnf-cooldown-overlay" aria-hidden="true"></span></button>`;
+      return `<button class="${dnfClass}" data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-dnf-hotkey="${dnfHotkey}" data-dnf-slot-index="${slotIndexAttribute}" data-legacy-hotkey="${skill.key}" data-dnf-slot-state="${slotState}" data-command-slot-state="${commandSlotState}" ${commandAttributes} data-resource-id="${run.player.resource.id}" data-skill-cost="${skill.resourceCost}" data-skill-cooldown-remaining="${cooldownRemaining}" data-cooldown-state="${cooldownState}" data-combo-cancel-available="${comboCancelAvailable && directAvailable ? "true" : "false"}" data-combo-cancel-button-state="${comboCancelAvailable && directAvailable ? "available" : comboCancelWindow ? "blocked" : "none"}" ${disabled ? "disabled" : ""}>${dnfHotkey ? `<span class="dnf-keycap">${dnfHotkey}</span>` : ""}<span class="skill-slot-name">${skill.displayName}</span><span class="skill-slot-meta">${hotkeyLabel} · ${skill.resourceCost}${cooldownLabel}</span>${commandMarkup}<span class="dnf-cooldown-overlay" aria-hidden="true"></span></button>`;
   };
   const dnfSkillButtons = dnfSkillHotkeys
     .map((hotkey, index) => renderSkillButton(availableCombatSkills[index], hotkey, index))
@@ -1493,7 +1517,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const commandReductionApplied = latestCast?.inputMethod === "command";
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
@@ -1504,6 +1528,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
       ${renderCombatVfx(run)}
       ${comboMeter}
       ${commandReductionApplied ? `<div class="command-input-toast" data-command-toast="true">COMMAND INPUT</div>` : ""}
+      ${comboCancelCast ? `<div class="skill-cancel-toast" data-skill-cancel-toast="true" data-combo-cancel-skill-id="${comboCancelCast.skillId}">CANCEL</div>` : ""}
       ${
         roomCleared
           ? `<div class="room-clear-banner"><strong>房间已清理</strong><span>前往右侧房门进入下一段战斗</span></div>`

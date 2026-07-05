@@ -1836,6 +1836,31 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("grid-template-columns: repeat(3, minmax(92px, 1fr))");
   });
 
+  it("renders DNF-style combo-cancel window and cancel release presentation", () => {
+    const baseState = createInitialState();
+    const state = { ...baseState, player: { ...baseState.player, heat: 80 } };
+    const run = withSingleReadyEnemy(createCombatRun(state, "cinder-kiln-alley"), {
+      hp: 180,
+      maxHp: 180,
+      nextAttackAtMs: 9999
+    });
+    const light = performAction(run, { type: "light" });
+    const lightHtml = renderAppHtml({ state, mode: "combat", combatRun: light });
+    const canceled = performAction(light, { type: "skill", skillId: "spark-combo" });
+    const cancelHtml = renderAppHtml({ state, mode: "combat", combatRun: canceled });
+
+    expect(lightHtml).toContain('data-combo-cancel-window-active="true"');
+    expect(lightHtml).toContain('data-combo-cancel-state="available"');
+    expect(cancelHtml).toContain('data-skill-release-source="cancel"');
+    expect(cancelHtml).toContain('data-combo-cancel-active="true"');
+    expect(cancelHtml).toContain('data-combo-cancel-skill-id="spark-combo"');
+    expect(cancelHtml).toContain('data-skill-cancel-toast="true"');
+    expect(stylesCss).toContain(".skill-cancel-toast");
+    expect(stylesCss).toContain('[data-combo-cancel-available="true"]');
+    expect(stylesCss).toContain('[data-skill-release-source="cancel"]');
+    expect(stylesCss).toContain("@keyframes skill-cancel-flash");
+  });
+
   it("renders the playable town as the first screen instead of a landing page", () => {
     const html = renderAppHtml({ state: createInitialState(), mode: "town" });
 

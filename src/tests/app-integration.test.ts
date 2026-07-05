@@ -969,6 +969,33 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-player-skill-vfx="ink-snare"');
   });
 
+  it("renders combo-cancel availability and cancel-release feedback during light hit confirms", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 80)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "light" });
+
+    const confirmHtml = renderAppHtml(model);
+
+    expect(confirmHtml).toContain('data-combo-cancel-window-active="true"');
+    expect(confirmHtml).toContain('data-combo-cancel-state="available"');
+    expect(confirmHtml).toContain('data-combo-cancel-available="true"');
+
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "spark-combo" });
+
+    const cancelHtml = renderAppHtml(model);
+
+    expect(cancelHtml).toContain('data-skill-release-source="cancel"');
+    expect(cancelHtml).toContain('data-combo-cancel-active="true"');
+    expect(cancelHtml).toContain('data-combo-cancel-skill-id="spark-combo"');
+    expect(cancelHtml).toContain('data-skill-cancel-toast="true"');
+    expect(cancelHtml).toContain('class="skill-cancel-toast"');
+  });
+
   it("queues combat input during the action buffer window instead of skipping past the lock", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

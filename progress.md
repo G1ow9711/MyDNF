@@ -2381,3 +2381,27 @@
   - Production build passed: `npm run build`.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/quick-recover-check.html` confirmed HP stayed 962 through a follow-up hit, quick recover started at 321 ms, invulnerability lasted until 881 ms, `quick-recover` player motion/state, computed animations `player-quick-recover-rise` and `player-quick-recover-ring`, recovery VFX pointer-events none, follow-up player-hit count 0, and empty warn/error logs. Temporary check page was deleted; dev server remains running on port 5178 for manual play.
   - Fresh handoff verification passed: `git diff --check`, `npm run build`, `npm test` (13 files / 414 tests), HTTP 200 from `http://127.0.0.1:5178/`, and in-app browser reopened the game page with title `烬璃纪元`.
+
+## Task 85 DNF-Style Combo Cancel Presentation
+- Continued under the full objective: make the prototype closer to DNF-style keyboard combat. Character modeling remains lightweight for now, but combo flow, hit-confirm readability, skill follow-up feedback, and visual action state changes remain strict.
+- Used parallel read-only agents:
+  - Combat audit confirmed ground-light hit-confirm cancel already exists via `cancelWindowUntilMs`, but only for grounded light hits with enough resource/cooldown and before the action lock expires.
+  - UI/CSS audit confirmed cancel feedback should not replace `data-player-motion="skill"` because that would mask existing skill preset animations; it should use independent scene/player/slot hooks and overlay feedback.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` requires light hit confirm to expose `data-combo-cancel-window-active`, `data-combo-cancel-state="available"`, skill-slot cancel availability, and cancel release hooks after casting `spark-combo`.
+  - `src/tests/ui-smoke.test.ts` requires cancel release to render `data-skill-release-source="cancel"`, `data-combo-cancel-active`, `data-combo-cancel-skill-id`, a `skill-cancel-toast`, and CSS selectors/keyframes for cancel presentation.
+- RED evidence:
+  - Focused combo-cancel suite failed before implementation because no combo-cancel DOM attributes or CSS hooks existed.
+- Implemented:
+  - Added UI helpers for latest combo-cancel cast and active cancel window, deriving state from real `CombatSkillCastEvent.canceledFromCombo` and `cancelWindowUntilMs`.
+  - Combat scene now exposes combo cancel window/available/used state, remaining window time, and canceled skill id.
+  - Player actor now exposes cancel active/window hooks while preserving the normal skill motion and skill animation preset.
+  - Skill slots now highlight when they can be used as a cancel follow-up, and cancel release shows a `CANCEL` toast plus a player flash overlay.
+- Verification:
+  - Focused RED confirmed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "combo-cancel"` failed on missing cancel-window DOM before implementation.
+  - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "combo-cancel"`, 2 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 320 tests.
+  - Full suite passed: `npm test`, 13 files / 416 tests.
+  - Production build passed: `npm run build`.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/combo-cancel-check.html` confirmed cancel window available, highlighted `spark-combo` slot border, cancel state used, player motion still `skill`, release source `cancel`, `castCanceledFromCombo=true`, toast text `CANCEL`, `skill-cancel-flash` toast/player animation, and empty warn/error logs. Temporary check page was deleted; dev server remains running on port 5178 for manual play.
+  - Fresh handoff check passed: `git diff --check`, `npm test`, `npm run build`, and in-app browser returned to `http://127.0.0.1:5178/` with title `烬璃纪元`.

@@ -58,8 +58,27 @@ function scheduledSkillTimes(run: CombatRun, skillId: string): number[] {
   return [...new Set(times)];
 }
 
+function scheduledGroundLightTimes(run: CombatRun): number[] {
+  const times = run.scheduledEnemyHitEffects
+    .filter((effect) => effect.action === "light" && !effect.skillId && !effect.hitPhase)
+    .map((effect) => effect.applyAtMs)
+    .sort((left, right) => left - right);
+
+  if (times.length === 0) {
+    throw new Error("Expected scheduled ground-light effect");
+  }
+
+  return [...new Set(times)];
+}
+
 function stepToElapsed(run: CombatRun, elapsedMs: number): CombatRun {
   return stepCombat(run, {}, Math.max(0, elapsedMs - run.elapsedMs));
+}
+
+function resolveGroundLight(run: CombatRun): CombatRun {
+  const [hitAtMs] = scheduledGroundLightTimes(run);
+
+  return stepToElapsed(run, hitAtMs);
 }
 
 function withSingleReadyEnemy(run: CombatRun, enemyPatch: Partial<CombatEnemy>): CombatRun {
@@ -1844,7 +1863,7 @@ describe("town app shell", () => {
       maxHp: 180,
       nextAttackAtMs: 9999
     });
-    const light = performAction(run, { type: "light" });
+    const light = resolveGroundLight(performAction(run, { type: "light" }));
     const lightHtml = renderAppHtml({ state, mode: "combat", combatRun: light });
     const canceled = performAction(light, { type: "skill", skillId: "spark-combo" });
     const cancelHtml = renderAppHtml({ state, mode: "combat", combatRun: canceled });
@@ -1852,6 +1871,7 @@ describe("town app shell", () => {
     expect(lightHtml).toContain('data-combo-cancel-window-active="true"');
     expect(lightHtml).toContain('data-combo-cancel-state="available"');
     expect(cancelHtml).toContain('data-skill-release-source="cancel"');
+    expect(cancelHtml).toContain('data-player-motion="skill"');
     expect(cancelHtml).toContain('data-combo-cancel-active="true"');
     expect(cancelHtml).toContain('data-combo-cancel-skill-id="spark-combo"');
     expect(cancelHtml).toContain('data-skill-cancel-toast="true"');

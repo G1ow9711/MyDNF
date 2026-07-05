@@ -791,6 +791,10 @@ function playerDashAttackActive(run: CombatRun): boolean {
   return run.player.activeSkillMovement?.skillId === "dash-light" || run.elapsedMs < run.player.dashAttackUntilMs;
 }
 
+function playerNormalAttackActive(run: CombatRun): boolean {
+  return run.elapsedMs < run.player.normalAttackUntilMs;
+}
+
 function airActionForHitPhase(hitPhase: string | undefined): "light" | "heavy" | "" {
   if (hitPhase === "air-light") {
     return "light";
@@ -863,6 +867,10 @@ function playerMotion(run: CombatRun): string {
 
   if (playerDashAttackActive(run)) {
     return "dash-light";
+  }
+
+  if (playerNormalAttackActive(run) && !action) {
+    return "light";
   }
 
   if (playerDodgeResult(run) === "missed" && playerEvadeActive(run)) {
@@ -1351,7 +1359,8 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   const activeSkillMovement = run.player.activeSkillMovement;
   const skillMotionClass =
     playerMotionName === "skill" && activeSkill ? ` actor-skill-${activeSkill.animation.preset}` : "";
-  const normalComboStep = playerMotionName === "light" ? Math.min(3, Math.max(1, run.player.comboStep || 1)) : 0;
+  const normalComboStep =
+    playerMotionName === "light" ? Math.min(3, Math.max(1, run.player.normalAttackComboStep || run.player.comboStep || 1)) : 0;
   const normalComboMotionClass = normalComboStep > 0 ? ` actor-model-light-${normalComboStep}` : "";
   const enemyActors = run.enemies
     .map((enemy) => {

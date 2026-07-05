@@ -2405,3 +2405,32 @@
   - Production build passed: `npm run build`.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/combo-cancel-check.html` confirmed cancel window available, highlighted `spark-combo` slot border, cancel state used, player motion still `skill`, release source `cancel`, `castCanceledFromCombo=true`, toast text `CANCEL`, `skill-cancel-flash` toast/player animation, and empty warn/error logs. Temporary check page was deleted; dev server remains running on port 5178 for manual play.
   - Fresh handoff check passed: `git diff --check`, `npm test`, `npm run build`, and in-app browser returned to `http://127.0.0.1:5178/` with title `烬璃纪元`.
+
+## Task 86 DNF-Style Ground-Light Hit Frame
+- Continued under the user's clarified priority: character models may stay simpler for now, but action timing, hit frames, model-following motion, skill VFX, monster VFX, and hit feedback are strict.
+- Used parallel read-only agents:
+  - Combat timing audit confirmed ground light used immediate target mutation with future `occurredAtMs`, so damage/resource/cancel could happen before the visual hit frame.
+  - UI audit confirmed existing future hit events were also carrying player windup motion, so strict scheduling needed a separate normal-attack action window to avoid input-frame visual blankness.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires grounded light to schedule a hit frame, keep enemy HP/resource/cancel unchanged before that frame, recheck targets at the hit frame, clear combo/cancel on miss, and block pre-hit skill cancel.
+  - App/UI smoke coverage now resolves ground light to the hit frame before asserting hit reaction, combo cancel availability, and cancel release; it also asserts cancel skill release renders `data-player-motion="skill"`.
+  - Render-plan coverage now checks hit sparks after the scheduled light impact, not at the input frame.
+- RED evidence:
+  - Focused RED failed before implementation because no scheduled ground-light effect existed.
+- Implemented:
+  - Grounded light now schedules a dynamic hitbox for the real 55/65/78 ms hit frame instead of mutating HP at input time.
+  - Added normal attack timing fields so the player model and weapon still animate immediately during light windup without creating premature hit feedback.
+  - Light damage, hitstop, resource gain, combo count, `comboStep`, and `cancelWindowUntilMs` now update only when the scheduled hit resolves.
+  - Light misses at the hit frame clear combo/cancel confirmation and do not grant resource.
+  - Monster interruption before or on the light hit frame cancels pending ground-light damage, preventing ghost hits.
+  - Action-buffer release now uses the advanced combat state at the release frame, so buffered follow-up light keeps the confirmed combo step after the first hit resolves during the lock.
+  - Combo-cancel logic now requires `cancelWindowUntilMs > elapsedMs`, preventing an empty `0ms` cancel window from being treated as available.
+- Verification:
+  - Focused RED confirmed: `npm test -- src/tests/combat.test.ts -t "grounded light"` failed on missing scheduled ground-light effects before implementation.
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts -t "grounded light"`, 3 tests.
+  - Combat suite passed: `npm test -- src/tests/combat.test.ts`, 176 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/combat.test.ts`, 323 tests.
+  - Full suite passed: `npm test`, 13 files / 419 tests.
+  - Production build passed: `npm run build`.
+  - `git diff --check` passed.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/ground-light-check.html` confirmed input-frame player motion `light`, no hit event, HP 180, resource 80, cancel window false, and zero hit sparks; at 55 ms it confirmed one light hit, HP 154, resource 88, comboStep 1, cancel state available, enemy motion `hit`, recent hit true, and one hit spark; pre-hit cancel produced no `skill-cast` and buffered the skill; post-hit cancel produced `CANCEL`, `canceledFromCombo=true`, release source `cancel`, player motion `skill`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.

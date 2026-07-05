@@ -138,6 +138,25 @@ function scheduledMissTimes(run: CombatRun, skillId: string): number[] {
   return [...new Set(times)];
 }
 
+function scheduledGroundLightTimes(run: CombatRun): number[] {
+  const times = run.scheduledEnemyHitEffects
+    .filter((effect) => effect.action === "light" && !effect.skillId && !effect.hitPhase)
+    .map((effect) => effect.applyAtMs)
+    .sort((left, right) => left - right);
+
+  if (times.length === 0) {
+    throw new Error("Expected scheduled ground-light effect");
+  }
+
+  return [...new Set(times)];
+}
+
+function resolveGroundLight(run: CombatRun): CombatRun {
+  const [hitAtMs] = scheduledGroundLightTimes(run);
+
+  return stepToElapsed(run, hitAtMs);
+}
+
 function stepToElapsed(run: CombatRun, elapsedMs: number): CombatRun {
   return stepCombat(run, {}, Math.max(0, elapsedMs - run.elapsedMs));
 }
@@ -302,10 +321,107 @@ describe("combat run setup and movement", () => {
 });
 
 describe("combat actions and impact feel", () => {
+  it("resolves grounded light damage, resource, and cancel window only on the real hit frame", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 180,
+      maxHp: 180,
+      nextAttackAtMs: 9999
+    });
+    const cast = performAction(run, { type: "light" });
+    const [hitAtMs] = scheduledGroundLightTimes(cast);
+    const beforeHit = stepToElapsed(cast, hitAtMs - 1);
+    const hit = stepToElapsed(cast, hitAtMs);
+    const [lightHit] = hit.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.action === "light");
+
+    expect(cast.events.filter((event) => event.kind === "hit" && event.action === "light")).toHaveLength(0);
+    expect(cast.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(cast.player.resource.current).toBe(run.player.resource.current);
+    expect(cast.comboCount).toBe(0);
+    expect(cast.player.comboStep).toBe(1);
+    expect(cast.player.cancelWindowUntilMs).toBe(0);
+    expect(cast.player.actionLockUntilMs).toBe(cast.elapsedMs + 180);
+
+    expect(beforeHit.events.filter((event) => event.kind === "hit" && event.action === "light")).toHaveLength(0);
+    expect(beforeHit.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(beforeHit.player.resource.current).toBe(run.player.resource.current);
+    expect(beforeHit.player.cancelWindowUntilMs).toBe(0);
+
+    expect(lightHit).toMatchObject({
+      action: "light",
+      inputToHitMs: 55,
+      occurredAtMs: hitAtMs,
+      hitstopMs: 42,
+      comboCount: 1
+    });
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(hit.player.resource.current).toBe(run.player.resource.current + 8);
+    expect(hit.comboCount).toBe(1);
+    expect(hit.player.comboStep).toBe(1);
+    expect(hit.player.cancelWindowUntilMs).toBe(cast.player.actionLockUntilMs);
+    expect(hit.player.hitstopUntilMs).toBe(hitAtMs + 42);
+  });
+
+  it("rechecks grounded light targets at the hit frame and keeps misses from opening cancel", () => {
+    const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 180,
+      maxHp: 180,
+      nextAttackAtMs: 9999
+    });
+    const cast = performAction(run, { type: "light" });
+    const [hitAtMs] = scheduledGroundLightTimes(cast);
+    const movedOut = stepToElapsed(
+      {
+        ...cast,
+        enemies: cast.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                position: { x: run.player.x - 240, y: run.player.y + 120 }
+              }
+            : enemy
+        )
+      },
+      hitAtMs
+    );
+
+    expect(movedOut.events.filter((event) => event.kind === "hit" && event.action === "light")).toHaveLength(0);
+    expect(movedOut.events.filter((event) => event.kind === "miss" && event.action === "light")).toHaveLength(1);
+    expect(movedOut.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(movedOut.player.resource.current).toBe(run.player.resource.current);
+    expect(movedOut.comboCount).toBe(0);
+    expect(movedOut.player.comboStep).toBe(0);
+    expect(movedOut.player.cancelWindowUntilMs).toBe(0);
+  });
+
+  it("does not let grounded light cancel into skills before hit confirm", () => {
+    const run = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"), {
+      hp: 180,
+      maxHp: 180,
+      nextAttackAtMs: 9999
+    });
+    const cast = performAction(run, { type: "light" });
+    const attempted = performAction(cast, { type: "skill", skillId: "spark-combo" });
+    const [hitAtMs] = scheduledGroundLightTimes(cast);
+    const confirmed = stepToElapsed(cast, hitAtMs);
+    const canceled = performAction(confirmed, { type: "skill", skillId: "spark-combo" });
+    const [skillCast] = canceled.events.filter((event) => event.kind === "skill-cast" && event.skillId === "spark-combo");
+
+    expect(attempted.events.filter((event) => event.kind === "skill-cast" && event.skillId === "spark-combo")).toHaveLength(0);
+    expect(attempted.player.cancelWindowUntilMs).toBe(0);
+    expect(attempted.player.bufferedAction).toEqual({ type: "skill", skillId: "spark-combo" });
+    expect(skillCast).toMatchObject({
+      kind: "skill-cast",
+      skillId: "spark-combo",
+      canceledFromCombo: true
+    });
+  });
+
   it("lands light attacks inside the 80 ms input-to-hit target and advances combo state", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), { nextAttackAtMs: 9999 });
-    const first = performAction(run, { type: "light" });
-    const second = performAction(advanceTime(first), { type: "light" });
+    const firstCast = performAction(run, { type: "light" });
+    const first = resolveGroundLight(firstCast);
+    const secondCast = performAction(advanceTime(first), { type: "light" });
+    const second = resolveGroundLight(secondCast);
     const firstHit = lastHitEvent(first);
 
     expect(firstHit).toMatchObject({
@@ -326,8 +442,8 @@ describe("combat actions and impact feel", () => {
       maxHp: 200,
       nextAttackAtMs: 9999
     });
-    const first = performAction(run, { type: "light" });
-    const second = performAction(advanceTime(first), { type: "light" });
+    const first = resolveGroundLight(performAction(run, { type: "light" }));
+    const second = resolveGroundLight(performAction(advanceTime(first), { type: "light" }));
     const expired = stepCombat(second, {}, 1300);
 
     expect(first.comboCount).toBe(1);
@@ -345,11 +461,11 @@ describe("combat actions and impact feel", () => {
       maxHp: 320,
       nextAttackAtMs: 9999
     });
-    const first = performAction(run, { type: "light" });
+    const first = resolveGroundLight(performAction(run, { type: "light" }));
     const secondReady = stepCombat(first, {}, first.player.actionLockUntilMs - first.elapsedMs);
-    const second = performAction(secondReady, { type: "light" });
+    const second = resolveGroundLight(performAction(secondReady, { type: "light" }));
     const thirdReady = stepCombat(second, {}, second.player.actionLockUntilMs - second.elapsedMs);
-    const third = performAction(thirdReady, { type: "light" });
+    const third = resolveGroundLight(performAction(thirdReady, { type: "light" }));
     const lightHits = third.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.action === "light");
 
     expect(lightHits.map((event) => event.damage)).toEqual([26, 33, 41]);
@@ -357,7 +473,7 @@ describe("combat actions and impact feel", () => {
     expect(lightHits[2].actionTags).toEqual(expect.arrayContaining(["launcher"]));
     expect(lightHits.map((event) => event.comboCount)).toEqual([1, 2, 3]);
     expect(third.player.comboStep).toBe(3);
-    expect(third.player.actionLockUntilMs).toBe(third.elapsedMs + 240);
+    expect(third.player.actionLockUntilMs).toBe(lightHits[2].occurredAtMs - lightHits[2].inputToHitMs + 240);
     expect(third.enemies[0].airborne).toBe(true);
   });
 
@@ -367,10 +483,10 @@ describe("combat actions and impact feel", () => {
       maxHp: 320,
       nextAttackAtMs: 9999
     });
-    const first = performAction(run, { type: "light" });
+    const first = resolveGroundLight(performAction(run, { type: "light" }));
     const expired = stepCombat(first, {}, 1300);
     const restarted = performAction(expired, { type: "light" });
-    const restartHit = lastHitEvent(restarted);
+    const restartHit = lastHitEvent(resolveGroundLight(restarted));
 
     expect(expired.player.comboStep).toBe(0);
     expect(restarted.player.comboStep).toBe(1);
@@ -777,7 +893,7 @@ describe("combat actions and impact feel", () => {
 
   it("allows spark-combo cancel during the hit-confirm window and lands on its jab frame", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), { nextAttackAtMs: 9999 });
-    const light = performAction(run, { type: "light" });
+    const light = resolveGroundLight(performAction(run, { type: "light" }));
     const canceled = performAction(light, { type: "skill", skillId: "spark-combo" });
     const [jabAtMs] = scheduledSkillTimes(canceled, "spark-combo");
     const beforeJab = stepToElapsed(canceled, jabAtMs - 1);
@@ -810,9 +926,9 @@ describe("combat actions and impact feel", () => {
       },
       nextAttackAtMs: 9999
     });
-    const first = performAction(run, { type: "light" });
-    const second = performAction(stepCombat(first, {}, first.player.actionLockUntilMs - first.elapsedMs), { type: "light" });
-    const third = performAction(stepCombat(second, {}, second.player.actionLockUntilMs - second.elapsedMs), { type: "light" });
+    const first = resolveGroundLight(performAction(run, { type: "light" }));
+    const second = resolveGroundLight(performAction(stepCombat(first, {}, first.player.actionLockUntilMs - first.elapsedMs), { type: "light" }));
+    const third = resolveGroundLight(performAction(stepCombat(second, {}, second.player.actionLockUntilMs - second.elapsedMs), { type: "light" }));
     const canceled = performAction(third, { type: "skill", skillId: "spark-combo" });
     const [jabAtMs] = scheduledSkillTimes(canceled, "spark-combo");
     const jab = stepToElapsed(canceled, jabAtMs);
@@ -1100,7 +1216,7 @@ describe("combat actions and impact feel", () => {
       maxHp: 220,
       nextAttackAtMs: 9999
     });
-    const light = performAction(run, { type: "light" });
+    const light = resolveGroundLight(performAction(run, { type: "light" }));
     const locked = stepCombat(light, {}, 40);
     const queued = performAction(locked, { type: "heavy" });
     const queuedPlayer = queued.player as typeof queued.player & {
@@ -1133,7 +1249,8 @@ describe("combat actions and impact feel", () => {
     const locked = stepCombat(first, {}, 40);
     const queued = performAction(locked, { type: "light" });
     const queuedPlayer = queued.player as typeof queued.player & { bufferedActionExecuteAtMs?: number };
-    const resolved = stepCombat(queued, {}, queuedPlayer.bufferedActionExecuteAtMs ?? 0);
+    const released = stepToElapsed(queued, queuedPlayer.bufferedActionExecuteAtMs ?? 0);
+    const resolved = resolveGroundLight(released);
     const lightHits = resolved.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.action === "light");
 
     expect(queued.player.bufferedAction).toEqual({ type: "light" });
@@ -1149,7 +1266,7 @@ describe("combat actions and impact feel", () => {
       maxHp: 220,
       nextAttackAtMs: 9999
     });
-    const light = performAction(run, { type: "light" });
+    const light = resolveGroundLight(performAction(run, { type: "light" }));
     const locked = stepCombat(light, {}, 40);
     const queued = performAction(locked, { type: "heavy" });
     const queuedPlayer = queued.player as typeof queued.player & { bufferedActionExecuteAtMs?: number };
@@ -1188,11 +1305,11 @@ describe("combat actions and impact feel", () => {
       bufferedAction?: { type: string; skillId?: string; inputMethod?: string };
       bufferedActionExecuteAtMs?: number;
     };
-    const resolved = stepCombat(queued, {}, queuedPlayer.bufferedActionExecuteAtMs ?? 0);
+    const resolved = stepToElapsed(queued, queuedPlayer.bufferedActionExecuteAtMs ?? 0);
     const castEvent = resolved.events.find((event) => event.kind === "skill-cast" && event.skillId === "anvil-crash");
 
     expect(queuedPlayer.bufferedAction).toEqual({ type: "skill", skillId: "anvil-crash", inputMethod: "command" });
-    expect(resolved.player.resource.current).toBe(strictLocked.player.resource.current - 22);
+    expect(resolved.player.resource.current).toBe(strictLocked.player.resource.current + 8 - 22);
     expect(resolved.player.skillCooldowns["anvil-crash"]).toBe((queuedPlayer.bufferedActionExecuteAtMs ?? 0) + 4784);
     expect(castEvent).toMatchObject({
       inputMethod: "command",
@@ -1284,7 +1401,7 @@ describe("combat actions and impact feel", () => {
     const plainRun = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       nextAttackAtMs: 9999
     });
-    const plainHit = performAction(plainRun, { type: "light" });
+    const plainHit = resolveGroundLight(performAction(plainRun, { type: "light" }));
     let gearedState = withEquippedOwnedGear(
       createInitialState(),
       {
@@ -1299,7 +1416,7 @@ describe("combat actions and impact feel", () => {
     const gearedRun = withEnemyInRange(createCombatRun(withHeat(gearedState, 80), "cinder-kiln-alley"), {
       nextAttackAtMs: 9999
     });
-    const gearedHit = performAction(gearedRun, { type: "light" });
+    const gearedHit = resolveGroundLight(performAction(gearedRun, { type: "light" }));
     const gearedSkill = performAction(gearedRun, { type: "skill", skillId: "anvil-crash" });
 
     expect(gearedRun.player.maxHp).toBeGreaterThan(plainRun.player.maxHp);
@@ -1369,9 +1486,9 @@ describe("combat actions and impact feel", () => {
       ]
     );
 
-    const behind = performAction(behindRun, { type: "light" });
+    const behind = resolveGroundLight(performAction(behindRun, { type: "light" }));
     const far = performAction(farRun, { type: "heavy" });
-    const wrongLane = performAction(laneRun, { type: "light" });
+    const wrongLane = resolveGroundLight(performAction(laneRun, { type: "light" }));
 
     expect(behind.enemies.map((enemy) => enemy.hp)).toEqual(behindRun.enemies.map((enemy) => enemy.hp));
     expect(far.enemies.map((enemy) => enemy.hp)).toEqual(farRun.enemies.map((enemy) => enemy.hp));
@@ -1401,8 +1518,8 @@ describe("combat actions and impact feel", () => {
     expect(bossRun.enemies[0].body.width).toBeGreaterThan(trashRun.enemies[0].body.width);
     expect(bossRun.enemies[0].hurtbox.width).toBeGreaterThan(trashRun.enemies[0].hurtbox.width);
 
-    const trashHit = performAction(trashRun, { type: "light" });
-    const bossHit = performAction(bossRun, { type: "light" });
+    const trashHit = resolveGroundLight(performAction(trashRun, { type: "light" }));
+    const bossHit = resolveGroundLight(performAction(bossRun, { type: "light" }));
 
     expect(trashHit.events.at(-1)).toMatchObject({ kind: "miss", action: "light" });
     expect(lastHitEvent(bossHit).targetId).toBe(bossRun.enemies[0].id);
@@ -1419,7 +1536,7 @@ describe("combat actions and impact feel", () => {
     expect(bossRun.enemies[0].position.x).toBeLessThan(bossRun.player.x);
     expect(bossRun.enemies[0].position.x + bossRun.enemies[0].hurtbox.width / 2).toBeGreaterThan(bossRun.player.x);
 
-    const hit = performAction(bossRun, { type: "light" });
+    const hit = resolveGroundLight(performAction(bossRun, { type: "light" }));
 
     expect(lastHitEvent(hit).targetId).toBe(bossRun.enemies[0].id);
   });
@@ -1433,7 +1550,7 @@ describe("combat actions and impact feel", () => {
         { x: 305, y: 342 }
       ]
     );
-    const hit = performAction(run, { type: "light" });
+    const hit = resolveGroundLight(performAction(run, { type: "light" }));
     const event = lastHitEvent(hit);
 
     expect(event.targetId).toBe(run.enemies[1].id);
@@ -2737,7 +2854,7 @@ describe("combat actions and impact feel", () => {
       { x: 240, y: 340, facing: 1 },
       [{ x: 304, y: 340, hp: 220, maxHp: 220 }]
     );
-    const light = performAction(run, { type: "light" });
+    const light = resolveGroundLight(performAction(run, { type: "light" }));
 
     const cast = performAction(light, { type: "skill", skillId: "cinder-uppercut" });
     const [uppercutAtMs] = scheduledSkillTimes(cast, "cinder-uppercut");
@@ -5423,7 +5540,7 @@ describe("enemy attacks and player defeat", () => {
         } as CombatEnemy
       ]
     };
-    const struck = performAction(run, { type: "light" });
+    const struck = resolveGroundLight(performAction(run, { type: "light" }));
 
     expect(struck.events.at(-1)?.kind).toBe("arena-hazard");
     expect(struck.events.some((event) => event.kind === "hit" && event.action === "light")).toBe(true);

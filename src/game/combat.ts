@@ -187,6 +187,9 @@ export interface CombatPlayer {
   airAttackType: "none" | "light" | "heavy";
   airAttackStartedAtMs: number;
   airAttackUntilMs: number;
+  normalAttackStartedAtMs: number;
+  normalAttackUntilMs: number;
+  normalAttackComboStep: number;
   dashAttackReadyUntilMs: number;
   dashAttackStartedAtMs: number;
   dashAttackUntilMs: number;
@@ -463,6 +466,10 @@ export interface CombatScheduledEnemyHitEffect {
   dynamicOrigin?: CombatVector;
   dynamicFacing?: 1 | -1;
   missOnEmpty?: boolean;
+  comboStepOnHit?: number;
+  resourceGainOnHit?: number;
+  cancelWindowUntilMsOnHit?: number;
+  resetComboStepOnMiss?: boolean;
 }
 
 export interface CombatScheduledMissEffect {
@@ -476,6 +483,7 @@ export interface CombatScheduledMissEffect {
   actionTags?: CombatActionTag[];
   casterPosition?: CombatVector;
   casterFacing?: 1 | -1;
+  resetComboStepOnMiss?: boolean;
 }
 
 export interface CombatScheduledArenaHazard {
@@ -676,6 +684,19 @@ function clearCompletedPlayerAirState(player: CombatPlayer, elapsedMs: number): 
     airAttackType: "none",
     airAttackStartedAtMs: 0,
     airAttackUntilMs: 0
+  };
+}
+
+function clearCompletedNormalAttack(player: CombatPlayer, elapsedMs: number): CombatPlayer {
+  if (elapsedMs < player.normalAttackUntilMs) {
+    return player;
+  }
+
+  return {
+    ...player,
+    normalAttackStartedAtMs: 0,
+    normalAttackUntilMs: 0,
+    normalAttackComboStep: 0
   };
 }
 
@@ -3465,6 +3486,9 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       airAttackType: "none",
       airAttackStartedAtMs: 0,
       airAttackUntilMs: 0,
+      normalAttackStartedAtMs: 0,
+      normalAttackUntilMs: 0,
+      normalAttackComboStep: 0,
       dashAttackReadyUntilMs: 0,
       dashAttackStartedAtMs: 0,
       dashAttackUntilMs: 0,
@@ -3532,7 +3556,7 @@ function advanceCombatFrame(run: CombatRun, input: CombatInput, dtMs: number): C
     comboCount: comboActiveAtElapsed ? run.comboCount : 0,
     comboExpiresAtMs: comboActiveAtElapsed ? run.comboExpiresAtMs : 0,
     player: {
-      ...updatePlayerAirState(clearCompletedSkillMovement(run.player, elapsedMs), elapsedMs),
+      ...clearCompletedNormalAttack(updatePlayerAirState(clearCompletedSkillMovement(run.player, elapsedMs), elapsedMs), elapsedMs),
       x: framePosition.x,
       y: framePosition.y,
       facing: framePosition.facing,
@@ -3571,15 +3595,15 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
 
   if (shouldReleaseBuffer) {
     const beforeRelease = advanceCombatFrame(run, input, bufferExecuteAtMs - run.elapsedMs);
-    const comboActiveAtRelease = comboStillActive(run, bufferExecuteAtMs);
+    const comboActiveAtRelease = comboStillActive(beforeRelease, bufferExecuteAtMs);
     const releaseBase: CombatRun = {
       ...beforeRelease,
       elapsedMs: bufferExecuteAtMs,
-      comboCount: comboActiveAtRelease ? run.comboCount : 0,
-      comboExpiresAtMs: comboActiveAtRelease ? run.comboExpiresAtMs : 0,
+      comboCount: comboActiveAtRelease ? beforeRelease.comboCount : 0,
+      comboExpiresAtMs: comboActiveAtRelease ? beforeRelease.comboExpiresAtMs : 0,
       player: {
         ...clearBufferedAction(clearCompletedSkillMovement(beforeRelease.player, bufferExecuteAtMs)),
-        comboStep: comboActiveAtRelease ? run.player.comboStep : 0,
+        comboStep: comboActiveAtRelease ? beforeRelease.player.comboStep : 0,
         actionLockUntilMs: bufferExecuteAtMs
       }
     };
@@ -4231,7 +4255,8 @@ function schedulePlayerHitboxEffect(
   hitbox: PlayerHitboxDefinition,
   origin: CombatVector,
   facing: 1 | -1,
-  presentation: Pick<CombatScheduledEnemyHitEffect, "id" | "hitPhase" | "vfxCue" | "vfxWindowMs" | "missOnEmpty">
+  presentation: Pick<CombatScheduledEnemyHitEffect, "id" | "hitPhase" | "vfxCue" | "vfxWindowMs" | "missOnEmpty"> &
+    Partial<Pick<CombatScheduledEnemyHitEffect, "comboStepOnHit" | "resourceGainOnHit" | "cancelWindowUntilMsOnHit" | "resetComboStepOnMiss">>
 ): CombatRun {
   const effect: CombatScheduledEnemyHitEffect = {
     id: presentation.id,
@@ -4259,7 +4284,11 @@ function schedulePlayerHitboxEffect(
     dynamicHitbox: hitbox,
     dynamicOrigin: origin,
     dynamicFacing: facing,
-    missOnEmpty: presentation.missOnEmpty ?? true
+    missOnEmpty: presentation.missOnEmpty ?? true,
+    comboStepOnHit: presentation.comboStepOnHit,
+    resourceGainOnHit: presentation.resourceGainOnHit,
+    cancelWindowUntilMsOnHit: presentation.cancelWindowUntilMsOnHit,
+    resetComboStepOnMiss: presentation.resetComboStepOnMiss
   };
 
   return {
@@ -4311,6 +4340,20 @@ function applyScheduledPlayerHitboxEffect(
     return run;
   }
 
+  if (!effect.skillId && hitbox.action === "light" && (effect.applyAtMs < run.player.hurtLockUntilMs || effect.applyAtMs < run.player.boundUntilMs)) {
+    return {
+      ...run,
+      player: {
+        ...run.player,
+        comboStep: 0,
+        cancelWindowUntilMs: 0,
+        normalAttackUntilMs: 0,
+        normalAttackStartedAtMs: 0,
+        normalAttackComboStep: 0
+      }
+    };
+  }
+
   const sampledRun: CombatRun = {
     ...run,
     enemies: run.enemies.map((enemy) => advanceEnemyRushMovement(enemy, effect.applyAtMs))
@@ -4342,7 +4385,8 @@ function applyScheduledPlayerHitboxEffect(
       statusTags: hitbox.statusTags,
       actionTags: hitbox.actionTags,
       casterPosition: effect.casterPosition,
-      casterFacing: effect.casterFacing
+      casterFacing: effect.casterFacing,
+      resetComboStepOnMiss: effect.resetComboStepOnMiss
     });
   }
 
@@ -4493,7 +4537,11 @@ function applyScheduledEnemyHitEffect(
     };
   });
 
-  const resourceGain = effect.action === "light" && effect.hitPhase === "air-light" ? 5 : effect.action === "light" && effect.hitPhase === "dash-light" ? 6 : 0;
+  const resourceGain =
+    effect.resourceGainOnHit ??
+    (effect.action === "light" && effect.hitPhase === "air-light" ? 5 : effect.action === "light" && effect.hitPhase === "dash-light" ? 6 : 0);
+  const nextPlayerWithResource =
+    resourceGain > 0 ? gainPlayerResource(impactResolvedRun.player, impactResolvedRun, resourceGain) : impactResolvedRun.player;
 
   return triggerBossPhaseTransitions(
     {
@@ -4503,7 +4551,12 @@ function applyScheduledEnemyHitEffect(
       enemies: nextEnemies,
       events: [...impactResolvedRun.events, event],
       player: {
-        ...(resourceGain > 0 ? gainPlayerResource(impactResolvedRun.player, impactResolvedRun, resourceGain) : impactResolvedRun.player),
+        ...nextPlayerWithResource,
+        comboStep: effect.comboStepOnHit ?? nextPlayerWithResource.comboStep,
+        cancelWindowUntilMs:
+          effect.cancelWindowUntilMsOnHit !== undefined
+            ? Math.max(nextPlayerWithResource.cancelWindowUntilMs, effect.cancelWindowUntilMsOnHit)
+            : nextPlayerWithResource.cancelWindowUntilMs,
         hitstopUntilMs: Math.max(impactResolvedRun.player.hitstopUntilMs, effect.applyAtMs + effect.hitstopMs)
       }
     },
@@ -4530,6 +4583,13 @@ function applyScheduledMissEffect(run: CombatRun, effect: CombatScheduledMissEff
     ...run,
     comboCount: 0,
     comboExpiresAtMs: 0,
+    player: effect.resetComboStepOnMiss
+      ? {
+          ...run.player,
+          comboStep: 0,
+          cancelWindowUntilMs: 0
+        }
+      : run.player,
     events: [...run.events, event]
   };
 }
@@ -5265,7 +5325,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   }
 
   const locked = run.elapsedMs < run.player.actionLockUntilMs;
-  const canceledFromCombo = action.type === "skill" && run.elapsedMs <= run.player.cancelWindowUntilMs && run.player.comboStep > 0;
+  const canceledFromCombo = action.type === "skill" && run.player.cancelWindowUntilMs > run.elapsedMs && run.player.comboStep > 0;
 
   if (locked && !canceledFromCombo) {
     const remainingLockMs = run.player.actionLockUntilMs - run.elapsedMs;
@@ -5280,7 +5340,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   if (action.type === "light") {
     const comboStep = nextLightComboStep(run);
     const combo = lightComboSteps[comboStep - 1];
-    const hitRun = applyPlayerHitbox(run, {
+    const actionLockUntilMs = run.elapsedMs + combo.actionLockMs;
+    const scheduledRun = schedulePlayerHitboxEffect(
+      run,
+      {
       action: "light",
       rangeX: combo.rangeX,
       laneRange: combo.laneRange,
@@ -5293,16 +5356,28 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       inputToHitMs: combo.inputToHitMs,
       canceledFromCombo,
       actionTags: combo.actionTags
-    });
-    const hitConnected = actionAddedHitEvent(run, hitRun, "light");
+      },
+      { x: run.player.x, y: run.player.y },
+      run.player.facing,
+      {
+        id: `ground-light-${run.elapsedMs}-${comboStep}`,
+        comboStepOnHit: comboStep,
+        resourceGainOnHit: 8,
+        cancelWindowUntilMsOnHit: actionLockUntilMs,
+        resetComboStepOnMiss: true
+      }
+    );
 
     return {
-      ...hitRun,
+      ...scheduledRun,
       player: {
-        ...(hitConnected ? gainPlayerResource(hitRun.player, run, 8) : hitRun.player),
-        comboStep: hitConnected ? comboStep : 0,
-        actionLockUntilMs: run.elapsedMs + combo.actionLockMs,
-        cancelWindowUntilMs: hitConnected ? run.elapsedMs + combo.actionLockMs : 0,
+        ...scheduledRun.player,
+        comboStep,
+        actionLockUntilMs,
+        cancelWindowUntilMs: 0,
+        normalAttackStartedAtMs: run.elapsedMs,
+        normalAttackUntilMs: actionLockUntilMs,
+        normalAttackComboStep: comboStep,
         dashAttackReadyUntilMs: 0,
         quickRecoverReadyUntilMs: 0,
         bufferedAction: undefined,
@@ -5636,6 +5711,9 @@ export function finishRoom(run: CombatRun): CombatRun {
       airAttackType: "none",
       airAttackStartedAtMs: 0,
       airAttackUntilMs: 0,
+      normalAttackStartedAtMs: 0,
+      normalAttackUntilMs: 0,
+      normalAttackComboStep: 0,
       dashAttackReadyUntilMs: 0,
       dashAttackStartedAtMs: 0,
       dashAttackUntilMs: 0,

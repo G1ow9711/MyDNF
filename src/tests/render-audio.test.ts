@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { createCombatRun, performAction } from "../game/combat";
+import { createCombatRun, performAction, stepCombat, type CombatRun } from "../game/combat";
 import { createInitialState } from "../game/state";
 import { createRenderPlan, createSkillVfx, getScenePalette } from "../game/render";
 import {
@@ -62,7 +62,7 @@ describe("skill visual effects", () => {
 describe("render plan", () => {
   it("orders background, combat actors, VFX, and HUD without shaking the UI layer", () => {
     const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
-    const run = performAction(
+    const cast = performAction(
       {
         ...baseRun,
         enemies: baseRun.enemies.map((enemy, index) =>
@@ -80,6 +80,13 @@ describe("render plan", () => {
       },
       { type: "light" }
     );
+    const [hitAtMs] = cast.scheduledEnemyHitEffects
+      .filter((effect) => effect.action === "light" && !effect.skillId && !effect.hitPhase)
+      .map((effect) => effect.applyAtMs);
+    if (hitAtMs === undefined) {
+      throw new Error("Expected scheduled ground-light effect");
+    }
+    const run: CombatRun = stepCombat(cast, {}, Math.max(0, hitAtMs - cast.elapsedMs));
     const plan = createRenderPlan(run, "cinder-kiln-alley");
 
     expect(plan.sceneId).toBe("cinder-kiln-alley");

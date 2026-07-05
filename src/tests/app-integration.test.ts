@@ -93,8 +93,27 @@ function scheduledSkillTimes(run: CombatRun, skillId: string): number[] {
   return [...new Set(times)];
 }
 
+function scheduledGroundLightTimes(run: CombatRun): number[] {
+  const times = run.scheduledEnemyHitEffects
+    .filter((effect) => effect.action === "light" && !effect.skillId && !effect.hitPhase)
+    .map((effect) => effect.applyAtMs)
+    .sort((left, right) => left - right);
+
+  if (times.length === 0) {
+    throw new Error("Expected scheduled ground-light effect");
+  }
+
+  return [...new Set(times)];
+}
+
 function stepToElapsed(run: CombatRun, elapsedMs: number): CombatRun {
   return stepCombat(run, {}, Math.max(0, elapsedMs - run.elapsedMs));
+}
+
+function resolveGroundLight(run: CombatRun): CombatRun {
+  const [hitAtMs] = scheduledGroundLightTimes(run);
+
+  return stepToElapsed(run, hitAtMs);
 }
 
 function firstHitEvent(model: { combatRun?: { events: Array<unknown> } }): CombatHitEvent {
@@ -529,16 +548,9 @@ describe("playable app integration actions", () => {
     model = reduceAppAction(model, { type: "combatAction", action: "light" });
 
     const inputHtml = renderAppHtml(model);
-    const hitEvent = firstHitEvent(model);
-    const hitHtml = renderAppHtml({
-      ...model,
-      combatRun: model.combatRun
-        ? {
-            ...model.combatRun,
-            elapsedMs: hitEvent.occurredAtMs
-          }
-        : undefined
-    });
+    const hitRun = model.combatRun ? resolveGroundLight(model.combatRun) : undefined;
+    const hitEvent = firstHitEvent({ combatRun: hitRun });
+    const hitHtml = renderAppHtml({ ...model, combatRun: hitRun });
     const targetId = hitEvent.targetId;
 
     expect(targetId).toBeTruthy();
@@ -551,16 +563,11 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('data-enemy-motion="hit"');
     expect(hitHtml).toContain('class="enemy-art actor-model actor-model-hit"');
 
-    model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: false });
-    model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: false });
-    model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: false });
-    model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: false });
-
     const recoveredHtml = renderAppHtml({
       ...model,
-      combatRun: model.combatRun
+      combatRun: hitRun
         ? {
-            ...model.combatRun,
+            ...hitRun,
             elapsedMs: hitEvent.occurredAtMs + 521
           }
         : undefined
@@ -581,11 +588,11 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run");
     }
 
-    const first = performAction(model.combatRun, { type: "light" });
+    const first = resolveGroundLight(performAction(model.combatRun, { type: "light" }));
     const secondReady = stepCombat(first, {}, first.player.actionLockUntilMs - first.elapsedMs);
-    const second = performAction(secondReady, { type: "light" });
+    const second = resolveGroundLight(performAction(secondReady, { type: "light" }));
     const thirdReady = stepCombat(second, {}, second.player.actionLockUntilMs - second.elapsedMs);
-    const third = performAction(thirdReady, { type: "light" });
+    const third = resolveGroundLight(performAction(thirdReady, { type: "light" }));
     const html = renderAppHtml({
       ...model,
       combatRun: third
@@ -691,13 +698,13 @@ describe("playable app integration actions", () => {
     };
 
     model = reduceAppAction(model, { type: "combatAction", action: "light" });
-
-    const hitEvent = firstHitEvent(model);
+    const hitRun = model.combatRun ? resolveGroundLight(model.combatRun) : undefined;
+    const hitEvent = firstHitEvent({ combatRun: hitRun });
     const html = renderAppHtml({
       ...model,
-      combatRun: model.combatRun
+      combatRun: hitRun
         ? {
-            ...model.combatRun,
+            ...hitRun,
             elapsedMs: hitEvent.occurredAtMs
           }
         : undefined
@@ -978,6 +985,10 @@ describe("playable app integration actions", () => {
     model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
     model = placeAliveEnemiesInFront(model);
     model = reduceAppAction(model, { type: "combatAction", action: "light" });
+    model = {
+      ...model,
+      combatRun: model.combatRun ? resolveGroundLight(model.combatRun) : model.combatRun
+    };
 
     const confirmHtml = renderAppHtml(model);
 
@@ -990,6 +1001,7 @@ describe("playable app integration actions", () => {
     const cancelHtml = renderAppHtml(model);
 
     expect(cancelHtml).toContain('data-skill-release-source="cancel"');
+    expect(cancelHtml).toContain('data-player-motion="skill"');
     expect(cancelHtml).toContain('data-combo-cancel-active="true"');
     expect(cancelHtml).toContain('data-combo-cancel-skill-id="spark-combo"');
     expect(cancelHtml).toContain('data-skill-cancel-toast="true"');

@@ -984,6 +984,10 @@ p {
   animation: weapon-shield-slam var(--skill-duration, 780ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
 
+.combat-player[data-player-motion="skill"][data-skill-weapon-arc="furnace-breaker"] .combat-weapon {
+  animation: weapon-furnace-breaker var(--skill-duration, 880ms) cubic-bezier(0.12, 0.84, 0.16, 1) both;
+}
+
 .combat-player[data-player-motion="skill"][data-skill-weapon-arc="mountain-hammer"] .combat-weapon {
   animation: weapon-mountain-hammer var(--skill-duration, 840ms) cubic-bezier(0.12, 0.82, 0.15, 1) both;
 }
@@ -1355,6 +1359,15 @@ p {
   filter: drop-shadow(0 0 22px rgba(248, 113, 113, 0.72));
 }
 
+.combat-player[data-player-skill-move="earth-furnace-breaker"] .combat-player-art {
+  filter: drop-shadow(0 0 28px rgba(251, 146, 60, 0.78)) drop-shadow(0 0 18px rgba(250, 204, 21, 0.54)) brightness(1.24) saturate(1.18);
+}
+
+.combat-player[data-player-skill-move="earth-furnace-breaker"] .player-motion-trail {
+  opacity: 0.92;
+  filter: drop-shadow(0 0 24px rgba(248, 113, 113, 0.72));
+}
+
 .combat-player[data-player-skill-move="cinder-uppercut"] .combat-player-art {
   filter: drop-shadow(0 0 24px rgba(251, 146, 60, 0.72)) brightness(1.2) saturate(1.18);
 }
@@ -1444,7 +1457,7 @@ p {
 }
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="iron-breaker"] .combat-player-art {
-  animation: player-iron-breaker-cast var(--skill-duration, 880ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
+  animation: player-iron-earth-breaker-charge var(--skill-duration, 880ms) cubic-bezier(0.14, 0.84, 0.17, 1) both;
 }
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="iron-mountain-crack"] .combat-player-art {
@@ -2288,6 +2301,72 @@ p {
     radial-gradient(circle at 24% 64%, rgba(253, 186, 116, 0.94) 0 5px, transparent 6px),
     radial-gradient(circle at 76% 54%, rgba(255, 247, 237, 0.9) 0 4px, transparent 5px);
   animation: mountain-crack-impact-shards 740ms ease-out both;
+}
+
+.skill-impact-shape-forge-quake {
+  width: 260px;
+  height: 170px;
+  margin-top: -18px;
+  filter: drop-shadow(0 0 26px rgba(248, 113, 113, 0.52)) drop-shadow(0 0 22px rgba(250, 204, 21, 0.38));
+}
+
+.skill-impact-shape-forge-quake .skill-impact-core {
+  top: 58%;
+  width: 96px;
+  height: 50px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 247, 237, 0.98), rgba(250, 204, 21, 0.88) 25%, rgba(248, 113, 113, 0.66) 54%, transparent 76%),
+    linear-gradient(96deg, transparent, rgba(251, 146, 60, 0.82), transparent);
+  filter: drop-shadow(0 0 30px rgba(248, 113, 113, 0.82));
+  animation: earth-furnace-eruption-core 660ms cubic-bezier(0.12, 0.84, 0.16, 1) both;
+}
+
+.skill-impact-shape-forge-quake .skill-impact-ring {
+  top: 64%;
+  width: 214px;
+  height: 66px;
+  border-color: rgba(250, 204, 21, 0.86);
+  border-radius: 50%;
+  box-shadow: 0 0 42px rgba(248, 113, 113, 0.64), inset 0 0 28px rgba(127, 29, 29, 0.44);
+  animation: earth-furnace-eruption-ring 720ms ease-out both;
+}
+
+.skill-impact-shape-forge-quake .skill-impact-shards {
+  inset: 10% -8% 0;
+  background:
+    linear-gradient(96deg, transparent 9%, rgba(255, 247, 237, 0.98) 10% 14%, transparent 15%),
+    linear-gradient(74deg, transparent 28%, rgba(250, 204, 21, 0.9) 29% 34%, transparent 35%),
+    linear-gradient(116deg, transparent 50%, rgba(248, 113, 113, 0.9) 51% 58%, transparent 59%),
+    linear-gradient(68deg, transparent 72%, rgba(68, 64, 60, 0.92) 73% 80%, transparent 81%),
+    radial-gradient(circle at 18% 68%, rgba(253, 186, 116, 0.96) 0 6px, transparent 7px),
+    radial-gradient(circle at 78% 50%, rgba(255, 247, 237, 0.92) 0 5px, transparent 6px);
+  animation: earth-furnace-eruption-shards 780ms ease-out both;
+}
+
+.skill-impact-shape-forge-quake[data-vfx-cue="earth-furnace-crack"] {
+  width: 190px;
+  height: 118px;
+  margin-top: -24px;
+}
+
+.skill-impact-shape-forge-quake[data-vfx-cue="earth-furnace-crack"] .skill-impact-core {
+  width: 72px;
+  height: 30px;
+  background:
+    radial-gradient(ellipse at 50% 48%, rgba(255, 247, 237, 0.9), rgba(251, 146, 60, 0.62) 38%, transparent 74%),
+    linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.62), transparent);
+  animation: earth-furnace-crack-core 360ms ease-out both;
+}
+
+.skill-impact-shape-forge-quake[data-vfx-cue="earth-furnace-crack"] .skill-impact-ring {
+  width: 150px;
+  height: 38px;
+  animation: earth-furnace-crack-ring 420ms ease-out both;
+}
+
+.skill-impact-shape-forge-quake[data-vfx-cue="earth-furnace-crack"] .skill-impact-shards {
+  animation: earth-furnace-crack-shards 460ms ease-out both;
 }
 
 .skill-impact-shape-mountain-crack[data-vfx-cue="mountain-hammer-stagger"] {
@@ -3496,6 +3575,18 @@ p {
   width: 300px;
   height: 150px;
   margin-top: -18px;
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 24px rgba(251, 146, 60, 0.46));
+}
+
+.skill-vfx-shape-forge-quake .skill-core {
+  inset: 42% 22% 24%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 46%, rgba(255, 247, 237, 0.96), rgba(250, 204, 21, 0.72) 30%, rgba(248, 113, 113, 0.42) 58%, transparent 76%),
+    linear-gradient(90deg, transparent, rgba(251, 146, 60, 0.64), transparent);
+  filter: blur(0.2px) drop-shadow(0 0 28px rgba(250, 204, 21, 0.66));
+  animation: forge-quake-cast-core var(--skill-duration, 880ms) cubic-bezier(0.13, 0.84, 0.16, 1) both;
 }
 
 .skill-vfx-shape-forge-quake .skill-wave {
@@ -3503,6 +3594,7 @@ p {
   border-color: rgba(251, 146, 60, 0.74);
   border-radius: 50%;
   transform-origin: center bottom;
+  animation: forge-quake-cast-ring var(--skill-duration, 880ms) ease-out both;
 }
 
 .skill-vfx-shape-forge-quake .skill-sparks {
@@ -3511,6 +3603,7 @@ p {
     linear-gradient(-18deg, transparent 46%, rgba(248, 113, 113, 0.8) 47% 50%, transparent 51%),
     radial-gradient(circle at 38% 78%, rgba(255, 247, 237, 0.95) 0 5px, transparent 6px),
     radial-gradient(circle at 68% 72%, rgba(251, 146, 60, 0.9) 0 4px, transparent 5px);
+  animation: forge-quake-cast-sparks var(--skill-duration, 880ms) ease-out both;
 }
 
 .enemy-skill-vfx {
@@ -5674,6 +5767,20 @@ p {
   animation: prism-field-screen-flash 560ms ease-out both;
 }
 
+.combat-scene[data-screen-flash="forge-quake"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 62%, rgba(255, 247, 237, 0.44), transparent 22%),
+    radial-gradient(circle at 42% 58%, rgba(250, 204, 21, 0.28), transparent 34%),
+    linear-gradient(90deg, rgba(127, 29, 29, 0.12), rgba(251, 146, 60, 0.28), rgba(68, 64, 60, 0.1));
+  mix-blend-mode: screen;
+  animation: forge-quake-screen-flash 580ms ease-out both;
+}
+
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="liuli-prism-field"] .combat-player-art {
   animation: player-liuli-prism-field-cast var(--skill-duration, 860ms) cubic-bezier(0.12, 0.84, 0.16, 1) both;
 }
@@ -5884,4 +5991,88 @@ p {
     width: 100%;
     margin-top: 14px;
   }
+}
+
+@keyframes player-iron-earth-breaker-charge {
+  0% { transform: translateX(calc(var(--skill-lunge-x, 32px) * -0.4)) translateY(8px) rotate(-5deg) scale(0.94) scaleX(var(--model-scale-x, 1)); filter: brightness(0.92) saturate(0.9); }
+  24% { transform: translateX(calc(var(--skill-lunge-x, 32px) * -0.18)) translateY(10px) rotate(-8deg) scale(0.96) scaleX(var(--model-scale-x, 1)); filter: brightness(1.16) saturate(1.04); }
+  46% { transform: translateX(calc(var(--skill-lunge-x, 32px) * 0.32)) translateY(-10px) rotate(4deg) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.58) saturate(1.16); }
+  62% { transform: translateX(calc(var(--skill-lunge-x, 32px) * 1.42)) translateY(14px) rotate(8deg) scale(1.16) scaleX(var(--model-scale-x, 1)); filter: brightness(2.04) saturate(1.3); }
+  78% { transform: translateX(calc(var(--skill-lunge-x, 32px) * 0.62)) translateY(2px) rotate(2deg) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.48) saturate(1.12); }
+  100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.06); }
+}
+
+@keyframes weapon-furnace-breaker {
+  0% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 32px) * -0.54), -72%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * -46deg)) scale(calc(var(--weapon-scale, 1) * 0.96)); opacity: 0.9; }
+  28% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 32px) * -0.18), -92%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * -20deg)) scale(calc(var(--weapon-scale, 1) * 1.08)); opacity: 1; filter: brightness(1.26); }
+  48% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 32px) * 0.44), -108%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * 12deg)) scale(calc(var(--weapon-scale, 1) * 1.18)); filter: drop-shadow(0 0 34px color-mix(in srgb, var(--weapon-glow, #facc15) 90%, transparent)) brightness(1.44); }
+  62% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 32px) * 1.3), -22%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * 94deg)) scale(calc(var(--weapon-scale, 1) * 1.26)); filter: drop-shadow(0 0 50px color-mix(in srgb, var(--weapon-glow, #fb923c) 98%, transparent)) brightness(1.76); }
+  82% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 32px) * 0.52), -42%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * 38deg)) scale(calc(var(--weapon-scale, 1) * 1.1)); filter: brightness(1.24); }
+  100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 1; filter: brightness(1); }
+}
+
+@keyframes forge-quake-cast-core {
+  0% { opacity: 0; transform: scaleX(0.24) scaleY(0.3) rotate(-5deg); }
+  28% { opacity: 0.7; transform: scaleX(0.72) scaleY(0.58) rotate(-2deg); }
+  54% { opacity: 0.95; transform: scaleX(1.08) scaleY(0.86) rotate(3deg); }
+  78% { opacity: 0.88; transform: scaleX(1.34) scaleY(1.04) rotate(7deg); }
+  100% { opacity: 0; transform: scaleX(1.62) scaleY(1.2) rotate(12deg); }
+}
+
+@keyframes forge-quake-cast-ring {
+  0% { opacity: 0; transform: scaleX(0.18) scaleY(0.36); }
+  34% { opacity: 0.58; transform: scaleX(0.74) scaleY(0.68); }
+  68% { opacity: 0.9; transform: scaleX(1.16) scaleY(0.96); }
+  100% { opacity: 0; transform: scaleX(1.78) scaleY(1.24); }
+}
+
+@keyframes forge-quake-cast-sparks {
+  0% { opacity: 0; transform: translateY(20px) scale(0.5) rotate(-8deg); }
+  30% { opacity: 0.72; transform: translateY(3px) scale(0.82) rotate(1deg); }
+  64% { opacity: 1; transform: translateY(-12px) scale(1.08) rotate(8deg); }
+  100% { opacity: 0; transform: translateY(-38px) translateX(26px) scale(1.34) rotate(20deg); }
+}
+
+@keyframes earth-furnace-crack-core {
+  0% { opacity: 0; transform: scaleX(0.32) scaleY(0.4); }
+  38% { opacity: 0.88; transform: scaleX(1.0) scaleY(0.78); }
+  100% { opacity: 0; transform: scaleX(1.52) scaleY(1.05); }
+}
+
+@keyframes earth-furnace-crack-ring {
+  0% { opacity: 0; transform: scaleX(0.34) scaleY(0.5); }
+  46% { opacity: 0.72; transform: scaleX(1.0) scaleY(0.78); }
+  100% { opacity: 0; transform: scaleX(1.62) scaleY(1.08); }
+}
+
+@keyframes earth-furnace-crack-shards {
+  0% { opacity: 0; transform: translateY(12px) scale(0.62); }
+  40% { opacity: 0.9; transform: translateY(-4px) scale(1.0); }
+  100% { opacity: 0; transform: translateY(-24px) translateX(18px) scale(1.24); }
+}
+
+@keyframes earth-furnace-eruption-core {
+  0% { opacity: 0; transform: scaleX(0.36) scaleY(0.42); }
+  18% { opacity: 1; transform: scaleX(1.08) scaleY(0.82); }
+  52% { opacity: 0.92; transform: scaleX(1.36) scaleY(1.08); }
+  100% { opacity: 0; transform: scaleX(1.82) scaleY(1.36); }
+}
+
+@keyframes earth-furnace-eruption-ring {
+  0% { opacity: 0; transform: scaleX(0.32) scaleY(0.44); }
+  24% { opacity: 0.86; transform: scaleX(1.04) scaleY(0.76); }
+  100% { opacity: 0; transform: scaleX(2.0) scaleY(1.32); }
+}
+
+@keyframes earth-furnace-eruption-shards {
+  0% { opacity: 0; transform: translateY(18px) scale(0.5) rotate(-8deg); }
+  22% { opacity: 1; transform: translateY(-8px) scale(1.0) rotate(2deg); }
+  66% { opacity: 0.82; transform: translateY(-34px) translateX(28px) scale(1.22) rotate(18deg); }
+  100% { opacity: 0; transform: translateY(-58px) translateX(46px) scale(1.42) rotate(28deg); }
+}
+
+@keyframes forge-quake-screen-flash {
+  0% { opacity: 0; transform: scale(0.96); filter: blur(1.2px); }
+  18% { opacity: 0.92; transform: scale(1.02); filter: blur(0); }
+  100% { opacity: 0; transform: scale(1.12); filter: blur(2px); }
 }

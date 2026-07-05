@@ -31,6 +31,8 @@ export type CombatHitPhase =
   | "overdrive-pulse"
   | "overdrive-release"
   | "anvil-slam"
+  | "earth-crack"
+  | "furnace-eruption"
   | "ink-bolt"
   | "glass-cut"
   | "jab-chain"
@@ -59,6 +61,8 @@ export type CombatVfxCue =
   | "overdrive-core-pulse"
   | "overdrive-core-release"
   | "anvil-crash-impact"
+  | "earth-furnace-crack"
+  | "earth-furnace-eruption"
   | "ink-shot-pierce"
   | "glass-slash-cut"
   | "ember-jab-chain"
@@ -1379,6 +1383,10 @@ function skillMovementDistance(skill: ClassSkillDefinition): number {
     return 74;
   }
 
+  if (skill.id === "earth-furnace-breaker") {
+    return 46;
+  }
+
   if (skill.id === "furnace-step") {
     return 124;
   }
@@ -2628,6 +2636,70 @@ function applyMechanismShadowNet(run: CombatRun, skill: ClassSkillDefinition, ca
       });
     }, nextRun);
   }, castRun);
+}
+
+const earthFurnaceCrackDelayMs = 260;
+
+function applyEarthFurnaceBreaker(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const facing = run.player.facing;
+  const endPosition = {
+    x: clamp(run.player.x + skillMovementDistance(skill) * facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const crackOrigin = {
+    x: clamp(run.player.x + 24 * facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+  const baseDamage = skillDamage(run, skill);
+  const crackHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 220,
+    laneRange: 80,
+    targetCap: 3,
+    frontOnly: true,
+    damage: Math.max(1, Math.round(baseDamage * 0.45)),
+    hitstopMs: 68,
+    knockback: 22,
+    juggle: false,
+    inputToHitMs: earthFurnaceCrackDelayMs,
+    canceledFromCombo,
+    statusTags: ["stagger"]
+  };
+  const eruptionHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 300,
+    laneRange: 104,
+    targetCap: 3,
+    frontOnly: true,
+    damage: Math.max(1, Math.round(baseDamage * 1.15)),
+    hitstopMs: 118,
+    knockback: 82,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    statusTags: ["guard-break", "stagger"],
+    actionTags: ["slam", "knockdown"]
+  };
+  const crackedRun = schedulePlayerHitboxEffect(movingRun, crackHitbox, crackOrigin, facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-earth-crack`,
+    hitPhase: "earth-crack",
+    vfxCue: "earth-furnace-crack",
+    vfxWindowMs: 360
+  });
+
+  return schedulePlayerHitboxEffect(crackedRun, eruptionHitbox, endPosition, facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-furnace-eruption`,
+    hitPhase: "furnace-eruption",
+    vfxCue: "earth-furnace-eruption",
+    vfxWindowMs: 660
+  });
 }
 
 function applyMountainCrackHammer(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
@@ -4466,6 +4538,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "mechanism-shadow-net") {
     return completeSkillAction(run, applyMechanismShadowNet(run, skill, canceledFromCombo), skill, statusTags);
+  }
+
+  if (skill.id === "earth-furnace-breaker") {
+    return completeSkillAction(run, applyEarthFurnaceBreaker(run, skill, canceledFromCombo), skill, statusTags);
   }
 
   if (skill.id === "mountain-crack-hammer") {

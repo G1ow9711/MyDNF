@@ -2016,3 +2016,32 @@
   - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 244 tests.
   - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/anvil-crash-check.html` confirmed cast/pre-slam/slam/recovery/right-wall stages, no pre-slam impact, two target-bound slam bursts, 74 px cast VFX anchor, persistent `player-ember-anvil-jump`, `weapon-hammer-drop`, `anvil-sparks-cast-core`, `anvil-crash-impact-core`, right-wall hit without MISS, and empty warning/error console output. Temporary check page was deleted.
   - Final full verification passed: `npm test` passed with 340 tests, `npm run build` passed, and `git diff --check` passed with line-ending warnings only.
+
+## Task 73 Earth Furnace Breaker Ultimate Timeline
+- Continued the strict DNF-style combat goal: model detail can remain lightweight, but action timing, model-following movement, hit frames, cancellation/interruption, target reaction, skill VFX, and monster VFX remain strict.
+- Used parallel read-only agents:
+  - Combat explorer confirmed `earth-furnace-breaker` still used the generic fallback and recommended staged dynamic hitboxes around the catalog 410 ms hit frame.
+  - UI/CSS explorer confirmed catalog metadata existed but runtime/CSS lacked target-bound forge-quake impact styling, ultimate screen flash, and a dedicated weapon arc.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires no cast-frame damage, scheduled `[260, 410]` crack/eruption frames, model-following active movement, dynamic moved-out/moved-in target recheck, guard-break/knockdown eruption, and monster-interruption cancellation.
+  - `src/tests/app-integration.test.ts` requires runtime DOM metadata for `iron-breaker`, `furnace-breaker`, `forge-quake`, no pre-crack impact, crack/eruption cues, ultimate shake/flash, target-bound impact bursts, and knockdown model feedback.
+  - `src/tests/ui-smoke.test.ts` requires dedicated CSS selectors/keyframes for player charge, weapon slam, cast VFX, target crack/eruption impacts, and forge-quake screen flash.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "earth-furnace-breaker"` failed before implementation because no scheduled effects existed for `earth-furnace-breaker`.
+- Implemented:
+  - Added `earth-crack` / `furnace-eruption` hit phases and `earth-furnace-crack` / `earth-furnace-eruption` VFX cues.
+  - Added `applyEarthFurnaceBreaker()` with 46 px Iron charge movement, 260 ms dynamic crack hitbox, 410 ms dynamic eruption hitbox, delayed miss behavior, and queue-based monster interruption cancellation.
+  - Changed catalog weapon arc to `furnace-breaker` and added UI screen shake/flash mapping plus fixed cast VFX anchoring.
+  - Added dedicated CSS for `player-iron-earth-breaker-charge`, `weapon-furnace-breaker`, `forge-quake-cast-*`, `earth-furnace-crack-*`, `earth-furnace-eruption-*`, and `forge-quake-screen-flash`.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "earth-furnace-breaker"`, 5 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 249 tests.
+  - Browser DOM/computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/earth-furnace-check.html` confirmed scheduled times `[260, 410]`, zero cast/pre-crack hits, two crack impacts, four cumulative eruption impacts, two knockdown enemies, ultimate shake/flash, computed animations `player-iron-earth-breaker-charge`, `weapon-furnace-breaker`, `forge-quake-cast-core`, `earth-furnace-crack-core`, `earth-furnace-eruption-core`, cast anchor `--actor-x: 35.00%`, and empty warning/error console output. Temporary check page was deleted.
+- Code review follow-up:
+  - Read-only review found two Important issues: the eruption dynamic hitbox did not emit MISS when targets left after the crack frame, and `weapon-furnace-breaker` did not multiply lunge/rotation offsets by `--weapon-facing` for left-facing casts.
+  - Added RED regressions for target leaving before the eruption frame and for CSS keyframes requiring `--weapon-facing` in lunge/rotation formulas.
+  - Fixed eruption miss behavior and facing-aware `weapon-furnace-breaker` keyframes.
+  - Focused review regressions passed: `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts -t "leaves before the eruption|earth-furnace-breaker with staged"`, 2 tests.
+  - Focused `earth-furnace-breaker` suite passed after review fixes: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "earth-furnace-breaker"`, 6 tests.
+  - Related combat/app/UI suite passed after review fixes: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 250 tests.
+  - Browser re-validation confirmed `eruptionMoveOutMissCount: 1`, facing-aware lunge/rotation keyframes present, no cast/pre-crack damage, two crack impacts, four eruption impacts, ultimate shake/flash, and empty warning/error console output. Temporary check page was deleted.

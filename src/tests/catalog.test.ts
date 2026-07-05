@@ -233,7 +233,7 @@ describe("catalog", () => {
     });
     expect(byId["earth-furnace-breaker"].animation).toMatchObject({
       preset: "iron-breaker",
-      weaponArc: "shield-slam",
+      weaponArc: "furnace-breaker",
       vfxShape: "forge-quake",
       vfxAnchor: "area"
     });

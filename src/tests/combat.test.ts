@@ -3346,6 +3346,174 @@ describe("combat actions and impact feel", () => {
     expect(jumped.enemies[0].downed).toBe(true);
   });
 
+  it("earth-furnace-breaker charges before cracking the floor and erupting", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 336, y: 340, hp: 320, maxHp: 320, armor: 42 },
+        { x: 408, y: 354, hp: 300, maxHp: 300, armor: 36 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "earth-furnace-breaker" });
+    const [crackAtMs, eruptionAtMs] = scheduledSkillTimes(cast, "earth-furnace-breaker");
+    const beforeCrack = stepToElapsed(cast, crackAtMs - 1);
+    const cracked = stepToElapsed(cast, crackAtMs);
+    const erupted = stepToElapsed(cracked, eruptionAtMs);
+    const hits = skillHitEvents(erupted, "earth-furnace-breaker");
+
+    expect([crackAtMs, eruptionAtMs]).toEqual([260, 410]);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("earth-furnace-breaker");
+    expect(cast.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(skillHitEvents(cast, "earth-furnace-breaker")).toHaveLength(0);
+    expect(skillHitEvents(beforeCrack, "earth-furnace-breaker")).toHaveLength(0);
+    expect(skillHitEvents(cracked, "earth-furnace-breaker").map((event) => event.hitPhase)).toEqual([
+      "earth-crack",
+      "earth-crack"
+    ]);
+    expect(hits).toHaveLength(4);
+    expect(hits.map((event) => event.hitPhase)).toEqual([
+      "earth-crack",
+      "earth-crack",
+      "furnace-eruption",
+      "furnace-eruption"
+    ]);
+    expect(hits.map((event) => event.vfxCue)).toEqual([
+      "earth-furnace-crack",
+      "earth-furnace-crack",
+      "earth-furnace-eruption",
+      "earth-furnace-eruption"
+    ]);
+    expect(erupted.enemies.every((enemy) => (enemy.armorBrokenUntilMs ?? 0) > erupted.elapsedMs)).toBe(true);
+    expect(erupted.enemies.every((enemy) => enemy.downed && (enemy.downedUntilMs ?? 0) > erupted.elapsedMs)).toBe(true);
+  });
+
+  it("rechecks earth-furnace-breaker targets at the delayed quake frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100);
+    const castWithTarget = performAction(
+      withPlayerAndEnemies(
+        createCombatRun(state, "cinder-kiln-alley"),
+        { x: 240, y: 340, facing: 1 },
+        [{ x: 336, y: 340, hp: 260, maxHp: 260, armor: 30 }]
+      ),
+      { type: "skill", skillId: "earth-furnace-breaker" }
+    );
+    const [crackAtMs] = scheduledSkillTimes(castWithTarget, "earth-furnace-breaker");
+    const movedOutBeforeCrack = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: castWithTarget.enemies.map((enemy) => ({
+          ...enemy,
+          position: { x: 720, y: enemy.position.y }
+        }))
+      },
+      crackAtMs
+    );
+
+    expect(skillHitEvents(movedOutBeforeCrack, "earth-furnace-breaker")).toHaveLength(0);
+    expect(skillMissEvents(movedOutBeforeCrack, "earth-furnace-breaker")).toHaveLength(1);
+
+    const castWithoutTarget = performAction(
+      withPlayerAndEnemies(
+        createCombatRun(state, "cinder-kiln-alley"),
+        { x: 240, y: 340, facing: 1 },
+        [{ x: 720, y: 340, hp: 260, maxHp: 260, armor: 30 }]
+      ),
+      { type: "skill", skillId: "earth-furnace-breaker" }
+    );
+    const [lateCrackAtMs] = scheduledSkillTimes(castWithoutTarget, "earth-furnace-breaker");
+    const movedInBeforeCrack = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: castWithoutTarget.enemies.map((enemy) => ({
+          ...enemy,
+          position: { x: 338, y: enemy.position.y }
+        }))
+      },
+      lateCrackAtMs
+    );
+    const [lateHit] = skillHitEvents(movedInBeforeCrack, "earth-furnace-breaker");
+
+    expect(lateHit).toMatchObject({
+      hitPhase: "earth-crack",
+      vfxCue: "earth-furnace-crack"
+    });
+    expect(skillMissEvents(movedInBeforeCrack, "earth-furnace-breaker")).toHaveLength(0);
+  });
+
+  it("emits an earth-furnace-breaker miss if the target leaves before the eruption frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100);
+    const cast = performAction(
+      withPlayerAndEnemies(
+        createCombatRun(state, "cinder-kiln-alley"),
+        { x: 240, y: 340, facing: 1 },
+        [{ x: 336, y: 340, hp: 320, maxHp: 320, armor: 42 }]
+      ),
+      { type: "skill", skillId: "earth-furnace-breaker" }
+    );
+    const [crackAtMs, eruptionAtMs] = scheduledSkillTimes(cast, "earth-furnace-breaker");
+    const cracked = stepToElapsed(cast, crackAtMs);
+    const movedOutBeforeEruption = stepToElapsed(
+      {
+        ...cracked,
+        enemies: cracked.enemies.map((enemy) => ({
+          ...enemy,
+          position: { x: 720, y: enemy.position.y }
+        }))
+      },
+      eruptionAtMs
+    );
+    const hits = skillHitEvents(movedOutBeforeEruption, "earth-furnace-breaker");
+    const misses = skillMissEvents(movedOutBeforeEruption, "earth-furnace-breaker");
+
+    expect(hits.map((event) => event.hitPhase)).toEqual(["earth-crack"]);
+    expect(misses).toHaveLength(1);
+    expect(misses[0]).toMatchObject({
+      skillId: "earth-furnace-breaker",
+      occurredAtMs: eruptionAtMs
+    });
+  });
+
+  it("cancels earth-furnace-breaker pending quake when monster damage interrupts the cast", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 336, y: 340, hp: 320, maxHp: 320, armor: 42 }]
+    );
+    const interruptingRun: CombatRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 180,
+              attackRecoverUntilMs: 620,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+
+    const cast = performAction(interruptingRun, { type: "skill", skillId: "earth-furnace-breaker" });
+    const [, eruptionAtMs] = scheduledSkillTimes(cast, "earth-furnace-breaker");
+    const interrupted = stepToElapsed(cast, eruptionAtMs);
+    const playerHits = interrupted.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(playerHits).toHaveLength(1);
+    expect(skillHitEvents(interrupted, "earth-furnace-breaker")).toHaveLength(0);
+    expect(skillMissEvents(interrupted, "earth-furnace-breaker")).toHaveLength(0);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "earth-furnace-breaker")).toHaveLength(0);
+  });
+
   it("meteor-knuckle resolves as staged fall and impact hits with forced knockdown", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),

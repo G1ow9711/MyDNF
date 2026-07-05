@@ -2434,6 +2434,78 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(impactHtml, 'data-damage-number="true"')).toBe(4);
   });
 
+  it("renders earth-furnace-breaker as a staged Iron ultimate quake", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run before earth-furnace-breaker");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: {
+          ...model.combatRun.player,
+          x: 240,
+          y: 340,
+          facing: 1 as const,
+          actionLockUntilMs: 0,
+          hurtLockUntilMs: 0
+        },
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 320,
+          maxHp: 320,
+          armor: 42,
+          position: { x: 334 + index * 70, y: 340 + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "earth-furnace-breaker" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after earth-furnace-breaker");
+    }
+
+    const [crackAtMs, eruptionAtMs] = scheduledSkillTimes(model.combatRun, "earth-furnace-breaker");
+    const beforeCrackRun = stepToElapsed(model.combatRun, crackAtMs - 1);
+    const crackRun = stepToElapsed(model.combatRun, crackAtMs);
+    const eruptionRun = stepToElapsed(crackRun, eruptionAtMs);
+    const castHtml = renderAppHtml(model);
+    const beforeCrackHtml = renderAppHtml({ ...model, combatRun: beforeCrackRun });
+    const crackHtml = renderAppHtml({ ...model, combatRun: crackRun });
+    const eruptionHtml = renderAppHtml({ ...model, combatRun: eruptionRun });
+
+    expect(skillHitEvents(model.combatRun, "earth-furnace-breaker")).toHaveLength(0);
+    expect(castHtml).toContain('data-active-skill-id="earth-furnace-breaker"');
+    expect(castHtml).toContain('data-skill-animation-preset="iron-breaker"');
+    expect(castHtml).toContain('data-skill-weapon-arc="furnace-breaker"');
+    expect(castHtml).toContain('data-skill-vfx-shape="forge-quake"');
+    expect(castHtml).toContain('data-player-skill-move="earth-furnace-breaker"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-earth-furnace-breaker skill-vfx-shape-forge-quake"');
+    expect(beforeCrackHtml).not.toContain('data-skill-impact-vfx="earth-furnace-breaker"');
+    expect(crackHtml).toContain('data-hit-phase="earth-crack"');
+    expect(crackHtml).toContain('data-vfx-cue="earth-furnace-crack"');
+    expect(countOccurrences(crackHtml, 'data-skill-impact-vfx="earth-furnace-breaker"')).toBe(2);
+    expect(eruptionHtml).toContain('data-screen-shake="ultimate"');
+    expect(eruptionHtml).toContain('data-screen-flash="forge-quake"');
+    expect(eruptionHtml).toContain('data-hit-phase="furnace-eruption"');
+    expect(eruptionHtml).toContain('data-vfx-cue="earth-furnace-eruption"');
+    expect(eruptionHtml).toContain('data-impact-vfx-shape="forge-quake"');
+    expect(eruptionHtml).toContain('class="skill-impact-burst skill-impact-shape-forge-quake"');
+    expect(eruptionHtml).toContain('data-enemy-motion="knockdown"');
+    expect(countOccurrences(eruptionHtml, 'data-skill-impact-vfx="earth-furnace-breaker"')).toBe(4);
+    expect(skillHitEvents(eruptionRun, "earth-furnace-breaker")).toHaveLength(4);
+  });
+
   it("renders sword-prism-field as a staged Liuli prism-field ultimate", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

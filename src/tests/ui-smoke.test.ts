@@ -1022,6 +1022,70 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes mountain-crack-impact-core");
   });
 
+  it("renders earth-furnace-breaker with staged forge-quake ultimate metadata", () => {
+    const ironState = selectBaseClass(createInitialState(), "iron-forge-guardian");
+    const state = {
+      ...ironState,
+      player: {
+        ...ironState.player,
+        heat: 100
+      }
+    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 320,
+          maxHp: 320,
+          armor: 42,
+          position: { x: player.x + 94 + index * 70, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "earth-furnace-breaker" }
+    );
+    const [crackAtMs, eruptionAtMs] = scheduledSkillTimes(castRun, "earth-furnace-breaker");
+    const beforeCrackHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, crackAtMs - 1)
+    });
+    const eruptionRun = stepToElapsed(stepToElapsed(castRun, crackAtMs), eruptionAtMs);
+    const earthHits = skillHitEvents(eruptionRun, "earth-furnace-breaker");
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: eruptionRun
+    });
+
+    expect(skillHitEvents(castRun, "earth-furnace-breaker")).toHaveLength(0);
+    expect(earthHits).toHaveLength(4);
+    expect(beforeCrackHtml).toContain('data-player-skill-move="earth-furnace-breaker"');
+    expect(beforeCrackHtml).not.toContain('data-skill-impact-vfx="earth-furnace-breaker"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="earth-furnace-breaker"')).toBe(4);
+    expect(html).toContain('data-impact-vfx-shape="forge-quake"');
+    expect(html).toContain('data-vfx-cue="earth-furnace-eruption"');
+    expect(html).toContain('data-screen-shake="ultimate"');
+    expect(html).toContain('data-screen-flash="forge-quake"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-forge-quake"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="earth-furnace-breaker"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="iron-breaker"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="furnace-breaker"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-forge-quake");
+    expect(stylesCss).toContain(".skill-impact-shape-forge-quake");
+    expect(stylesCss).toContain('@keyframes player-iron-earth-breaker-charge');
+    expect(stylesCss).toContain('@keyframes weapon-furnace-breaker');
+    expect(stylesCss).toContain('var(--weapon-facing, 1) * var(--weapon-skill-lunge, 32px)');
+    expect(stylesCss).toContain('var(--weapon-facing, 1) * 94deg');
+    expect(stylesCss).toContain('@keyframes forge-quake-cast-core');
+    expect(stylesCss).toContain('@keyframes earth-furnace-eruption-core');
+    expect(stylesCss).toContain('@keyframes forge-quake-screen-flash');
+  });
+
   it("renders prism-step as a prism-afterimage path pierce impact", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const state = {

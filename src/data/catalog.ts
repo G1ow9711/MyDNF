@@ -414,7 +414,7 @@ const skillAnimationById: Record<string, SkillAnimationDefinition> = {
     durationMs: 880,
     hitFrameMs: 410,
     lungePx: 32,
-    weaponArc: "shield-slam",
+    weaponArc: "furnace-breaker",
     vfxShape: "forge-quake",
     vfxAnchor: "area"
   },

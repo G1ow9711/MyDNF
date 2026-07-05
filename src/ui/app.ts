@@ -786,6 +786,10 @@ function playerSkillVfxStyle(
     return `${combatActorStyle(run, origin.x + 74 * facing, origin.y)}${durationStyle}`;
   }
 
+  if (skillId === "earth-furnace-breaker") {
+    return `${combatActorStyle(run, origin.x + 96 * facing, origin.y)}${durationStyle}`;
+  }
+
   if (skillId === "ink-shot") {
     return `${combatActorStyle(run, origin.x + 128 * facing, origin.y)}${durationStyle}`;
   }
@@ -806,7 +810,7 @@ function playerSkillVfxStyle(
 }
 
 function combatScreenShake(hit: CombatHitEvent | undefined, playerHit: CombatPlayerHitEvent | undefined): string {
-  if (hit?.vfxCue === "meteor-impact" || hit?.vfxCue === "sword-prism-field-burst") {
+  if (hit?.vfxCue === "meteor-impact" || hit?.vfxCue === "sword-prism-field-burst" || hit?.vfxCue === "earth-furnace-eruption") {
     return "ultimate";
   }
 
@@ -820,6 +824,10 @@ function combatScreenFlash(hit: CombatHitEvent | undefined): string {
 
   if (hit?.vfxCue === "sword-prism-field-burst") {
     return "prism-field";
+  }
+
+  if (hit?.vfxCue === "earth-furnace-eruption") {
+    return "forge-quake";
   }
 
   return "none";

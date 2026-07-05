@@ -440,3 +440,14 @@
 - Review follow-up: the slam hitbox now behaves as a landing-area burst rather than a front-only wall-facing hitbox, so a right-wall clamp can still hit a target just left of the landing point.
 - Review follow-up: `anvil-crash` cast VFX now anchors at the actual 74 px landing point, and the `ember-anvil` preset uses the same jump-slam animation after `activeSkillMovement` clears at the hit frame.
 - Browser validation confirmed no pre-slam impact, two target-bound impact bursts, persistent `player-ember-anvil-jump` through recovery, correct 74 px cast VFX anchor, right-wall hit without MISS, and no warning/error console output.
+
+## Earth Furnace Breaker Ultimate Timeline Findings
+- Current user priority remains: character/monster geometry may stay lighter, but combat flow, model-following motion, strict hit frames, interruption, target action changes, skill VFX, and monster VFX remain strict.
+- Parallel read-only audits confirmed `earth-furnace-breaker` still fell through the generic skill branch: cast-frame target locking/mutation, no active skill movement, no `hitPhase`/`vfxCue`, no ultimate screen flash, and no target-bound forge-quake impact shape.
+- RED evidence: focused combat/app/UI tests failed because `earth-furnace-breaker` had no scheduled effects and runtime/CSS lacked the required staged forge-quake ultimate metadata.
+- Implementation note: `earth-furnace-breaker` now schedules a 260 ms `earth-crack` dynamic hitbox and a 410 ms `furnace-eruption` dynamic hitbox, with model-following Iron charge movement until the main hit frame.
+- Combat note: the crack stage staggers live targets at the hit frame; the eruption stage applies guard-break, stagger, slam/knockdown, stronger hitstop, and suppresses duplicate empty-stage MISS after the first whiff.
+- Presentation note: the skill now uses a dedicated `furnace-breaker` weapon arc, `forge-quake` cast VFX, target-bound crack/eruption impact VFX, `player-iron-earth-breaker-charge`, `weapon-furnace-breaker`, and `forge-quake` ultimate screen flash.
+- Browser validation confirmed scheduled times `[260, 410]`, no cast/pre-crack damage, 2 crack impacts, 4 cumulative eruption impacts, knockdown feedback, ultimate shake/flash, dedicated computed animations, stable cast VFX anchor, and no warning/error console output.
+- Review follow-up: the eruption stage now emits MISS when a target leaves after the crack frame but before the 410 ms eruption frame, preserving dynamic hitbox semantics for both stages.
+- Review follow-up: `weapon-furnace-breaker` keyframes now multiply lunge and rotation offsets by `--weapon-facing`, so left-facing casts no longer keep right-facing weapon travel.

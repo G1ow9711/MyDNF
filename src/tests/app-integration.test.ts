@@ -2270,6 +2270,78 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="iron-palm"')).toBe(1);
   });
 
+  it("renders furnace-taunt as a delayed roar control field with target bursts", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 210,
+          maxHp: 210,
+          armor: 0,
+          position: { x: index === 0 ? 330 : 390, y: player.y + index * 12 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "furnace-taunt" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after furnace-taunt");
+    }
+
+    const [roarAtMs] = scheduledSkillTimes(model.combatRun, "furnace-taunt");
+    const castHtml = renderAppHtml(model);
+    const beforeRoarRun = stepToElapsed(model.combatRun, roarAtMs - 1);
+    const beforeRoarHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeRoarRun
+    });
+    const roarRun = stepToElapsed(model.combatRun, roarAtMs);
+    const roarHtml = renderAppHtml({
+      ...model,
+      combatRun: roarRun
+    });
+
+    expect(model.combatRun.player.x).toBe(player.x);
+    expect(beforeRoarRun.player.x).toBeGreaterThan(player.x);
+    expect(skillHitEvents(model.combatRun, "furnace-taunt")).toHaveLength(0);
+    expect(skillHitEvents(roarRun, "furnace-taunt")).toHaveLength(2);
+    expect(castHtml).toContain('data-active-skill-id="furnace-taunt"');
+    expect(castHtml).toContain('data-skill-animation-preset="iron-taunt"');
+    expect(castHtml).toContain('data-skill-weapon-arc="taunt-ring"');
+    expect(castHtml).toContain('data-skill-vfx-shape="furnace-roar"');
+    expect(castHtml).toContain('data-player-skill-move="furnace-taunt"');
+    expect(beforeRoarHtml).not.toContain('data-skill-impact-vfx="furnace-taunt"');
+    expect(roarHtml).toContain('data-hit-phase="furnace-roar"');
+    expect(roarHtml).toContain('data-vfx-cue="furnace-roar-impact"');
+    expect(roarHtml).toContain('data-impact-vfx-shape="furnace-roar"');
+    expect(roarHtml).toContain('data-control-state="controlled"');
+    expect(roarHtml).toContain('class="skill-impact-burst skill-impact-shape-furnace-roar"');
+    expect(countOccurrences(roarHtml, 'data-skill-impact-vfx="furnace-taunt"')).toBe(2);
+  });
+
   it("renders shield-quake as a delayed area slam with quake impact bursts", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

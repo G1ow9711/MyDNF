@@ -652,3 +652,11 @@
 - Presentation note: the player actor now moves 28 px into the shield slam before impact, cast VFX anchors at the same quake origin, and target-bound impact bursts emit `shield-quake` / `shield-quake-impact` metadata on each hit target.
 - CSS note: `iron-quake` has a dedicated body slam animation, `shield-slam` remains the weapon arc, and `shield-quake` now has separate ground-ring cast and target impact keyframes.
 - Browser validation note: the live check page confirmed quake time 280 ms, no cast/before-impact HP loss, two hit-frame impacts, both targets downed, computed animations `player-iron-shield-quake`, `weapon-shield-slam`, `shield-quake-cast-core`, `shield-quake-impact-core`, `shield-quake-impact-ring`, and empty warning/error console output.
+
+## DNF-Style Furnace Taunt Strict Roar Findings
+- Current user clarification: character models can stay simpler while the playable loop is completed, but fight flow, model-following action, hit-frame timing, skill VFX, monster VFX, and player/enemy action changes must be strict.
+- Parallel combat audit confirmed `furnace-taunt` was still a generic skill candidate, meaning control damage could resolve at input time instead of the roar frame and could leave stale pending behavior if interrupted.
+- Parallel UI/CSS audit confirmed the catalog already exposed `iron-taunt`, `taunt-ring`, and `furnace-roar` metadata, but no dedicated player, weapon, cast, or target impact CSS selectors/keyframes existed.
+- Combat note: `furnace-taunt` now schedules a 230 ms dynamic roar hitbox, rechecks live area targets at the roar frame, emits delayed MISS when targets leave, pulls/control-staggers targets only on the real frame, and cancels the pending roar when monster damage interrupts the cast.
+- Presentation note: the player model performs a short taunt movement while the furnace-roar field anchors ahead of the actor, and each hit target emits `furnace-roar` / `furnace-roar-impact` metadata for target-bound control bursts.
+- Browser validation note: the live check page confirmed 230 ms roar timing, no cast/before-roar HP loss, two hit-frame target impacts, target control state, computed animations `player-iron-furnace-taunt`, `weapon-taunt-ring`, `furnace-roar-cast-core`, `furnace-roar-impact-core`, `furnace-roar-impact-ring`, and empty warning/error console output.

@@ -52,6 +52,7 @@ export type CombatHitPhase =
   | "jab-chain"
   | "shield-jab"
   | "shield-quake"
+  | "furnace-roar"
   | "roll-shot"
   | "uppercut"
   | "chain-open"
@@ -92,6 +93,7 @@ export type CombatVfxCue =
   | "ember-jab-chain"
   | "iron-shield-jab"
   | "shield-quake-impact"
+  | "furnace-roar-impact"
   | "shadow-roll-shot"
   | "cinder-uppercut-rise"
   | "flowing-chain-open"
@@ -1892,6 +1894,53 @@ function applyIronPalm(run: CombatRun, skill: ClassSkillDefinition, canceledFrom
     hitPhase: "shield-jab",
     vfxCue: "iron-shield-jab",
     vfxWindowMs: 260
+  });
+}
+
+function furnaceTauntCenter(run: CombatRun): CombatVector {
+  return {
+    x: clamp(run.player.x + 112 * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+}
+
+function furnaceTauntHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 164,
+    laneRange: 76,
+    targetCap: 3,
+    frontOnly: false,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.62)),
+    hitstopMs: 56,
+    knockback: 0,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    pullCenter: furnaceTauntCenter(run),
+    statusTags: ["control", "stagger"],
+    actionTags: ["pull"]
+  };
+}
+
+function applyFurnaceTaunt(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x + skill.animation.lungePx * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const roarCenter = furnaceTauntCenter(run);
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+
+  return schedulePlayerHitboxEffect(movingRun, furnaceTauntHitbox(run, skill, canceledFromCombo), roarCenter, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-furnace-roar`,
+    hitPhase: "furnace-roar",
+    vfxCue: "furnace-roar-impact",
+    vfxWindowMs: 380
   });
 }
 
@@ -5645,6 +5694,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "iron-palm") {
     return finishSkillAction(applyIronPalm(run, skill, canceledFromCombo));
+  }
+
+  if (skill.id === "furnace-taunt") {
+    return finishSkillAction(applyFurnaceTaunt(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "shield-quake") {

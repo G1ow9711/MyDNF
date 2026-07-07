@@ -2627,3 +2627,23 @@
   - Focused RED/GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "shield-quake"`, 4 tests.
   - Related combat/app/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 351 tests.
   - Browser validation on `http://127.0.0.1:5178/shield-quake-check.html` confirmed 280 ms quake timing, no cast/before-impact HP loss, two hit-frame impacts, both targets downed, computed animations `player-iron-shield-quake`, `weapon-shield-slam`, `shield-quake-cast-core`, `shield-quake-impact-core`, `shield-quake-impact-ring`, and empty warning/error logs. Temporary pages were deleted and the browser returned to `http://127.0.0.1:5178/`.
+
+## Task 96 DNF-Style Furnace Taunt Strict Roar
+- Continued from the user's clarified priority: character/monster models may stay simpler for now, but battle motion smoothness, model-following actions, strict hit frames, skill VFX, monster VFX, and target action changes are non-negotiable.
+- Used parallel read-only agents:
+  - Combat audit selected `furnace-taunt` as a high-value generic remaining control skill and required delayed roar damage/control, live target recheck, delayed MISS, and interruption cancellation.
+  - UI/CSS audit confirmed `furnace-taunt` already had catalog metadata (`iron-taunt`, `taunt-ring`, `furnace-roar`) but lacked dedicated player/weapon/cast/impact styling.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires a 230 ms roar frame, no cast/before-roar HP mutation, two roar-frame hits, `furnace-roar` / `furnace-roar-impact` metadata, control tags, inward pull, live target recheck, delayed MISS, and monster-interruption cancellation.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require model-following `data-player-skill-move="furnace-taunt"`, `iron-taunt`, `taunt-ring`, `furnace-roar` cast metadata, and target-bound furnace-roar impact bursts.
+- RED evidence:
+  - Focused RED failed because there were no scheduled effects for `furnace-taunt`; the skill still fell through the generic immediate skill path.
+- Implemented:
+  - Added `furnace-roar` hit phase and `furnace-roar-impact` VFX cue.
+  - Added `applyFurnaceTaunt()` with a 12 px timed taunt movement, fixed 112 px forward roar origin, 230 ms dynamic area hitbox, pull/control/stagger tags, delayed MISS support, and monster-interruption cancellation through the scheduled-effect guard.
+  - Anchored the cast VFX to the roar origin and added dedicated player, weapon, cast-field, and target impact CSS animations.
+- Verification so far:
+  - Focused RED/GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "furnace-taunt"`, 5 tests.
+  - Related combat/app/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 356 tests.
+  - Browser validation on `http://127.0.0.1:5178/furnace-taunt-check.html` confirmed 230 ms roar timing, no cast/before-roar HP loss, two hit-frame impacts, target control, computed animations `player-iron-furnace-taunt`, `weapon-taunt-ring`, `furnace-roar-cast-core`, `furnace-roar-impact-core`, `furnace-roar-impact-ring`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 438 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

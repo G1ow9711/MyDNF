@@ -5248,6 +5248,101 @@ describe("combat actions and impact feel", () => {
     expect(avoided.enemies[0].hp).toBe(220);
   });
 
+  it("delays furnace-taunt control until the roar frame and pulls enemies inward", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 330, y: 340, hp: 210, maxHp: 210, armor: 0 },
+        { x: 390, y: 352, hp: 210, maxHp: 210, armor: 0 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "furnace-taunt" });
+    const [roarAtMs] = scheduledSkillTimes(cast, "furnace-taunt");
+    const beforeRoar = stepToElapsed(cast, roarAtMs - 1);
+    const roar = stepToElapsed(cast, roarAtMs);
+    const hits = skillHitEvents(roar, "furnace-taunt");
+
+    expect(roarAtMs).toBe(230);
+    expect(skillHitEvents(cast, "furnace-taunt")).toHaveLength(0);
+    expect(cast.enemies.map((enemy) => enemy.hp)).toEqual([210, 210]);
+    expect(cast.enemies.every((enemy) => (enemy.controlledUntilMs ?? 0) === 0)).toBe(true);
+    expect(beforeRoar.enemies.map((enemy) => enemy.hp)).toEqual([210, 210]);
+    expect(skillHitEvents(beforeRoar, "furnace-taunt")).toHaveLength(0);
+    expect(hits).toHaveLength(2);
+    expect(hits.map((event) => event.hitPhase)).toEqual(["furnace-roar", "furnace-roar"]);
+    expect(hits.every((event) => event.vfxCue === "furnace-roar-impact")).toBe(true);
+    expect(hits.every((event) => event.statusTags?.includes("control"))).toBe(true);
+    expect(roar.enemies.every((enemy) => (enemy.controlledUntilMs ?? 0) > roar.elapsedMs)).toBe(true);
+    expect(Math.abs(roar.enemies[0].position.x - 352)).toBeLessThan(Math.abs(330 - 352));
+    expect(Math.abs(roar.enemies[1].position.x - 352)).toBeLessThan(Math.abs(390 - 352));
+  });
+
+  it("rechecks furnace-taunt targets on the roar frame instead of locking cast-time targets", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90);
+    const run = withPlayerAndEnemies(createCombatRun(state, "cinder-kiln-alley"), { x: 240, y: 340, facing: 1 }, [
+      { x: 330, y: 340, hp: 210, maxHp: 210, armor: 0 }
+    ]);
+
+    const cast = performAction(run, { type: "skill", skillId: "furnace-taunt" });
+    const [roarAtMs] = scheduledSkillTimes(cast, "furnace-taunt");
+    const escaped = {
+      ...cast,
+      enemies: cast.enemies.map((enemy) => ({
+        ...enemy,
+        position: { x: 650, y: enemy.position.y }
+      }))
+    };
+    const avoided = stepToElapsed(escaped, roarAtMs);
+
+    expect(skillHitEvents(avoided, "furnace-taunt")).toHaveLength(0);
+    expect(skillMissEvents(avoided, "furnace-taunt")).toHaveLength(1);
+    expect(avoided.enemies[0].hp).toBe(210);
+    expect(avoided.enemies[0].controlledUntilMs ?? 0).toBe(0);
+  });
+
+  it("cancels furnace-taunt roar when monster damage interrupts before the roar frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 330, y: 340, hp: 210, maxHp: 210, armor: 0 }]
+    );
+    const interruptingRun: CombatRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 180,
+              attackRecoverUntilMs: 620,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+
+    const cast = performAction(interruptingRun, { type: "skill", skillId: "furnace-taunt" });
+    const [roarAtMs] = scheduledSkillTimes(cast, "furnace-taunt");
+    const interrupted = stepToElapsed(cast, roarAtMs);
+    const playerHits = interrupted.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(playerHits).toHaveLength(1);
+    expect(skillHitEvents(interrupted, "furnace-taunt")).toHaveLength(0);
+    expect(skillMissEvents(interrupted, "furnace-taunt")).toHaveLength(0);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "furnace-taunt")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(210);
+    expect(interrupted.enemies[0].controlledUntilMs ?? 0).toBe(0);
+  });
+
   it("guard skills open a mitigation window like shield skills", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 40);
     const run = withPlayerAndEnemies(

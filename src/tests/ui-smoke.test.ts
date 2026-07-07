@@ -720,6 +720,66 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes iron-shield-jab-impact-core");
   });
 
+  it("defines dedicated furnace-taunt player, weapon, roar field, and control impact animations", () => {
+    const baseState = selectBaseClass(createInitialState(), "iron-forge-guardian");
+    const state = {
+      ...baseState,
+      player: {
+        ...baseState.player,
+        heat: 90
+      }
+    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 210,
+          maxHp: 210,
+          armor: 0,
+          position: { x: index === 0 ? 330 : 390, y: player.y + index * 12 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "furnace-taunt" }
+    );
+    const [roarAtMs] = scheduledSkillTimes(castRun, "furnace-taunt");
+    const beforeRoarHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, roarAtMs - 1)
+    });
+    const roarRun = stepToElapsed(castRun, roarAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: roarRun
+    });
+
+    expect(skillHitEvents(castRun, "furnace-taunt")).toHaveLength(0);
+    expect(skillHitEvents(roarRun, "furnace-taunt")).toHaveLength(2);
+    expect(beforeRoarHtml).toContain('data-player-skill-move="furnace-taunt"');
+    expect(beforeRoarHtml).not.toContain('data-skill-impact-vfx="furnace-taunt"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="furnace-taunt"')).toBe(2);
+    expect(html).toContain('data-impact-vfx-shape="furnace-roar"');
+    expect(html).toContain('data-vfx-cue="furnace-roar-impact"');
+    expect(html).toContain('data-hit-phase="furnace-roar"');
+    expect(html).toContain('data-control-state="controlled"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-furnace-roar"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="furnace-taunt"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="iron-taunt"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="taunt-ring"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-furnace-roar");
+    expect(stylesCss).toContain(".skill-impact-shape-furnace-roar");
+    expect(stylesCss).toContain("@keyframes player-iron-furnace-taunt");
+    expect(stylesCss).toContain("@keyframes weapon-taunt-ring");
+    expect(stylesCss).toContain("@keyframes furnace-roar-cast-core");
+    expect(stylesCss).toContain("@keyframes furnace-roar-impact-core");
+  });
+
   it("defines dedicated shield-quake player, shield-slam, cast quake, and impact animations", () => {
     const state = {
       ...selectBaseClass(createInitialState(), "iron-forge-guardian"),

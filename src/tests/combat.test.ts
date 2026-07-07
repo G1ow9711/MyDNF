@@ -1991,7 +1991,9 @@ describe("combat actions and impact feel", () => {
         { x: 390, y: 356 }
       ]
     );
-    const marked = performAction(run, { type: "skill", skillId: "marking-bolt" });
+    const markingCast = performAction(run, { type: "skill", skillId: "marking-bolt" });
+    const [markAtMs] = scheduledSkillTimes(markingCast, "marking-bolt");
+    const marked = stepToElapsed(markingCast, markAtMs);
     const ready = {
       ...stepCombat(marked, {}, 500),
       player: {
@@ -2002,6 +2004,7 @@ describe("combat actions and impact feel", () => {
     const detonated = performAction(ready, { type: "skill", skillId: "night-mark-detonation" });
     const resolved = stepCombat(detonated, {}, 490);
 
+    expect(markingCast.enemies[0].marks).toBe(0);
     expect(marked.enemies[0].marks).toBe(2);
     expect(detonated.enemies[0].marks).toBe(2);
     expect(resolved.enemies[0].marks).toBe(0);
@@ -3312,7 +3315,7 @@ describe("combat actions and impact feel", () => {
 
   it("fires ink-shot as a delayed ranged projectile instead of cast-frame damage", () => {
     const run = withPlayerAndEnemies(
-      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1 },
       [{ x: 520, y: 340, hp: 180, maxHp: 180 }]
     );
@@ -3341,7 +3344,7 @@ describe("combat actions and impact feel", () => {
 
   it("rechecks ink-shot targets when the bolt reaches the hit frame", () => {
     const inRangeRun = withPlayerAndEnemies(
-      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1 },
       [
         { x: 520, y: 340, hp: 180, maxHp: 180 },
@@ -3370,7 +3373,7 @@ describe("combat actions and impact feel", () => {
     expect(movedOutBeforeBolt.enemies[0].hp).toBe(inRangeRun.enemies[0].hp);
 
     const outOfRangeRun = withPlayerAndEnemies(
-      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1 },
       [
         { x: 760, y: 500, hp: 180, maxHp: 180 },
@@ -3406,7 +3409,7 @@ describe("combat actions and impact feel", () => {
 
   it("samples rushing monster positions before resolving ink-shot projectile targets", () => {
     const run = withPlayerAndEnemies(
-      createCombatRun(selectBaseClass(createInitialState(), "ink-shadow-ranger"), "cinder-kiln-alley"),
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1 },
       [
         { x: 700, y: 340, hp: 180, maxHp: 180 },
@@ -3488,6 +3491,99 @@ describe("combat actions and impact feel", () => {
     expect(skillHitEvents(interrupted, "ink-shot")).toHaveLength(0);
     expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
     expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "ink-shot")).toHaveLength(0);
+  });
+
+  it("delays marking-bolt marks until the contract hit frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 500, y: 340, hp: 180, maxHp: 180 },
+        { x: 620, y: 356, hp: 180, maxHp: 180 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "marking-bolt" });
+    const [markAtMs] = scheduledSkillTimes(cast, "marking-bolt");
+    const beforeMark = stepToElapsed(cast, markAtMs - 1);
+    const hit = stepToElapsed(cast, markAtMs);
+    const [markHit] = skillHitEvents(hit, "marking-bolt");
+
+    expect(markAtMs).toBe(180);
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("marking-bolt");
+    expect(skillHitEvents(cast, "marking-bolt")).toHaveLength(0);
+    expect(cast.enemies.map((enemy) => enemy.marks)).toEqual([0, 0]);
+    expect(beforeMark.enemies.map((enemy) => enemy.marks)).toEqual([0, 0]);
+    expect(skillHitEvents(beforeMark, "marking-bolt")).toHaveLength(0);
+    expect(markHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      hitPhase: "contract-mark",
+      vfxCue: "contract-mark-impact",
+      vfxWindowMs: 320
+    });
+    expect(hit.enemies.map((enemy) => enemy.marks)).toEqual([2, 0]);
+    expect(hit.player.activeSkillMovement).toBeUndefined();
+  });
+
+  it("rechecks marking-bolt targets and cancels pending marks on interruption", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 500, y: 340, hp: 180, maxHp: 180 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "marking-bolt" });
+    const [markAtMs] = scheduledSkillTimes(cast, "marking-bolt");
+    const escaped = stepToElapsed(
+      {
+        ...cast,
+        enemies: cast.enemies.map((enemy) => ({
+          ...enemy,
+          position: { x: 760, y: 500 }
+        }))
+      },
+      markAtMs
+    );
+
+    expect(skillHitEvents(escaped, "marking-bolt")).toHaveLength(0);
+    expect(skillMissEvents(escaped, "marking-bolt")).toHaveLength(1);
+    expect(escaped.enemies[0].marks).toBe(0);
+
+    const interruptRun = withPlayerAndEnemies(
+      createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 300, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const interruptedCast = performAction(interruptRun, { type: "skill", skillId: "marking-bolt" });
+    const attackedCast: CombatRun = {
+      ...interruptedCast,
+      enemies: interruptedCast.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 90,
+              attackRecoverUntilMs: 360,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const [interruptedMarkAtMs] = scheduledSkillTimes(attackedCast, "marking-bolt");
+    const interrupted = stepToElapsed(attackedCast, interruptedMarkAtMs);
+    const playerHits = interrupted.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(playerHits).toHaveLength(1);
+    expect(skillHitEvents(interrupted, "marking-bolt")).toHaveLength(0);
+    expect(skillMissEvents(interrupted, "marking-bolt")).toHaveLength(0);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "marking-bolt")).toHaveLength(0);
+    expect(interrupted.enemies[0].marks).toBe(0);
   });
 
   it("delays ink-snare into bind and snap hit frames before controlling targets", () => {

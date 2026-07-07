@@ -48,6 +48,7 @@ export type CombatHitPhase =
   | "earth-crack"
   | "furnace-eruption"
   | "ink-bolt"
+  | "contract-mark"
   | "glass-cut"
   | "jab-chain"
   | "shield-jab"
@@ -87,6 +88,7 @@ export type CombatVfxCue =
   | "earth-furnace-crack"
   | "earth-furnace-eruption"
   | "ink-shot-pierce"
+  | "contract-mark-impact"
   | "ink-snare-bind"
   | "ink-snare-snap"
   | "glass-slash-cut"
@@ -2576,6 +2578,47 @@ function applyInkShot(run: CombatRun, skill: ClassSkillDefinition, canceledFromC
     hitPhase: "ink-bolt",
     vfxCue: "ink-shot-pierce",
     vfxWindowMs: 260
+  });
+}
+
+function markingBoltHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 320,
+    laneRange: 64,
+    targetCap: 1,
+    frontOnly: true,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.72)),
+    hitstopMs: 50,
+    knockback: 18,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    marksApplied: markCountForSkill(skill)
+  };
+}
+
+function applyMarkingBolt(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const castingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(
+      run,
+      skill,
+      {
+        x: clamp(run.player.x + skill.animation.lungePx * run.player.facing, 0, run.arena.width),
+        y: run.player.y
+      },
+      run.elapsedMs + skill.animation.hitFrameMs
+    ),
+    skill,
+    canceledFromCombo
+  );
+
+  return schedulePlayerHitboxEffect(castingRun, markingBoltHitbox(run, skill, canceledFromCombo), run.player, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-contract-mark`,
+    hitPhase: "contract-mark",
+    vfxCue: "contract-mark-impact",
+    vfxWindowMs: 320
   });
 }
 
@@ -5726,6 +5769,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "ink-shot") {
     return finishSkillAction(applyInkShot(run, skill, canceledFromCombo));
+  }
+
+  if (skill.id === "marking-bolt") {
+    return finishSkillAction(applyMarkingBolt(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "ink-snare") {

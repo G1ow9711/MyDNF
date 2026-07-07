@@ -84,6 +84,9 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 | Browser ground-heavy follow check reported missing heavy impact | 1 | Root cause was the temporary check page writing `enemy.x/y` instead of real `enemy.position.x/y`; fixed the fixture and reran browser validation successfully |
 | PowerShell rejected `&&` while staging | 1 | Re-ran staging and status as separate commands |
 | `git add` found a stale worktree `index.lock` | 1 | Verified no `git.exe` process was running and removed the 0-byte stale lock |
+| PowerShell treated an unescaped regex pipe as a command while auditing `marking-bolt` | 1 | Re-ran later searches with safer quoting and avoided pipe-heavy ad-hoc regex in shell |
+| Focused `marking-bolt` RED initially failed on insufficient Ink resource | 1 | Updated the new fixtures to use an Ink class state with enough `heat`/resource for the skill cast |
+| Focused `marking-bolt` interruption test expected a hit from an out-of-range monster setup | 1 | Moved the interruption fixture to a close enemy after the cast so the monster hit genuinely cancels the pending mark |
 
 ## Notes
 - Project root at start: `F:\My_DNF`.
@@ -154,6 +157,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current DNF hitstop presentation progress: combat scene now exposes hitstop state so player, monster, weapon, and motion-trail animations freeze during the impact pause, while hit sparks and damage numbers continue playing.
 - Current Iron shield-quake progress: `shield-quake` now uses a strict 280 ms delayed quake hitbox, model-following shield-slam movement, live target recheck, forced knockdown, and dedicated cast/target quake VFX instead of the generic input-frame skill hit path.
 - Current Iron furnace-taunt progress: `furnace-taunt` now uses a strict 230 ms delayed roar control hitbox, model-following taunt movement, live target recheck, monster-interruption cancellation, pull/control target reaction, and dedicated furnace-roar cast/target VFX. Character modeling remains lightweight by design for this prototype phase; combat timing, actor motion, and VFX strictness remain the acceptance bar.
+- Current Ink marking-bolt progress: `marking-bolt` now uses a strict 180 ms delayed contract-mark frame, keeps cast-frame targets unmarked, rechecks live targets at impact, cancels pending marks on monster interruption, applies target-bound `contract-mark` VFX only on the real hit frame, and renders dedicated player/weapon/cast/impact animations. Character and monster geometry may stay lightweight for this prototype phase, but model-following action, hit-frame timing, hit feedback, and skill/monster VFX remain strict gates.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

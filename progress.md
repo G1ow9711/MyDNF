@@ -2647,3 +2647,26 @@
   - Related combat/app/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 356 tests.
   - Browser validation on `http://127.0.0.1:5178/furnace-taunt-check.html` confirmed 230 ms roar timing, no cast/before-roar HP loss, two hit-frame impacts, target control, computed animations `player-iron-furnace-taunt`, `weapon-taunt-ring`, `furnace-roar-cast-core`, `furnace-roar-impact-core`, `furnace-roar-impact-ring`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 438 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 97 DNF-Style Marking Bolt Strict Contract
+- Continued from the user's clarified priority: character and monster model geometry may stay simpler while the whole loop is connected, but combat motion smoothness, strict hit frames, model-following action, skill VFX, monster VFX, and target action changes are strict acceptance gates.
+- Used parallel read-only agents:
+  - Combat audit selected `marking-bolt` as a high-value Ink starter gap because it was still a generic immediate marker and directly fed the mark detonation flow without a real impact frame.
+  - UI/CSS audit confirmed `marking-bolt` already had catalog metadata (`ink-mark`, `mark-bolt`, `contract-mark`) but lacked dedicated CSS selectors and keyframes for player, weapon, cast seal, and target seal burst.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires no cast-frame marks, a 180 ms scheduled contract hit frame, live target recheck, delayed MISS, target cap 1, `contract-mark` / `contract-mark-impact` metadata, and cancellation when monster damage interrupts before impact.
+  - `src/tests/app-integration.test.ts` now steps the delayed mark frame before detonation and requires app-rendered `marking-bolt` cast/impact metadata.
+  - `src/tests/ui-smoke.test.ts` requires delayed target-bound contract seal impact markup and dedicated CSS selectors/keyframes.
+- RED evidence:
+  - Focused RED failed because existing `marking-bolt` had no scheduled effects and resolved through the generic immediate skill path.
+  - Additional fixture fixes were needed: new Ink fixtures required enough resource, and the interruption case needed a close monster attack to actually hit before the contract mark frame.
+- Implemented:
+  - Added `contract-mark` hit phase and `contract-mark-impact` VFX cue.
+  - Added `applyMarkingBolt()` with a 180 ms dynamic single-target hitbox, stationary model-following cast state, live target recheck at impact, delayed MISS, mark application only on the hit frame, and interruption-safe pending mark cancellation.
+  - Added dedicated `ink-mark` player animation, `mark-bolt` weapon arc, `contract-mark` cast VFX, and target-bound contract seal impact CSS/keyframes.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts -t "marking-bolt|ink marking skills"` (3 tests).
+  - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "marking-bolt"` (4 tests).
+  - Browser validation on `http://127.0.0.1:5178/marking-bolt-check.html` confirmed 180 ms mark timing, no cast/before-impact marks or hits, one impact-frame hit, target marks `[2,0]`, `contract-mark` / `contract-mark-impact` metadata, computed animations `player-ink-mark`, `weapon-mark-bolt`, `contract-mark-cast-core`, `contract-mark-cast-ring`, `contract-mark-impact-core`, `contract-mark-impact-ring`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Related combat/app/UI/audio suite passed after updating an older class-mechanic assertion to wait for the delayed mark frame: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 361 tests.
+  - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 443 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

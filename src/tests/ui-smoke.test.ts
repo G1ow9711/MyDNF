@@ -15,6 +15,7 @@ import {
 } from "../game/combat";
 import { createAudioState, setVolume } from "../systems/audio";
 import { createInitialState, createOwnedGear } from "../game/state";
+import type { GameState } from "../game/types";
 import { advanceClass, selectBaseClass } from "../systems/classes";
 import { renderAppHtml } from "../ui/app";
 import {
@@ -40,6 +41,16 @@ const publicWeaponAssetModules = import.meta.glob("../../public/assets/weapons/*
 }) as Record<string, string>;
 
 const stylesCss = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+function withHeat(state: GameState, heat: number): GameState {
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      heat
+    }
+  };
+}
 
 function skillHitEvents(run: CombatRun, skillId: string): CombatHitEvent[] {
   return run.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === skillId);
@@ -1011,6 +1022,61 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes weapon-crossbow-shot");
     expect(stylesCss).toContain("@keyframes ink-bolt-cast-core");
     expect(stylesCss).toContain("@keyframes ink-shot-pierce-core");
+  });
+
+  it("renders marking-bolt with delayed contract seal impact styling", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          marks: 0,
+          position: { x: player.x + 132 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "marking-bolt" }
+    );
+    const [markAtMs] = scheduledSkillTimes(castRun, "marking-bolt");
+    const beforeMarkHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, markAtMs - 1)
+    });
+    const markRun = stepToElapsed(castRun, markAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: markRun
+    });
+
+    expect(skillHitEvents(castRun, "marking-bolt")).toHaveLength(0);
+    expect(castRun.enemies[0].marks).toBe(0);
+    expect(beforeMarkHtml).toContain('data-player-skill-move="marking-bolt"');
+    expect(beforeMarkHtml).not.toContain('data-skill-impact-vfx="marking-bolt"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="marking-bolt"')).toBe(1);
+    expect(html).toContain('data-impact-vfx-shape="contract-mark"');
+    expect(html).toContain('data-vfx-cue="contract-mark-impact"');
+    expect(html).toContain('data-hit-phase="contract-mark"');
+    expect(html).toContain('data-ink-marks="2"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-contract-mark"');
+  });
+
+  it("defines dedicated marking-bolt player, weapon, contract cast, and seal impact animations", () => {
+    expect(stylesCss).toContain('[data-skill-animation-preset="ink-mark"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="mark-bolt"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-contract-mark");
+    expect(stylesCss).toContain(".skill-impact-shape-contract-mark");
+    expect(stylesCss).toContain("@keyframes player-ink-mark");
+    expect(stylesCss).toContain("@keyframes weapon-mark-bolt");
+    expect(stylesCss).toContain("@keyframes contract-mark-cast-core");
+    expect(stylesCss).toContain("@keyframes contract-mark-impact-core");
   });
 
   it("defines dedicated ink-snare player, weapon, cast, bind, and snap animations", () => {

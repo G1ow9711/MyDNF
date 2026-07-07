@@ -1263,10 +1263,21 @@ describe("playable app integration actions", () => {
     inkModel = placeAliveEnemiesInFront(inkModel);
     inkModel = reduceAppAction(inkModel, { type: "combatAction", action: "skill", skillId: "marking-bolt" });
 
+    if (!inkModel.combatRun) {
+      throw new Error("Expected active Ink combat run");
+    }
+
+    const inkCastHtml = renderAppHtml(inkModel);
+    const [inkMarkAtMs] = scheduledSkillTimes(inkModel.combatRun, "marking-bolt");
+    inkModel = {
+      ...inkModel,
+      combatRun: stepToElapsed(inkModel.combatRun, inkMarkAtMs)
+    };
     const inkHtml = renderAppHtml(inkModel);
 
     expect(inkHtml).toContain('data-class-id="ink-shadow-ranger"');
     expect(inkHtml).toContain('data-resource-id="ink"');
+    expect(inkCastHtml).toContain('data-ink-marks="0"');
     expect(inkHtml).toContain('data-ink-marks="2"');
   });
 
@@ -3326,6 +3337,18 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run");
     }
 
+    expect(model.combatRun.enemies[0].marks).toBe(0);
+
+    const [markAtMs] = scheduledSkillTimes(model.combatRun, "marking-bolt");
+    model = {
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, markAtMs)
+    };
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after marking-bolt impact");
+    }
+
     expect(model.combatRun.enemies[0].marks).toBe(2);
 
     const steppedRun = stepCombat(model.combatRun, {}, 620);
@@ -3368,6 +3391,48 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-skill-impact-vfx="night-mark-detonation"');
     expect(html).toContain('data-hit-phase="detonate"');
     expect(html).toContain('data-skill-cooldown-remaining="');
+  });
+
+  it("renders marking-bolt as a delayed contract mark with target-bound seal burst", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "marking-bolt" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after marking-bolt");
+    }
+
+    const [markAtMs] = scheduledSkillTimes(model.combatRun, "marking-bolt");
+    const castHtml = renderAppHtml(model);
+    const beforeMarkHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, markAtMs - 1)
+    });
+    const markRun = stepToElapsed(model.combatRun, markAtMs);
+    const markHtml = renderAppHtml({
+      ...model,
+      combatRun: markRun
+    });
+
+    expect(skillHitEvents(model.combatRun, "marking-bolt")).toHaveLength(0);
+    expect(model.combatRun.enemies[0].marks).toBe(0);
+    expect(castHtml).toContain('data-active-skill-id="marking-bolt"');
+    expect(castHtml).toContain('data-skill-animation-preset="ink-mark"');
+    expect(castHtml).toContain('data-skill-weapon-arc="mark-bolt"');
+    expect(castHtml).toContain('data-skill-vfx-shape="contract-mark"');
+    expect(castHtml).toContain('data-player-skill-move="marking-bolt"');
+    expect(beforeMarkHtml).not.toContain('data-skill-impact-vfx="marking-bolt"');
+    expect(markHtml).toContain('data-skill-impact-vfx="marking-bolt"');
+    expect(markHtml).toContain('data-impact-vfx-shape="contract-mark"');
+    expect(markHtml).toContain('data-hit-phase="contract-mark"');
+    expect(markHtml).toContain('data-vfx-cue="contract-mark-impact"');
+    expect(markHtml).toContain('data-ink-marks="2"');
+    expect(markHtml).toContain('class="skill-impact-burst skill-impact-shape-contract-mark"');
   });
 
   it("renders mechanism-shadow-net as a delayed binding field with enemy control motion", () => {

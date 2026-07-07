@@ -581,6 +581,14 @@
 - Buffer/cancel note: buffered actions now release from the advanced frame state, so the first scheduled light hit can confirm combo before a buffered second light or command skill releases. Combo cancel now requires `cancelWindowUntilMs > elapsedMs`, so an empty zero window cannot unlock skills.
 - Browser validation note: the temporary page on `http://127.0.0.1:5178/.codex-local/tmp/ground-light-check.html` confirmed input-frame no-damage/no-spark state, 55 ms impact HP/resource/cancel changes, pre-hit cancel buffering, post-hit cancel release, `playerMotion="skill"` on cancel, and empty warning/error console output.
 
+## DNF-Style Ground-Heavy Model-Following Findings
+- Current user clarification: character geometry may stay lightweight while core systems are connected, but combat action smoothness, model-following attacks, strict hit frames, hit feedback, skill VFX, and monster VFX remain mandatory.
+- Parallel read-only audits agreed grounded heavy still risked looking like only the bitmap/weapon moved unless the real combat actor coordinate changed during windup.
+- Combat note: grounded heavy now creates a short `ground-heavy` timed movement from the sampled input-frame position to a 34 px launcher endpoint, then schedules the heavy hitbox from that endpoint. This means target selection uses the moved actor position, not the original standing coordinate.
+- Presentation note: the player wrapper `--actor-x` now changes from input frame to hit frame, while UI exposes `data-player-normal-attack-move="ground-heavy"` plus start/end/hit X hooks. The skill-movement hook is filtered so ground-heavy does not masquerade as a catalog skill movement in DOM/CSS.
+- Test note: regression coverage places an enemy just outside the old origin-based heavy range but inside the moved endpoint range, proving the hitbox follows the model instead of only extending the animation.
+- Browser validation note: the check page must patch `enemy.position`, not ad-hoc `enemy.x/y`; after correcting that fixture, browser evidence confirmed wrapper X movement, hit-frame impact VFX, enemy airborne transition, and endpoint-based edge hit.
+
 ## DNF-Style Ground-Heavy Hit Frame Findings
 - Current priority remains strict combat feel over heavier model detail: the launcher can use a simple model, but its windup, impact frame, enemy airborne transition, hitstop, resource gain, and VFX must align with real combat timing.
 - Parallel read-only audits found grounded heavy still used `applyPlayerHitbox` at input time, immediately mutating HP/airborne/resource while writing a future `occurredAtMs: input + 85`.

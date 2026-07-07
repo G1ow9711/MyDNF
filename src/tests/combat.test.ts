@@ -455,6 +455,36 @@ describe("combat actions and impact feel", () => {
     expect(hit.player.hitstopUntilMs).toBe(hitAtMs + 72);
   });
 
+  it("moves grounded heavy into its launcher point and resolves the hitbox from the moved model position", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 456, y: 340, hp: 220, maxHp: 220 }]
+    );
+    const cast = performAction(run, { type: "heavy" });
+    const [hitAtMs] = scheduledGroundHeavyTimes(cast);
+    const midWindup = stepToElapsed(cast, cast.elapsedMs + 42);
+    const hit = stepToElapsed(cast, hitAtMs);
+    const [heavyHit] = hit.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.action === "heavy");
+
+    expect(cast.player.activeSkillMovement).toMatchObject({
+      skillId: "ground-heavy",
+      startX: run.player.x,
+      endX: run.player.x + 34,
+      startY: run.player.y,
+      endY: run.player.y
+    });
+    expect(midWindup.player.x).toBeGreaterThan(run.player.x);
+    expect(midWindup.player.x).toBeLessThan(run.player.x + 34);
+    expect(hit.player.x).toBe(run.player.x + 34);
+    expect(heavyHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      action: "heavy",
+      occurredAtMs: hitAtMs
+    });
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
   it("rechecks grounded heavy targets at the launcher frame and delays misses", () => {
     const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
     const inRangeRun = withPlayerAndEnemies(baseRun, { x: 240, y: 340, facing: 1 }, [{ x: 304, y: 340, hp: 220, maxHp: 220 }]);

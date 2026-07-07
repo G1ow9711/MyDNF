@@ -600,6 +600,9 @@ const dashLightReadyWindowMs = 220;
 const dashLightInputToHitMs = 90;
 const dashLightActionMs = 260;
 const dashLightLungePx = 46;
+const groundHeavyInputToHitMs = 85;
+const groundHeavyActionMs = 260;
+const groundHeavyLungePx = 34;
 const quickRecoverReadyWindowMs = 260;
 const quickRecoverActionMs = 260;
 const quickRecoverInvulnerableMs = 520;
@@ -5391,9 +5394,29 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   }
 
   if (action.type === "heavy") {
-    const actionLockUntilMs = run.elapsedMs + 260;
+    const origin = samplePlayerPosition(run.player, run.elapsedMs);
+    const endPosition = {
+      x: clamp(origin.x + groundHeavyLungePx * run.player.facing, 0, run.arena.width),
+      y: origin.y
+    };
+    const actionLockUntilMs = run.elapsedMs + groundHeavyActionMs;
+    const movingRun: CombatRun = {
+      ...run,
+      player: {
+        ...run.player,
+        activeSkillMovement: {
+          skillId: "ground-heavy",
+          startAtMs: run.elapsedMs,
+          endAtMs: run.elapsedMs + groundHeavyInputToHitMs,
+          startX: origin.x,
+          startY: origin.y,
+          endX: endPosition.x,
+          endY: endPosition.y
+        }
+      }
+    };
     const scheduledRun = schedulePlayerHitboxEffect(
-      run,
+      movingRun,
       {
         action: "heavy",
         rangeX: 158,
@@ -5404,11 +5427,11 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         hitstopMs: 72,
         knockback: 60,
         juggle: true,
-        inputToHitMs: 85,
+        inputToHitMs: groundHeavyInputToHitMs,
         canceledFromCombo,
         actionTags: ["launcher"]
       },
-      { x: run.player.x, y: run.player.y },
+      endPosition,
       run.player.facing,
       {
         id: `ground-heavy-${run.elapsedMs}`,

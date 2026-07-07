@@ -666,6 +666,12 @@ describe("playable app integration actions", () => {
     expect(model.combatRun?.comboCount).toBe(0);
     expect(inputHtml).toContain('data-player-motion="heavy"');
     expect(inputHtml).toContain('class="combat-player-art actor-model actor-model-heavy"');
+    expect(inputHtml).toContain('--actor-x: 27.08%;');
+    expect(inputHtml).toContain('data-player-normal-attack-type="heavy"');
+    expect(inputHtml).toContain('data-player-normal-attack-move="ground-heavy"');
+    expect(inputHtml).toContain('data-player-normal-attack-start-x="260"');
+    expect(inputHtml).toContain('data-player-normal-attack-end-x="294"');
+    expect(inputHtml).not.toContain('data-player-skill-move="ground-heavy"');
     expect(inputHtml).not.toContain('data-airborne-state="airborne"');
     expect(inputHtml).not.toContain('hit-impact-heavy');
 
@@ -677,8 +683,10 @@ describe("playable app integration actions", () => {
     const airborneHtml = renderAppHtml(model);
 
     expect(model.combatRun?.comboCount).toBe(1);
+    expect(model.combatRun?.player.x).toBe(294);
     expect(airborneHtml).toContain('data-combo-count="1"');
     expect(airborneHtml).toContain('class="combo-meter"');
+    expect(airborneHtml).toContain('--actor-x: 30.63%;');
     expect(airborneHtml).toContain('data-airborne-state="airborne"');
     expect(airborneHtml).toContain('data-hit-action="heavy"');
     expect(airborneHtml).toContain('data-enemy-motion="airborne"');

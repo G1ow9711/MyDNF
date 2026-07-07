@@ -1824,10 +1824,19 @@ describe("town app shell", () => {
 
     expect(inputHtml).toContain('data-player-motion="heavy"');
     expect(inputHtml).toContain('class="combat-player-art actor-model actor-model-heavy"');
+    expect(inputHtml).toContain('--actor-x: 27.08%;');
+    expect(inputHtml).toContain('data-player-normal-attack-type="heavy"');
+    expect(inputHtml).toContain('data-player-normal-attack-move="ground-heavy"');
+    expect(inputHtml).toContain('data-player-normal-attack-move-progress="0"');
+    expect(inputHtml).toContain('data-player-normal-attack-start-x="260"');
+    expect(inputHtml).toContain('data-player-normal-attack-end-x="294"');
+    expect(inputHtml).toContain('data-player-normal-attack-hit-x="294"');
+    expect(inputHtml).not.toContain('data-player-skill-move="ground-heavy"');
     expect(inputHtml).not.toContain('data-airborne-state="airborne"');
     expect(inputHtml).not.toContain('hit-impact-heavy');
 
     expect(hitHtml).toContain('data-player-motion="heavy"');
+    expect(hitHtml).toContain('--actor-x: 30.63%;');
     expect(hitHtml).toContain('data-hit-action="heavy"');
     expect(hitHtml).toContain('data-airborne-state="airborne"');
     expect(hitHtml).toContain('data-enemy-motion="airborne"');

@@ -81,6 +81,9 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 | Error | Attempt | Resolution |
 |-------|---------|------------|
 | `git status --short` failed: not a git repository | 1 | Logged repo state; will not rely on git until initialized or requested |
+| Browser ground-heavy follow check reported missing heavy impact | 1 | Root cause was the temporary check page writing `enemy.x/y` instead of real `enemy.position.x/y`; fixed the fixture and reran browser validation successfully |
+| PowerShell rejected `&&` while staging | 1 | Re-ran staging and status as separate commands |
+| `git add` found a stale worktree `index.lock` | 1 | Verified no `git.exe` process was running and removed the 0-byte stale lock |
 
 ## Notes
 - Project root at start: `F:\My_DNF`.
@@ -142,6 +145,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current DNF combo-cancel presentation progress: grounded light hit-confirm cancel is now visible through scene/player/slot `data-combo-cancel-*` hooks, skill-slot cancel highlighting, `data-skill-release-source="cancel"`, `CANCEL` toast feedback, and a player cancel-flash overlay while preserving normal skill animations.
 - Current DNF ground-light strictness progress: grounded light attacks now animate immediately but apply HP damage, resource gain, hitstop, hit sparks, monster hit reaction, combo count, and cancel-window opening only on the scheduled 55/65/78 ms hit frame, with live target recheck, delayed miss, and interruption-safe pending damage cancellation.
 - Current DNF ground-heavy strictness progress: grounded heavy attacks now animate immediately but apply HP damage, resource gain, hitstop, launcher/airborne state, hit sparks, and heavy impact VFX only on the scheduled 85 ms hit frame, with live target recheck, delayed miss, and interruption-safe pending damage cancellation.
+- Current DNF ground-heavy movement progress: grounded heavy now moves the actual player actor 34 px toward the launcher point during the 85 ms windup, and the scheduled hitbox resolves from that moved endpoint rather than the input-frame origin.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

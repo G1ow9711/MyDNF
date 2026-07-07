@@ -2459,3 +2459,23 @@
   - Production build passed: `npm run build`.
   - `git diff --check` passed.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/ground-heavy-check.html` confirmed input-frame player motion `heavy`, no hit event, HP 220, resource 40, no airborne, no heavy impact, computed animations `player-heavy-strike` and `weapon-heavy-swing`; at 85 ms it confirmed one heavy hit, HP 168, resource 44, enemy motion/airborne state `airborne`, hitstop until 157 ms, and `hit-impact-heavy` slash animation; monster interruption at 80 ms produced one player-hit, zero heavy hits, unchanged enemy HP/resource, and no airborne ghost hit. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+
+## Task 88 DNF-Style Ground-Heavy Model Following
+- Continued from user clarification: character and monster geometry can stay simpler while full playability is connected, but combat motion smoothness, model-following attacks, strict hit frames, skill VFX, monster VFX, and hit feedback are strict.
+- Used parallel read-only agents:
+  - Combat audit recommended reusing timed player movement for grounded heavy, scheduling the heavy hitbox from the 85 ms endpoint, and keeping the hitbox as a normal `heavy` action rather than a catalog skill hit.
+  - UI/CSS audit warned that moving only `.combat-player-art` would not prove the actor model follows the attack; wrapper `--actor-x` or explicit normal-attack movement hooks had to change.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` places an enemy just outside the old origin-based heavy range but inside the moved endpoint range, and checks mid-windup player X plus the 85 ms launcher endpoint.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` assert input-frame `--actor-x`, hit-frame `--actor-x`, normal attack movement hooks, and no accidental `data-player-skill-move="ground-heavy"`.
+- Implemented:
+  - Grounded heavy now creates a 34 px timed `ground-heavy` movement from the sampled input-frame player position to the launcher point during the 85 ms windup.
+  - The scheduled heavy hitbox now resolves from that moved endpoint, so target selection follows the player model instead of only extending a bitmap animation.
+  - UI now exposes normal-attack movement hooks for start/end/hit X and progress, while filtering ground-heavy out of catalog skill movement DOM hooks.
+- Verification so far:
+  - Focused RED/GREEN path passed after implementation: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "grounded heavy|combo HUD plus enemy airborne"`, 6 tests.
+  - Full suite passed: `npm test`, 13 files / 424 tests.
+  - Production build passed: `npm run build`.
+  - Browser validation initially failed because the temporary check page wrote `enemy.x/y` instead of the real `enemy.position.x/y`; after correcting the fixture, the page on `http://127.0.0.1:5178/.codex-local/tmp/ground-heavy-follow-check.html` passed with input actor `--actor-x: 27.08%`, hit actor `--actor-x: 30.63%`, wrapper rect movement 182 -> 211, mid-windup player X 276.6, hit player X 294, dynamic origin X 294, `data-player-normal-attack-move="ground-heavy"`, empty skill-move hook, `hit-impact-heavy`, enemy airborne true, and zero warn/error console logs.
+  - Edge browser fixture confirmed old-origin miss/new-endpoint hit behavior: player 240 -> 274, dynamic origin X 274, one heavy hit, enemy HP 220 -> 168. Temporary check page was deleted and the in-app browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 424 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

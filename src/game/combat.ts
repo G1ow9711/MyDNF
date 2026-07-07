@@ -600,6 +600,7 @@ const dashLightReadyWindowMs = 220;
 const dashLightInputToHitMs = 90;
 const dashLightActionMs = 260;
 const dashLightLungePx = 46;
+const groundLightLungePxByComboStep = [18, 22, 28] as const;
 const groundHeavyInputToHitMs = 85;
 const groundHeavyActionMs = 260;
 const groundHeavyLungePx = 34;
@@ -1065,6 +1066,10 @@ function activeLightComboStep(run: CombatRun): number {
 
 function nextLightComboStep(run: CombatRun): number {
   return (activeLightComboStep(run) % lightComboSteps.length) + 1;
+}
+
+function groundLightLungePx(comboStep: number): number {
+  return groundLightLungePxByComboStep[comboStep - 1] ?? groundLightLungePxByComboStep[0];
 }
 
 function getDungeon(dungeonId: string) {
@@ -4354,7 +4359,8 @@ function applyScheduledPlayerHitboxEffect(
         normalAttackUntilMs: 0,
         normalAttackStartedAtMs: 0,
         normalAttackComboStep: 0,
-        normalAttackType: "none"
+        normalAttackType: "none",
+        activeSkillMovement: undefined
       }
     };
   }
@@ -5345,12 +5351,32 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   if (action.type === "light") {
     const comboStep = nextLightComboStep(run);
     const combo = lightComboSteps[comboStep - 1];
+    const origin = samplePlayerPosition(run.player, run.elapsedMs);
+    const endPosition = {
+      x: clamp(origin.x + groundLightLungePx(comboStep) * run.player.facing, 0, run.arena.width),
+      y: origin.y
+    };
     const actionLockUntilMs = run.elapsedMs + combo.actionLockMs;
+    const movingRun: CombatRun = {
+      ...run,
+      player: {
+        ...run.player,
+        activeSkillMovement: {
+          skillId: `ground-light-${comboStep}`,
+          startAtMs: run.elapsedMs,
+          endAtMs: run.elapsedMs + combo.inputToHitMs,
+          startX: origin.x,
+          startY: origin.y,
+          endX: endPosition.x,
+          endY: endPosition.y
+        }
+      }
+    };
     const scheduledRun = schedulePlayerHitboxEffect(
-      run,
+      movingRun,
       {
       action: "light",
-      rangeX: combo.rangeX,
+      rangeX: Math.max(1, combo.rangeX - groundLightLungePx(comboStep)),
       laneRange: combo.laneRange,
       targetCap: 1,
       frontOnly: true,
@@ -5362,7 +5388,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       canceledFromCombo,
       actionTags: combo.actionTags
       },
-      { x: run.player.x, y: run.player.y },
+      endPosition,
       run.player.facing,
       {
         id: `ground-light-${run.elapsedMs}-${comboStep}`,

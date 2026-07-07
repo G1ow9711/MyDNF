@@ -2502,3 +2502,25 @@
   - Production build passed: `npm run build`.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/combat-tick-48-check.html` confirmed `windupElapsedMs: 48`, player X 260 -> 281.12 during windup, no heavy impact before 85 ms, then `impactElapsedMs: 96`, player X 294, `hit-impact-heavy`, enemy airborne true, and empty warn/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 425 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 90 DNF-Style Ground-Light Model Following
+- Continued from the user's clarified priority: character and monster geometry may stay simpler for now, but combat action smoothness, model-following attacks, strict hit frames, hit feedback, skill VFX, and monster VFX remain hard acceptance criteria.
+- Used parallel read-only agents:
+  - Combat audit confirmed grounded light scheduled hit frames from the input-frame origin and did not set `activeSkillMovement`.
+  - UI audit confirmed light already exposed `data-player-motion="light"` and combo model classes, but lacked normal-attack movement hooks proving actor coordinate movement.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires grounded light to create `ground-light-1` movement, move the real player X between input and hit frame, and resolve the hitbox from the moved slash point.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require `data-player-normal-attack-move="ground-light-1"`, start/end/hit X hooks, no fake `data-player-skill-move`, and hit-frame enemy feedback.
+- RED evidence:
+  - Focused RED failed because `cast.player.activeSkillMovement` was `undefined` and the light HTML movement hooks were empty.
+- Implemented:
+  - Added per-step grounded-light lunge distances of 18/22/28 px.
+  - Grounded light now sets `activeSkillMovement` to `ground-light-1/2/3`, reaches the slash endpoint by the scheduled 55/65/78 ms hit frame, and schedules the dynamic hitbox from that endpoint.
+  - Grounded light range is reduced by the same lunge distance, preserving total front reach while making the model and hitbox origin move together.
+  - UI normal-attack movement hooks now include `ground-light-*` and continue filtering those ids out of catalog skill movement hooks.
+- Verification so far:
+  - Focused RED confirmed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "grounded light"` failed on missing `activeSkillMovement` and missing light movement hooks before implementation.
+  - Focused GREEN passed: same command, 6 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 332 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/ground-light-follow-check.html` confirmed start X 240, mid X 248.676, impact X 258, movement `ground-light-1`, hit at 55 ms, one light hit, enemy HP 180 -> 154, `data-hit-action="light"`, `player-light-strike`, `weapon-light-swing`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 428 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

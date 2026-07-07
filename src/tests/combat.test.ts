@@ -412,6 +412,36 @@ describe("combat actions and impact feel", () => {
     expect(movedOut.player.cancelWindowUntilMs).toBe(0);
   });
 
+  it("moves grounded light into its slash point and resolves the hitbox from the moved model position", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 405, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "light" });
+    const [hitAtMs] = scheduledGroundLightTimes(cast);
+    const midWindup = stepToElapsed(cast, cast.elapsedMs + 27);
+    const hit = stepToElapsed(cast, hitAtMs);
+    const [lightHit] = hit.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.action === "light");
+
+    expect(cast.player.activeSkillMovement).toMatchObject({
+      skillId: "ground-light-1",
+      startX: run.player.x,
+      endX: run.player.x + 18,
+      startY: run.player.y,
+      endY: run.player.y
+    });
+    expect(midWindup.player.x).toBeGreaterThan(run.player.x);
+    expect(midWindup.player.x).toBeLessThan(run.player.x + 18);
+    expect(hit.player.x).toBe(run.player.x + 18);
+    expect(lightHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      action: "light",
+      occurredAtMs: hitAtMs
+    });
+    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
   it("resolves grounded heavy damage, resource, launcher, and hitstop only on the real hit frame", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       hp: 220,
@@ -4746,7 +4776,7 @@ describe("combat actions and impact feel", () => {
             hazardId: "test-buffer-after-hazard",
             enemyId: run.enemies[0].id,
             skillId: "taotie-forge-collapse",
-            x: 240,
+            x: 258,
             y: 340,
             radiusX: 16,
             laneRange: 24,

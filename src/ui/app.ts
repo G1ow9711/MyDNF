@@ -831,7 +831,7 @@ function playerSkillMovementProgress(run: CombatRun, movement = run.player.activ
 function playerUiSkillMovement(run: CombatRun): CombatRun["player"]["activeSkillMovement"] {
   const movement = run.player.activeSkillMovement;
 
-  if (movement?.skillId === "ground-heavy") {
+  if (movement?.skillId === "ground-heavy" || movement?.skillId.startsWith("ground-light-")) {
     return undefined;
   }
 
@@ -842,6 +842,10 @@ function playerNormalAttackMovement(run: CombatRun): CombatRun["player"]["active
   const movement = run.player.activeSkillMovement;
 
   if (movement?.skillId === "ground-heavy" && run.player.normalAttackType === "heavy") {
+    return movement;
+  }
+
+  if (movement?.skillId.startsWith("ground-light-") && run.player.normalAttackType === "light") {
     return movement;
   }
 

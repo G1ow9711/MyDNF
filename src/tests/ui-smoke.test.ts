@@ -1848,6 +1848,55 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes weapon-heavy-swing");
   });
 
+  it("renders DNF-style grounded light with timed model-following slash hooks", () => {
+    const state = createInitialState();
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const readyRun = withSingleReadyEnemy(
+      {
+        ...baseRun,
+        player: {
+          ...baseRun.player,
+          x: 240,
+          y: 340,
+          facing: 1,
+          actionLockUntilMs: 0,
+          hurtLockUntilMs: 0
+        }
+      },
+      {
+        position: { x: 405, y: 340 },
+        nextAttackAtMs: 9999
+      }
+    );
+    const windup = performAction(readyRun, { type: "light" });
+    const [hitAtMs] = scheduledGroundLightTimes(windup);
+    const inputHtml = renderAppHtml({ state, mode: "combat", combatRun: windup });
+    const hit = stepToElapsed(windup, hitAtMs);
+    const hitHtml = renderAppHtml({ state, mode: "combat", combatRun: hit });
+
+    expect(inputHtml).toContain('data-player-motion="light"');
+    expect(inputHtml).toContain('class="combat-player-art actor-model actor-model-light actor-model-light-1"');
+    expect(inputHtml).toContain('--actor-x: 25.00%;');
+    expect(inputHtml).toContain('data-player-normal-attack-type="light"');
+    expect(inputHtml).toContain('data-player-normal-attack-move="ground-light-1"');
+    expect(inputHtml).toContain('data-player-normal-attack-move-progress="0"');
+    expect(inputHtml).toContain('data-player-normal-attack-start-x="240"');
+    expect(inputHtml).toContain('data-player-normal-attack-end-x="258"');
+    expect(inputHtml).toContain('data-player-normal-attack-hit-x="258"');
+    expect(inputHtml).not.toContain('data-player-skill-move="ground-light-1"');
+    expect(inputHtml).not.toContain('data-enemy-motion="hit"');
+
+    expect(hitHtml).toContain('data-player-motion="light"');
+    expect(hitHtml).toContain('--actor-x: 26.88%;');
+    expect(hitHtml).toContain('data-hit-action="light"');
+    expect(hitHtml).toContain('data-enemy-motion="hit"');
+    expect(hitHtml).toContain('data-damage-number="true"');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="light"] .combat-player-art');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="light"] .combat-weapon');
+    expect(stylesCss).toContain("@keyframes player-light-strike");
+    expect(stylesCss).toContain("@keyframes weapon-light-swing");
+  });
+
   it("renders DNF-style dash-light with player, weapon, target, and impact hooks", () => {
     const state = createInitialState();
     const baseRun = createCombatRun(state, "cinder-kiln-alley");

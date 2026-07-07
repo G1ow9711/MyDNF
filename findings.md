@@ -598,6 +598,14 @@
 - Timing note: smaller automatic ticks make enemy attacks start closer to their scheduled absolute time instead of being delayed to the next 140 ms boundary. Existing scheduled hit effects still resolve by absolute `applyAtMs` / `impactAtMs` ordering.
 - Browser validation note: the live check page confirmed `windupElapsedMs: 48`, in-between player X movement, no input-frame impact, then `impactElapsedMs: 96`, endpoint player X, `hit-impact-heavy`, and enemy airborne state.
 
+## DNF-Style Ground-Light Model-Following Findings
+- Current user clarification remains: character models may stay simpler while completing the playable loop, but action smoothness, model-following attacks, strict hit frames, hit feedback, skill VFX, and monster VFX are strict.
+- Parallel read-only audits found grounded light already had scheduled 55/65/78 ms hit frames and light combo animations, but the scheduled dynamic origin was still the input-frame player position and `activeSkillMovement` was not set for light attacks.
+- Implementation note: each grounded light combo step now creates `activeSkillMovement` with `skillId` `ground-light-1/2/3`, moving the real player actor 18/22/28 px to the slash point by the hit frame.
+- Balance note: light hitbox `rangeX` is reduced by the same lunge distance, so the total front reach remains stable while the hitbox origin follows the moved actor. This preserves existing monster hurtbox edge behavior.
+- UI note: `ground-light-*` is exposed through normal-attack movement hooks and filtered out of catalog skill movement hooks, so HTML proves it is normal-attack model movement rather than a fake skill dash.
+- Browser validation note: the live check page confirmed windup X 240, mid-windup X 248.676, impact X 258 at 55 ms, `ground-light-1` movement metadata, one light hit, `data-hit-action="light"`, enemy hit state, and computed `player-light-strike` / `weapon-light-swing` animations with no warning/error logs.
+
 ## DNF-Style Ground-Heavy Hit Frame Findings
 - Current priority remains strict combat feel over heavier model detail: the launcher can use a simple model, but its windup, impact frame, enemy airborne transition, hitstop, resource gain, and VFX must align with real combat timing.
 - Parallel read-only audits found grounded heavy still used `applyPlayerHitbox` at input time, immediately mutating HP/airborne/resource while writing a future `occurredAtMs: input + 85`.

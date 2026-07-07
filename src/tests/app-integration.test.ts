@@ -633,6 +633,65 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-combo-count="3"');
   });
 
+  it("renders grounded light model-following movement hooks before impact", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            player: {
+              ...model.combatRun.player,
+              x: 240,
+              y: 340,
+              facing: 1
+            },
+            enemies: model.combatRun.enemies.map((enemy, index) =>
+              index === 0
+                ? {
+                    ...enemy,
+                    hp: 180,
+                    maxHp: 180,
+                    position: { x: 405, y: 340 },
+                    nextAttackAtMs: 9999
+                  }
+                : {
+                    ...enemy,
+                    hp: 0
+                  }
+            )
+          }
+        : undefined
+    };
+
+    model = reduceAppAction(model, { type: "combatAction", action: "light" });
+
+    const inputHtml = renderAppHtml(model);
+
+    expect(inputHtml).toContain('data-player-motion="light"');
+    expect(inputHtml).toContain('--actor-x: 25.00%;');
+    expect(inputHtml).toContain('data-player-normal-attack-type="light"');
+    expect(inputHtml).toContain('data-player-normal-attack-move="ground-light-1"');
+    expect(inputHtml).toContain('data-player-normal-attack-start-x="240"');
+    expect(inputHtml).toContain('data-player-normal-attack-end-x="258"');
+    expect(inputHtml).not.toContain('data-player-skill-move="ground-light-1"');
+    expect(inputHtml).not.toContain('data-enemy-motion="hit"');
+
+    model = {
+      ...model,
+      combatRun: model.combatRun ? resolveGroundLight(model.combatRun) : undefined
+    };
+
+    const hitHtml = renderAppHtml(model);
+
+    expect(model.combatRun?.player.x).toBe(258);
+    expect(hitHtml).toContain('--actor-x: 26.88%;');
+    expect(hitHtml).toContain('data-hit-action="light"');
+    expect(hitHtml).toContain('data-enemy-motion="hit"');
+  });
+
   it("renders combo HUD plus enemy airborne and knockdown model states", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

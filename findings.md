@@ -622,6 +622,13 @@
 - UI note: target-bound skill bursts, hit sparks, and damage numbers now render from `impactPosition ?? target.position`, while the enemy actor wrapper still uses the live enemy position. This separates hit contact feedback from knockback presentation.
 - Test note: regression coverage asserts grounded light contact at x 405 while the enemy model is knocked to x 427, and verifies DOM origins / actor percentages for both impact VFX and the enemy actor.
 
+## DNF-Style Enemy Knockback Slide Findings
+- Current priority remains combat feel over heavier character modeling: enemy models must show motion changes when struck, not teleport to their post-hit position.
+- Combat audit found `applyHit` and `applyScheduledEnemyHitEffect` intentionally write `enemy.position` directly to the logical knockback or pull endpoint. Changing that core position into a gradual movement would affect hitbox sampling, projectiles, and enemy AI timing.
+- UI decision: keep combat logic authoritative at the endpoint, and render a short visual-only slide from `CombatHitEvent.impactPosition` to `enemy.position`. This improves motion without making combat targeting depend on a transient visual frame.
+- Presentation note: enemy root `--actor-x/y` now interpolates for 160 ms after a hit, while `.enemy-art` still runs the existing hit-react animation. The root handles stage movement; the bitmap handles impact recoil.
+- Test note: regression coverage proves the logical enemy x is already 427 at hit frame, but rendered root x starts at 405, reaches 416 after 80 ms, and settles at 427 after 160 ms. Impact and damage origins remain at 405 throughout.
+
 ## DNF-Style Ground-Heavy Hit Frame Findings
 - Current priority remains strict combat feel over heavier model detail: the launcher can use a simple model, but its windup, impact frame, enemy airborne transition, hitstop, resource gain, and VFX must align with real combat timing.
 - Parallel read-only audits found grounded heavy still used `applyPlayerHitbox` at input time, immediately mutating HP/airborne/resource while writing a future `occurredAtMs: input + 85`.

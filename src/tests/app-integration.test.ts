@@ -694,7 +694,11 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('data-damage-origin-x="405"');
     expect(hitHtml).toContain('data-damage-origin-y="340"');
     expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%;"');
-    expect(hitHtml).toContain('style="--actor-x: 44.48%; --actor-y: 65.29%; --enemy-body-width:');
+    expect(hitHtml).toContain('data-enemy-hit-slide-active="true"');
+    expect(hitHtml).toContain('data-enemy-hit-slide-start-x="405"');
+    expect(hitHtml).toContain('data-enemy-hit-slide-end-x="427"');
+    expect(hitHtml).toContain('data-enemy-hit-slide-progress="0.00"');
+    expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%; --enemy-body-width:');
     expect(hitHtml).toContain('data-hit-action="light"');
     expect(hitHtml).toContain('data-hit-phase="ground-light-1"');
     expect(hitHtml).toContain('data-hit-vfx-cue="ground-light-slash-1"');
@@ -702,6 +706,23 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('data-enemy-motion="hit"');
     expect(hitHtml).toContain('hit-impact-ground-light-1');
     expect(hitHtml).toContain('data-impact-ground-light-step="1"');
+
+    const slidingRun = model.combatRun ? stepCombat(model.combatRun, {}, 80) : undefined;
+    const slidingHtml = renderAppHtml({
+      ...model,
+      combatRun: slidingRun
+    });
+    const settledRun = slidingRun ? stepCombat(slidingRun, {}, 80) : undefined;
+    const settledHtml = renderAppHtml({
+      ...model,
+      combatRun: settledRun
+    });
+
+    expect(slidingRun?.enemies[0].position.x).toBe(427);
+    expect(slidingHtml).toContain('data-enemy-hit-slide-progress="0.50"');
+    expect(slidingHtml).toContain('style="--actor-x: 43.33%; --actor-y: 65.29%; --enemy-body-width:');
+    expect(settledHtml).toContain('data-enemy-hit-slide-active="false"');
+    expect(settledHtml).toContain('style="--actor-x: 44.48%; --actor-y: 65.29%; --enemy-body-width:');
   });
 
   it("renders combo HUD plus enemy airborne and knockdown model states", () => {

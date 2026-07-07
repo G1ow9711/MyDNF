@@ -2568,3 +2568,23 @@
   - Related combat/app/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 347 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/impact-anchor-check.html` confirmed impact origin `{ x: 405, y: 340 }`, enemy model position `{ x: 427, y: 340 }`, enemy actor X `44.48%`, impact/damage actor X `42.19%`, ground-light impact animation `ground-light-jab-impact-slash`, and empty console logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 429 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 93 DNF-Style Enemy Knockback Slide
+- Continued from the same strict combat-feel priority: character geometry can stay lightweight, but struck monsters must visibly move with the hit instead of appearing as static cutouts.
+- Used parallel read-only agents:
+  - Combat audit confirmed direct and scheduled hit paths still mutate `enemy.position` immediately to the knockback/pull endpoint, and warned that making combat position gradual would affect hitbox sampling and enemy AI.
+  - UI audit confirmed enemy actor roots use `--actor-x/y` from `enemy.position`, while enemy bitmap hit-react animation only shakes the local image node.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` now require a grounded light hit to keep logical enemy x at 427 while the enemy root renders at x 405 on the hit frame, x 416 after 80 ms, and x 427 after 160 ms.
+  - The same tests require `data-enemy-hit-slide-*` hooks, while preserving impact/damage origin x 405.
+- RED evidence:
+  - Focused RED failed because rendered enemy root had no `data-enemy-hit-slide-*` hooks and still used the final 44.48% actor x immediately on the hit frame.
+- Implemented:
+  - Added a UI-only `enemyHitSlideState()` that interpolates from `CombatHitEvent.impactPosition` to the logical `enemy.position` for 160 ms after a hit.
+  - Enemy root DOM now exposes slide active/progress/start/end/duration hooks and renders `--actor-x/y` from the interpolated visual position.
+  - CSS now gives active hit-slide roots a short left/top transition and `will-change` hint, while existing enemy hit-react animations remain on `.enemy-art`.
+- Verification so far:
+  - Focused RED/GREEN passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "grounded light"`.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/knockback-slide-check.html` confirmed hit frame logical x 427 / actor x `42.19%`, mid frame logical x 427 / actor x `43.33%`, settled actor x `44.48%`, impact and damage origin x 405, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Related combat/app/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 347 tests.
+  - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 429 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

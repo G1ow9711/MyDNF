@@ -1829,6 +1829,11 @@ p {
   filter: drop-shadow(0 16px 18px rgba(2, 6, 23, 0.82));
 }
 
+.combat-enemy[data-enemy-hit-slide-active="true"] {
+  transition: left 48ms linear, top 48ms linear;
+  will-change: left, top;
+}
+
 .combat-enemy-trash {
   width: var(--enemy-body-width, 144px);
 }

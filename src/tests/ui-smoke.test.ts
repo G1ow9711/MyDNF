@@ -1894,7 +1894,11 @@ describe("town app shell", () => {
     expect(hitHtml).toContain('data-damage-origin-x="405"');
     expect(hitHtml).toContain('data-damage-origin-y="340"');
     expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%;"');
-    expect(hitHtml).toContain('style="--actor-x: 44.48%; --actor-y: 65.29%; --enemy-body-width:');
+    expect(hitHtml).toContain('data-enemy-hit-slide-active="true"');
+    expect(hitHtml).toContain('data-enemy-hit-slide-start-x="405"');
+    expect(hitHtml).toContain('data-enemy-hit-slide-end-x="427"');
+    expect(hitHtml).toContain('data-enemy-hit-slide-progress="0.00"');
+    expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%; --enemy-body-width:');
     expect(hitHtml).toContain('data-hit-phase="ground-light-1"');
     expect(hitHtml).toContain('data-hit-vfx-cue="ground-light-slash-1"');
     expect(hitHtml).toContain('data-enemy-hit-ground-light-step="1"');
@@ -1907,6 +1911,7 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-ground-light-step="1"] .enemy-art');
     expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-ground-light-step="2"] .enemy-art');
     expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-ground-light-step="3"] .enemy-art');
+    expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-slide-active="true"]');
     expect(stylesCss).toContain('.hit-impact-ground-light-1 .hit-slash');
     expect(stylesCss).toContain('.hit-impact-ground-light-2 .hit-slash');
     expect(stylesCss).toContain('.hit-impact-ground-light-3 .hit-slash');

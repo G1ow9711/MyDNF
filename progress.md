@@ -2670,3 +2670,25 @@
   - Browser validation on `http://127.0.0.1:5178/marking-bolt-check.html` confirmed 180 ms mark timing, no cast/before-impact marks or hits, one impact-frame hit, target marks `[2,0]`, `contract-mark` / `contract-mark-impact` metadata, computed animations `player-ink-mark`, `weapon-mark-bolt`, `contract-mark-cast-core`, `contract-mark-cast-ring`, `contract-mark-impact-core`, `contract-mark-impact-ring`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Related combat/app/UI/audio suite passed after updating an older class-mechanic assertion to wait for the delayed mark frame: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 361 tests.
   - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 443 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 98 DNF-Style Crow Feint Strict Dodge Shot
+- Continued from the user's clarification: character and monster model geometry may stay lighter while the playable loop is completed, but combat motion smoothness, strict action frames, model-following attacks, skill VFX, monster VFX, and player/enemy action changes are strict gates.
+- Used two read-only agents:
+  - Combat audit found `crow-feint` still fell through the generic skill path, giving immediate evade/invulnerability and cast-frame damage instead of delayed dodge and delayed shot frames.
+  - UI/CSS audit found catalog metadata exists, but `ink-feint`, `feint-shot`, `crow-feint` cast/impact styling still falls back to generic dodge/skill visuals.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires no cast-frame evade, no cast-frame HP mutation, a delayed 90 ms dodge/invulnerability window, a 190 ms `feint-shot` hit frame, live target recheck, and startup interruption cancellation.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require delayed dodge DOM hooks, model-following movement hooks, `crow-feint-shot` impact metadata, and dedicated CSS selectors/keyframes.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t crow-feint --reporter=basic` failed because `crow-feint` had no scheduled effects.
+  - `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t crow-feint --reporter=basic` failed because rendered crow-feint still had no scheduled effects.
+- Implemented:
+  - Added delayed player evade/invulnerability window starts, preserving immediate windows for backstep, quick recover, and generic evade skills while allowing `crow-feint` startup to remain punishable until 90 ms.
+  - Added `applyCrowFeint()` with backward model-following movement, 190 ms dynamic `feint-shot` hitbox, live target recheck, delayed MISS, startup interruption cancellation, and `crow-feint-shot` metadata.
+  - Added dedicated CSS for `ink-feint` player motion, `feint-shot` weapon motion, `crow-feint` cast VFX, and target-bound `crow-feint` impact bursts.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t crow-feint --reporter=basic`, 3 tests.
+  - Focused GREEN passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t crow-feint --reporter=basic`, 2 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 364 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/crow-feint-check.html` confirmed 190 ms shot timing, no cast-frame hit, 90 ms active dodge, model movement x 360 -> 344 -> 324, one `feint-shot` hit, `crow-feint-shot` VFX cue, computed animations `player-ink-feint`, `weapon-feint-shot`, `crow-feint-cast-core`, `crow-feint-shot-core`, and empty warning/error console logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 446 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

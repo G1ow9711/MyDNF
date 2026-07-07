@@ -1369,7 +1369,7 @@ describe("playable app integration actions", () => {
     expect(breakHtml).toContain('class="enemy-art actor-model actor-model-guard-break"');
   });
 
-  it("renders evade motion and miss result when a monster skill is dodged by a skill window", () => {
+  it("renders crow-feint as a delayed dodge window with a feint-shot impact", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),
       initialState: withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90)
@@ -1383,34 +1383,53 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run");
     }
 
-    model = {
+    const castHtml = renderAppHtml(model);
+    const [shotAtMs] = scheduledSkillTimes(model.combatRun, "crow-feint");
+    const activeRun = stepToElapsed(model.combatRun, 90);
+    const activeHtml = renderAppHtml({
       ...model,
-      combatRun: {
-        ...model.combatRun,
-        enemies: model.combatRun.enemies.map((enemy, index) =>
-          index === 0
-            ? {
-                ...enemy,
-                position: {
-                  x: model.combatRun?.player.x ?? enemy.position.x,
-                  y: model.combatRun?.player.y ?? enemy.position.y
-                },
-                nextAttackAtMs: model.combatRun?.elapsedMs ?? 0
-              }
-            : enemy
-        )
-      }
+      combatRun: activeRun
+    });
+    const attackedRun: CombatRun = {
+      ...model.combatRun,
+      enemies: model.combatRun.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: { x: model.combatRun?.player.x ?? enemy.position.x, y: model.combatRun?.player.y ?? enemy.position.y },
+              attackStartedAtMs: model.combatRun?.elapsedMs ?? 0,
+              attackImpactAtMs: 110,
+              attackRecoverUntilMs: 300,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
     };
-    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
-    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
-    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    const dodgedRun = stepToElapsed(attackedRun, shotAtMs);
+    const dodgedHtml = renderAppHtml({
+      ...model,
+      combatRun: dodgedRun
+    });
 
-    const html = renderAppHtml(model);
-
-    expect(html).toContain('data-evade-active="true"');
-    expect(html).toContain('data-dodge-result="missed"');
-    expect(html).toContain('data-player-motion="dodge"');
-    expect(html).toContain('class="combat-player-art actor-model actor-model-dodge"');
+    expect(shotAtMs).toBe(190);
+    expect(castHtml).toContain('data-active-skill-id="crow-feint"');
+    expect(castHtml).toContain('data-skill-animation-preset="ink-feint"');
+    expect(castHtml).toContain('data-skill-weapon-arc="feint-shot"');
+    expect(castHtml).toContain('data-skill-vfx-shape="crow-feint"');
+    expect(castHtml).toContain('data-player-skill-move="crow-feint"');
+    expect(castHtml).toContain('data-evade-active="false"');
+    expect(castHtml).not.toContain('data-skill-impact-vfx="crow-feint"');
+    expect(activeHtml).toContain('data-evade-active="true"');
+    expect(activeHtml).toContain('data-player-motion="dodge"');
+    expect(dodgedHtml).toContain('data-dodge-result="missed"');
+    expect(dodgedHtml).toContain('data-hit-phase="feint-shot"');
+    expect(dodgedHtml).toContain('data-vfx-cue="crow-feint-shot"');
+    expect(dodgedHtml).toContain('data-impact-vfx-shape="crow-feint"');
+    expect(dodgedHtml).toContain('class="skill-impact-burst skill-impact-shape-crow-feint"');
+    expect(countOccurrences(dodgedHtml, 'data-skill-impact-vfx="crow-feint"')).toBe(1);
   });
 
   it("maps KeyC to DNF-style jump and renders airborne motion without hiding skill hotkeys", () => {

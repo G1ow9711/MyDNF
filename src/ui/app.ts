@@ -800,7 +800,7 @@ function playerShieldActive(run: CombatRun): boolean {
 }
 
 function playerEvadeActive(run: CombatRun): boolean {
-  return run.elapsedMs < run.player.evadeUntilMs;
+  return run.player.evadeUntilMs > 0 && run.elapsedMs >= run.player.evadeStartedAtMs && run.elapsedMs < run.player.evadeUntilMs;
 }
 
 function playerReflectActive(run: CombatRun): boolean {
@@ -845,7 +845,11 @@ function playerQuickRecoverReady(run: CombatRun): boolean {
 }
 
 function playerInvulnerableActive(run: CombatRun): boolean {
-  return run.elapsedMs < run.player.invulnerableUntilMs;
+  return (
+    run.player.invulnerableUntilMs > 0 &&
+    run.elapsedMs >= run.player.invulnerableStartedAtMs &&
+    run.elapsedMs < run.player.invulnerableUntilMs
+  );
 }
 
 function playerHurtLockActive(run: CombatRun): boolean {

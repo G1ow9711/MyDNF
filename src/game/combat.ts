@@ -55,6 +55,7 @@ export type CombatHitPhase =
   | "shield-quake"
   | "furnace-roar"
   | "roll-shot"
+  | "feint-shot"
   | "uppercut"
   | "chain-open"
   | "chain-cross"
@@ -97,6 +98,7 @@ export type CombatVfxCue =
   | "shield-quake-impact"
   | "furnace-roar-impact"
   | "shadow-roll-shot"
+  | "crow-feint-shot"
   | "cinder-uppercut-rise"
   | "flowing-chain-open"
   | "flowing-chain-cross"
@@ -188,6 +190,7 @@ export interface CombatPlayer {
   actionLockUntilMs: number;
   cancelWindowUntilMs: number;
   hitstopUntilMs: number;
+  invulnerableStartedAtMs: number;
   invulnerableUntilMs: number;
   hurtLockUntilMs: number;
   boundUntilMs: number;
@@ -211,6 +214,7 @@ export interface CombatPlayer {
   quickRecoverUntilMs: number;
   shieldUntilMs: number;
   shieldReduction: number;
+  evadeStartedAtMs: number;
   evadeUntilMs: number;
   reflectUntilMs: number;
   reflectSkillId?: string;
@@ -620,6 +624,9 @@ const groundHeavyLungePx = 34;
 const quickRecoverReadyWindowMs = 260;
 const quickRecoverActionMs = 260;
 const quickRecoverInvulnerableMs = 520;
+const crowFeintEvadeStartDelayMs = 90;
+const crowFeintEvadeDurationMs = 360;
+const crowFeintInvulnerableMs = 260;
 const taotieForgeCollapseSkillId: CombatBossPhaseSkillId = "taotie-forge-collapse";
 const taotieForgeCollapseTelegraphMs = 620;
 const taotieForgeCollapseHazardGapMs = 140;
@@ -680,6 +687,58 @@ function updatePlayerAirState(player: CombatPlayer, elapsedMs: number): CombatPl
     ...player,
     airState
   };
+}
+
+function playerEvadeActiveAt(player: CombatPlayer, elapsedMs: number): boolean {
+  return player.evadeUntilMs > 0 && elapsedMs >= player.evadeStartedAtMs && elapsedMs < player.evadeUntilMs;
+}
+
+function playerInvulnerableActiveAt(player: CombatPlayer, elapsedMs: number): boolean {
+  return player.invulnerableUntilMs > 0 && elapsedMs >= player.invulnerableStartedAtMs && elapsedMs < player.invulnerableUntilMs;
+}
+
+function setPlayerEvadeWindow(player: CombatPlayer, startAtMs: number, untilMs: number): CombatPlayer {
+  if (untilMs <= player.evadeUntilMs) {
+    return player;
+  }
+
+  return {
+    ...player,
+    evadeStartedAtMs: startAtMs,
+    evadeUntilMs: untilMs
+  };
+}
+
+function setPlayerInvulnerabilityWindow(player: CombatPlayer, startAtMs: number, untilMs: number): CombatPlayer {
+  if (untilMs <= player.invulnerableUntilMs) {
+    return player;
+  }
+
+  return {
+    ...player,
+    invulnerableStartedAtMs: startAtMs,
+    invulnerableUntilMs: untilMs
+  };
+}
+
+function applyTimedPlayerWindows(player: CombatPlayer, elapsedMs: number): CombatPlayer {
+  const movement = player.activeSkillMovement;
+
+  if (movement?.skillId !== "crow-feint") {
+    return player;
+  }
+
+  const evadeStartAtMs = movement.startAtMs + crowFeintEvadeStartDelayMs;
+
+  if (elapsedMs < evadeStartAtMs) {
+    return player;
+  }
+
+  return setPlayerInvulnerabilityWindow(
+    setPlayerEvadeWindow(player, evadeStartAtMs, evadeStartAtMs + crowFeintEvadeDurationMs),
+    evadeStartAtMs,
+    evadeStartAtMs + crowFeintInvulnerableMs
+  );
 }
 
 function clearCompletedPlayerAirState(player: CombatPlayer, elapsedMs: number): CombatPlayer {
@@ -2540,6 +2599,43 @@ function applyShadowRoll(run: CombatRun, skill: ClassSkillDefinition, canceledFr
   });
 }
 
+function crowFeintHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 230,
+    laneRange: 58,
+    targetCap: 1,
+    frontOnly: true,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.88)),
+    hitstopMs: 54,
+    knockback: 34,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    statusTags: ["stagger"]
+  };
+}
+
+function applyCrowFeint(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x - skill.animation.lungePx * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+
+  return schedulePlayerHitboxEffect(movingRun, crowFeintHitbox(run, skill, canceledFromCombo), endPosition, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-feint-shot`,
+    hitPhase: "feint-shot",
+    vfxCue: "crow-feint-shot",
+    vfxWindowMs: 320
+  });
+}
+
 function inkShotHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
   return {
     action: "skill",
@@ -3486,13 +3582,19 @@ function applyPlayerSkillStatus(player: CombatPlayer, run: CombatRun, statusTags
     };
   }
 
-  if (hasStatus(statusTags, "evade")) {
-    next = {
-      ...next,
-      x: clamp(next.x - next.facing * 44, 0, arena.width),
-      evadeUntilMs: Math.max(next.evadeUntilMs, run.elapsedMs + 980),
-      invulnerableUntilMs: Math.max(next.invulnerableUntilMs, run.elapsedMs + 420)
-    };
+  if (hasStatus(statusTags, "evade") && skillId !== "crow-feint") {
+    next = setPlayerInvulnerabilityWindow(
+      setPlayerEvadeWindow(
+        {
+          ...next,
+          x: clamp(next.x - next.facing * 44, 0, arena.width)
+        },
+        run.elapsedMs,
+        run.elapsedMs + 980
+      ),
+      run.elapsedMs,
+      run.elapsedMs + 420
+    );
   }
 
   if (hasStatus(statusTags, "reflect")) {
@@ -3635,6 +3737,7 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       actionLockUntilMs: 0,
       cancelWindowUntilMs: 0,
       hitstopUntilMs: 0,
+      invulnerableStartedAtMs: 0,
       invulnerableUntilMs: 0,
       hurtLockUntilMs: 0,
       boundUntilMs: 0,
@@ -3658,6 +3761,7 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       quickRecoverUntilMs: 0,
       shieldUntilMs: 0,
       shieldReduction: 0,
+      evadeStartedAtMs: 0,
       evadeUntilMs: 0,
       reflectUntilMs: 0,
       defeated: false,
@@ -3717,7 +3821,7 @@ function advanceCombatFrame(run: CombatRun, input: CombatInput, dtMs: number): C
     comboCount: comboActiveAtElapsed ? run.comboCount : 0,
     comboExpiresAtMs: comboActiveAtElapsed ? run.comboExpiresAtMs : 0,
     player: {
-      ...clearCompletedNormalAttack(updatePlayerAirState(clearCompletedSkillMovement(run.player, elapsedMs), elapsedMs), elapsedMs),
+      ...clearCompletedNormalAttack(updatePlayerAirState(clearCompletedSkillMovement(applyTimedPlayerWindows(run.player, elapsedMs), elapsedMs), elapsedMs), elapsedMs),
       x: framePosition.x,
       y: framePosition.y,
       facing: framePosition.facing,
@@ -4073,7 +4177,7 @@ function applyEnemyImpact(
 
     const inRange = playerInEnemyAttackRange(nextEnemy, nextPlayer, attack);
     const airborneEvaded = inRange && attack.jumpEvade === true && hitTime < nextPlayer.airborneUntilMs;
-    const evaded = inRange && (hitTime < nextPlayer.evadeUntilMs || airborneEvaded);
+    const evaded = inRange && (playerEvadeActiveAt(nextPlayer, hitTime) || airborneEvaded);
     const phase = inRange && !evaded ? "active" : "miss";
     const attackEvent: CombatEnemyAttackEvent = {
       kind: "enemy-attack",
@@ -4097,7 +4201,7 @@ function applyEnemyImpact(
     };
     events.push(attackEvent);
 
-    if (phase === "miss" || nextPlayer.defeated || hitTime < nextPlayer.invulnerableUntilMs) {
+    if (phase === "miss" || nextPlayer.defeated || playerInvulnerableActiveAt(nextPlayer, hitTime)) {
       failed = failed || nextPlayer.defeated;
       continue;
     }
@@ -4171,6 +4275,7 @@ function applyEnemyImpact(
       x: clamp(nextPlayer.x - nextFacing * hitKnockback, 0, arena.width),
       facing: nextFacing,
       hitstopUntilMs: Math.max(nextPlayer.hitstopUntilMs, hitTime + attack.hitstopMs),
+      invulnerableStartedAtMs: hitTime,
       invulnerableUntilMs: hitTime + hitInvulnerabilityMs,
       hurtLockUntilMs: hitTime + Math.max(attack.hitstopMs, hitHurtLockMs),
       boundUntilMs: Math.max(nextPlayer.boundUntilMs, hitBoundMs > 0 ? hitTime + hitBoundMs : 0),
@@ -5076,7 +5181,7 @@ function playerInArenaHazard(player: CombatPlayer, hazard: CombatScheduledArenaH
 function applyScheduledArenaHazard(run: CombatRun, hazard: CombatScheduledArenaHazard, movement?: CombatMovementSample): CombatRun {
   const sampledPlayer = samplePlayerForMovement(run.player, hazard, movement);
   const inRange = playerInArenaHazard(sampledPlayer, hazard);
-  const evaded = inRange && hazard.impactAtMs < sampledPlayer.evadeUntilMs;
+  const evaded = inRange && playerEvadeActiveAt(sampledPlayer, hazard.impactAtMs);
   const phase: CombatArenaHazardPhase = inRange && !evaded ? "active" : "miss";
   const hazardEvent: CombatArenaHazardEvent = {
     kind: "arena-hazard",
@@ -5095,7 +5200,7 @@ function applyScheduledArenaHazard(run: CombatRun, hazard: CombatScheduledArenaH
     vfxWindowMs: hazard.vfxWindowMs
   };
 
-  if (phase !== "active" || run.player.defeated || hazard.impactAtMs < sampledPlayer.invulnerableUntilMs) {
+  if (phase !== "active" || run.player.defeated || playerInvulnerableActiveAt(sampledPlayer, hazard.impactAtMs)) {
     return {
       ...run,
       events: [...run.events, hazardEvent]
@@ -5123,6 +5228,7 @@ function applyScheduledArenaHazard(run: CombatRun, hazard: CombatScheduledArenaH
     y: sampledPlayer.y,
     facing: nextFacing,
     hitstopUntilMs: Math.max(run.player.hitstopUntilMs, hazard.impactAtMs + hazard.hitstopMs),
+    invulnerableStartedAtMs: hazard.impactAtMs,
     invulnerableUntilMs: hazard.impactAtMs + 520,
     hurtLockUntilMs: hazard.impactAtMs + 520,
     bufferedAction: undefined,
@@ -5252,17 +5358,17 @@ function canStartQuickRecover(run: CombatRun): boolean {
 
 function performQuickRecoverAction(run: CombatRun): CombatRun {
   const recoverUntilMs = run.elapsedMs + quickRecoverActionMs;
+  const recoveredPlayer = setPlayerInvulnerabilityWindow(run.player, run.elapsedMs, run.elapsedMs + quickRecoverInvulnerableMs);
 
   return {
     ...run,
     player: {
-      ...run.player,
+      ...recoveredPlayer,
       comboStep: 0,
       actionLockUntilMs: recoverUntilMs,
       cancelWindowUntilMs: 0,
       hurtLockUntilMs: run.elapsedMs,
       boundUntilMs: 0,
-      invulnerableUntilMs: Math.max(run.player.invulnerableUntilMs, run.elapsedMs + quickRecoverInvulnerableMs),
       quickRecoverReadyUntilMs: 0,
       quickRecoverStartedAtMs: run.elapsedMs,
       quickRecoverUntilMs: recoverUntilMs,
@@ -5675,18 +5781,22 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   }
 
   if (action.type === "backstep") {
+    const dodgingPlayer = setPlayerInvulnerabilityWindow(
+      setPlayerEvadeWindow(run.player, run.elapsedMs, run.elapsedMs + backstepEvadeMs),
+      run.elapsedMs,
+      run.elapsedMs + backstepInvulnerableMs
+    );
+
     return {
       ...run,
       player: {
-        ...run.player,
+        ...dodgingPlayer,
         x: clamp(run.player.x - run.player.facing * backstepDistancePx, 0, run.arena.width),
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + backstepActionLockMs,
         cancelWindowUntilMs: 0,
         dashAttackReadyUntilMs: 0,
         quickRecoverReadyUntilMs: 0,
-        evadeUntilMs: Math.max(run.player.evadeUntilMs, run.elapsedMs + backstepEvadeMs),
-        invulnerableUntilMs: Math.max(run.player.invulnerableUntilMs, run.elapsedMs + backstepInvulnerableMs),
         bufferedAction: undefined,
         bufferedActionQueuedAtMs: undefined,
         bufferedActionExecuteAtMs: undefined
@@ -5765,6 +5875,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "shadow-roll") {
     return finishSkillAction(applyShadowRoll(run, skill, canceledFromCombo));
+  }
+
+  if (skill.id === "crow-feint") {
+    return finishSkillAction(applyCrowFeint(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "ink-shot") {

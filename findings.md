@@ -668,3 +668,11 @@
 - Combat note: `marking-bolt` now schedules a 180 ms dynamic single-target contract-mark hitbox, keeps cast-frame target marks at zero, rechecks live target position on the impact frame, emits `contract-mark` / `contract-mark-impact` metadata, and clears pending marks if monster damage interrupts before impact.
 - Presentation note: the player model enters a short ink-mark cast motion, the equipped weapon uses a mark-bolt arc, the cast VFX renders a flying contract seal, and each hit target renders a target-bound seal burst with ink mark count visible on the enemy node.
 - Test note: focused GREEN passed for combat, app integration, and UI smoke coverage after fixing the new fixtures so Ink resource exists and the interruption monster can actually hit the player.
+
+## DNF-Style Crow Feint Strict Dodge Shot Findings
+- Current priority remains strict combat timing over heavier model geometry: `crow-feint` must have punishable startup, a delayed dodge window, a live hit frame, model-following backward motion, and dedicated VFX.
+- Parallel combat audit found the old generic evade path gave immediate `evadeUntilMs` / `invulnerableUntilMs` and immediate target mutation. This made startup unpunishable and turned the 190 ms value into visual metadata instead of a real hit frame.
+- Combat note: `CombatPlayer` now separates window start and window end for evade/invulnerability, so delayed defensive frames can be represented without breaking immediate backstep/quick-recover windows.
+- Combat note: `crow-feint` opens its defensive window at 90 ms, fires a dynamic `feint-shot` at 190 ms, rechecks target position on the shot frame, emits delayed MISS when the target leaves, and cancels pending shot effects if a monster hit lands during startup.
+- Presentation note: `ink-feint`, `feint-shot`, and `crow-feint` now have dedicated player, weapon, cast, and impact CSS so the skill no longer falls back to generic dodge/skill visual treatment.
+- Browser validation note: live computed-style verification confirmed `player-ink-feint`, `weapon-feint-shot`, `crow-feint-cast-core`, and `crow-feint-shot-core` on the local app with no console warning/error output.

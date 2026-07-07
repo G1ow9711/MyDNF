@@ -2124,25 +2124,105 @@ describe("combat actions and impact feel", () => {
     );
   });
 
-  it("turns evade skills into a dodge window that makes monster impact miss", () => {
+  it("delays crow-feint dodge and shot until their strict action frames", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
     const run = withPlayerAndEnemies(
       createCombatRun(state, "cinder-kiln-alley"),
-      { x: 240, y: 340, facing: 1 },
-      [{ x: 310, y: 340 }]
+      { x: 360, y: 340, facing: 1 },
+      [{ x: 520, y: 340, hp: 180, maxHp: 180 }]
     );
-    const evading = performAction(run, { type: "skill", skillId: "crow-feint" });
-    const telegraph = stepCombat(
-      withEnemyInRange(evading, {
-        nextAttackAtMs: evading.elapsedMs + 1
-      }),
-      {},
-      80
-    );
-    const dodged = stepCombat(telegraph, {}, 360);
 
+    const cast = performAction(run, { type: "skill", skillId: "crow-feint" });
+    const [shotAtMs] = scheduledSkillTimes(cast, "crow-feint");
+    const startup = stepToElapsed(cast, 89);
+    const evading = stepToElapsed(cast, 90);
+    const beforeShot = stepToElapsed(cast, shotAtMs - 1);
+    const shot = stepToElapsed(cast, shotAtMs);
+    const [feintHit] = skillHitEvents(shot, "crow-feint");
+
+    expect(shotAtMs).toBe(190);
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.evadeUntilMs).toBe(0);
+    expect(cast.player.invulnerableUntilMs).toBe(0);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("crow-feint");
+    expect(skillHitEvents(cast, "crow-feint")).toHaveLength(0);
+    expect(cast.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(startup.player.evadeUntilMs).toBe(0);
     expect(evading.player.evadeUntilMs).toBeGreaterThan(evading.elapsedMs);
-    expect(dodged.player.hp).toBe(run.player.hp);
+    expect(evading.player.invulnerableUntilMs).toBeGreaterThan(evading.elapsedMs);
+    expect(beforeShot.player.x).toBeLessThan(run.player.x);
+    expect(skillHitEvents(beforeShot, "crow-feint")).toHaveLength(0);
+    expect(feintHit).toMatchObject({
+      hitPhase: "feint-shot",
+      vfxCue: "crow-feint-shot",
+      vfxWindowMs: 320
+    });
+    expect(shot.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("uses crow-feint active frames to dodge hits and cancels if hit during startup", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
+    const startupRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 300, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const startupCast = performAction(startupRun, { type: "skill", skillId: "crow-feint" });
+    const [startupShotAtMs] = scheduledSkillTimes(startupCast, "crow-feint");
+    const startupHitRun: CombatRun = {
+      ...startupCast,
+      enemies: startupCast.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: startupCast.elapsedMs,
+              attackImpactAtMs: startupCast.elapsedMs + 70,
+              attackRecoverUntilMs: startupCast.elapsedMs + 260,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const interrupted = stepToElapsed(startupHitRun, startupShotAtMs);
+    const startupPlayerHits = interrupted.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(startupPlayerHits).toHaveLength(1);
+    expect(skillHitEvents(interrupted, "crow-feint")).toHaveLength(0);
+    expect(skillMissEvents(interrupted, "crow-feint")).toHaveLength(0);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "crow-feint")).toHaveLength(0);
+
+    const activeRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 300, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const activeCast = performAction(activeRun, { type: "skill", skillId: "crow-feint" });
+    const [activeShotAtMs] = scheduledSkillTimes(activeCast, "crow-feint");
+    const activeAttackRun: CombatRun = {
+      ...activeCast,
+      enemies: activeCast.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: activeCast.elapsedMs,
+              attackImpactAtMs: activeCast.elapsedMs + 110,
+              attackRecoverUntilMs: activeCast.elapsedMs + 300,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const dodged = stepToElapsed(activeAttackRun, activeShotAtMs);
+
+    expect(dodged.player.hp).toBe(activeRun.player.hp);
     expect(dodged.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -2152,6 +2232,53 @@ describe("combat actions and impact feel", () => {
       ])
     );
     expect(dodged.events.some((event) => event.kind === "player-hit")).toBe(false);
+    expect(skillHitEvents(dodged, "crow-feint")).toHaveLength(1);
+  });
+
+  it("rechecks crow-feint shot targets on the feint-shot frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
+    const inRangeRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 360, y: 340, facing: 1 },
+      [{ x: 520, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const castWithTarget = performAction(inRangeRun, { type: "skill", skillId: "crow-feint" });
+    const [shotAtMs] = scheduledSkillTimes(castWithTarget, "crow-feint");
+    const movedOutBeforeShot = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: castWithTarget.enemies.map((enemy) => ({
+          ...enemy,
+          position: { x: 760, y: 500 }
+        }))
+      },
+      shotAtMs
+    );
+
+    expect(skillHitEvents(movedOutBeforeShot, "crow-feint")).toHaveLength(0);
+    expect(skillMissEvents(movedOutBeforeShot, "crow-feint")).toHaveLength(1);
+    expect(movedOutBeforeShot.enemies[0].hp).toBe(inRangeRun.enemies[0].hp);
+
+    const outOfRangeRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 360, y: 340, facing: 1 },
+      [{ x: 760, y: 500, hp: 180, maxHp: 180 }]
+    );
+    const castWithoutTarget = performAction(outOfRangeRun, { type: "skill", skillId: "crow-feint" });
+    const [lateShotAtMs] = scheduledSkillTimes(castWithoutTarget, "crow-feint");
+    const movedInBeforeShot = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: castWithoutTarget.enemies.map((enemy) => ({
+          ...enemy,
+          position: { x: 510, y: 340 }
+        }))
+      },
+      lateShotAtMs
+    );
+
+    expect(skillHitEvents(movedInBeforeShot, "crow-feint")).toHaveLength(1);
+    expect(skillMissEvents(movedInBeforeShot, "crow-feint")).toHaveLength(0);
   });
 
   it("lets every class backstep into a short dodge window without spending resources", () => {

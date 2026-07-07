@@ -1568,6 +1568,65 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes shadow-roll-shot-core");
   });
 
+  it("renders crow-feint with delayed dodge hooks and feint-shot styling", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 360, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          position: { x: player.x + 160 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "crow-feint" }
+    );
+    const [shotAtMs] = scheduledSkillTimes(castRun, "crow-feint");
+    const castHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: castRun
+    });
+    const activeHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, 90)
+    });
+    const shotRun = stepToElapsed(castRun, shotAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: shotRun
+    });
+
+    expect(skillHitEvents(castRun, "crow-feint")).toHaveLength(0);
+    expect(castHtml).toContain('data-player-skill-move="crow-feint"');
+    expect(castHtml).toContain('data-skill-animation-preset="ink-feint"');
+    expect(castHtml).toContain('data-skill-weapon-arc="feint-shot"');
+    expect(castHtml).toContain('data-skill-vfx-shape="crow-feint"');
+    expect(castHtml).toContain('data-evade-active="false"');
+    expect(activeHtml).toContain('data-evade-active="true"');
+    expect(activeHtml).toContain('data-player-motion="dodge"');
+    expect(html).toContain('data-impact-vfx-shape="crow-feint"');
+    expect(html).toContain('data-vfx-cue="crow-feint-shot"');
+    expect(html).toContain('data-hit-phase="feint-shot"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-crow-feint"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="crow-feint"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="ink-feint"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="feint-shot"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-crow-feint");
+    expect(stylesCss).toContain(".skill-impact-shape-crow-feint");
+    expect(stylesCss).toContain("@keyframes player-ink-feint");
+    expect(stylesCss).toContain("@keyframes weapon-feint-shot");
+    expect(stylesCss).toContain("@keyframes crow-feint-cast-core");
+    expect(stylesCss).toContain("@keyframes crow-feint-shot-core");
+  });
+
   it("defines dedicated furnace-heart-overdrive player, weapon, core, and release animations", () => {
     const advancedState = advanceClass(
       readyForAdvancement({

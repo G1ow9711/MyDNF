@@ -73,6 +73,8 @@ export interface AppModel extends AppViewModel {
   autoSaveDisabled?: boolean;
 }
 
+const combatTickMs = 48;
+
 export type AppAction =
   | { type: "setMode"; mode: AppMode }
   | { type: "enterDungeon"; dungeonId: DungeonId }
@@ -1779,7 +1781,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         return model;
       }
 
-      const combatRun = stepCombat(model.combatRun, {}, 140);
+      const combatRun = stepCombat(model.combatRun, {}, combatTickMs);
 
       return {
         ...model,
@@ -2149,7 +2151,7 @@ export function mountApp(root: HTMLDivElement): () => void {
 
     dispatch({ type: "combatTick" });
     render();
-  }, 140);
+  }, combatTickMs);
 
   function clearCombatTick(): void {
     if (combatTickTimer !== undefined) {

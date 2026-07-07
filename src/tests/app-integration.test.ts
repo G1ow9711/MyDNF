@@ -709,6 +709,31 @@ describe("playable app integration actions", () => {
     expect(downedHtml).toContain('class="enemy-art actor-model actor-model-knockdown"');
   });
 
+  it("advances automatic combat ticks in short frames so grounded heavy renders windup before impact", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "heavy" });
+
+    const windup = reduceAppAction(model, { type: "combatTick" });
+    const windupHtml = renderAppHtml(windup);
+
+    expect(windup.combatRun?.elapsedMs).toBeLessThan(85);
+    expect(windup.combatRun?.player.x).toBeGreaterThan(model.combatRun?.player.x ?? 0);
+    expect(windup.combatRun?.player.x).toBeLessThan(model.combatRun?.player.activeSkillMovement?.endX ?? Number.POSITIVE_INFINITY);
+    expect(windupHtml).toContain('data-player-motion="heavy"');
+    expect(windupHtml).toContain('data-player-normal-attack-move="ground-heavy"');
+    expect(windupHtml).not.toContain('hit-impact-heavy');
+
+    const impact = reduceAppAction(windup, { type: "combatTick" });
+    const impactHtml = renderAppHtml(impact);
+
+    expect(impact.combatRun?.elapsedMs).toBeGreaterThanOrEqual(85);
+    expect(impact.combatRun?.player.x).toBe(model.combatRun?.player.activeSkillMovement?.endX);
+    expect(impactHtml).toContain('hit-impact-heavy');
+  });
+
   it("binds player strike direction to the bitmap model node", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 
@@ -4477,17 +4502,23 @@ describe("playable app integration actions", () => {
 
       clickHandler?.({ target: enterButton } as unknown as Event);
 
-      for (let i = 0; i < 6; i += 1) {
+      let guard = 0;
+
+      while (!root.innerHTML.includes('data-enemy-motion="attack"') && guard < 30) {
         tickHandler?.();
+        guard += 1;
       }
 
-      expect(tickMs).toBeLessThanOrEqual(160);
+      expect(tickMs).toBeLessThanOrEqual(50);
       expect(root.innerHTML).toContain('data-enemy-motion="attack"');
       expect(root.innerHTML).toContain('data-enemy-telegraph="ash-ember-spit"');
       expect(root.innerHTML).not.toContain('data-enemy-skill-vfx="ash-ember-spit"');
 
-      for (let i = 0; i < 3; i += 1) {
+      guard = 0;
+
+      while (!root.innerHTML.includes('data-enemy-skill-vfx="ash-ember-spit"') && guard < 30) {
         tickHandler?.();
+        guard += 1;
       }
 
       expect(root.innerHTML).toContain('data-enemy-skill-vfx="ash-ember-spit"');

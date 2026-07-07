@@ -146,6 +146,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current DNF ground-light strictness progress: grounded light attacks now animate immediately but apply HP damage, resource gain, hitstop, hit sparks, monster hit reaction, combo count, and cancel-window opening only on the scheduled 55/65/78 ms hit frame, with live target recheck, delayed miss, and interruption-safe pending damage cancellation.
 - Current DNF ground-heavy strictness progress: grounded heavy attacks now animate immediately but apply HP damage, resource gain, hitstop, launcher/airborne state, hit sparks, and heavy impact VFX only on the scheduled 85 ms hit frame, with live target recheck, delayed miss, and interruption-safe pending damage cancellation.
 - Current DNF ground-heavy movement progress: grounded heavy now moves the actual player actor 34 px toward the launcher point during the 85 ms windup, and the scheduled hitbox resolves from that moved endpoint rather than the input-frame origin.
+- Current DNF combat-tick progress: automatic combat updates now run at 48 ms instead of 140 ms, so short windups such as the 85 ms grounded heavy show intermediate actor movement before the real impact frame.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

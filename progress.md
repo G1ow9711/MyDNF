@@ -2479,3 +2479,26 @@
   - Browser validation initially failed because the temporary check page wrote `enemy.x/y` instead of the real `enemy.position.x/y`; after correcting the fixture, the page on `http://127.0.0.1:5178/.codex-local/tmp/ground-heavy-follow-check.html` passed with input actor `--actor-x: 27.08%`, hit actor `--actor-x: 30.63%`, wrapper rect movement 182 -> 211, mid-windup player X 276.6, hit player X 294, dynamic origin X 294, `data-player-normal-attack-move="ground-heavy"`, empty skill-move hook, `hit-impact-heavy`, enemy airborne true, and zero warn/error console logs.
   - Edge browser fixture confirmed old-origin miss/new-endpoint hit behavior: player 240 -> 274, dynamic origin X 274, one heavy hit, enemy HP 220 -> 168. Temporary check page was deleted and the in-app browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 424 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 89 DNF-Style Combat Tick Smoothness
+- Continued from the clarified priority: character and monster geometry may stay simpler while the playable loop is connected, but combat action smoothness, model-following attacks, strict hit frames, hit feedback, skill VFX, and monster skill VFX are strict.
+- Used parallel read-only agents:
+  - Combat timing audit confirmed `combatTick` used a hard-coded 140 ms step, so short scheduled hit frames could still resolve correctly in tests while looking skipped in the live automatic loop.
+  - UI/integration audit confirmed the mounted app interval also used 140 ms, and existing tests should wait for enemy state rather than assume a fixed number of ticks after reducing the interval.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` requires the first automatic grounded-heavy tick to stay before the 85 ms impact frame, move the actor partway toward the endpoint, render heavy windup, and avoid `hit-impact-heavy`.
+  - The mounted combat tick loop test now requires the interval to be 50 ms or faster.
+- RED evidence:
+  - Focused RED failed because the first `combatTick` advanced to 140 ms and showed heavy impact immediately, and because the mounted loop still registered 140 ms.
+- Implemented:
+  - Added shared `combatTickMs = 48` in `src/ui/app.ts`.
+  - Reducer `combatTick` and the mounted app interval now both use the shared 48 ms step.
+  - The mounted-loop integration test now advances until the monster reaches attack/VFX state, avoiding brittle tick-count assumptions under the shorter interval.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts -t "short frames|combat tick loop"`, 2 tests.
+  - App integration suite passed: `npm test -- src/tests/app-integration.test.ts`, 92 tests.
+  - Related combat/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 251 tests.
+  - Full suite passed: `npm test`, 13 files / 425 tests.
+  - Production build passed: `npm run build`.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/combat-tick-48-check.html` confirmed `windupElapsedMs: 48`, player X 260 -> 281.12 during windup, no heavy impact before 85 ms, then `impactElapsedMs: 96`, player X 294, `hit-impact-heavy`, enemy airborne true, and empty warn/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 425 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

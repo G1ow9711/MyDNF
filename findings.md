@@ -589,6 +589,15 @@
 - Test note: regression coverage places an enemy just outside the old origin-based heavy range but inside the moved endpoint range, proving the hitbox follows the model instead of only extending the animation.
 - Browser validation note: the check page must patch `enemy.position`, not ad-hoc `enemy.x/y`; after correcting that fixture, browser evidence confirmed wrapper X movement, hit-frame impact VFX, enemy airborne transition, and endpoint-based edge hit.
 
+## DNF-Style Combat Tick Smoothness Findings
+- Current user clarification: character and monster geometry can stay lighter while the full loop is connected, but combat action smoothness, model-following attacks, strict hit frames, hit feedback, skill VFX, and monster skill VFX remain mandatory.
+- Parallel audits found the reducer and mounted app loop both advanced automatic combat by 140 ms per tick, which skipped over short windups such as the 85 ms grounded heavy and made the actor jump straight to impact.
+- RED evidence confirmed the first automatic `combatTick` advanced elapsed time to 140 ms and immediately showed `hit-impact-heavy`, while the mounted interval accepted a 140 ms tick.
+- Implementation note: `combatTickMs` now centralizes automatic combat updates at 48 ms for both reducer `combatTick` actions and the mounted app interval.
+- Combat note: one automatic tick now leaves grounded heavy at 48 ms with actor movement in progress and no hit VFX; the second tick reaches 96 ms, resolves the scheduled 85 ms impact, and shows the heavy hit burst/airborne transition.
+- Timing note: smaller automatic ticks make enemy attacks start closer to their scheduled absolute time instead of being delayed to the next 140 ms boundary. Existing scheduled hit effects still resolve by absolute `applyAtMs` / `impactAtMs` ordering.
+- Browser validation note: the live check page confirmed `windupElapsedMs: 48`, in-between player X movement, no input-frame impact, then `impactElapsedMs: 96`, endpoint player X, `hit-impact-heavy`, and enemy airborne state.
+
 ## DNF-Style Ground-Heavy Hit Frame Findings
 - Current priority remains strict combat feel over heavier model detail: the launcher can use a simple model, but its windup, impact frame, enemy airborne transition, hitstop, resource gain, and VFX must align with real combat timing.
 - Parallel read-only audits found grounded heavy still used `applyPlayerHitbox` at input time, immediately mutating HP/airborne/resource while writing a future `occurredAtMs: input + 85`.

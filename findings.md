@@ -614,6 +614,14 @@
 - CSS note: jab/cross/launch now have separate monster reaction keyframes and impact slash/ring styling. The launch reaction is specificity-protected so the third hit's airborne state does not override the impact reaction animation.
 - Browser validation note: the live check page confirmed step 1/2/3 computed animations for player, weapon, enemy, and impact slash, including third-hit `monster-ground-light-launch-react` while `data-enemy-airborne="true"`.
 
+## DNF-Style Impact Anchor Findings
+- Current user clarification: character and monster models can stay simpler for now, but combat action smoothness, strict model-following attacks, hit feedback, skill VFX, and monster VFX are hard requirements.
+- Combat audit found grounded light model-following had a visual mismatch: damage and enemy knockback resolved correctly, but target VFX could anchor to the post-knockback enemy position rather than the original strike contact point.
+- Combat note: `CombatHitEvent` now carries `impactPosition`, recorded before knockback or scheduled enemy mutation. This gives the renderer a stable contact point while the target model remains free to move.
+- Reflect note: mirror-reflect counter hits also carry `impactPosition`, so counter sparks follow the same contract as direct and scheduled player hits.
+- UI note: target-bound skill bursts, hit sparks, and damage numbers now render from `impactPosition ?? target.position`, while the enemy actor wrapper still uses the live enemy position. This separates hit contact feedback from knockback presentation.
+- Test note: regression coverage asserts grounded light contact at x 405 while the enemy model is knocked to x 427, and verifies DOM origins / actor percentages for both impact VFX and the enemy actor.
+
 ## DNF-Style Ground-Heavy Hit Frame Findings
 - Current priority remains strict combat feel over heavier model detail: the launcher can use a simple model, but its windup, impact frame, enemy airborne transition, hitstop, resource gain, and VFX must align with real combat timing.
 - Parallel read-only audits found grounded heavy still used `applyPlayerHitbox` at input time, immediately mutating HP/airborne/resource while writing a future `occurredAtMs: input + 85`.

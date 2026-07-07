@@ -2547,3 +2547,24 @@
   - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 332 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/ground-light-vfx-check.html` confirmed all three light hits emit distinct phases/cues, player animations `player-light-strike` / `player-light-cross` / `player-light-launch`, weapon animations `weapon-light-swing` / `weapon-light-cross` / `weapon-light-launch`, enemy reactions `monster-ground-light-jab-react` / `monster-ground-light-cross-react` / `monster-ground-light-launch-react`, impact classes `hit-impact-ground-light-1/2/3`, slash animations, and zero warning/error console logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh checks passed: `git diff --check`, `npm test` (13 files / 428 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 92 DNF-Style Impact Anchor Separation
+- Continued from the user's clarified priority: character and monster models may stay simpler while the full loop is connected, but combat motion smoothness, model-following attacks, strict hit frames, hit feedback, skill VFX, and monster VFX remain hard requirements.
+- Used parallel read-only agents:
+  - Combat audit confirmed direct/scheduled hits needed an explicit contact-point field because enemy knockback can move the model before the renderer places sparks and damage numbers.
+  - UI audit confirmed enemy actors already render from live enemy position, so target VFX needed its own anchor rather than reusing the post-knockback target position.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires a grounded light hit at x 405 to emit `impactPosition: { x: 405, y: 340 }` while knockback moves the enemy model to x 427.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require impact/damage DOM origins to stay at x 405 while the enemy actor renders at x 427.
+  - The mirror-reflect counter test now requires reflect hit events to carry an `impactPosition` matching the counter target position.
+- RED evidence:
+  - Focused RED failed because light and reflect hit events had no `impactPosition`, and rendered impact VFX still used the post-knockback enemy actor percentage.
+- Implemented:
+  - `CombatHitEvent` now includes optional `impactPosition`.
+  - Direct hits, scheduled player hit effects, and mirror-reflect counter hits record contact position before target mutation.
+  - Combat UI renders skill impact bursts, hit sparks, and damage numbers from `impactPosition ?? target.position`, while enemy actor wrappers continue to use the live enemy position.
+- Verification so far:
+  - Focused RED/GREEN passed: `npm test -- src/tests/combat.test.ts -t "impact point"`, `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "grounded light"`, and `npm test -- src/tests/combat.test.ts -t "counter window|impact point"`.
+  - Related combat/app/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 347 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/impact-anchor-check.html` confirmed impact origin `{ x: 405, y: 340 }`, enemy model position `{ x: 427, y: 340 }`, enemy actor X `44.48%`, impact/damage actor X `42.19%`, ground-light impact animation `ground-light-jab-impact-slash`, and empty console logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 429 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

@@ -442,6 +442,23 @@ describe("combat actions and impact feel", () => {
     expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
   });
 
+  it("keeps the grounded light impact point at contact while knockback moves the enemy model", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 405, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const hit = resolveGroundLight(performAction(run, { type: "light" }));
+    const [lightHit] = hit.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.action === "light");
+
+    expect(lightHit).toMatchObject({
+      targetId: run.enemies[0].id,
+      impactPosition: { x: 405, y: 340 }
+    });
+    expect(hit.enemies[0].position.x).toBe(427);
+    expect(hit.enemies[0].position.y).toBe(340);
+  });
+
   it("resolves grounded heavy damage, resource, launcher, and hitstop only on the real hit frame", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       hp: 220,
@@ -2746,14 +2763,14 @@ describe("combat actions and impact feel", () => {
     expect(reflecting.player.reflectUntilMs).toBeGreaterThan(reflecting.elapsedMs);
     expect(countered.player.hp).toBe(run.player.hp);
     expect(countered.enemies[0].hp).toBeLessThan(enemyHpBeforeImpact);
-    expect(countered.events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          kind: "hit",
-          skillId: "mirror-reflect"
-        })
-      ])
+    const reflectHit = countered.events.find(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mirror-reflect"
     );
+    expect(reflectHit).toMatchObject({
+      kind: "hit",
+      skillId: "mirror-reflect"
+    });
+    expect(reflectHit?.impactPosition).toEqual(countered.enemies[0].position);
   });
 
   it("turns trap and break tags into monster control and armor-break state", () => {

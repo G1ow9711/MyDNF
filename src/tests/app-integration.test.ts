@@ -688,6 +688,13 @@ describe("playable app integration actions", () => {
 
     expect(model.combatRun?.player.x).toBe(258);
     expect(hitHtml).toContain('--actor-x: 26.88%;');
+    expect(model.combatRun?.enemies[0].position.x).toBe(427);
+    expect(hitHtml).toContain('data-impact-origin-x="405"');
+    expect(hitHtml).toContain('data-impact-origin-y="340"');
+    expect(hitHtml).toContain('data-damage-origin-x="405"');
+    expect(hitHtml).toContain('data-damage-origin-y="340"');
+    expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%;"');
+    expect(hitHtml).toContain('style="--actor-x: 44.48%; --actor-y: 65.29%; --enemy-body-width:');
     expect(hitHtml).toContain('data-hit-action="light"');
     expect(hitHtml).toContain('data-hit-phase="ground-light-1"');
     expect(hitHtml).toContain('data-hit-vfx-cue="ground-light-slash-1"');

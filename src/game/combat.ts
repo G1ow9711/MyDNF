@@ -270,6 +270,7 @@ export interface CombatHitEvent {
   hitPhase?: CombatHitPhase;
   vfxCue?: CombatVfxCue;
   vfxWindowMs?: number;
+  impactPosition?: CombatVector;
   casterPosition?: CombatVector;
   casterFacing?: 1 | -1;
 }
@@ -3984,7 +3985,8 @@ function applyEnemyImpact(
         inputToHitMs: 0,
         hitstopMs: attack.hitstopMs,
         canceledFromCombo: false,
-        statusTags: ["reflect"]
+        statusTags: ["reflect"],
+        impactPosition: { x: nextEnemy.position.x, y: nextEnemy.position.y }
       };
 
       nextEnemy = reflectedEnemy;
@@ -4124,6 +4126,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
   const actionTags = hit.actionTags ?? [];
   const hitstopMs = eventHitstop(target, hit.hitstopMs);
   const impactAtMs = run.elapsedMs + (hit.inputToHitMs ?? 0);
+  const impactPosition = { x: target.position.x, y: target.position.y };
   const comboCount = run.comboCount > 0 && run.elapsedMs <= run.comboExpiresAtMs ? run.comboCount + 1 : 1;
   const comboExpiresAtMs = impactAtMs + 1200;
   const nextEnemies = run.enemies.map((enemy) => {
@@ -4211,6 +4214,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     hitPhase: hit.hitPhase,
     vfxCue: hit.vfxCue,
     vfxWindowMs: hit.vfxWindowMs,
+    impactPosition,
     casterPosition: { x: run.player.x, y: run.player.y },
     casterFacing: run.player.facing
   };
@@ -4490,6 +4494,7 @@ function applyScheduledEnemyHitEffect(
     hitPhase: effect.hitPhase,
     vfxCue: effect.vfxCue,
     vfxWindowMs: effect.vfxWindowMs,
+    impactPosition: { x: target.position.x, y: target.position.y },
     casterPosition: effect.casterPosition,
     casterFacing: effect.casterFacing
   };

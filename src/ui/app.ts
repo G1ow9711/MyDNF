@@ -1203,12 +1203,13 @@ function renderCombatVfx(run: CombatRun): string {
         return "";
       }
 
+      const impactPosition = hitEvent.impactPosition ?? target.position;
       const skillImpactAnimation =
         hitEvent.action === "skill" && hitEvent.skillId ? classSkillById(hitEvent.skillId)?.animation : undefined;
       const skillImpactVfx =
         hitEvent.action === "skill" && hitEvent.skillId && skillImpactAnimation
           ? `
-        <div class="skill-impact-burst skill-impact-shape-${skillImpactAnimation.vfxShape}" data-skill-impact-vfx="${hitEvent.skillId}" data-impact-vfx-shape="${skillImpactAnimation.vfxShape}" data-impact-target-id="${target.id}" data-hit-event-id="${hitEvent.id}" data-impact-hit-index="${hitIndex}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" style="${combatActorStyle(run, target.position.x, target.position.y)} --skill-duration: ${skillImpactAnimation.durationMs}ms; --impact-hit-index: ${hitIndex};">
+        <div class="skill-impact-burst skill-impact-shape-${skillImpactAnimation.vfxShape}" data-skill-impact-vfx="${hitEvent.skillId}" data-impact-vfx-shape="${skillImpactAnimation.vfxShape}" data-impact-target-id="${target.id}" data-hit-event-id="${hitEvent.id}" data-impact-hit-index="${hitIndex}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" data-impact-origin-x="${Math.round(impactPosition.x)}" data-impact-origin-y="${Math.round(impactPosition.y)}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)} --skill-duration: ${skillImpactAnimation.durationMs}ms; --impact-hit-index: ${hitIndex};">
           <span class="skill-impact-core"></span>
           <span class="skill-impact-ring"></span>
           <span class="skill-impact-shards"></span>
@@ -1224,11 +1225,11 @@ function renderCombatVfx(run: CombatRun): string {
 
       return `
         ${skillImpactVfx}
-        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}${airImpactClass}${dashImpactClass}${groundLightImpactClass}" data-impact-spark="true" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" data-impact-air-action="${airImpactAction}" data-impact-dash-action="${dashImpactAction}" data-impact-ground-light-step="${groundLightImpactStep}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, target.position.x, target.position.y)}">
+        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}${airImpactClass}${dashImpactClass}${groundLightImpactClass}" data-impact-spark="true" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" data-impact-air-action="${airImpactAction}" data-impact-dash-action="${dashImpactAction}" data-impact-ground-light-step="${groundLightImpactStep}" data-impact-origin-x="${Math.round(impactPosition.x)}" data-impact-origin-y="${Math.round(impactPosition.y)}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">
           <span class="hit-ring"></span>
           <span class="hit-slash"></span>
         </div>
-        <div class="damage-number" data-damage-number="true" data-hit-event-id="${hitEvent.id}" style="${combatActorStyle(run, target.position.x, target.position.y)}">-${hitEvent.damage}</div>
+        <div class="damage-number" data-damage-number="true" data-hit-event-id="${hitEvent.id}" data-damage-origin-x="${Math.round(impactPosition.x)}" data-damage-origin-y="${Math.round(impactPosition.y)}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">-${hitEvent.damage}</div>
       `;
     })
     .join("");

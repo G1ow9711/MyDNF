@@ -1195,6 +1195,10 @@ function playerSkillVfxStyle(
     return `${combatActorStyle(run, origin.x + 74 * facing, origin.y)}${durationStyle}`;
   }
 
+  if (skillId === "shield-quake") {
+    return `${combatActorStyle(run, origin.x + 92 * facing, origin.y)}${durationStyle}`;
+  }
+
   if (skillId === "earth-furnace-breaker") {
     return `${combatActorStyle(run, origin.x + 96 * facing, origin.y)}${durationStyle}`;
   }

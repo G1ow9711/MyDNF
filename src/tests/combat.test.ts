@@ -5197,6 +5197,57 @@ describe("combat actions and impact feel", () => {
     expect(meteor.enemies.every((enemy) => (enemy.armorBrokenUntilMs ?? 0) > meteor.elapsedMs)).toBe(true);
   });
 
+  it("makes shield-quake resolve as a delayed area slam with target knockdown", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 320, y: 340, hp: 220, maxHp: 220, armor: 0 },
+        { x: 390, y: 352, hp: 220, maxHp: 220, armor: 0 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "shield-quake" });
+    const [quakeAtMs] = scheduledSkillTimes(cast, "shield-quake");
+    const beforeImpact = stepToElapsed(cast, quakeAtMs - 1);
+    const impact = stepToElapsed(cast, quakeAtMs);
+    const hits = skillHitEvents(impact, "shield-quake");
+
+    expect(quakeAtMs).toBe(280);
+    expect(skillHitEvents(cast, "shield-quake")).toHaveLength(0);
+    expect(cast.enemies.map((enemy) => enemy.hp)).toEqual([220, 220]);
+    expect(beforeImpact.enemies.map((enemy) => enemy.hp)).toEqual([220, 220]);
+    expect(skillHitEvents(beforeImpact, "shield-quake")).toHaveLength(0);
+    expect(hits).toHaveLength(2);
+    expect(hits.map((event) => event.hitPhase)).toEqual(["shield-quake", "shield-quake"]);
+    expect(hits.every((event) => event.vfxCue === "shield-quake-impact")).toBe(true);
+    expect(hits.every((event) => event.actionTags?.includes("knockdown"))).toBe(true);
+    expect(impact.enemies.every((enemy) => enemy.downed && (enemy.downedUntilMs ?? 0) > impact.elapsedMs)).toBe(true);
+  });
+
+  it("rechecks shield-quake targets on the quake frame instead of locking cast-time targets", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90);
+    const run = withPlayerAndEnemies(createCombatRun(state, "cinder-kiln-alley"), { x: 240, y: 340, facing: 1 }, [
+      { x: 320, y: 340, hp: 220, maxHp: 220, armor: 0 }
+    ]);
+
+    const cast = performAction(run, { type: "skill", skillId: "shield-quake" });
+    const [quakeAtMs] = scheduledSkillTimes(cast, "shield-quake");
+    const escaped = {
+      ...cast,
+      enemies: cast.enemies.map((enemy) => ({
+        ...enemy,
+        position: { x: 620, y: enemy.position.y }
+      }))
+    };
+    const avoided = stepToElapsed(escaped, quakeAtMs);
+
+    expect(skillHitEvents(avoided, "shield-quake")).toHaveLength(0);
+    expect(skillMissEvents(avoided, "shield-quake")).toHaveLength(1);
+    expect(avoided.enemies[0].hp).toBe(220);
+  });
+
   it("guard skills open a mitigation window like shield skills", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 40);
     const run = withPlayerAndEnemies(

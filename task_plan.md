@@ -152,6 +152,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current DNF impact-anchor progress: hit events now preserve the contact-point `impactPosition`, so target sparks, skill bursts, and damage numbers stay on the strike point while enemy models can still knock back or move independently.
 - Current DNF enemy knockback presentation progress: enemy roots now visually slide from hit contact point to logical knockback endpoint over 160 ms, while hit sparks and damage numbers remain anchored at the contact point.
 - Current DNF hitstop presentation progress: combat scene now exposes hitstop state so player, monster, weapon, and motion-trail animations freeze during the impact pause, while hit sparks and damage numbers continue playing.
+- Current Iron shield-quake progress: `shield-quake` now uses a strict 280 ms delayed quake hitbox, model-following shield-slam movement, live target recheck, forced knockdown, and dedicated cast/target quake VFX instead of the generic input-frame skill hit path.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

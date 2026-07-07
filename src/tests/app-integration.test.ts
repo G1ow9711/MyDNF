@@ -2270,6 +2270,77 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="iron-palm"')).toBe(1);
   });
 
+  it("renders shield-quake as a delayed area slam with quake impact bursts", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 220,
+          maxHp: 220,
+          armor: 0,
+          position: { x: index === 0 ? 320 : 390, y: player.y + index * 12 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "shield-quake" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after shield-quake");
+    }
+
+    const [quakeAtMs] = scheduledSkillTimes(model.combatRun, "shield-quake");
+    const castHtml = renderAppHtml(model);
+    const beforeQuakeRun = stepToElapsed(model.combatRun, quakeAtMs - 1);
+    const beforeQuakeHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeQuakeRun
+    });
+    const hitRun = stepToElapsed(model.combatRun, quakeAtMs);
+    const hitHtml = renderAppHtml({
+      ...model,
+      combatRun: hitRun
+    });
+
+    expect(model.combatRun.player.x).toBe(player.x);
+    expect(beforeQuakeRun.player.x).toBeGreaterThan(player.x);
+    expect(skillHitEvents(model.combatRun, "shield-quake")).toHaveLength(0);
+    expect(skillHitEvents(hitRun, "shield-quake")).toHaveLength(2);
+    expect(castHtml).toContain('data-active-skill-id="shield-quake"');
+    expect(castHtml).toContain('data-skill-animation-preset="iron-quake"');
+    expect(castHtml).toContain('data-skill-weapon-arc="shield-slam"');
+    expect(castHtml).toContain('data-skill-vfx-shape="shield-quake"');
+    expect(castHtml).toContain('data-player-skill-move="shield-quake"');
+    expect(beforeQuakeHtml).not.toContain('data-skill-impact-vfx="shield-quake"');
+    expect(hitHtml).toContain('data-hit-phase="shield-quake"');
+    expect(hitHtml).toContain('data-vfx-cue="shield-quake-impact"');
+    expect(hitHtml).toContain('data-impact-vfx-shape="shield-quake"');
+    expect(hitHtml).toContain('class="skill-impact-burst skill-impact-shape-shield-quake"');
+    expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="shield-quake"')).toBe(2);
+  });
+
   it("renders cinder-uppercut as a timed forward launcher with flame-column impact", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

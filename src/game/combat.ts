@@ -51,6 +51,7 @@ export type CombatHitPhase =
   | "glass-cut"
   | "jab-chain"
   | "shield-jab"
+  | "shield-quake"
   | "roll-shot"
   | "uppercut"
   | "chain-open"
@@ -90,6 +91,7 @@ export type CombatVfxCue =
   | "glass-slash-cut"
   | "ember-jab-chain"
   | "iron-shield-jab"
+  | "shield-quake-impact"
   | "shadow-roll-shot"
   | "cinder-uppercut-rise"
   | "flowing-chain-open"
@@ -1890,6 +1892,49 @@ function applyIronPalm(run: CombatRun, skill: ClassSkillDefinition, canceledFrom
     hitPhase: "shield-jab",
     vfxCue: "iron-shield-jab",
     vfxWindowMs: 260
+  });
+}
+
+function shieldQuakeHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 132,
+    laneRange: 64,
+    targetCap: 3,
+    frontOnly: false,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 1.08)),
+    hitstopMs: 78,
+    knockback: 38,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    statusTags: ["stagger"],
+    actionTags: ["slam", "knockdown"]
+  };
+}
+
+function applyShieldQuake(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const movementDistance = skill.animation.lungePx;
+  const endPosition = {
+    x: clamp(run.player.x + movementDistance * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const quakeOrigin = {
+    x: clamp(run.player.x + 92 * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+
+  return schedulePlayerHitboxEffect(movingRun, shieldQuakeHitbox(run, skill, canceledFromCombo), quakeOrigin, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-shield-quake`,
+    hitPhase: "shield-quake",
+    vfxCue: "shield-quake-impact",
+    vfxWindowMs: 360
   });
 }
 
@@ -5600,6 +5645,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "iron-palm") {
     return finishSkillAction(applyIronPalm(run, skill, canceledFromCombo));
+  }
+
+  if (skill.id === "shield-quake") {
+    return finishSkillAction(applyShieldQuake(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "cinder-uppercut") {

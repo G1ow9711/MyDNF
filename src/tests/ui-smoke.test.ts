@@ -720,6 +720,64 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes iron-shield-jab-impact-core");
   });
 
+  it("defines dedicated shield-quake player, shield-slam, cast quake, and impact animations", () => {
+    const state = {
+      ...selectBaseClass(createInitialState(), "iron-forge-guardian"),
+      player: {
+        ...selectBaseClass(createInitialState(), "iron-forge-guardian").player,
+        heat: 90
+      }
+    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 220,
+          maxHp: 220,
+          armor: 0,
+          position: { x: index === 0 ? 320 : 390, y: player.y + index * 12 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "shield-quake" }
+    );
+    const [quakeAtMs] = scheduledSkillTimes(castRun, "shield-quake");
+    const beforeQuakeHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, quakeAtMs - 1)
+    });
+    const hitRun = stepToElapsed(castRun, quakeAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: hitRun
+    });
+
+    expect(skillHitEvents(castRun, "shield-quake")).toHaveLength(0);
+    expect(skillHitEvents(hitRun, "shield-quake")).toHaveLength(2);
+    expect(beforeQuakeHtml).toContain('data-player-skill-move="shield-quake"');
+    expect(beforeQuakeHtml).not.toContain('data-skill-impact-vfx="shield-quake"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="shield-quake"')).toBe(2);
+    expect(html).toContain('data-impact-vfx-shape="shield-quake"');
+    expect(html).toContain('data-vfx-cue="shield-quake-impact"');
+    expect(html).toContain('data-hit-phase="shield-quake"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-shield-quake"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="shield-quake"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="iron-quake"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="shield-slam"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-shield-quake");
+    expect(stylesCss).toContain(".skill-impact-shape-shield-quake");
+    expect(stylesCss).toContain("@keyframes player-iron-shield-quake");
+    expect(stylesCss).toContain("@keyframes weapon-shield-slam");
+    expect(stylesCss).toContain("@keyframes shield-quake-cast-core");
+    expect(stylesCss).toContain("@keyframes shield-quake-impact-core");
+  });
+
   it("renders anvil-crash as a delayed hammer-drop slam with target sparks", () => {
     const state = {
       ...createInitialState(),

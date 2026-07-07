@@ -2608,3 +2608,22 @@
   - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "grounded light"`, 2 tests.
   - Related combat/app/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 347 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/hitstop-freeze-check.html` confirmed hit frame scene hitstop `true`, player/enemy/weapon animation play state `paused`, hit ring/damage animation play state `running`, settled scene hitstop `false`, and player/enemy/weapon back to `running`. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+
+## Task 95 DNF-Style Shield Quake Strict Slam
+- Continued from the user's clarification: character/monster models can stay simpler for now, but combat model motion, hit-frame timing, skill VFX, monster VFX, and player/enemy action changes must be strict.
+- Used parallel read-only agents:
+  - Combat audit confirmed `shield-quake` still used the generic skill branch, mutating enemy HP at input time and only delaying the visual event timestamp.
+  - UI/CSS audit confirmed render metadata already existed, but `iron-quake` player animation and `shield-quake` cast/impact VFX selectors were missing.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `shield-quake` to schedule a 280 ms quake, keep enemy HP unchanged at cast/before-impact frames, hit two area targets only at the quake frame, emit `shield-quake` / `shield-quake-impact`, force knockdown, and MISS when targets leave before the quake frame.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require model-following `data-player-skill-move="shield-quake"`, `iron-quake`, `shield-slam`, `shield-quake` cast metadata, and target-bound quake impact bursts.
+- RED evidence:
+  - Focused RED failed because there were no scheduled effects for `shield-quake`; the skill still resolved through the generic immediate hit path.
+- Implemented:
+  - Added `shield-quake` hit phase and `shield-quake-impact` VFX cue.
+  - Added `applyShieldQuake()` with a 28 px timed player movement, fixed 92 px forward quake origin, 280 ms dynamic hitbox, 3 target area cap, stagger/knockdown tags, and delayed MISS support.
+  - Anchored the cast VFX to the quake origin and added dedicated player, cast, and target impact CSS animations.
+- Verification so far:
+  - Focused RED/GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "shield-quake"`, 4 tests.
+  - Related combat/app/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 351 tests.
+  - Browser validation on `http://127.0.0.1:5178/shield-quake-check.html` confirmed 280 ms quake timing, no cast/before-impact HP loss, two hit-frame impacts, both targets downed, computed animations `player-iron-shield-quake`, `weapon-shield-slam`, `shield-quake-cast-core`, `shield-quake-impact-core`, `shield-quake-impact-ring`, and empty warning/error logs. Temporary pages were deleted and the browser returned to `http://127.0.0.1:5178/`.

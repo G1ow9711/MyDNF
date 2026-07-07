@@ -643,3 +643,12 @@
 - UI note: `combatHitstopActive()` now centralizes the hitstop calculation and feeds both the VFX layer and the `.combat-scene` root, so actor and VFX presentation derive from the same combat state.
 - CSS note: scene-level hitstop pauses `.combat-player-art`, `.enemy-art`, `.combat-weapon`, `.actor-model`, and motion-trail children, while leaving `.hit-impact`, `.damage-number`, and feedback VFX outside the freeze selector.
 - Browser validation note: computed-style verification initially caught player/enemy animations still running because later `animation` shorthand rules reset `animation-play-state`. The freeze rule now uses `animation-play-state: paused !important` to preserve hitstop priority across all actor animation presets.
+
+## DNF-Style Shield Quake Strict Slam Findings
+- Current user clarification: character models may stay simpler while core functionality is completed, but combat action smoothness, hit-frame timing, model-following attacks, target reaction, skill VFX, and monster VFX remain strict acceptance criteria.
+- Parallel combat audit confirmed `shield-quake` still fell through the generic skill path: enemy HP was mutated at input time while the hit event carried a future `occurredAtMs`, making it a visual delay instead of a real delayed hit.
+- Parallel UI/CSS audit confirmed the DOM already exposed `iron-quake`, `shield-slam`, and `shield-quake` metadata, and the weapon animation existed, but the player cast animation plus shield-quake cast/impact VFX selectors were missing.
+- Combat note: `shield-quake` now uses the scheduled dynamic hitbox queue at the 280 ms quake frame, rechecks live targets from a fixed quake origin in front of the player, emits delayed MISS when targets leave, and forces grounded knockdown only on the real hit frame.
+- Presentation note: the player actor now moves 28 px into the shield slam before impact, cast VFX anchors at the same quake origin, and target-bound impact bursts emit `shield-quake` / `shield-quake-impact` metadata on each hit target.
+- CSS note: `iron-quake` has a dedicated body slam animation, `shield-slam` remains the weapon arc, and `shield-quake` now has separate ground-ring cast and target impact keyframes.
+- Browser validation note: the live check page confirmed quake time 280 ms, no cast/before-impact HP loss, two hit-frame impacts, both targets downed, computed animations `player-iron-shield-quake`, `weapon-shield-slam`, `shield-quake-cast-core`, `shield-quake-impact-core`, `shield-quake-impact-ring`, and empty warning/error console output.

@@ -81,7 +81,7 @@ describe("render plan", () => {
       { type: "light" }
     );
     const [hitAtMs] = cast.scheduledEnemyHitEffects
-      .filter((effect) => effect.action === "light" && !effect.skillId && !effect.hitPhase)
+      .filter((effect) => effect.action === "light" && !effect.skillId && effect.id.startsWith("ground-light-"))
       .map((effect) => effect.applyAtMs);
     if (hitAtMs === undefined) {
       throw new Error("Expected scheduled ground-light effect");

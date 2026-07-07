@@ -95,7 +95,7 @@ function scheduledSkillTimes(run: CombatRun, skillId: string): number[] {
 
 function scheduledGroundLightTimes(run: CombatRun): number[] {
   const times = run.scheduledEnemyHitEffects
-    .filter((effect) => effect.action === "light" && !effect.skillId && !effect.hitPhase)
+    .filter((effect) => effect.action === "light" && !effect.skillId && effect.id.startsWith("ground-light-"))
     .map((effect) => effect.applyAtMs)
     .sort((left, right) => left - right);
 
@@ -689,7 +689,12 @@ describe("playable app integration actions", () => {
     expect(model.combatRun?.player.x).toBe(258);
     expect(hitHtml).toContain('--actor-x: 26.88%;');
     expect(hitHtml).toContain('data-hit-action="light"');
+    expect(hitHtml).toContain('data-hit-phase="ground-light-1"');
+    expect(hitHtml).toContain('data-hit-vfx-cue="ground-light-slash-1"');
+    expect(hitHtml).toContain('data-enemy-hit-ground-light-step="1"');
     expect(hitHtml).toContain('data-enemy-motion="hit"');
+    expect(hitHtml).toContain('hit-impact-ground-light-1');
+    expect(hitHtml).toContain('data-impact-ground-light-step="1"');
   });
 
   it("renders combo HUD plus enemy airborne and knockdown model states", () => {

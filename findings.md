@@ -606,6 +606,14 @@
 - UI note: `ground-light-*` is exposed through normal-attack movement hooks and filtered out of catalog skill movement hooks, so HTML proves it is normal-attack model movement rather than a fake skill dash.
 - Browser validation note: the live check page confirmed windup X 240, mid-windup X 248.676, impact X 258 at 55 ms, `ground-light-1` movement metadata, one light hit, `data-hit-action="light"`, enemy hit state, and computed `player-light-strike` / `weapon-light-swing` animations with no warning/error logs.
 
+## DNF-Style Ground-Light Hit VFX Findings
+- Current user clarification: character and monster geometry can stay lighter for now, but attack motion, hit feedback, hit-frame VFX, monster reactions, and model-following action changes are hard acceptance criteria.
+- Parallel audits found the current light combo already had per-step player/weapon animation and strict hit frames, but hit events still lacked grounded combo `hitPhase` / `vfxCue`. As a result, target-bound VFX and enemy reaction remained generic `hit-impact-light` / `monster-hit-react`.
+- Combat note: `lightComboSteps` now owns per-step presentation metadata: `ground-light-1/2/3`, `ground-light-slash-1/2/3`, and 240/280/340 ms VFX windows. The scheduled hit queue preserves these fields through the real hit frame.
+- UI note: render code now maps ground-light phases into `data-enemy-hit-ground-light-step` and `hit-impact-ground-light-1/2/3`, while preserving the existing `action: "light"` semantics for resource, hitstop, and combo behavior.
+- CSS note: jab/cross/launch now have separate monster reaction keyframes and impact slash/ring styling. The launch reaction is specificity-protected so the third hit's airborne state does not override the impact reaction animation.
+- Browser validation note: the live check page confirmed step 1/2/3 computed animations for player, weapon, enemy, and impact slash, including third-hit `monster-ground-light-launch-react` while `data-enemy-airborne="true"`.
+
 ## DNF-Style Ground-Heavy Hit Frame Findings
 - Current priority remains strict combat feel over heavier model detail: the launcher can use a simple model, but its windup, impact frame, enemy airborne transition, hitstop, resource gain, and VFX must align with real combat timing.
 - Parallel read-only audits found grounded heavy still used `applyPlayerHitbox` at input time, immediately mutating HP/airborne/resource while writing a future `occurredAtMs: input + 85`.

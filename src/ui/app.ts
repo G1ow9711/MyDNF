@@ -813,6 +813,22 @@ function dashActionForHitPhase(hitPhase: string | undefined): "light" | "" {
   return hitPhase === "dash-light" ? "light" : "";
 }
 
+function groundLightStepForHitPhase(hitPhase: string | undefined): "1" | "2" | "3" | "" {
+  if (hitPhase === "ground-light-1") {
+    return "1";
+  }
+
+  if (hitPhase === "ground-light-2") {
+    return "2";
+  }
+
+  if (hitPhase === "ground-light-3") {
+    return "3";
+  }
+
+  return "";
+}
+
 function playerDodgeResult(run: CombatRun): "missed" | "none" {
   return recentEnemyAttackEvents(run).some((event) => event.phase === "miss") ? "missed" : "none";
 }
@@ -1203,10 +1219,12 @@ function renderCombatVfx(run: CombatRun): string {
       const airImpactClass = airImpactAction ? ` hit-impact-air-${airImpactAction}` : "";
       const dashImpactAction = dashActionForHitPhase(hitEvent.hitPhase);
       const dashImpactClass = dashImpactAction ? ` hit-impact-dash-${dashImpactAction}` : "";
+      const groundLightImpactStep = groundLightStepForHitPhase(hitEvent.hitPhase);
+      const groundLightImpactClass = groundLightImpactStep ? ` hit-impact-ground-light-${groundLightImpactStep}` : "";
 
       return `
         ${skillImpactVfx}
-        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}${airImpactClass}${dashImpactClass}" data-impact-spark="true" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" data-impact-air-action="${airImpactAction}" data-impact-dash-action="${dashImpactAction}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, target.position.x, target.position.y)}">
+        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}${airImpactClass}${dashImpactClass}${groundLightImpactClass}" data-impact-spark="true" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" data-impact-air-action="${airImpactAction}" data-impact-dash-action="${dashImpactAction}" data-impact-ground-light-step="${groundLightImpactStep}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, target.position.x, target.position.y)}">
           <span class="hit-ring"></span>
           <span class="hit-slash"></span>
         </div>
@@ -1404,9 +1422,10 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const recentTargetHit = latestHitByTargetId.get(enemy.id);
       const hitAirAction = airActionForHitPhase(recentTargetHit?.hitPhase);
       const hitDashAction = dashActionForHitPhase(recentTargetHit?.hitPhase);
+      const hitGroundLightStep = groundLightStepForHitPhase(recentTargetHit?.hitPhase);
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-hit-recent="${hitRecent ? "true" : "false"}" data-hit-action="${recentTargetHit?.action ?? ""}" data-hit-phase="${recentTargetHit?.hitPhase ?? ""}" data-hit-air-action="${hitAirAction}" data-enemy-hit-air-action="${hitAirAction}" data-hit-dash-action="${hitDashAction}" data-enemy-hit-dash-action="${hitDashAction}" data-hit-vfx-cue="${recentTargetHit?.vfxCue ?? ""}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-hit-recent="${hitRecent ? "true" : "false"}" data-hit-action="${recentTargetHit?.action ?? ""}" data-hit-phase="${recentTargetHit?.hitPhase ?? ""}" data-hit-air-action="${hitAirAction}" data-enemy-hit-air-action="${hitAirAction}" data-hit-dash-action="${hitDashAction}" data-enemy-hit-dash-action="${hitDashAction}" data-enemy-hit-ground-light-step="${hitGroundLightStep}" data-hit-vfx-cue="${recentTargetHit?.vfxCue ?? ""}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
             <img class="enemy-art actor-model actor-model-${motion}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />

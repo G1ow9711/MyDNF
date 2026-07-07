@@ -148,6 +148,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current DNF ground-heavy movement progress: grounded heavy now moves the actual player actor 34 px toward the launcher point during the 85 ms windup, and the scheduled hitbox resolves from that moved endpoint rather than the input-frame origin.
 - Current DNF combat-tick progress: automatic combat updates now run at 48 ms instead of 140 ms, so short windups such as the 85 ms grounded heavy show intermediate actor movement before the real impact frame.
 - Current DNF ground-light movement progress: grounded light combo steps now create short actor movement (`ground-light-1/2/3`) and resolve hitboxes from the moved slash point while compensating range so total front reach stays stable.
+- Current DNF ground-light VFX progress: grounded light combo hit events now carry `ground-light-1/2/3` phases and `ground-light-slash-1/2/3` cues, with separate target reactions and impact ring/slash animations for jab, cross, and launch.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

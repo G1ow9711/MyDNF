@@ -2524,3 +2524,26 @@
   - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 332 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/ground-light-follow-check.html` confirmed start X 240, mid X 248.676, impact X 258, movement `ground-light-1`, hit at 55 ms, one light hit, enemy HP 180 -> 154, `data-hit-action="light"`, `player-light-strike`, `weapon-light-swing`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 428 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 91 DNF-Style Ground-Light Hit VFX Differentiation
+- Continued from the user's clarification: character and monster models may stay simpler while full playability is built, but combat motion smoothness, model-following attacks, hit feedback, skill VFX, monster VFX, and player/enemy action changes remain strict.
+- Used parallel read-only agents:
+  - Combat audit confirmed grounded light had scheduled hit frames and model-following movement, but its hit events still had no grounded combo `hitPhase` / `vfxCue`.
+  - UI/CSS audit confirmed light hits rendered only generic `hit-impact-light` and generic `monster-hit-react`, while air/dash light already had distinct target/impact hooks.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires the three normal light combo hits to emit `ground-light-1/2/3` phases and `ground-light-slash-1/2/3` VFX cues.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require ground-light target DOM hooks, impact classes, and CSS keyframes for jab/cross/launch reactions.
+  - `src/tests/render-audio.test.ts` was updated to identify ground-light scheduled effects by `ground-light-*` id now that normal light hits carry phases.
+- RED evidence:
+  - Focused RED failed because existing light hit events returned `[undefined, undefined, undefined]` for `hitPhase`, and rendered HTML had empty `data-hit-phase` / `data-hit-vfx-cue`.
+- Implemented:
+  - Added per-step `hitPhase`, `vfxCue`, and `vfxWindowMs` to `lightComboSteps`.
+  - Grounded light now passes those presentation fields through `schedulePlayerHitboxEffect`, so hit-frame events carry jab/cross/launch identity without changing damage/range timing.
+  - UI now maps ground-light phases into `data-enemy-hit-ground-light-step` and `hit-impact-ground-light-1/2/3`.
+  - CSS now gives the three grounded light hits distinct monster reactions and impact ring/slash animations. The launch selector is specificity-protected so the third hit reaction is not hidden by the enemy airborne float animation.
+- Verification:
+  - Focused RED confirmed: `npm test -- src/tests/combat.test.ts -t "three-step normal combo"` and `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "grounded light"` failed before implementation.
+  - Focused GREEN passed after implementation: same focused commands, 3 tests total.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts`, 332 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/ground-light-vfx-check.html` confirmed all three light hits emit distinct phases/cues, player animations `player-light-strike` / `player-light-cross` / `player-light-launch`, weapon animations `weapon-light-swing` / `weapon-light-cross` / `weapon-light-launch`, enemy reactions `monster-ground-light-jab-react` / `monster-ground-light-cross-react` / `monster-ground-light-launch-react`, impact classes `hit-impact-ground-light-1/2/3`, slash animations, and zero warning/error console logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh checks passed: `git diff --check`, `npm test` (13 files / 428 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

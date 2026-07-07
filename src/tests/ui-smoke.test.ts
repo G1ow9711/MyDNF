@@ -60,7 +60,7 @@ function scheduledSkillTimes(run: CombatRun, skillId: string): number[] {
 
 function scheduledGroundLightTimes(run: CombatRun): number[] {
   const times = run.scheduledEnemyHitEffects
-    .filter((effect) => effect.action === "light" && !effect.skillId && !effect.hitPhase)
+    .filter((effect) => effect.action === "light" && !effect.skillId && effect.id.startsWith("ground-light-"))
     .map((effect) => effect.applyAtMs)
     .sort((left, right) => left - right);
 
@@ -1889,12 +1889,29 @@ describe("town app shell", () => {
     expect(hitHtml).toContain('data-player-motion="light"');
     expect(hitHtml).toContain('--actor-x: 26.88%;');
     expect(hitHtml).toContain('data-hit-action="light"');
+    expect(hitHtml).toContain('data-hit-phase="ground-light-1"');
+    expect(hitHtml).toContain('data-hit-vfx-cue="ground-light-slash-1"');
+    expect(hitHtml).toContain('data-enemy-hit-ground-light-step="1"');
     expect(hitHtml).toContain('data-enemy-motion="hit"');
+    expect(hitHtml).toContain('hit-impact-ground-light-1');
+    expect(hitHtml).toContain('data-impact-ground-light-step="1"');
     expect(hitHtml).toContain('data-damage-number="true"');
     expect(stylesCss).toContain('.combat-player[data-player-motion="light"] .combat-player-art');
     expect(stylesCss).toContain('.combat-player[data-player-motion="light"] .combat-weapon');
+    expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-ground-light-step="1"] .enemy-art');
+    expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-ground-light-step="2"] .enemy-art');
+    expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-ground-light-step="3"] .enemy-art');
+    expect(stylesCss).toContain('.hit-impact-ground-light-1 .hit-slash');
+    expect(stylesCss).toContain('.hit-impact-ground-light-2 .hit-slash');
+    expect(stylesCss).toContain('.hit-impact-ground-light-3 .hit-slash');
     expect(stylesCss).toContain("@keyframes player-light-strike");
     expect(stylesCss).toContain("@keyframes weapon-light-swing");
+    expect(stylesCss).toContain("@keyframes monster-ground-light-jab-react");
+    expect(stylesCss).toContain("@keyframes monster-ground-light-cross-react");
+    expect(stylesCss).toContain("@keyframes monster-ground-light-launch-react");
+    expect(stylesCss).toContain("@keyframes ground-light-jab-impact-slash");
+    expect(stylesCss).toContain("@keyframes ground-light-cross-impact-slash");
+    expect(stylesCss).toContain("@keyframes ground-light-launch-impact-slash");
   });
 
   it("renders DNF-style dash-light with player, weapon, target, and impact hooks", () => {

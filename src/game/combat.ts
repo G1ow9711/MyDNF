@@ -23,6 +23,9 @@ export type CombatActionInput =
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
 export type CombatHitPhase =
+  | "ground-light-1"
+  | "ground-light-2"
+  | "ground-light-3"
   | "dash-light"
   | "air-light"
   | "air-heavy-slam"
@@ -56,6 +59,9 @@ export type CombatHitPhase =
   | "prism-field-lock"
   | "prism-field-burst";
 export type CombatVfxCue =
+  | "ground-light-slash-1"
+  | "ground-light-slash-2"
+  | "ground-light-slash-3"
   | "dash-light-slash"
   | "air-light-slash"
   | "air-heavy-impact"
@@ -1019,6 +1025,9 @@ interface LightComboStepDefinition {
   juggle: boolean;
   inputToHitMs: number;
   actionLockMs: number;
+  hitPhase: CombatHitPhase;
+  vfxCue: CombatVfxCue;
+  vfxWindowMs: number;
   actionTags?: CombatActionTag[];
 }
 
@@ -1031,7 +1040,10 @@ const lightComboSteps: LightComboStepDefinition[] = [
     knockback: 22,
     juggle: false,
     inputToHitMs: 55,
-    actionLockMs: 180
+    actionLockMs: 180,
+    hitPhase: "ground-light-1",
+    vfxCue: "ground-light-slash-1",
+    vfxWindowMs: 240
   },
   {
     baseDamage: 30,
@@ -1041,7 +1053,10 @@ const lightComboSteps: LightComboStepDefinition[] = [
     knockback: 28,
     juggle: false,
     inputToHitMs: 65,
-    actionLockMs: 200
+    actionLockMs: 200,
+    hitPhase: "ground-light-2",
+    vfxCue: "ground-light-slash-2",
+    vfxWindowMs: 280
   },
   {
     baseDamage: 38,
@@ -1052,6 +1067,9 @@ const lightComboSteps: LightComboStepDefinition[] = [
     juggle: true,
     inputToHitMs: 78,
     actionLockMs: 240,
+    hitPhase: "ground-light-3",
+    vfxCue: "ground-light-slash-3",
+    vfxWindowMs: 340,
     actionTags: ["launcher"]
   }
 ];
@@ -5392,6 +5410,9 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       run.player.facing,
       {
         id: `ground-light-${run.elapsedMs}-${comboStep}`,
+        hitPhase: combo.hitPhase,
+        vfxCue: combo.vfxCue,
+        vfxWindowMs: combo.vfxWindowMs,
         comboStepOnHit: comboStep,
         resourceGainOnHit: 8,
         cancelWindowUntilMsOnHit: actionLockUntilMs,

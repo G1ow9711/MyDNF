@@ -140,7 +140,7 @@ function scheduledMissTimes(run: CombatRun, skillId: string): number[] {
 
 function scheduledGroundLightTimes(run: CombatRun): number[] {
   const times = run.scheduledEnemyHitEffects
-    .filter((effect) => effect.action === "light" && !effect.skillId && !effect.hitPhase)
+    .filter((effect) => effect.action === "light" && !effect.skillId && effect.id.startsWith("ground-light-"))
     .map((effect) => effect.applyAtMs)
     .sort((left, right) => left - right);
 
@@ -692,6 +692,12 @@ describe("combat actions and impact feel", () => {
 
     expect(lightHits.map((event) => event.damage)).toEqual([26, 33, 41]);
     expect(lightHits.map((event) => event.inputToHitMs)).toEqual([55, 65, 78]);
+    expect(lightHits.map((event) => event.hitPhase)).toEqual(["ground-light-1", "ground-light-2", "ground-light-3"]);
+    expect(lightHits.map((event) => event.vfxCue)).toEqual([
+      "ground-light-slash-1",
+      "ground-light-slash-2",
+      "ground-light-slash-3"
+    ]);
     expect(lightHits[2].actionTags).toEqual(expect.arrayContaining(["launcher"]));
     expect(lightHits.map((event) => event.comboCount)).toEqual([1, 2, 3]);
     expect(third.player.comboStep).toBe(3);

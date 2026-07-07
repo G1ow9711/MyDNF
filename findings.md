@@ -636,3 +636,10 @@
 - Cancellation note: the existing scheduled normal-attack interruption guard now covers both ground light and ground heavy, so monster damage or bound lock before/on the launcher frame cancels pending heavy damage and prevents ghost airborne hits.
 - Presentation note: a `normalAttackType` field keeps the player and weapon in `heavy` windup motion before impact while hit sparks, damage numbers, enemy airborne state, and `hit-impact-heavy` wait for the real hit event.
 - Integration note: room-clear helpers that spam heavy now resolve the heavy hit frame before judging enemy HP, then advance only between hits when more enemies remain. This preserves final-room VFX for the “no stale VFX in next room” regression.
+
+## DNF-Style Hitstop Actor Freeze Findings
+- Current user clarification: character and monster model detail can stay simpler for now, but action smoothness, hit feel, skill VFX, monster VFX, and actor motion changes must be strict.
+- Parallel UI/CSS audits found hitstop was only exposed on `.combat-vfx-layer`, while `.combat-actors` is a sibling. Player, enemy, and weapon animation selectors therefore could not reliably react to impact pause.
+- UI note: `combatHitstopActive()` now centralizes the hitstop calculation and feeds both the VFX layer and the `.combat-scene` root, so actor and VFX presentation derive from the same combat state.
+- CSS note: scene-level hitstop pauses `.combat-player-art`, `.enemy-art`, `.combat-weapon`, `.actor-model`, and motion-trail children, while leaving `.hit-impact`, `.damage-number`, and feedback VFX outside the freeze selector.
+- Browser validation note: computed-style verification initially caught player/enemy animations still running because later `animation` shorthand rules reset `animation-play-state`. The freeze rule now uses `animation-play-state: paused !important` to preserve hitstop priority across all actor animation presets.

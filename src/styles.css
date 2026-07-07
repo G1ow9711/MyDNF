@@ -1516,6 +1516,14 @@ p {
   filter: saturate(1.25) contrast(1.1);
 }
 
+.combat-scene[data-hitstop-active="true"] .combat-player-art,
+.combat-scene[data-hitstop-active="true"] .enemy-art,
+.combat-scene[data-hitstop-active="true"] .combat-weapon,
+.combat-scene[data-hitstop-active="true"] .actor-model,
+.combat-scene[data-hitstop-active="true"] .player-motion-trail * {
+  animation-play-state: paused !important;
+}
+
 .actor-model {
   transform: scaleX(var(--model-scale-x, 1));
   transform-origin: center bottom;

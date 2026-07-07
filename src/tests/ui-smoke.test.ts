@@ -1888,6 +1888,7 @@ describe("town app shell", () => {
 
     expect(hitHtml).toContain('data-player-motion="light"');
     expect(hitHtml).toContain('--actor-x: 26.88%;');
+    expect(hitHtml).toContain('data-hitstop-active="true"');
     expect(hitHtml).toContain('data-hit-action="light"');
     expect(hitHtml).toContain('data-impact-origin-x="405"');
     expect(hitHtml).toContain('data-impact-origin-y="340"');
@@ -1912,6 +1913,10 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-ground-light-step="2"] .enemy-art');
     expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-ground-light-step="3"] .enemy-art');
     expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-slide-active="true"]');
+    expect(stylesCss).toContain('.combat-scene[data-hitstop-active="true"] .combat-player-art');
+    expect(stylesCss).toContain('.combat-scene[data-hitstop-active="true"] .enemy-art');
+    expect(stylesCss).toContain('.combat-scene[data-hitstop-active="true"] .combat-weapon');
+    expect(stylesCss).toContain('animation-play-state: paused');
     expect(stylesCss).toContain('.hit-impact-ground-light-1 .hit-slash');
     expect(stylesCss).toContain('.hit-impact-ground-light-2 .hit-slash');
     expect(stylesCss).toContain('.hit-impact-ground-light-3 .hit-slash');

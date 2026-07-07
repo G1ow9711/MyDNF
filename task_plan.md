@@ -151,6 +151,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current DNF ground-light VFX progress: grounded light combo hit events now carry `ground-light-1/2/3` phases and `ground-light-slash-1/2/3` cues, with separate target reactions and impact ring/slash animations for jab, cross, and launch.
 - Current DNF impact-anchor progress: hit events now preserve the contact-point `impactPosition`, so target sparks, skill bursts, and damage numbers stay on the strike point while enemy models can still knock back or move independently.
 - Current DNF enemy knockback presentation progress: enemy roots now visually slide from hit contact point to logical knockback endpoint over 160 ms, while hit sparks and damage numbers remain anchored at the contact point.
+- Current DNF hitstop presentation progress: combat scene now exposes hitstop state so player, monster, weapon, and motion-trail animations freeze during the impact pause, while hit sparks and damage numbers continue playing.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

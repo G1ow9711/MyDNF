@@ -600,6 +600,13 @@ function latestPlayerHitEvent(run: CombatRun): CombatPlayerHitEvent | undefined 
     );
 }
 
+function combatHitstopActive(run: CombatRun): boolean {
+  const hit = latestHitEvent(run);
+  const playerHit = latestPlayerHitEvent(run);
+
+  return Boolean(hit && run.elapsedMs < hit.occurredAtMs + hit.hitstopMs) || Boolean(playerHit && run.elapsedMs < run.player.hitstopUntilMs);
+}
+
 function matchingPlayerHitEvent(run: CombatRun, attackEvent: CombatEnemyAttackEvent): CombatPlayerHitEvent | undefined {
   return [...run.events].reverse().find((event): event is CombatPlayerHitEvent => {
     if (event.kind !== "player-hit") {
@@ -1251,7 +1258,7 @@ function renderCombatVfx(run: CombatRun): string {
     playerAction?.action === "skill" && playerAction.skillId
       ? classSkillById(playerAction.skillId)?.animation
       : undefined;
-  const hitstopActive = Boolean(hit && run.elapsedMs < hit.occurredAtMs + hit.hitstopMs) || Boolean(playerHit && run.elapsedMs < run.player.hitstopUntilMs);
+  const hitstopActive = combatHitstopActive(run);
   const screenShake = combatScreenShake(hit, playerHit);
   const screenFlash = combatScreenFlash(hit);
   const impactSkillId = hit?.skillId ?? "";
@@ -1612,6 +1619,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const scenePlayerHit = latestPlayerHitEvent(run);
   const sceneScreenShake = combatScreenShake(sceneHit, scenePlayerHit);
   const sceneScreenFlash = combatScreenFlash(sceneHit);
+  const sceneHitstopActive = combatHitstopActive(run);
   const sceneImpactSkillId = sceneHit?.skillId ?? "";
   const bufferedAction = run.player.bufferedAction;
   const bufferState = bufferedAction ? "queued" : "empty";
@@ -1632,7 +1640,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const commandReductionApplied = latestCast?.inputMethod === "command";
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>

@@ -688,6 +688,7 @@ describe("playable app integration actions", () => {
 
     expect(model.combatRun?.player.x).toBe(258);
     expect(hitHtml).toContain('--actor-x: 26.88%;');
+    expect(hitHtml).toMatch(/<section class="combat-scene"[^>]*data-hitstop-active="true"/);
     expect(model.combatRun?.enemies[0].position.x).toBe(427);
     expect(hitHtml).toContain('data-impact-origin-x="405"');
     expect(hitHtml).toContain('data-impact-origin-y="340"');
@@ -721,6 +722,7 @@ describe("playable app integration actions", () => {
     expect(slidingRun?.enemies[0].position.x).toBe(427);
     expect(slidingHtml).toContain('data-enemy-hit-slide-progress="0.50"');
     expect(slidingHtml).toContain('style="--actor-x: 43.33%; --actor-y: 65.29%; --enemy-body-width:');
+    expect(settledHtml).toMatch(/<section class="combat-scene"[^>]*data-hitstop-active="false"/);
     expect(settledHtml).toContain('data-enemy-hit-slide-active="false"');
     expect(settledHtml).toContain('style="--actor-x: 44.48%; --actor-y: 65.29%; --enemy-body-width:');
   });

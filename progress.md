@@ -2588,3 +2588,23 @@
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/knockback-slide-check.html` confirmed hit frame logical x 427 / actor x `42.19%`, mid frame logical x 427 / actor x `43.33%`, settled actor x `44.48%`, impact and damage origin x 405, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Related combat/app/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 347 tests.
   - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 429 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 94 DNF-Style Hitstop Actor Freeze
+- Continued from the user's clarification: character/monster modeling can stay simpler while full functionality is built, but combat motion smoothness, skill VFX, monster VFX, hit feedback, and actor action changes remain strict.
+- Used parallel read-only agents:
+  - UI/CSS audit confirmed hitstop state existed only on `.combat-vfx-layer`, while player, enemy, weapon, and trail nodes live under the sibling actor layer.
+  - Test audit identified the grounded-light fixture as the smallest regression point for scene-level hitstop and freeze CSS coverage.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` now requires `.combat-scene` to expose `data-hitstop-active="true"` on the hit frame and return to `false` after the pause.
+  - `src/tests/ui-smoke.test.ts` now requires the scene-level freeze selectors for player art, enemy art, and combat weapon, plus paused animation play state.
+- RED evidence:
+  - Focused RED failed because only `.combat-vfx-layer` had `data-hitstop-active`, and the CSS had no actor freeze selectors.
+- Implemented:
+  - Added `combatHitstopActive()` and reused it for both VFX and scene rendering.
+  - Added `data-hitstop-active` to `.combat-scene`.
+  - Added hitstop CSS that pauses player art, enemy art, actor models, combat weapons, and motion-trail children while leaving hit sparks, damage numbers, and feedback VFX running.
+  - Browser computed-style validation caught later animation shorthand rules resetting player/enemy play state, so the freeze rule now uses `animation-play-state: paused !important`.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "grounded light"`, 2 tests.
+  - Related combat/app/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts`, 347 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/hitstop-freeze-check.html` confirmed hit frame scene hitstop `true`, player/enemy/weapon animation play state `paused`, hit ring/damage animation play state `running`, settled scene hitstop `false`, and player/enemy/weapon back to `running`. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.

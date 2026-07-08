@@ -13,7 +13,8 @@ export type EnemyAttackProfileId =
   | "taotie-flame-breath"
   | "taotie-devour-pull"
   | "taotie-ash-summon"
-  | "taotie-forge-shackle";
+  | "taotie-forge-shackle"
+  | "taotie-chain-cleave";
 export type CombatSkillInputMethod = "hotkey" | "command";
 export type CombatActionInput =
   | { type: "light" }
@@ -132,7 +133,9 @@ export type CombatEnemyVfxCue =
   | "taotie-devour-bite"
   | "taotie-ash-summon-rift"
   | "taotie-forge-shackle-bind"
-  | "taotie-forge-shackle-slam";
+  | "taotie-forge-shackle-slam"
+  | "taotie-chain-cleave-drag"
+  | "taotie-chain-cleave-smash";
 export type CombatPlayerFeedbackCue =
   | "player-hurt-light"
   | "player-hurt-heavy"
@@ -140,7 +143,9 @@ export type CombatPlayerFeedbackCue =
   | "player-hurt-devoured"
   | "player-hurt-forge-collapse"
   | "player-hurt-forge-shackle"
-  | "player-hurt-forge-slam";
+  | "player-hurt-forge-slam"
+  | "player-hurt-chain-drag"
+  | "player-hurt-chain-smash";
 export type CombatBossPhaseSkillId = "taotie-forge-collapse";
 export type CombatArenaHazardPhase = "telegraph" | "active" | "miss";
 export type CombatArenaHazardVfxCue = "taotie-forge-collapse-telegraph" | "taotie-forge-collapse-impact";
@@ -679,7 +684,7 @@ const taotieForgeCollapseRadiusX = 86;
 const taotieForgeCollapseLaneRange = 36;
 const taotieAshSummonMinionDelayMs = 540;
 const taotieBossPhaseOnePattern: EnemyAttackProfileId[] = ["taotie-flame-breath", "taotie-devour-pull", "taotie-ash-summon"];
-const taotieBossPhaseTwoPattern: EnemyAttackProfileId[] = [...taotieBossPhaseOnePattern, "taotie-forge-shackle"];
+const taotieBossPhaseTwoPattern: EnemyAttackProfileId[] = [...taotieBossPhaseOnePattern, "taotie-forge-shackle", "taotie-chain-cleave"];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -1278,7 +1283,8 @@ function isEnemyAttackProfileId(value: string | undefined): value is EnemyAttack
     value === "taotie-flame-breath" ||
     value === "taotie-devour-pull" ||
     value === "taotie-ash-summon" ||
-    value === "taotie-forge-shackle"
+    value === "taotie-forge-shackle" ||
+    value === "taotie-chain-cleave"
   );
 }
 
@@ -1287,7 +1293,8 @@ function enemyAttackProfileKind(profileId: EnemyAttackProfileId): EnemyKind {
     profileId === "taotie-flame-breath" ||
     profileId === "taotie-devour-pull" ||
     profileId === "taotie-ash-summon" ||
-    profileId === "taotie-forge-shackle"
+    profileId === "taotie-forge-shackle" ||
+    profileId === "taotie-chain-cleave"
   ) {
     return "boss";
   }
@@ -1352,6 +1359,36 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       damageMultipliers: [0.55, 1.45],
       knockbackByHit: [0, 74],
       boundMsByHit: [360, 0],
+      jumpEvade: true
+    };
+  }
+
+  if (profileId === "taotie-chain-cleave") {
+    return {
+      skillId: "taotie-chain-cleave",
+      damage: 50,
+      rangeX: 255,
+      laneRange: 34,
+      windupMs: 360,
+      recoveryMs: 430,
+      cooldownMs: 2900,
+      hitstopMs: 66,
+      knockback: 34,
+      hitCount: 2,
+      hitIntervalMs: 180,
+      vfxCue: "taotie-chain-cleave-drag",
+      hitVfxCues: ["taotie-chain-cleave-drag", "taotie-chain-cleave-smash"],
+      vfxWindowMs: 520,
+      feedbackCue: "player-hurt-chain-drag",
+      feedbackCues: ["player-hurt-chain-drag", "player-hurt-chain-smash"],
+      invulnerabilityMs: 0,
+      invulnerabilityMsByHit: [0, 420],
+      hurtLockMs: 440,
+      hurtLockMsByHit: [380, 500],
+      damageMultipliers: [0.7, 1.35],
+      knockbackByHit: [16, 86],
+      boundMsByHit: [260, 0],
+      windupPullPx: 126,
       jumpEvade: true
     };
   }

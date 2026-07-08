@@ -554,6 +554,8 @@ describe("town app shell", () => {
     expect(stylesCss).toContain(".enemy-skill-taotie-ash-summon .enemy-cast-core");
     expect(stylesCss).toContain(".enemy-telegraph-taotie-forge-shackle");
     expect(stylesCss).toContain(".enemy-skill-taotie-forge-shackle .enemy-cast-core");
+    expect(stylesCss).toContain(".enemy-telegraph-taotie-chain-cleave");
+    expect(stylesCss).toContain(".enemy-skill-taotie-chain-cleave .enemy-cast-core");
     expect(stylesCss).toContain('.enemy-skill-taotie-flame-breath[data-enemy-vfx-cue="taotie-flame-breath-sustain"] .enemy-cast-core');
     expect(stylesCss).toContain('.enemy-skill-taotie-flame-breath[data-enemy-vfx-cue="taotie-flame-breath-sustain"] .enemy-cast-ring');
     expect(stylesCss).toContain('.enemy-skill-taotie-flame-breath[data-enemy-attack-hit-index="1"] .enemy-cast-trail');
@@ -568,8 +570,10 @@ describe("town app shell", () => {
     expect(stylesCss).toContain(".combat-feedback-miss.combat-feedback-skill-taotie-flame-breath .combat-feedback-text");
     expect(stylesCss).toContain(".combat-feedback-skill-taotie-devour-pull");
     expect(stylesCss).toContain(".combat-feedback-skill-taotie-forge-shackle");
+    expect(stylesCss).toContain(".combat-feedback-skill-taotie-chain-cleave");
     expect(stylesCss).toContain("@keyframes monster-taotie-ash-summon");
     expect(stylesCss).toContain("@keyframes monster-taotie-forge-shackle");
+    expect(stylesCss).toContain("@keyframes monster-taotie-chain-cleave");
     expect(stylesCss).toContain("@keyframes monster-ash-crawler-burst");
     expect(stylesCss).toContain("@keyframes monster-zheng-horn-charge");
     expect(stylesCss).toContain("@keyframes monster-taotie-devour-pull");
@@ -596,7 +600,10 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes taotie-ash-summon-spawn-core");
     expect(stylesCss).toContain("@keyframes taotie-forge-shackle-bind-core");
     expect(stylesCss).toContain("@keyframes taotie-forge-shackle-slam-core");
+    expect(stylesCss).toContain("@keyframes taotie-chain-cleave-drag-core");
+    expect(stylesCss).toContain("@keyframes taotie-chain-cleave-smash-core");
     expect(stylesCss).toContain("@keyframes taotie-forge-shackle-hit-feedback");
+    expect(stylesCss).toContain("@keyframes taotie-chain-cleave-hit-feedback");
   });
 
   it("resolves taotie forge shackle monster VFX from bind and slam cues", () => {
@@ -646,6 +653,56 @@ describe("town app shell", () => {
     );
     expect(resolvedAnimationName(stylesCss, shacklePart(slamRoot, "enemy-cast-trail"))).toBe(
       "taotie-forge-shackle-slam-trail"
+    );
+  });
+
+  it("resolves taotie chain cleave monster VFX from drag and smash cues", () => {
+    const uncuedRoot: CssElementSnapshot = {
+      classList: ["enemy-skill-vfx", "enemy-skill-taotie-chain-cleave"],
+      attributes: {
+        "data-enemy-skill-vfx": "taotie-chain-cleave",
+        "data-enemy-vfx-cue": ""
+      }
+    };
+    const dragRoot: CssElementSnapshot = {
+      classList: ["enemy-skill-vfx", "enemy-skill-taotie-chain-cleave"],
+      attributes: {
+        "data-enemy-skill-vfx": "taotie-chain-cleave",
+        "data-enemy-vfx-cue": "taotie-chain-cleave-drag"
+      }
+    };
+    const smashRoot: CssElementSnapshot = {
+      classList: ["enemy-skill-vfx", "enemy-skill-taotie-chain-cleave"],
+      attributes: {
+        "data-enemy-skill-vfx": "taotie-chain-cleave",
+        "data-enemy-vfx-cue": "taotie-chain-cleave-smash"
+      }
+    };
+    const chainPart = (root: CssElementSnapshot, className: string): CssElementSnapshot => ({
+      classList: [className],
+      parent: root
+    });
+
+    expect(resolvedAnimationName(stylesCss, chainPart(uncuedRoot, "enemy-cast-core"))).toBe("none");
+    expect(resolvedAnimationName(stylesCss, chainPart(uncuedRoot, "enemy-cast-ring"))).toBe("none");
+    expect(resolvedAnimationName(stylesCss, chainPart(uncuedRoot, "enemy-cast-trail"))).toBe("none");
+    expect(resolvedAnimationName(stylesCss, chainPart(dragRoot, "enemy-cast-core"))).toBe(
+      "taotie-chain-cleave-drag-core"
+    );
+    expect(resolvedAnimationName(stylesCss, chainPart(dragRoot, "enemy-cast-ring"))).toBe(
+      "taotie-chain-cleave-drag-ring"
+    );
+    expect(resolvedAnimationName(stylesCss, chainPart(dragRoot, "enemy-cast-trail"))).toBe(
+      "taotie-chain-cleave-drag-trail"
+    );
+    expect(resolvedAnimationName(stylesCss, chainPart(smashRoot, "enemy-cast-core"))).toBe(
+      "taotie-chain-cleave-smash-core"
+    );
+    expect(resolvedAnimationName(stylesCss, chainPart(smashRoot, "enemy-cast-ring"))).toBe(
+      "taotie-chain-cleave-smash-ring"
+    );
+    expect(resolvedAnimationName(stylesCss, chainPart(smashRoot, "enemy-cast-trail"))).toBe(
+      "taotie-chain-cleave-smash-trail"
     );
   });
 

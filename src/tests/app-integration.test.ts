@@ -5007,6 +5007,97 @@ describe("playable app integration actions", () => {
     expect(slamHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
   });
 
+  it("renders taotie chain cleave as a phase-two drag and smash boss chain", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+
+    if (!model.combatRun) {
+      throw new Error("Expected boss combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: {
+          ...model.combatRun.player,
+          x: 230,
+          y: 340,
+          hp: 999,
+          maxHp: 999,
+          actionLockUntilMs: 0,
+          hurtLockUntilMs: 0
+        },
+        enemies: [
+          {
+            ...model.combatRun.enemies[0],
+            bossPhase: 2,
+            attackProfileId: "taotie-chain-cleave",
+            attackPatternIds: ["taotie-chain-cleave"],
+            nextAttackPatternIndex: 0,
+            position: {
+              x: 470,
+              y: 340
+            },
+            nextAttackAtMs: 1
+          } as unknown as CombatEnemy
+        ]
+      }
+    };
+
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const windupHtml = renderAppHtml(model);
+
+    expect(windupHtml).toContain('data-enemy-telegraph="taotie-chain-cleave"');
+    expect(windupHtml).toContain('data-telegraph-shape="line"');
+    expect(windupHtml).toContain('data-enemy-attack-skill-id="taotie-chain-cleave"');
+    expect(windupHtml).toContain('actor-enemy-skill-taotie-chain-cleave');
+    expect(windupHtml).not.toContain('data-enemy-skill-vfx="taotie-chain-cleave"');
+    expect(windupHtml).not.toContain('data-enemy-telegraph="taotie-flame-breath"');
+
+    let guard = 0;
+    while (
+      model.combatRun &&
+      !model.combatRun.events.some(
+        (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-chain-cleave" && event.hitIndex === 1
+      ) &&
+      guard < 10
+    ) {
+      model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+      guard += 1;
+    }
+
+    const dragHtml = renderAppHtml(model);
+
+    expect(dragHtml).toContain('data-player-bound-active="true"');
+    expect(dragHtml).toContain('data-enemy-skill-vfx="taotie-chain-cleave"');
+    expect(dragHtml).toContain('data-enemy-vfx-cue="taotie-chain-cleave-drag"');
+    expect(dragHtml).toContain('data-feedback-skill-id="taotie-chain-cleave"');
+    expect(dragHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-chain-cleave"');
+
+    while (
+      model.combatRun &&
+      !model.combatRun.events.some(
+        (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-chain-cleave" && event.hitIndex === 2
+      ) &&
+      guard < 16
+    ) {
+      model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+      guard += 1;
+    }
+
+    const smashHtml = renderAppHtml(model);
+
+    expect(smashHtml).toContain('data-enemy-skill-vfx="taotie-chain-cleave"');
+    expect(smashHtml).toContain('data-enemy-vfx-cue="taotie-chain-cleave-smash"');
+    expect(smashHtml).toContain('data-player-feedback-cue="player-hurt-chain-smash"');
+    expect(smashHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
+  });
+
   it("renders crawler burst as a rushing monster skill with explosion feedback", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

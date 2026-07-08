@@ -549,6 +549,8 @@ function enemyAttackLungePx(skillId: string | undefined): number {
       return 14;
     case "taotie-forge-shackle":
       return 38;
+    case "taotie-chain-cleave":
+      return 56;
     default:
       return 28;
   }
@@ -1278,6 +1280,10 @@ function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { 
     return { id: "taotie-forge-shackle", label: "饕餮炉锁" };
   }
 
+  if (skillId === "taotie-chain-cleave") {
+    return { id: "taotie-chain-cleave", label: "饕餮链斩" };
+  }
+
   if (skillId === "taotie-flame-breath" || enemy.kind === "boss") {
     return { id: "taotie-flame-breath", label: "饕餮炉火" };
   }
@@ -1290,7 +1296,7 @@ function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { 
 }
 
 function enemyTelegraphShape(effectId: string): "cone" | "line" | "circle" {
-  if (effectId === "taotie-flame-breath" || effectId === "zheng-horn-charge") {
+  if (effectId === "taotie-flame-breath" || effectId === "zheng-horn-charge" || effectId === "taotie-chain-cleave") {
     return "line";
   }
 

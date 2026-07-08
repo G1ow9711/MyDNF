@@ -3323,3 +3323,25 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 422 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/enemy-skill-hooks-check.html` confirmed crawler burst model class, model animation `monster-ash-crawler-burst` at `0.66s`, telegraph `ash-crawler-burst-telegraph` at `0.66s`, active ring/core/trail `ash-crawler-burst-*` at `0.46s`, and no browser warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 507 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 129 DNF-Style Taotie Phase-Two Chain Cleave
+- Continued from the user's latest clarification: character and monster geometry can remain simple while the full loop is connected, but combat action smoothness, strict hit frames, model-following attacks, player/enemy action changes, skill VFX, monster skill VFX, and hit feedback remain hard gates.
+- Used one read-only agent:
+  - UI/CSS audit confirmed boss phase hooks, enemy telegraph hooks, active enemy VFX hooks, and model attack classes already existed; the gap was registering a new boss skill and adding skill-specific CSS instead of letting it fall back to flame breath/default animations.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires Taotie phase 2 to rotate through `taotie-forge-shackle` into `taotie-chain-cleave`.
+  - `src/tests/combat.test.ts` now requires `taotie-chain-cleave` to use strict two-hit drag/smash frames, separate player feedback cues, active enemy VFX cues, bound-state movement/action blocking, and delayed HP loss.
+  - `src/tests/app-integration.test.ts` now verifies windup telegraph, model class, drag VFX, smash VFX, and no flame-breath fallback.
+  - `src/tests/ui-smoke.test.ts` now verifies CSS support plus cue-specific drag/smash animations and uncued `animation: none` behavior.
+- RED evidence:
+  - Focused RED failed because phase 2 had no `taotie-chain-cleave`, the new profile/effects were absent, app rendering fell back to default boss presentation, and uncued VFX resolved to default flicker instead of `none`.
+- Implemented:
+  - Added `taotie-chain-cleave` as a boss attack profile after forge shackle in phase 2.
+  - Added a 360 ms windup, two active hit frames spaced 180 ms apart, drag and smash VFX cues, per-hit feedback cues, per-hit hurt lock, first-hit bind, second-hit knockback, and windup pull.
+  - Added UI mapping for lunge distance, skill label, line telegraph, real `actor-enemy-skill-taotie-chain-cleave` class, and active enemy VFX cue consumption.
+  - Added CSS for monster model motion, line telegraph, drag/smash active VFX layers, and hit/miss feedback animations.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --testNamePattern "phase-two control-chain|taotie chain cleave|monster skill effects" --reporter=dot`, 5 tests.
+  - Related combat/app/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 425 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/taotie-chain-cleave-check.html` confirmed windup model animation `monster-taotie-chain-cleave`, `--enemy-lunge-x: -56px`, line telegraph animation `taotie-chain-cleave-telegraph`, drag active cue `taotie-chain-cleave-drag` with `taotie-chain-cleave-drag-core`, smash active cue `taotie-chain-cleave-smash` with `taotie-chain-cleave-smash-core`, player bound during drag, hit frames at 520 ms and 700 ms, and no browser warnings/errors. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), HTTP 200 from `http://127.0.0.1:5178/`, `npm test -- --reporter=dot` (13 files / 510 tests), and `npm run build`.

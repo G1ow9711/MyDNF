@@ -951,3 +951,11 @@
 - Timing note: monster telegraphs now receive `--enemy-attack-duration`; active monster VFX receives both `--enemy-attack-duration` and `--enemy-vfx-duration`, so the windup warning follows the attack timeline while the explosion/sustain VFX follows its event window.
 - CSS note: high-specificity duration overrides keep existing cue-specific animation names but bind telegraph child layers and enemy cast ring/core/trail durations to runtime variables.
 - Browser validation note: temporary live page confirmed crawler burst model class `actor-enemy-skill-ash-crawler-burst`, model animation `monster-ash-crawler-burst` at `0.66s`, telegraph zone `ash-crawler-burst-telegraph` at `0.66s`, active ring/core/trail `ash-crawler-burst-*` at `0.46s`, and no browser warning/error logs.
+
+## DNF-Style Taotie Chain Cleave Findings
+- Current priority follows the user's clarified scope: character and monster geometry can stay simpler while playable systems are connected, but combat action flow, strict hit frames, actor motion, hit feedback, and player/monster skill VFX remain strict.
+- Read-only UI audit confirmed the rendering hooks were already present for boss windup, active enemy VFX, and enemy model attack classes. The risk was fallback behavior: an unregistered boss skill would silently render as `taotie-flame-breath` or default flicker.
+- RED note: focused tests failed because Taotie phase 2 only rotated to forge shackle and then back to flame breath, and no drag/smash CSS existed for a follow-up control chain.
+- Combat note: `taotie-chain-cleave` now follows forge shackle in phase 2, pulls during windup, hits on two real frames, binds the player on drag, then lands a heavier smash with separate VFX and feedback cues.
+- UI note: the skill now renders as a line telegraph with `actor-enemy-skill-taotie-chain-cleave`, `taotie-chain-cleave-drag`, and `taotie-chain-cleave-smash`. Uncued active VFX explicitly stays `animation: none` so fake/default monster effects do not mask missing cue wiring.
+- Verification note: focused combat/app/UI tests passed for phase-two rotation, strict drag/smash timing, DOM hooks, feedback classes, and cue-specific CSS animation resolution.

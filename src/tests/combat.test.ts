@@ -7314,7 +7314,7 @@ describe("enemy attacks and player defeat", () => {
     expect(boss.nextAttackPatternIndex).toBe(0);
   });
 
-  it("unlocks taotie forge shackle as the first phase-two control-chain cast", () => {
+  it("unlocks taotie forge shackle and chain cleave as phase-two control-chain casts", () => {
     const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
     const lowHpRun: CombatRun = {
       ...baseRun,
@@ -7341,12 +7341,18 @@ describe("enemy attacks and player defeat", () => {
     const windup = stepCombat(ready, {}, 1);
 
     expect(boss.bossPhase).toBe(2);
-    expect(boss.attackPatternIds).toEqual(["taotie-flame-breath", "taotie-devour-pull", "taotie-ash-summon", "taotie-forge-shackle"]);
+    expect(boss.attackPatternIds).toEqual([
+      "taotie-flame-breath",
+      "taotie-devour-pull",
+      "taotie-ash-summon",
+      "taotie-forge-shackle",
+      "taotie-chain-cleave"
+    ]);
     expect(boss.attackProfileId).toBe("taotie-forge-shackle");
     expect(boss.nextAttackPatternIndex).toBe(3);
     expect(windup.enemies[0].attackSkillId).toBe("taotie-forge-shackle");
-    expect((windup.enemies[0] as { attackProfileId?: string; nextAttackPatternIndex?: number }).attackProfileId).toBe("taotie-flame-breath");
-    expect((windup.enemies[0] as { nextAttackPatternIndex?: number }).nextAttackPatternIndex).toBe(0);
+    expect((windup.enemies[0] as { attackProfileId?: string; nextAttackPatternIndex?: number }).attackProfileId).toBe("taotie-chain-cleave");
+    expect((windup.enemies[0] as { nextAttackPatternIndex?: number }).nextAttackPatternIndex).toBe(4);
   });
 
   it("rotates the boss casts through flame breath, devour pull, and ash summon", () => {
@@ -7479,6 +7485,81 @@ describe("enemy attacks and player defeat", () => {
     expect(bind.player.hurtLockUntilMs).toBeGreaterThan(slamAtMs);
     expect(slammed.player.hp).toBeLessThan(bind.player.hp);
     expect(slammed.player.hurtLockUntilMs).toBeGreaterThan(slammed.elapsedMs);
+  });
+
+  it("casts taotie chain cleave as a phase-two drag and smash chain with strict hit frames", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 230,
+        y: 340,
+        hp: 999,
+        maxHp: 999,
+        actionLockUntilMs: 0,
+        hurtLockUntilMs: 0
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          bossPhase: 2,
+          attackProfileId: "taotie-chain-cleave",
+          attackPatternIds: ["taotie-chain-cleave"],
+          nextAttackPatternIndex: 0,
+          position: {
+            x: 470,
+            y: 340
+          },
+          nextAttackAtMs: 1
+        } as unknown as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const impactAtMs = telegraph.enemies[0].attackImpactAtMs;
+
+    if (impactAtMs === undefined) {
+      throw new Error("Expected taotie chain cleave impact frame");
+    }
+
+    const beforeDrag = stepToElapsed(telegraph, impactAtMs - 1);
+    const drag = stepToElapsed(beforeDrag, impactAtMs);
+    const actionDuringDrag = performAction(drag, { type: "light" });
+    const moveDuringDrag = stepCombat(drag, { moveX: -1, moveY: 1, dash: true }, 96);
+    const smashAtMs = impactAtMs + 180;
+    const beforeSmash = stepToElapsed(drag, smashAtMs - 1);
+    const smashed = stepToElapsed(beforeSmash, smashAtMs);
+    const chainAttacks = smashed.events.filter(
+      (event): event is CombatEnemyAttackEvent => event.kind === "enemy-attack" && event.skillId === "taotie-chain-cleave"
+    );
+    const playerHits = smashed.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-chain-cleave"
+    );
+
+    expect(telegraph.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          skillId: "taotie-chain-cleave",
+          phase: "windup",
+          totalHits: 2
+        })
+      ])
+    );
+    expect(beforeDrag.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-chain-cleave")).toBe(false);
+    expect(playerHits).toHaveLength(2);
+    expect(playerHits.map((event) => event.occurredAtMs)).toEqual([impactAtMs, smashAtMs]);
+    expect(playerHits.map((event) => event.feedbackCue)).toEqual(["player-hurt-chain-drag", "player-hurt-chain-smash"]);
+    expect(chainAttacks.filter((event) => event.phase === "active").map((event) => event.vfxCue)).toEqual([
+      "taotie-chain-cleave-drag",
+      "taotie-chain-cleave-smash"
+    ]);
+    expect(actionDuringDrag.events.some((event) => event.kind === "hit" && event.action === "light" && event.occurredAtMs === drag.elapsedMs)).toBe(false);
+    expect(moveDuringDrag.player.x).toBe(drag.player.x);
+    expect(moveDuringDrag.player.y).toBe(drag.player.y);
+    expect(drag.player.boundUntilMs).toBeGreaterThan(smashAtMs);
+    expect(smashed.player.hp).toBeLessThan(drag.player.hp);
+    expect(smashed.player.hurtLockUntilMs).toBeGreaterThan(smashed.elapsedMs);
   });
 
   it("lets lane movement dodge taotie forge shackle before the bind frame", () => {

@@ -7562,6 +7562,82 @@ describe("enemy attacks and player defeat", () => {
     expect(smashed.player.hurtLockUntilMs).toBeGreaterThan(smashed.elapsedMs);
   });
 
+  it("does not let taotie chain cleave smash a player who dodged the drag frame", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 230,
+        y: 340,
+        hp: 999,
+        maxHp: 999,
+        actionLockUntilMs: 0,
+        hurtLockUntilMs: 0,
+        boundUntilMs: 0
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          bossPhase: 2,
+          attackProfileId: "taotie-chain-cleave",
+          attackPatternIds: ["taotie-chain-cleave"],
+          nextAttackPatternIndex: 0,
+          position: {
+            x: 470,
+            y: baseRun.arena.minY
+          },
+          nextAttackAtMs: 1
+        } as unknown as CombatEnemy
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const impactAtMs = telegraph.enemies[0].attackImpactAtMs;
+
+    if (impactAtMs === undefined) {
+      throw new Error("Expected taotie chain cleave impact frame");
+    }
+
+    const beforeDrag = stepToElapsed(telegraph, impactAtMs - 1);
+    const sidesteppedBeforeDrag: CombatRun = {
+      ...beforeDrag,
+      player: {
+        ...beforeDrag.player,
+        y: beforeDrag.arena.maxY
+      }
+    };
+    const dragMissed = stepToElapsed(sidesteppedBeforeDrag, impactAtMs);
+    const smashAtMs = impactAtMs + 180;
+    const reenteredBeforeSmash: CombatRun = {
+      ...dragMissed,
+      player: {
+        ...dragMissed.player,
+        x: 230,
+        y: 340,
+        boundUntilMs: 0,
+        hurtLockUntilMs: 0
+      }
+    };
+    const smashed = stepToElapsed(reenteredBeforeSmash, smashAtMs);
+    const chainAttacks = smashed.events.filter(
+      (event): event is CombatEnemyAttackEvent =>
+        event.kind === "enemy-attack" && event.skillId === "taotie-chain-cleave" && event.phase !== "windup"
+    );
+    const playerHits = smashed.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-chain-cleave"
+    );
+
+    expect(chainAttacks.map((event) => [event.hitIndex, event.phase, event.vfxCue])).toEqual([
+      [1, "miss", "taotie-chain-cleave-drag"],
+      [2, "miss", "taotie-chain-cleave-smash"]
+    ]);
+    expect(playerHits).toHaveLength(0);
+    expect(dragMissed.player.hp).toBe(run.player.hp);
+    expect(smashed.player.hp).toBe(run.player.hp);
+    expect(dragMissed.player.boundUntilMs).toBe(0);
+    expect(smashed.player.hurtLockUntilMs).toBe(0);
+  });
+
   it("lets lane movement dodge taotie forge shackle before the bind frame", () => {
     const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
     const run: CombatRun = {

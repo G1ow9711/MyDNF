@@ -969,3 +969,11 @@
 - CSS note: legacy monster active VFX now defaults ring/core/trail to `animation: none`; `ash-ember-spit`, `ash-crawler-burst`, `zheng-shockwave`, `zheng-horn-charge`, and `taotie-flame-breath` only animate through exact active cue selectors.
 - VFX note: added dedicated ash spit ring/core and shockwave core/trail animations so old skills have visible active presentation without relying on generic enemy pulse/flicker/trail.
 - Queue note: apply this cue-gate rule to any future monster skill: an uncued active VFX root should stay visually idle, and every real hit/miss frame should provide explicit cue metadata.
+
+## DNF-Style Taotie Chain-Link Strictness Findings
+- Current priority follows the user's clarification: character models may stay simpler while the full loop is completed, but combat action flow, strict hit frames, actor state changes, and skill/monster VFX remain hard gates.
+- Read-only combat audit found `taotie-chain-cleave` had two real hit frames, but `applyEnemyImpact()` evaluated drag and smash as independent range checks. That meant a player could dodge drag, step back in, and still be hit by smash without ever being bound by the chain.
+- RED note: the new focused test first proved drag could MISS while smash still became `active` and emitted `player-hurt-chain-smash` when the player re-entered before the second frame.
+- Fix note: enemy attacks now track real connected hit indexes for the current cast. `taotie-chain-cleave` marks smash as requiring the previous hit, so the second frame still emits its own MISS/VFX cue but cannot damage or hurt-lock unless drag actually connected.
+- State note: the connected-hit list is initialized at enemy windup and cleared when the attack recovers, is interrupted, the boss phase resets its attack, or a spawned enemy is created. This avoids stale chain state leaking into later attacks.
+- Verification note: focused boss tests now cover both successful drag/smash and the dodge-then-reenter MISS path for `taotie-chain-cleave`, plus the existing forge-shackle strict hit-frame paths.

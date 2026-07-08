@@ -190,6 +190,7 @@ export interface CombatEnemy {
   attackSkillId?: string;
   attackHitResolved?: boolean;
   attackResolvedHits?: number;
+  attackConnectedHitIndexes?: number[];
   attackRushStartPosition?: CombatVector;
   attackRushTargetPosition?: CombatVector;
   attackPullStartPosition?: CombatVector;
@@ -602,6 +603,7 @@ interface EnemyAttackDefinition {
   damageMultipliers?: number[];
   knockbackByHit?: number[];
   boundMsByHit?: number[];
+  requiresPreviousHitByHit?: boolean[];
   jumpEvade?: boolean;
   windupRushPx?: number;
   windupPullPx?: number;
@@ -1119,6 +1121,7 @@ function triggerBossPhaseTransitions(run: CombatRun, occurredAtMs = run.elapsedM
       attackSkillId: undefined,
       attackHitResolved: undefined,
       attackResolvedHits: undefined,
+      attackConnectedHitIndexes: undefined,
       attackRushStartPosition: undefined,
       attackRushTargetPosition: undefined,
       attackPullStartPosition: undefined,
@@ -1388,6 +1391,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       damageMultipliers: [0.7, 1.35],
       knockbackByHit: [16, 86],
       boundMsByHit: [260, 0],
+      requiresPreviousHitByHit: [false, true],
       windupPullPx: 126,
       jumpEvade: true
     };
@@ -1635,6 +1639,7 @@ function createTaotieAshSummons(
       attackSkillId: undefined,
       attackHitResolved: undefined,
       attackResolvedHits: undefined,
+      attackConnectedHitIndexes: undefined,
       attackRushStartPosition: undefined,
       attackRushTargetPosition: undefined,
       attackPullStartPosition: undefined,
@@ -3837,6 +3842,7 @@ function updateEnemyAirStates(run: CombatRun): CombatRun {
           attackSkillId: undefined,
           attackHitResolved: undefined,
           attackResolvedHits: undefined,
+          attackConnectedHitIndexes: undefined,
           attackRushStartPosition: undefined,
           attackRushTargetPosition: undefined,
           attackPullStartPosition: undefined,
@@ -4070,6 +4076,7 @@ function clearRecoveredAttack(enemy: CombatEnemy, elapsedMs: number): CombatEnem
       attackSkillId: undefined,
       attackHitResolved: undefined,
       attackResolvedHits: undefined,
+      attackConnectedHitIndexes: undefined,
       attackRushStartPosition: undefined,
       attackRushTargetPosition: undefined,
       attackPullStartPosition: undefined,
@@ -4212,6 +4219,7 @@ function beginEnemyAttack(
       attackSkillId: attack.skillId,
       attackHitResolved: false,
       attackResolvedHits: 0,
+      attackConnectedHitIndexes: [],
       attackRushStartPosition: attackRushTargetPosition ? recovered.position : undefined,
       attackRushTargetPosition,
       attackPullStartPosition: attackPullTargetPosition && player ? { x: player.x, y: player.y } : undefined,
@@ -4260,6 +4268,7 @@ function applyEnemyImpact(
 
   const attack = enemyAttackDefinition(enemy);
   let resolvedHits = enemy.attackResolvedHits ?? (enemy.attackHitResolved ? attack.hitCount : 0);
+  const connectedHitIndexes = new Set(enemy.attackConnectedHitIndexes ?? []);
   let nextEnemy: CombatEnemy = enemy;
   let nextPlayer: CombatPlayer = player;
   let failed = player.defeated;
@@ -4323,14 +4332,17 @@ function applyEnemyImpact(
       nextEnemy = {
         ...nextEnemy,
         attackResolvedHits: resolvedHits,
-        attackHitResolved: resolvedHits >= attack.hitCount
+        attackHitResolved: resolvedHits >= attack.hitCount,
+        attackConnectedHitIndexes: [...connectedHitIndexes]
       };
       spawnedEnemies.push(...summoned);
       events.push(attackEvent, summonEvent);
       continue;
     }
 
-    const inRange = playerInEnemyAttackRange(nextEnemy, nextPlayer, attack);
+    const requiresPreviousHit = attack.requiresPreviousHitByHit?.[resolvedHits] === true;
+    const previousHitConnected = !requiresPreviousHit || connectedHitIndexes.has(resolvedHits);
+    const inRange = previousHitConnected && playerInEnemyAttackRange(nextEnemy, nextPlayer, attack);
     const airborneEvaded = inRange && attack.jumpEvade === true && hitTime < nextPlayer.airborneUntilMs;
     const evaded = inRange && (playerEvadeActiveAt(nextPlayer, hitTime) || airborneEvaded);
     const phase = inRange && !evaded ? "active" : "miss";
@@ -4352,7 +4364,8 @@ function applyEnemyImpact(
     nextEnemy = {
       ...nextEnemy,
       attackResolvedHits: resolvedHits,
-      attackHitResolved: resolvedHits >= attack.hitCount
+      attackHitResolved: resolvedHits >= attack.hitCount,
+      attackConnectedHitIndexes: [...connectedHitIndexes]
     };
     events.push(attackEvent);
 
@@ -4451,6 +4464,11 @@ function applyEnemyImpact(
     };
 
     nextPlayer = damagedPlayer.resource.id === "guard" ? gainFlatPlayerResource(damagedPlayer, 12) : damagedPlayer;
+    connectedHitIndexes.add(hitIndex);
+    nextEnemy = {
+      ...nextEnemy,
+      attackConnectedHitIndexes: [...connectedHitIndexes]
+    };
     failed = failed || nextHp <= 0;
     events.push(hitEvent);
 
@@ -4587,6 +4605,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
       attackSkillId: statusInterruptsAttack ? undefined : enemy.attackSkillId,
       attackHitResolved: statusInterruptsAttack ? undefined : enemy.attackHitResolved,
       attackResolvedHits: statusInterruptsAttack ? undefined : enemy.attackResolvedHits,
+      attackConnectedHitIndexes: statusInterruptsAttack ? undefined : enemy.attackConnectedHitIndexes,
       attackRushStartPosition: statusInterruptsAttack ? undefined : enemy.attackRushStartPosition,
       attackRushTargetPosition: statusInterruptsAttack ? undefined : enemy.attackRushTargetPosition,
       attackPullStartPosition: statusInterruptsAttack ? undefined : enemy.attackPullStartPosition,
@@ -4991,6 +5010,7 @@ function applyScheduledEnemyHitEffect(
       attackSkillId: statusInterruptsAttack ? undefined : enemy.attackSkillId,
       attackHitResolved: statusInterruptsAttack ? undefined : enemy.attackHitResolved,
       attackResolvedHits: statusInterruptsAttack ? undefined : enemy.attackResolvedHits,
+      attackConnectedHitIndexes: statusInterruptsAttack ? undefined : enemy.attackConnectedHitIndexes,
       attackRushStartPosition: statusInterruptsAttack ? undefined : enemy.attackRushStartPosition,
       attackRushTargetPosition: statusInterruptsAttack ? undefined : enemy.attackRushTargetPosition,
       attackPullStartPosition: statusInterruptsAttack ? undefined : enemy.attackPullStartPosition,

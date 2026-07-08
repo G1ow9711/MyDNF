@@ -3365,3 +3365,23 @@
   - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts --testNamePattern "zheng shockwave|legacy monster skill VFX" --reporter=basic`, 3 matched tests.
   - Fresh checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 513 tests), and `npm run build`.
   - Browser computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/legacy-monster-vfx-check.html` confirmed every uncued legacy monster VFX part resolved to `none`; active cues resolved to `ash-ember-spit-*`, `ash-crawler-burst-*`, `zheng-shockwave-*`, `zheng-horn-charge-*`, and `taotie-flame-breath-*` animation names with no browser warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5174/`.
+
+## Task 131 DNF-Style Taotie Chain-Link Strictness
+- Continued from the user's clarified priority: role geometry can be simpler for now, but combat action flow, strict hit frames, actor state changes, and skill/monster VFX remain strict gates.
+- Used read-only parallel agent audits:
+  - Combat audit selected `taotie-chain-cleave` because smash was not gated on drag actually connecting.
+  - UI audit recommended a future real-browser computed-style regression for legacy monster VFX cue gates and runtime durations.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires `taotie-chain-cleave` smash to MISS if the player dodged the drag frame, even when the player re-enters the lane before smash.
+- RED evidence:
+  - Focused RED failed with drag `miss` but smash `active`, proving the second stage could hit without the first-stage chain bind.
+  - An initial test patch accidentally changed an unrelated forge-shackle fixture; `git diff` caught it and the fixture was restored before GREEN.
+- Implemented:
+  - Added `attackConnectedHitIndexes` to enemy attack state and `requiresPreviousHitByHit` to enemy attack definitions.
+  - Initialized and cleared connected-hit state through enemy attack start, recovery, interruptions, boss phase reset, air/knockdown reset, and summon creation.
+  - Marked `taotie-chain-cleave` smash as requiring the previous hit, preserving its visible MISS cue while preventing fake damage/hurt-lock after a dodged drag.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "taotie chain cleave" --reporter=basic`, 2 matched tests.
+  - Boss related focused tests passed: `npm test -- src/tests/combat.test.ts --testNamePattern "taotie chain cleave|taotie forge shackle" --reporter=basic`, 6 matched tests.
+  - Combat suite passed: `npm test -- src/tests/combat.test.ts --reporter=dot`, 232 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 514 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

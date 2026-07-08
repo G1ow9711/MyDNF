@@ -3165,3 +3165,27 @@
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/enemy-motion-live-check.html` initially caught a real CSS specificity miss: computed duration stayed at `0.72s` / `0.48s` even though inline variables were correct.
   - After the selector fix, browser validation passed with `zheng-horn-charge` stage `windup`, lunge `-64px`, duration attr `780`, animation `monster-zheng-horn-charge`, computed duration `0.78s`; and `ash-ember-spit` lunge `-20px`, duration attr `520`, animation `monster-ember-spit`, computed duration `0.52s`. Browser warning/error logs were empty, the temporary page was deleted, and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 497 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 122 DNF-Style Iron Shield Open VFX
+- Continued from the user's clarified priority: character and monster models can stay simpler while the playable loop is being completed, but action flow, strict timing, hit feedback, skill VFX, and monster VFX remain strict acceptance gates.
+- Used two read-only agents:
+  - Combat audit confirmed `anvil-guard`, `molten-wall`, and `black-furnace-aegis` already delay mitigation to their real open frames, but scheduled shield effects did not create visible open-frame events.
+  - UI/CSS audit confirmed cast VFX and weapon/player animations existed, but there was no targetless/non-damage shield-open VFX hook. It recommended `player-status-vfx` rather than fake hit/damage events.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies that the three Iron shield skills emit non-damage `player-status` events only on their real open frames, with cues `anvil-guard-open`, `molten-wall-open`, and `black-aegis-open`.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` now verify open-frame `player-status-vfx` DOM, cue-specific classes, no damage numbers, and CSS support for the new shield-open animations.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t "shield-open VFX" --reporter=basic` failed because `playerStatusEvents(...)` returned `[]`.
+  - `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "anvil-guard shield raise|molten-wall shield brace|black-furnace-aegis shield brace|delayed shield" --reporter=basic` failed because `data-player-status-vfx` was absent.
+- Implemented:
+  - Added `CombatPlayerStatusEvent` and shield-open VFX cues in `src/game/combat.ts`.
+  - Extended `schedulePlayerShieldEffect()` so targetless shield effects carry an open-frame VFX cue/window.
+  - Updated scheduled shield resolution to append a `player-status` event at the open frame while preserving zero hit events and no target damage.
+  - Updated `renderCombatVfx()` to render recent `player-status` events as targetless `player-status-vfx` bursts anchored to the player.
+  - Added CSS for `guard-rune`, `molten-wall`, and `black-aegis` shield-open impact shapes plus cue-specific `*-open-core/ring/shards` animations.
+- Verification:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t "shield-open VFX" --reporter=dot`, 1 test.
+  - Focused UI GREEN passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "anvil-guard shield raise|molten-wall shield brace|black-furnace-aegis shield brace|delayed shield" --reporter=dot`, 4 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 416 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/shield-open-live-check.html` confirmed `anvil-guard` at 180 ms with `guard-rune-open-core/ring/shards`, `molten-wall` at 260 ms with `molten-wall-open-core/ring/shards`, and `black-furnace-aegis` at 280 ms with `black-aegis-open-core/ring/shards`; no browser warning/error logs, no damage numbers, and no reused `data-skill-impact-vfx` hook. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 498 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

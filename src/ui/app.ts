@@ -20,6 +20,7 @@ import {
   type CombatLootEvent,
   type CombatMissEvent,
   type CombatPlayerHitEvent,
+  type CombatPlayerStatusEvent,
   type CombatRun,
   type CombatSkillCastEvent,
   type CombatSkillInputMethod,
@@ -658,6 +659,18 @@ function latestPlayerHitEvent(run: CombatRun): CombatPlayerHitEvent | undefined 
       (event): event is CombatPlayerHitEvent =>
         event.kind === "player-hit" && eventAge(run, event.occurredAtMs) >= 0 && eventAge(run, event.occurredAtMs) <= recentHitWindowMs
     );
+}
+
+function recentPlayerStatusEvents(run: CombatRun): CombatPlayerStatusEvent[] {
+  return run.events.filter((event): event is CombatPlayerStatusEvent => {
+    if (event.kind !== "player-status") {
+      return false;
+    }
+
+    const age = eventAge(run, event.occurredAtMs);
+
+    return age >= 0 && age <= event.vfxWindowMs;
+  });
 }
 
 function combatHitstopActive(run: CombatRun): boolean {
@@ -1334,6 +1347,20 @@ function renderCombatVfx(run: CombatRun): string {
   const playerHit = latestPlayerHitEvent(run);
   const bossPhase = latestBossPhaseEvent(run);
   const playerAction = latestPlayerActionEvent(run);
+  const playerStatusVfx = recentPlayerStatusEvents(run)
+    .map((event, eventIndex) => {
+      const animation = classSkillById(event.skillId)?.animation;
+      const statusPosition = event.casterPosition ?? { x: run.player.x, y: run.player.y };
+
+      return `
+        <div class="player-status-vfx skill-impact-burst skill-impact-shape-${animation?.vfxShape ?? "generic"}" data-player-status-vfx="${event.skillId}" data-status-vfx-shape="${animation?.vfxShape ?? ""}" data-status-event-id="${event.id}" data-status-hit-index="${eventIndex}" data-vfx-cue="${event.vfxCue}" data-status-origin-x="${Math.round(statusPosition.x)}" data-status-origin-y="${Math.round(statusPosition.y)}" style="${combatActorStyle(run, statusPosition.x, statusPosition.y)} --skill-duration: ${animation?.durationMs ?? event.vfxWindowMs}ms; --status-hit-index: ${eventIndex};">
+          <span class="skill-impact-core"></span>
+          <span class="skill-impact-ring"></span>
+          <span class="skill-impact-shards"></span>
+        </div>
+      `;
+    })
+    .join("");
   const skillTarget =
     playerAction?.kind === "hit" ? run.enemies.find((enemy) => enemy.id === playerAction.targetId) : undefined;
   const skillAnimation =
@@ -1481,6 +1508,7 @@ function renderCombatVfx(run: CombatRun): string {
       ${enemyVfx}
       ${summonVfx}
       ${hitVfx}
+      ${playerStatusVfx}
       ${skillVfx}
     </div>
   `;

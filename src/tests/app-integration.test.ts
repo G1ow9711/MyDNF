@@ -1490,6 +1490,11 @@ describe("playable app integration actions", () => {
     expect(wallHtml).toContain('data-shield-active="true"');
     expect(wallHtml).toContain('data-player-motion="shield"');
     expect(wallHtml).toContain('class="combat-player-art actor-model actor-model-shield');
+    expect(beforeWallHtml).not.toContain('data-player-status-vfx="molten-wall"');
+    expect(wallHtml).toContain('data-player-status-vfx="molten-wall"');
+    expect(wallHtml).toContain('data-vfx-cue="molten-wall-open"');
+    expect(wallHtml).toContain('class="player-status-vfx skill-impact-burst skill-impact-shape-molten-wall"');
+    expect(wallHtml).not.toContain('data-damage-number="true"');
   });
 
   it("renders anvil-guard as a delayed shield raise with guard-rune VFX", () => {
@@ -1527,6 +1532,11 @@ describe("playable app integration actions", () => {
     expect(guardHtml).toContain('data-shield-active="true"');
     expect(guardHtml).toContain('data-player-motion="shield"');
     expect(guardHtml).toContain('class="combat-player-art actor-model actor-model-shield');
+    expect(beforeGuardHtml).not.toContain('data-player-status-vfx="anvil-guard"');
+    expect(guardHtml).toContain('data-player-status-vfx="anvil-guard"');
+    expect(guardHtml).toContain('data-vfx-cue="anvil-guard-open"');
+    expect(guardHtml).toContain('class="player-status-vfx skill-impact-burst skill-impact-shape-guard-rune"');
+    expect(guardHtml).not.toContain('data-damage-number="true"');
   });
 
   it("renders black-furnace-aegis as a delayed advancement shield with black-aegis VFX", () => {
@@ -1573,6 +1583,9 @@ describe("playable app integration actions", () => {
     expect(aegisHtml).toContain('data-shield-active="true"');
     expect(aegisHtml).toContain('data-player-motion="shield"');
     expect(aegisHtml).toContain('class="combat-player-art actor-model actor-model-shield');
+    expect(aegisHtml).toContain('data-player-status-vfx="black-furnace-aegis"');
+    expect(aegisHtml).toContain('data-vfx-cue="black-aegis-open"');
+    expect(aegisHtml).toContain('class="player-status-vfx skill-impact-burst skill-impact-shape-black-aegis"');
   });
 
   it("renders crow-feint as a delayed dodge window with a feint-shot impact", () => {

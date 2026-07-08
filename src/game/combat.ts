@@ -104,6 +104,9 @@ export type CombatVfxCue =
   | "ember-jab-chain"
   | "iron-shield-jab"
   | "shield-quake-impact"
+  | "anvil-guard-open"
+  | "molten-wall-open"
+  | "black-aegis-open"
   | "furnace-roar-impact"
   | "shadow-roll-shot"
   | "crow-feint-shot"
@@ -365,6 +368,21 @@ export interface CombatPlayerHitEvent {
   vfxWindowMs?: number;
 }
 
+export interface CombatPlayerStatusEvent {
+  kind: "player-status";
+  id: string;
+  action: "skill";
+  skillId: string;
+  occurredAtMs: number;
+  inputToHitMs: number;
+  canceledFromCombo: boolean;
+  statusTags?: CombatSkillStatusTag[];
+  vfxCue: CombatVfxCue;
+  vfxWindowMs: number;
+  casterPosition: CombatVector;
+  casterFacing: 1 | -1;
+}
+
 export interface CombatEnemySummonEvent {
   kind: "enemy-summon";
   id: string;
@@ -413,6 +431,7 @@ export type CombatEvent =
   | CombatRoomClearedEvent
   | CombatEnemyAttackEvent
   | CombatPlayerHitEvent
+  | CombatPlayerStatusEvent
   | CombatEnemySummonEvent
   | CombatBossPhaseEvent
   | CombatArenaHazardEvent;
@@ -505,6 +524,8 @@ export interface CombatScheduledEnemyHitEffect {
   resetComboStepOnMiss?: boolean;
   playerShieldWindowMs?: number;
   playerShieldReduction?: number;
+  playerStatusVfxCue?: CombatVfxCue;
+  playerStatusVfxWindowMs?: number;
 }
 
 export interface CombatScheduledMissEffect {
@@ -2003,6 +2024,18 @@ function applyIronPalm(run: CombatRun, skill: ClassSkillDefinition, canceledFrom
   });
 }
 
+function playerShieldOpenCue(skillId: string): CombatVfxCue {
+  if (skillId === "molten-wall") {
+    return "molten-wall-open";
+  }
+
+  if (skillId === "black-furnace-aegis") {
+    return "black-aegis-open";
+  }
+
+  return "anvil-guard-open";
+}
+
 function schedulePlayerShieldEffect(
   run: CombatRun,
   skill: ClassSkillDefinition,
@@ -2026,7 +2059,9 @@ function schedulePlayerShieldEffect(
     casterPosition: { x: run.player.x, y: run.player.y },
     casterFacing: run.player.facing,
     playerShieldWindowMs: windowMs,
-    playerShieldReduction: reduction
+    playerShieldReduction: reduction,
+    playerStatusVfxCue: playerShieldOpenCue(skill.id),
+    playerStatusVfxWindowMs: 520
   };
 
   return {
@@ -4807,8 +4842,26 @@ function applyScheduledEnemyHitEffect(
 
   if (!targetId) {
     if (effect.playerShieldWindowMs !== undefined) {
+      const statusEvent: CombatPlayerStatusEvent | undefined = effect.playerStatusVfxCue
+        ? {
+            kind: "player-status",
+            id: `${effect.id}-status-vfx`,
+            action: "skill",
+            skillId: effect.skillId ?? "unknown",
+            occurredAtMs: effect.applyAtMs,
+            inputToHitMs: effect.inputToHitMs,
+            canceledFromCombo: effect.canceledFromCombo,
+            statusTags: effect.statusTags,
+            vfxCue: effect.playerStatusVfxCue,
+            vfxWindowMs: effect.playerStatusVfxWindowMs ?? 520,
+            casterPosition: { x: impactResolvedRun.player.x, y: impactResolvedRun.player.y },
+            casterFacing: impactResolvedRun.player.facing
+          }
+        : undefined;
+
       return {
         ...impactResolvedRun,
+        events: statusEvent ? [...impactResolvedRun.events, statusEvent] : impactResolvedRun.events,
         player: {
           ...impactResolvedRun.player,
           shieldUntilMs: Math.max(impactResolvedRun.player.shieldUntilMs, effect.applyAtMs + effect.playerShieldWindowMs),

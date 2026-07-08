@@ -112,6 +112,12 @@ function skillMissEvents(run: CombatRun, skillId: string): CombatMissEvent[] {
   return run.events.filter((event): event is CombatMissEvent => event.kind === "miss" && event.skillId === skillId);
 }
 
+function playerStatusEvents(run: CombatRun, skillId: string): Array<{ kind: string; skillId?: string; vfxCue?: string; occurredAtMs: number }> {
+  return (run.events as Array<{ kind: string; skillId?: string; vfxCue?: string; occurredAtMs: number }>).filter(
+    (event) => event.kind === "player-status" && event.skillId === skillId
+  );
+}
+
 function scheduledSkillTimes(run: CombatRun, skillId: string): number[] {
   const times = run.scheduledEnemyHitEffects
     .filter((effect) => effect.skillId === skillId)
@@ -6908,6 +6914,45 @@ describe("combat actions and impact feel", () => {
     expect(playerHits).toHaveLength(1);
     expect(playerHits[0].damage).toBeLessThan(20);
     expect(afterGuardHit.player.shieldUntilMs).toBeLessThanOrEqual(afterGuardHit.elapsedMs);
+  });
+
+  it("emits non-damage shield-open VFX events on real guard frames", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)),
+      "black-furnace-vanguard"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 310, y: 340, hp: 180, maxHp: 180, armor: 0 }]
+    );
+
+    const guardCast = performAction(run, { type: "skill", skillId: "anvil-guard" });
+    const [guardAtMs] = scheduledSkillTimes(guardCast, "anvil-guard");
+    const beforeGuard = stepToElapsed(guardCast, guardAtMs - 1);
+    const guardOpen = stepToElapsed(guardCast, guardAtMs);
+
+    const wallCast = performAction(run, { type: "skill", skillId: "molten-wall" });
+    const [wallAtMs] = scheduledSkillTimes(wallCast, "molten-wall");
+    const wallOpen = stepToElapsed(wallCast, wallAtMs);
+
+    const aegisCast = performAction(run, { type: "skill", skillId: "black-furnace-aegis" });
+    const [aegisAtMs] = scheduledSkillTimes(aegisCast, "black-furnace-aegis");
+    const aegisOpen = stepToElapsed(aegisCast, aegisAtMs);
+
+    expect(playerStatusEvents(beforeGuard, "anvil-guard")).toHaveLength(0);
+    expect(playerStatusEvents(guardOpen, "anvil-guard")).toMatchObject([
+      { kind: "player-status", occurredAtMs: guardAtMs, vfxCue: "anvil-guard-open" }
+    ]);
+    expect(playerStatusEvents(wallOpen, "molten-wall")).toMatchObject([
+      { kind: "player-status", occurredAtMs: wallAtMs, vfxCue: "molten-wall-open" }
+    ]);
+    expect(playerStatusEvents(aegisOpen, "black-furnace-aegis")).toMatchObject([
+      { kind: "player-status", occurredAtMs: aegisAtMs, vfxCue: "black-aegis-open" }
+    ]);
+    expect(skillHitEvents(guardOpen, "anvil-guard")).toHaveLength(0);
+    expect(skillHitEvents(wallOpen, "molten-wall")).toHaveLength(0);
+    expect(skillHitEvents(aegisOpen, "black-furnace-aegis")).toHaveLength(0);
   });
 
   it("cancels anvil-guard opening when monster damage interrupts startup", () => {

@@ -3687,85 +3687,57 @@ function applyEarthFurnaceBreaker(run: CombatRun, skill: ClassSkillDefinition, c
 }
 
 function applyMountainCrackHammer(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
-  const scriptedRun = applySkillStartupMovement(run, skill);
-  const castRun = appendSkillCastEvent(scriptedRun, skill, canceledFromCombo);
-  const targetingHitbox: PlayerHitboxDefinition = {
+  const facing = run.player.facing;
+  const staggerDelayMs = Math.max(0, skill.animation.hitFrameMs - 90);
+  const impactDelayMs = skill.animation.hitFrameMs;
+  const castRun = appendSkillCastEvent(run, skill, canceledFromCombo);
+  const baseDamage = skillDamage(run, skill);
+  const staggerHitbox: PlayerHitboxDefinition = {
     action: "skill",
     skillId: skill.id,
     rangeX: 260,
     laneRange: 96,
     targetCap: 2,
     frontOnly: true,
-    damage: skillDamage(run, skill),
-    hitstopMs: 70,
-    knockback: 34,
+    damage: Math.max(1, Math.round(baseDamage * 0.34)),
+    hitstopMs: 62,
+    knockback: 18,
     juggle: false,
-    inputToHitMs: skill.animation.hitFrameMs,
-    canceledFromCombo
+    inputToHitMs: staggerDelayMs,
+    canceledFromCombo,
+    statusTags: ["stagger"]
   };
-  const targets = selectPlayerTargets(scriptedRun, targetingHitbox);
+  const impactHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 280,
+    laneRange: 104,
+    targetCap: 2,
+    frontOnly: true,
+    damage: Math.max(1, Math.round(baseDamage * 0.92)),
+    hitstopMs: 108,
+    knockback: 72,
+    juggle: false,
+    inputToHitMs: impactDelayMs,
+    canceledFromCombo,
+    statusTags: ["guard-break", "stagger"],
+    actionTags: ["knockdown"],
+    requiresStatusSourceSkillId: skill.id
+  };
+  const staggeredRun = schedulePlayerHitboxEffect(castRun, staggerHitbox, run.player, facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-hammer-stagger`,
+    hitPhase: "hammer-stagger",
+    vfxCue: "mountain-hammer-stagger",
+    vfxWindowMs: 360
+  });
 
-  if (targets.length === 0) {
-    return applyMiss(scriptedRun, targetingHitbox);
-  }
-
-  const baseDamage = skillDamage(run, skill);
-  const stages: Array<{
-    phase: CombatHitPhase;
-    vfxCue: CombatVfxCue;
-    delayMs: number;
-    damageMultiplier: number;
-    hitstopMs: number;
-    knockback: number;
-    statusTags: CombatSkillStatusTag[];
-    actionTags: CombatActionTag[];
-    vfxWindowMs: number;
-  }> = [
-    {
-      phase: "hammer-stagger",
-      vfxCue: "mountain-hammer-stagger",
-      delayMs: Math.max(0, skill.animation.hitFrameMs - 90),
-      damageMultiplier: 0.34,
-      hitstopMs: 62,
-      knockback: 18,
-      statusTags: ["stagger"],
-      actionTags: [],
-      vfxWindowMs: 360
-    },
-    {
-      phase: "hammer-impact",
-      vfxCue: "mountain-crack-impact",
-      delayMs: skill.animation.hitFrameMs,
-      damageMultiplier: 0.92,
-      hitstopMs: 108,
-      knockback: 72,
-      statusTags: ["guard-break", "stagger"],
-      actionTags: ["knockdown"],
-      vfxWindowMs: 620
-    }
-  ];
-
-  return stages.reduce((nextRun, stage) => {
-    return targets.reduce((stageRun, target) => {
-      return scheduleEnemyHitEffect(stageRun, {
-        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${target.id}`,
-        targetId: target.id,
-        damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
-        hitstopMs: stage.hitstopMs,
-        knockback: stage.knockback,
-        juggle: false,
-        action: "skill",
-        skillId: skill.id,
-        inputToHitMs: stage.delayMs,
-        canceledFromCombo,
-        statusTags: stage.statusTags,
-        actionTags: stage.actionTags,
-        hitPhase: stage.phase,
-        vfxCue: stage.vfxCue,
-        vfxWindowMs: stage.vfxWindowMs
-      });
-    }, nextRun);
-  }, castRun);
+  return schedulePlayerHitboxEffect(staggeredRun, impactHitbox, run.player, facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-hammer-impact`,
+    hitPhase: "hammer-impact",
+    vfxCue: "mountain-crack-impact",
+    vfxWindowMs: 620,
+    missOnEmpty: false
+  });
 }
 
 function applyMountainGuardBreak(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {

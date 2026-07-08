@@ -3035,3 +3035,25 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 403 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/mechanism-shadow-net-live-check.html` confirmed `[290,470]` bind/snap timing, only the moved-in target was hit twice, old target HP stayed `[260,240]`, empty-net MISS counts were `0/0/1/1`, no cast-frame damage or controlled enemy DOM appeared, player/weapon/cast/bind/snap animation names resolved correctly, hitstop and skill screen shake were active on snap, and browser warning/error logs were empty. Temporary page was deleted after validation and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 485 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 116 DNF-Style Mountain Crack Hammer Live Stagger-Frame Recheck
+- Continued the strict-combat pass on remaining staged control/impact skills. `mountain-crack-hammer` was the next Iron advancement candidate because it still selected target ids at cast time.
+- Used a read-only UI/CSS agent audit:
+  - It confirmed the app already exposes player preset `iron-mountain-crack`, weapon arc `mountain-hammer`, cast VFX `mountain-crack`, target cues `mountain-hammer-stagger` / `mountain-crack-impact`, controlled enemy motion, and knockdown enemy motion.
+  - It mapped browser-resolved animations: `player-iron-mountain-crack-cast`, `weapon-mountain-hammer`, `mountain-crack-cast-core/ring/sparks`, `mountain-hammer-stagger-core/ring/shards`, `mountain-crack-impact-core/ring/shards`, `monster-controlled-bind`, and `monster-knockdown-drop`.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies that `mountain-crack-hammer` ignores two enemies moved out before the 290 ms stagger frame, hits a third enemy moved into the hammer path, and impacts only enemies staggered by this cast.
+  - `src/tests/combat.test.ts` now verifies empty-hammer MISS feedback is delayed until the 290 ms stagger frame and does not duplicate at the 380 ms impact frame.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t "mountain-crack-hammer" --reporter=basic` failed because the old implementation still hit cast-frame targets and produced no scheduled effects for empty casts.
+- Implemented:
+  - Reworked `applyMountainCrackHammer()` to schedule dynamic hitbox effects at 290 ms and 380 ms instead of fixed target-id effects.
+  - Stagger now rechecks live targets and applies this skill as the status source.
+  - Impact now requires the same skill source, so enemies entering after stagger do not receive ghost final-hit damage or knockdown.
+  - Empty-hammer feedback now appears once at the stagger frame, while impact uses `missOnEmpty: false`.
+  - Preserved the existing large-frame behavior where a monster hit that already landed at 200 ms does not erase later hammer hits.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t "mountain-crack-hammer" --reporter=dot`, 4 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 405 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/mountain-crack-hammer-live-check.html` confirmed `[290,380]` stagger/impact timing, only the moved-in target was hit twice, old target HP stayed `[280,260]`, empty-hammer MISS counts were `0/0/1/1`, no cast-frame damage appeared, player/weapon/cast/stagger/impact animation names resolved correctly, controlled and knockdown enemy model animations resolved correctly, hitstop and skill screen shake were active on impact, and browser warning/error logs were empty. Temporary page was deleted after validation and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 487 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

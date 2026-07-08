@@ -5853,7 +5853,7 @@ describe("combat actions and impact feel", () => {
       "mountain-crack-impact"
     ]);
     expect(new Set(hammerHits.map((event) => event.occurredAtMs))).toEqual(new Set([290, 380]));
-    expect(cast.scheduledEnemyHitEffects).toHaveLength(4);
+    expect(cast.scheduledEnemyHitEffects).toHaveLength(2);
     expect(cast.enemies.map((enemy) => enemy.hp)).toEqual(windingRun.enemies.map((enemy) => enemy.hp));
     expect(cast.enemies.every((enemy) => enemy.controlledUntilMs === undefined)).toBe(true);
     expect(cast.enemies.every((enemy) => enemy.armorBrokenUntilMs === undefined)).toBe(true);
@@ -5921,6 +5921,102 @@ describe("combat actions and impact feel", () => {
     expect(jumped.enemies[0].attackSkillId).toBeUndefined();
     expect(jumped.enemies[0].controlledUntilMs ?? 0).toBeGreaterThan(jumped.elapsedMs);
     expect(jumped.enemies[0].downed).toBe(true);
+  });
+
+  it("rechecks mountain-crack-hammer targets at stagger and impacts only staggered enemies", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)),
+      "mountain-cracking-smith"
+    );
+    const baseRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 332, y: 340, hp: 280, maxHp: 280, armor: 0 },
+        { x: 402, y: 356, hp: 260, maxHp: 260, armor: 0 }
+      ]
+    );
+    const lateTarget: CombatEnemy = {
+      ...baseRun.enemies[0],
+      id: "late-mountain-target",
+      hp: 280,
+      maxHp: 280,
+      armor: 0,
+      position: { x: 820, y: 500 },
+      nextAttackAtMs: 9999
+    };
+    const run = {
+      ...baseRun,
+      enemies: [...baseRun.enemies, lateTarget]
+    };
+
+    const cast = performAction(run, { type: "skill", skillId: "mountain-crack-hammer" });
+    const [staggerAtMs, impactAtMs] = scheduledSkillTimes(cast, "mountain-crack-hammer");
+    const movedBeforeStagger = {
+      ...cast,
+      enemies: cast.enemies.map((enemy) =>
+        enemy.id === lateTarget.id
+          ? {
+              ...enemy,
+              position: { x: 392, y: 340 }
+            }
+          : {
+              ...enemy,
+              position: { x: 820, y: 500 }
+            }
+      )
+    };
+    const staggered = stepToElapsed(movedBeforeStagger, staggerAtMs);
+    const movedBeforeImpact = {
+      ...staggered,
+      enemies: staggered.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: { x: 390, y: 340 }
+            }
+          : enemy
+      )
+    };
+    const impacted = stepToElapsed(movedBeforeImpact, impactAtMs);
+    const hits = skillHitEvents(impacted, "mountain-crack-hammer");
+
+    expect(staggerAtMs).toBe(290);
+    expect(impactAtMs).toBe(380);
+    expect(skillHitEvents(staggered, "mountain-crack-hammer").map((event) => event.targetId)).toEqual([lateTarget.id]);
+    expect(hits.map((event) => event.targetId)).toEqual([lateTarget.id, lateTarget.id]);
+    expect(hits.map((event) => event.hitPhase)).toEqual(["hammer-stagger", "hammer-impact"]);
+    expect(impacted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(impacted.enemies[1].hp).toBe(run.enemies[1].hp);
+    expect(impacted.enemies.find((enemy) => enemy.id === lateTarget.id)?.hp).toBeLessThan(lateTarget.hp);
+    expect(impacted.enemies.find((enemy) => enemy.id === lateTarget.id)?.downed).toBe(true);
+  });
+
+  it("delays mountain-crack-hammer miss feedback until the stagger frame", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)),
+      "mountain-cracking-smith"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 820, y: 500, hp: 280, maxHp: 280 },
+        { x: 860, y: 500, hp: 260, maxHp: 260 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "mountain-crack-hammer" });
+    const [staggerAtMs, impactAtMs] = scheduledSkillTimes(cast, "mountain-crack-hammer");
+    const beforeStagger = stepToElapsed(cast, staggerAtMs - 1);
+    const missedStagger = stepToElapsed(cast, staggerAtMs);
+    const afterImpact = stepToElapsed(missedStagger, impactAtMs);
+
+    expect(skillMissEvents(cast, "mountain-crack-hammer")).toHaveLength(0);
+    expect(skillMissEvents(beforeStagger, "mountain-crack-hammer")).toHaveLength(0);
+    expect(skillMissEvents(missedStagger, "mountain-crack-hammer")).toHaveLength(1);
+    expect(skillMissEvents(afterImpact, "mountain-crack-hammer")).toHaveLength(1);
+    expect(skillHitEvents(afterImpact, "mountain-crack-hammer")).toHaveLength(0);
   });
 
   it("mountain-guard-break lunges before the delayed guard-break frame", () => {

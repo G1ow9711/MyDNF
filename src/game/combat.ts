@@ -2799,30 +2799,6 @@ function applySwordPrismField(run: CombatRun, skill: ClassSkillDefinition, cance
   );
 }
 
-function selectFurnaceStepTargets(run: CombatRun, endPosition: CombatVector, skill: ClassSkillDefinition): CombatEnemy[] {
-  const startX = run.player.x;
-  const endX = endPosition.x;
-  const minX = Math.min(startX, endX) - 30;
-  const maxX = Math.max(startX, endX) + 34;
-  const laneRange = Math.max(46, skillLaneRange(skill.tags));
-
-  return run.enemies
-    .filter((enemy) => {
-      if (enemy.hp <= 0) {
-        return false;
-      }
-
-      const enemyMinX = enemy.position.x - enemy.hurtbox.width / 2;
-      const enemyMaxX = enemy.position.x + enemy.hurtbox.width / 2;
-      const yDistance = axisDistanceOutsideHalfSize(enemy.position.y - run.player.y, enemy.hurtbox.height / 2);
-      const centerInFront = (enemy.position.x - run.player.x) * run.player.facing >= 0;
-
-      return centerInFront && enemyMaxX >= minX && enemyMinX <= maxX && yDistance <= laneRange;
-    })
-    .sort((left, right) => (left.position.x - right.position.x) * run.player.facing)
-    .slice(0, 1);
-}
-
 function applyFurnaceStep(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const endPosition = {
     x: clamp(run.player.x + skillMovementDistance(skill) * run.player.facing, 0, run.arena.width),
@@ -2833,14 +2809,20 @@ function applyFurnaceStep(run: CombatRun, skill: ClassSkillDefinition, canceledF
     skill,
     canceledFromCombo
   );
-  const targetingHitbox: PlayerHitboxDefinition = {
+  const pathDistance = Math.abs(endPosition.x - run.player.x);
+  const shoulderStartInset = 34;
+  const pathOrigin = {
+    x: clamp(run.player.x + shoulderStartInset * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const pathHitbox: PlayerHitboxDefinition = {
     action: "skill",
     skillId: skill.id,
-    rangeX: Math.max(150, skillRangeX(skill.tags)),
+    rangeX: Math.max(150, skillRangeX(skill.tags), pathDistance + 35),
     laneRange: Math.max(46, skillLaneRange(skill.tags)),
     targetCap: 1,
     frontOnly: true,
-    damage: skillDamage(run, skill),
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 1.04)),
     hitstopMs: 64,
     knockback: 58,
     juggle: false,
@@ -2848,30 +2830,13 @@ function applyFurnaceStep(run: CombatRun, skill: ClassSkillDefinition, canceledF
     canceledFromCombo,
     statusTags: ["stagger"]
   };
-  const targets = selectFurnaceStepTargets(run, endPosition, skill);
 
-  if (targets.length === 0) {
-    return scheduleMissEffect(movingRun, targetingHitbox);
-  }
-
-  return targets.reduce((nextRun, target) => {
-    return scheduleEnemyHitEffect(nextRun, {
-      id: `hit-${run.elapsedMs}-skill-${skill.id}-shoulder-impact-${target.id}`,
-      targetId: target.id,
-      damage: Math.max(1, Math.round(skillDamage(run, skill) * 1.04)),
-      hitstopMs: 64,
-      knockback: 58,
-      juggle: false,
-      action: "skill",
-      skillId: skill.id,
-      inputToHitMs: skill.animation.hitFrameMs,
-      canceledFromCombo,
-      statusTags: ["stagger"],
-      hitPhase: "shoulder-impact",
-      vfxCue: "furnace-shoulder-impact",
-      vfxWindowMs: 300
-    });
-  }, movingRun);
+  return schedulePlayerHitboxEffect(movingRun, pathHitbox, pathOrigin, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-shoulder-impact`,
+    hitPhase: "shoulder-impact",
+    vfxCue: "furnace-shoulder-impact",
+    vfxWindowMs: 300
+  });
 }
 
 function shadowRollHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {

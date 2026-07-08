@@ -3373,6 +3373,63 @@ describe("combat actions and impact feel", () => {
     expect(impact.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
   });
 
+  it("rechecks furnace-step targets at the shoulder impact frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 310, y: 340, hp: 180, maxHp: 180 },
+        { x: 540, y: 420, hp: 180, maxHp: 180 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "furnace-step" });
+    const [impactAtMs] = scheduledSkillTimes(cast, "furnace-step");
+    const movedBeforeImpact: CombatRun = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) => ({
+        ...enemy,
+        position: index === 0 ? { x: 760, y: 470 } : { x: 322, y: 340 }
+      }))
+    };
+    const impact = stepToElapsed(movedBeforeImpact, impactAtMs);
+    const [stepHit] = skillHitEvents(impact, "furnace-step");
+
+    expect(stepHit.targetId).toBe(run.enemies[1].id);
+    expect(impact.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(impact.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
+  it("hits a furnace-step target that enters the rush path before impact", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 110, y: 340, hp: 180, maxHp: 180 },
+        { x: 118, y: 380, hp: 180, maxHp: 180 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "furnace-step" });
+    const [impactAtMs] = scheduledSkillTimes(cast, "furnace-step");
+    const movedIntoPath: CombatRun = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) => ({
+        ...enemy,
+        position: index === 1 ? { x: 318, y: 340 } : enemy.position
+      }))
+    };
+    const beforeImpact = stepToElapsed(movedIntoPath, impactAtMs - 1);
+    const impact = stepToElapsed(movedIntoPath, impactAtMs);
+    const [stepHit] = skillHitEvents(impact, "furnace-step");
+
+    expect(skillHitEvents(beforeImpact, "furnace-step")).toHaveLength(0);
+    expect(skillMissEvents(impact, "furnace-step")).toHaveLength(0);
+    expect(stepHit.targetId).toBe(run.enemies[1].id);
+    expect(impact.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(impact.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
   it("delays furnace-step whiff feedback until the rush hit frame", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
@@ -3384,13 +3441,13 @@ describe("combat actions and impact feel", () => {
     );
 
     const cast = performAction(run, { type: "skill", skillId: "furnace-step" });
-    const [missAtMs] = scheduledMissTimes(cast, "furnace-step");
-    const beforeMiss = stepToElapsed(cast, missAtMs - 1);
-    const missed = stepToElapsed(cast, missAtMs);
+    const [impactAtMs] = scheduledSkillTimes(cast, "furnace-step");
+    const beforeMiss = stepToElapsed(cast, impactAtMs - 1);
+    const missed = stepToElapsed(cast, impactAtMs);
 
     expect(skillHitEvents(cast, "furnace-step")).toHaveLength(0);
     expect(skillMissEvents(cast, "furnace-step")).toHaveLength(0);
-    expect(missAtMs).toBe(170);
+    expect(impactAtMs).toBe(170);
     expect(beforeMiss.player.x).toBeGreaterThan(run.player.x);
     expect(skillMissEvents(beforeMiss, "furnace-step")).toHaveLength(0);
     expect(skillMissEvents(missed, "furnace-step")).toEqual([

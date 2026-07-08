@@ -3057,3 +3057,23 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 405 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/mountain-crack-hammer-live-check.html` confirmed `[290,380]` stagger/impact timing, only the moved-in target was hit twice, old target HP stayed `[280,260]`, empty-hammer MISS counts were `0/0/1/1`, no cast-frame damage appeared, player/weapon/cast/stagger/impact animation names resolved correctly, controlled and knockdown enemy model animations resolved correctly, hitstop and skill screen shake were active on impact, and browser warning/error logs were empty. Temporary page was deleted after validation and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 487 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 117 DNF-Style Furnace Step Live Shoulder-Impact Recheck
+- Continued from the user's clarified scope: character geometry can stay simpler while combat motion flow, model-following attacks, strict hit frames, hit feedback, skill VFX, and monster VFX remain strict gates.
+- Used a read-only UI/CSS agent audit:
+  - It confirmed `furnace-step` already exposes player preset `ember-shoulder`, weapon arc `dash-burst`, cast VFX `furnace-trail`, target cue `furnace-shoulder-impact`, and app DOM hooks for active movement.
+  - It mapped browser-resolved animations: `player-ember-shoulder-rush`, `weapon-dash-burst`, `furnace-trail-cast-core/ring/sparks`, and `furnace-shoulder-impact-core/ring/shards`.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies that `furnace-step` rechecks live targets at the 170 ms shoulder-impact frame, ignores a target moved out before impact, and hits a target moved into the rush path.
+  - `src/tests/combat.test.ts` now verifies an initially empty rush path can still hit an enemy that enters before impact.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t "furnace-step" --reporter=basic` failed because the old implementation still hit a cast-frame target and produced no scheduled impact effect for an empty-path cast.
+- Implemented:
+  - Removed the stale `selectFurnaceStepTargets()` cast-frame helper.
+  - Reworked `applyFurnaceStep()` to schedule one dynamic path hitbox at 170 ms instead of fixed target-id effects.
+  - Kept model-following shoulder movement, target cap 1, stagger tag, hitstop, knockback, `shoulder-impact` phase, and `furnace-shoulder-impact` cue.
+  - Shifted the dynamic path origin to the shoulder start point so a monster centered behind the player is not selected just because its hurtbox edge overlaps the front boundary.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t "furnace-step" --reporter=basic`, 5 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 407 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/furnace-step-live-check.html` confirmed impact time `170`, one queued dynamic hitbox with no cast-frame target id, no pre-impact hits, no pre-impact impact burst, target that moved out was ignored, target that moved in was hit, and resolved animations were `player-ember-shoulder-rush`, `weapon-dash-burst`, `furnace-trail-cast-core/ring/sparks`, and `furnace-shoulder-impact-core/ring/shards`. Browser warning/error logs were empty, the temporary page was deleted, and the browser returned to `http://127.0.0.1:5178/`.

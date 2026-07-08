@@ -2870,3 +2870,23 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 390 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/meteor-knuckle-check.html` confirmed scheduled times `[420,640]`, cast hits `0`, cast impact VFX `0`, fall VFX `2`, impact VFX `2`, player animation `player-ember-meteor-crash`, weapon animation `weapon-meteor-smash`, fall core `meteor-fall-core`, impact core `meteor-impact-core`, screen flash true, knockdown true, and empty validation errors. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 474 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 107 DNF-Style Taotie Flame Breath Tick VFX
+- Continued the active DNF-style goal by targeting monster skill effects after the player ultimate timing slice.
+- Selected `taotie-flame-breath` because the boss breath already has sustained three-hit mechanics and DOM hit-index hooks, but the visible core/ring/trail still read too generically.
+- Used one read-only agent for UI/CSS audit. It initially returned `not_found`, then later confirmed the sustain/tick work and flagged missing boss-breath telegraph plus miss-feedback selectors.
+- Added RED coverage:
+  - `src/tests/ui-smoke.test.ts` now requires sustain-cue selectors for boss breath core/ring, hit-index selectors for three separate trail ticks, and matching keyframes.
+  - Added follow-up RED checks for dedicated `taotie-flame-breath` telegraph zone/edge selectors and `taotie-breath-miss-feedback`.
+- RED evidence:
+  - `npx vitest run src/tests/ui-smoke.test.ts -t "monster skill effects" --reporter=basic` failed because the sustain core/ring selector was missing.
+- Implemented:
+  - Added sustain-cue core/ring styles and keyframes for `taotie-flame-breath`.
+  - Added hit-index-specific trail selectors and `tick-one` / `tick-two` / `tick-three` flame trail keyframes.
+  - Added boss-breath telegraph zone/edge styles and keyframes.
+  - Added boss-breath miss-feedback styling and `taotie-breath-miss-feedback` keyframes.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/ui-smoke.test.ts -t "monster skill effects" --reporter=basic`, 1 test.
+  - Related UI/app/audio suite passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 187 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/taotie-breath-check.html` confirmed all ticks use `taotie-flame-breath-sustain-core` and `taotie-flame-breath-sustain-ring`, trails are `taotie-flame-breath-tick-one/two/three`, telegraph zone/edge use `taotie-flame-breath-telegraph` / `taotie-flame-breath-telegraph-edge`, miss feedback uses `taotie-breath-miss-feedback`, and validation errors are empty. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 474 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

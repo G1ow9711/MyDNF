@@ -2589,26 +2589,7 @@ function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFro
     skill,
     canceledFromCombo
   );
-  const targetingHitbox: PlayerHitboxDefinition = {
-    action: "skill",
-    skillId: skill.id,
-    rangeX: skillRangeX(skill.tags),
-    laneRange: skillLaneRange(skill.tags),
-    targetCap: skillTargetCap(skill.tags),
-    frontOnly: skillIsFrontOnly(skill.tags),
-    damage: skillDamage(run, skill),
-    hitstopMs: 60,
-    knockback: 12,
-    juggle: false,
-    inputToHitMs: skill.animation.hitFrameMs,
-    canceledFromCombo
-  };
-  const targets = selectPlayerTargets(castingRun, targetingHitbox);
-
-  if (targets.length === 0) {
-    return applyMiss(castingRun, targetingHitbox);
-  }
-
+  const origin = { x: scriptedRun.player.x, y: scriptedRun.player.y };
   const baseDamage = skillDamage(run, skill);
   const waves: Array<{
     delayMs: number;
@@ -2641,24 +2622,29 @@ function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFro
   ];
 
   return waves.reduce((nextRun, wave, waveIndex) => {
-    return targets.reduce((waveRun, target) => {
-      return scheduleEnemyHitEffect(waveRun, {
-        id: `hit-${run.elapsedMs}-skill-${skill.id}-rain-${waveIndex}-${target.id}`,
-        targetId: target.id,
-        damage: Math.max(1, Math.round(baseDamage * wave.damageMultiplier)),
-        hitstopMs: wave.hitstopMs,
-        knockback: wave.knockback,
-        juggle: false,
-        action: "skill",
-        skillId: skill.id,
-        inputToHitMs: wave.delayMs,
-        canceledFromCombo,
-        statusTags: wave.statusTags,
-        hitPhase: "rain",
-        vfxCue: "glass-rain-fall",
-        vfxWindowMs: 300
-      });
-    }, nextRun);
+    const hitbox: PlayerHitboxDefinition = {
+      action: "skill",
+      skillId: skill.id,
+      rangeX: skillRangeX(skill.tags),
+      laneRange: skillLaneRange(skill.tags),
+      targetCap: skillTargetCap(skill.tags),
+      frontOnly: skillIsFrontOnly(skill.tags),
+      damage: Math.max(1, Math.round(baseDamage * wave.damageMultiplier)),
+      hitstopMs: wave.hitstopMs,
+      knockback: wave.knockback,
+      juggle: false,
+      inputToHitMs: wave.delayMs,
+      canceledFromCombo,
+      statusTags: wave.statusTags
+    };
+
+    return schedulePlayerHitboxEffect(nextRun, hitbox, origin, scriptedRun.player.facing, {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-rain-${waveIndex}`,
+      hitPhase: "rain",
+      vfxCue: "glass-rain-fall",
+      vfxWindowMs: 300,
+      missOnEmpty: waveIndex === 0
+    });
   }, castingRun);
 }
 

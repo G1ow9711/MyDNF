@@ -4798,7 +4798,7 @@ describe("combat actions and impact feel", () => {
     expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "black-rain-volley")).toHaveLength(0);
   });
 
-  it("liuli-rain falls in staggered prism waves on locked targets", () => {
+  it("liuli-rain falls in staggered prism waves on live rain targets", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
     const run = withPlayerAndEnemies(
       createCombatRun(state, "cinder-kiln-alley"),
@@ -4835,6 +4835,78 @@ describe("combat actions and impact feel", () => {
     expect(rainHits.every((event) => event.vfxWindowMs === 300)).toBe(true);
     expect(firstRain.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
     expect(finalRain.enemies[0].hp).toBeLessThan(firstRain.enemies[0].hp);
+    expect(finalRain.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
+  it("rechecks liuli-rain targets at each rain wave", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 330, y: 340, hp: 260, maxHp: 260, armor: 0 },
+        { x: 760, y: 430, hp: 260, maxHp: 260, armor: 0 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "liuli-rain" });
+    const [firstRainAtMs, , finalRainAtMs] = scheduledSkillTimes(cast, "liuli-rain");
+    const firstRain = stepToElapsed(cast, firstRainAtMs);
+    const movedAfterFirstRain: CombatRun = {
+      ...firstRain,
+      enemies: firstRain.enemies.map((enemy, index) => ({
+        ...enemy,
+        position: index === 0 ? { x: 760, y: 430 } : { x: 390, y: 356 }
+      }))
+    };
+    const finalRain = stepToElapsed(movedAfterFirstRain, finalRainAtMs);
+    const rainHits = skillHitEvents(finalRain, "liuli-rain");
+
+    expect(rainHits).toHaveLength(3);
+    expect(rainHits.map((event) => event.targetId)).toEqual([
+      run.enemies[0].id,
+      run.enemies[1].id,
+      run.enemies[1].id
+    ]);
+    expect([...new Set(rainHits.map((event) => event.inputToHitMs))]).toEqual([260, 355, 450]);
+    expect(firstRain.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(finalRain.enemies[0].hp).toBe(firstRain.enemies[0].hp);
+    expect(finalRain.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
+  it("lets liuli-rain catch enemies entering an initially empty rain lane before the first wave", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 40, y: 430, hp: 260, maxHp: 260, armor: 0 },
+        { x: 760, y: 430, hp: 260, maxHp: 260, armor: 0 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "liuli-rain" });
+    const [firstRainAtMs, , finalRainAtMs] = scheduledSkillTimes(cast, "liuli-rain");
+    const movedIntoRain: CombatRun = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) => ({
+        ...enemy,
+        position: index === 1 ? { x: 390, y: 356 } : enemy.position
+      }))
+    };
+    const beforeFirstRain = stepToElapsed(movedIntoRain, firstRainAtMs - 1);
+    const finalRain = stepToElapsed(movedIntoRain, finalRainAtMs);
+    const rainHits = skillHitEvents(finalRain, "liuli-rain");
+
+    expect(skillMissEvents(cast, "liuli-rain")).toHaveLength(0);
+    expect(skillHitEvents(beforeFirstRain, "liuli-rain")).toHaveLength(0);
+    expect(skillMissEvents(finalRain, "liuli-rain")).toHaveLength(0);
+    expect(rainHits.map((event) => event.targetId)).toEqual([
+      run.enemies[1].id,
+      run.enemies[1].id,
+      run.enemies[1].id
+    ]);
+    expect(finalRain.enemies[0].hp).toBe(run.enemies[0].hp);
     expect(finalRain.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
   });
 

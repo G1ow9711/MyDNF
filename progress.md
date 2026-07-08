@@ -3120,3 +3120,25 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 411 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/furnace-heart-overdrive-live-check.html` confirmed times `[360,560]`, no pre-pulse impacts, pulse impact count `2`, cumulative release impact count `4`, recheck scenario hits only the moved-in pulse target twice, initially empty core catches a target entering before pulse, MISS count stays `0`, hitstop and skill screen shake activate on release, and resolved animations are `player-ember-overdrive-cast`, `weapon-core-overdrive`, `overdrive-core-cast-core/ring/sparks`, `overdrive-core-pulse-core/ring/shards`, and `overdrive-core-release-core/ring/shards`. Temporary page was deleted after validation and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 493 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 120 DNF-Style Liuli Rain Live Wave-Frame Recheck
+- Continued the strict-combat pass on remaining fixed-target staged player skills. `liuli-rain` still selected targets once at cast time and scheduled fixed target-id rain hits even though the animation reads as a live falling rain field.
+- Used read-only subagent audits:
+  - Combat audit confirmed the old `applyLiuliRain()` path selected targets once, then scheduled fixed target effects for 260/355/450 ms. It recommended live per-wave recheck, first-wave delayed MISS, and stronger per-wave target-change coverage.
+  - UI/CSS audit confirmed existing hooks and resolved animations for player preset `liuli-rain`, weapon arc `fan`, cast VFX `glass-rain`, target phase `rain`, and cue `glass-rain-fall`.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies true per-wave recheck: first rain hits the original target, then after that target leaves and a new target enters, the later waves hit only the new live target.
+  - `src/tests/combat.test.ts` now verifies an initially empty rain lane can catch an enemy that enters before the first wave, with no stale cast-frame MISS.
+  - `src/tests/app-integration.test.ts` now expects empty `liuli-rain` casts to keep skill VFX at cast time and resolve MISS only at the 260 ms first-wave frame.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t "liuli-rain" --reporter=basic` failed because the old implementation still hit the cast-frame target and produced no scheduled effects for initially empty casts.
+- Implemented:
+  - Reworked `applyLiuliRain()` to schedule three dynamic `schedulePlayerHitboxEffect()` rain waves instead of fixed `scheduleEnemyHitEffect()` target ids.
+  - Each wave samples live enemies at 260/355/450 ms around the cast rain field origin.
+  - Empty-lane feedback now appears only on the first rain wave; later empty waves use `missOnEmpty: false` to avoid duplicate whiffs.
+  - Preserved active skill movement through the final wave, hit phase `rain`, cue `glass-rain-fall`, target-bound VFX window, and interruption cancellation through the existing scheduled-effect path.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t "liuli-rain" --reporter=dot`, 4 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 413 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/liuli-rain-live-check.html` confirmed times `[260,355,450]`, no pre-wave impact, two first-wave impacts, six cumulative static-target impacts, moved-out/moved-in target recheck, initially empty lane catching a pre-wave entrant, split-wave target change after the first hit, empty-lane MISS only at 260 ms, hitstop and skill shake on rain impact, and resolved animations `player-liuli-rain-cast`, `weapon-liuli-rain-fan`, `glass-rain-cast-core/wave`, `glass-rain-fall`, and `glass-rain-target-core/ring/shatter`. Temporary page was deleted after validation and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 495 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

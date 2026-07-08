@@ -4350,9 +4350,16 @@ describe("playable app integration actions", () => {
     };
     model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "liuli-rain" });
 
-    const html = renderAppHtml(model);
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after liuli-rain");
+    }
 
-    expect(model.combatRun?.events.at(-1)).toMatchObject({ kind: "miss", action: "skill", skillId: "liuli-rain" });
+    const [firstWaveAtMs] = scheduledSkillTimes(model.combatRun, "liuli-rain");
+    const html = renderAppHtml(model);
+    const missedRun = stepToElapsed(model.combatRun, firstWaveAtMs);
+
+    expect(model.combatRun.events.filter((event) => event.kind === "miss" && event.skillId === "liuli-rain")).toHaveLength(0);
+    expect(missedRun.events.at(-1)).toMatchObject({ kind: "miss", action: "skill", skillId: "liuli-rain", occurredAtMs: firstWaveAtMs });
     expect(html).toContain('data-active-skill-id="liuli-rain"');
     expect(html).toContain('data-skill-animation-preset="liuli-rain"');
     expect(html).toContain('data-player-skill-vfx="liuli-rain"');

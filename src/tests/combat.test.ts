@@ -326,6 +326,24 @@ describe("combat run setup and movement", () => {
     });
   });
 
+  it("loads current combat resource from class resource storage when heat alias is stale", () => {
+    const state = {
+      ...selectBaseClass(createInitialState(), "liuli-blademage"),
+      player: {
+        ...selectBaseClass(createInitialState(), "liuli-blademage").player,
+        heat: 0,
+        classResources: {
+          "liuli-blademage": 44
+        }
+      }
+    };
+    const run = createCombatRun(state, "cinder-kiln-alley");
+
+    expect(run.player.resource.id).toBe("prism");
+    expect(run.player.resource.current).toBe(44);
+    expect(run.player.heat).toBe(44);
+  });
+
   it("resumes player movement inside a frame that crosses the bound control expiry", () => {
     const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
     const run: CombatRun = {

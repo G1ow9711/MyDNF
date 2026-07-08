@@ -323,6 +323,7 @@ export interface PlayerState {
   level: number;
   experience: number;
   heat: number;
+  classResources: Partial<Record<ClassId, number>>;
   currencies: CurrencyState;
   inventory: OwnedGearItem[];
   equipment: Partial<Record<GearSlot, string>>;

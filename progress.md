@@ -3211,3 +3211,28 @@
   - Focused UI GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "night-mark-detonation"` and `npm test -- src/tests/ui-smoke.test.ts --testNamePattern "night-mark-detonation"`, 2 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/__codex-night-mark-verify.html` confirmed cast animations `player-ink-detonation-cast`, `weapon-detonate-mark`, `night-detonation-cast-core/ring/sparks`; no lock cue before 310 ms; lock count `2` with `night-mark-lock-core/ring/shards`; burst count `2` with `night-mark-burst-core/ring/shards`. Temporary page/script were deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 499 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 124 DNF-Style Class Resource Save Migration
+- Continued from the user's latest clarification: character geometry can remain lightweight for now, but combat flow, actor-following motion, strict hit frames, skill VFX, monster VFX, and playable-system closure remain strict acceptance gates.
+- Used two read-only agents:
+  - Save/class audit confirmed `heat` was still the only persisted active resource alias and class switching could lose separate resource pools.
+  - UI/combat audit confirmed the combat HUD already reads `CombatRun.player.resource`; the missing link was state/save migration and combat settlement sync.
+- Added RED coverage:
+  - `src/tests/classes.test.ts` verifies initial `classResources`, independent pre-advancement class resource pools, legacy heat-only save migration, and malformed class-resource rejection.
+  - `src/tests/combat.test.ts` verifies combat setup reads stale-alias saves from `classResources` instead of `heat`.
+  - `src/tests/app-integration.test.ts` verifies room settlement writes the current combat resource back into the active class pool and class swaps restore the prior pool.
+- RED evidence:
+  - Focused class-save tests initially failed because `classResources` was absent, legacy saves did not migrate, and malformed class-resource keys were accepted.
+  - Focused app integration failed when settlement only wrote `player.heat`.
+  - Focused combat setup failed when stale `heat: 0` hid `classResources["liuli-blademage"] = 44`.
+- Implemented:
+  - Added `player.classResources` to `PlayerState` and initial state.
+  - Added class-resource helpers in `src/systems/classes.ts` for active-resource lookup and active-class sync.
+  - Updated class selection to preserve the outgoing class resource and restore the incoming class resource.
+  - Updated combat setup to initialize the run from class-resource storage.
+  - Updated combat settlement to sync both `heat` and the active `classResources` entry.
+  - Updated save validation to migrate old heat-only saves, normalize known class resources, reject unknown class ids, and keep the existing v1 save key/version.
+- Verification:
+  - Focused GREEN passed for class/resource/save, app settlement, and combat stale-alias tests.
+  - Browser smoke on `http://127.0.0.1:5178/` entered `灰窑巷`, found a combat scene, read `classId="ember-warden"`, `resourceId="heat"`, `resourceMax="100"`, and detected 2 enemy nodes. Direct localStorage injection was not available in the in-app browser execution context, so the class-resource migration itself is covered by automated tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 504 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

@@ -907,3 +907,12 @@
 - MISS note: no-mark feedback is delayed until the 310 ms lock frame, and the burst stage suppresses duplicate MISS feedback after an empty lock.
 - Browser validation note: temporary live page confirmed no lock cue before 310 ms, lock count `2`, burst count `2`, and resolved computed animation names `player-ink-detonation-cast`, `weapon-detonate-mark`, `night-detonation-cast-core/ring/sparks`, `night-mark-lock-core/ring/shards`, and `night-mark-burst-core/ring/shards`.
 - Queue note: remaining work should continue favoring dynamic scheduled hitboxes for field/slash/rain skills. Explicit lock-on skills can remain staged, but target binding must happen on the real lock frame rather than at input time.
+
+## DNF-Style Class Resource Save Migration Findings
+- Current priority follows the user's clarification: role and monster models may remain lightweight while the full loop is being completed, but combat action flow, model-following timing, strict hit frames, skill VFX, monster VFX, and robust offline save behavior remain hard gates.
+- Save audit note: `heat` was still the only persisted combat resource, which made multi-class resource identity fragile once the player switches among Ember, Liuli, Ink, and Iron before advancement.
+- Compatibility note: the save key and version remain unchanged. Old v1 saves without `player.classResources` migrate by storing the old `player.heat` under the active class id.
+- Runtime note: `heat` remains a compatibility alias for old UI/save paths, but current combat setup reads through class-resource helpers and combat settlement writes the active class resource back into both `heat` and `classResources[currentClassId]`.
+- Class-switch note: selecting another base class now first syncs the outgoing class resource, then restores the incoming class resource pool. This preserves separate resources while the player is still allowed to swap base classes.
+- Validation note: save loading normalizes known class-resource values, clamps them to each class resource max, fills a missing active-class entry from heat, and rejects unknown class ids.
+- Browser note: the in-app browser execution context did not expose `localStorage`, so direct injected-save browser migration proof was not available there. Automated class/save/combat/app tests cover the migration and stale-alias behavior; browser smoke still confirmed the playable combat scene and enemy presence on the running dev server.

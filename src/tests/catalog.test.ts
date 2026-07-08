@@ -297,6 +297,9 @@ describe("catalog", () => {
       level: 1,
       experience: 0,
       heat: 0,
+      classResources: {
+        "ember-warden": 0
+      },
       currencies: {
         gold: 0,
         ironDust: 0,

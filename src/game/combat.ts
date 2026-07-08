@@ -2,6 +2,7 @@ import { catalog } from "../data/catalog";
 import type { ClassSkillDefinition, DungeonId, GameState } from "./types";
 import type { CombatInput } from "./input";
 import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
+import { classResourceValue } from "../systems/classes";
 
 export type EnemyKind = "trash" | "elite" | "boss";
 export type EnemyAttackProfileId =
@@ -3639,7 +3640,7 @@ function createCombatResource(state: GameState): CombatResource {
 
   return {
     ...resource,
-    current: clamp(Math.round(state.player.heat), 0, resource.max)
+    current: clamp(Math.round(classResourceValue(state)), 0, resource.max)
   };
 }
 

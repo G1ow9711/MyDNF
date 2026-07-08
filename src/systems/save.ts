@@ -4,6 +4,7 @@ import type {
   AuctionPriceRecord,
   AdvancementId,
   AuctionStatus,
+  ClassId,
   CurrencyId,
   DungeonId,
   GameState,
@@ -247,6 +248,42 @@ function validateUnlockedDungeons(value: unknown): void {
   }
 }
 
+function classResourceMax(classId: ClassId): number {
+  return catalog.classes.find((classDef) => classDef.id === classId)?.resource.max ?? 100;
+}
+
+function normalizeClassResourceValue(classId: ClassId, value: number): number {
+  return Math.min(classResourceMax(classId), Math.max(0, Math.round(value)));
+}
+
+function validateClassResources(value: unknown, currentClassId: ClassId, currentHeat: number): Partial<Record<ClassId, number>> {
+  if (value === undefined) {
+    return {
+      [currentClassId]: normalizeClassResourceValue(currentClassId, currentHeat)
+    };
+  }
+
+  const record = requireRecord(value, "player.classResources");
+  const classResources: Partial<Record<ClassId, number>> = {};
+
+  for (const [classId, amount] of Object.entries(record)) {
+    if (!isKnownClassId(classId)) {
+      throw new Error(`Malformed save data: player.classResources contains unknown class ${classId}`);
+    }
+
+    classResources[classId] = normalizeClassResourceValue(
+      classId,
+      requireFiniteNumber(amount, `player.classResources.${classId}`, 0)
+    );
+  }
+
+  if (classResources[currentClassId] === undefined) {
+    classResources[currentClassId] = normalizeClassResourceValue(currentClassId, currentHeat);
+  }
+
+  return classResources;
+}
+
 function validateTradeBoard(value: unknown): void {
   const tradeBoard = requireRecord(value, "market.tradeBoard");
   requireString(tradeBoard.id, "market.tradeBoard.id");
@@ -416,7 +453,9 @@ function validateSave(value: unknown): GameState {
 
   requireFiniteNumber(player.level, "player.level", 1);
   requireFiniteNumber(player.experience, "player.experience", 0);
-  requireFiniteNumber(player.heat, "player.heat", 0);
+  const playerHeat = requireFiniteNumber(player.heat, "player.heat", 0);
+  const classResources = validateClassResources(player.classResources, classId, playerHeat);
+  const currentHeat = classResources[classId] ?? normalizeClassResourceValue(classId, playerHeat);
   validateCurrencies(player.currencies);
   const ownedInstanceIds = validateInventory(player.inventory);
   validateEquipmentRefs(player.equipment, "player.equipment", ownedInstanceIds);
@@ -430,6 +469,11 @@ function validateSave(value: unknown): GameState {
 
   return {
     ...candidate,
+    player: {
+      ...player,
+      heat: currentHeat,
+      classResources
+    },
     market: {
       ...market,
       priceHistory: normalizeLoadedAuctionPriceHistory(market.priceHistory)

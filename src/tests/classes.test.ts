@@ -82,13 +82,56 @@ describe("class selection and advancement", () => {
     expect(state.player.classId).toBe("ember-warden");
     expect(state.player.heroId).toBe("ember-warden");
     expect(state.player.advancementId).toBeUndefined();
+    expect(state.player.classResources).toEqual({ "ember-warden": 0 });
 
     const next = selectBaseClass(state, "liuli-blademage");
 
     expect(next.player.classId).toBe("liuli-blademage");
     expect(next.player.heroId).toBe("liuli-blademage");
+    expect(next.player.heat).toBe(0);
+    expect(next.player.classResources).toMatchObject({
+      "ember-warden": 0,
+      "liuli-blademage": 0
+    });
     expect(getClassDefinition(next.player.classId).resource.displayName).toBe("璃息");
     expect(state.player.classId).toBe("ember-warden");
+  });
+
+  it("keeps separate resource pools when switching base class before advancement", () => {
+    const emberCharged = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        heat: 72,
+        classResources: {
+          "ember-warden": 72
+        }
+      }
+    };
+    const liuli = selectBaseClass(emberCharged, "liuli-blademage");
+    const liuliCharged = {
+      ...liuli,
+      player: {
+        ...liuli.player,
+        heat: 38,
+        classResources: {
+          ...liuli.player.classResources,
+          "liuli-blademage": 38
+        }
+      }
+    };
+    const backToEmber = selectBaseClass(liuliCharged, "ember-warden");
+
+    expect(liuli.player.heat).toBe(0);
+    expect(liuli.player.classResources).toMatchObject({
+      "ember-warden": 72,
+      "liuli-blademage": 0
+    });
+    expect(backToEmber.player.heat).toBe(72);
+    expect(backToEmber.player.classResources).toMatchObject({
+      "ember-warden": 72,
+      "liuli-blademage": 38
+    });
   });
 
   it("previews advancement requirements, bonuses, skills, and palette", () => {
@@ -150,5 +193,43 @@ describe("class save validation", () => {
     (mismatchedHero.player as Record<string, unknown>).heroId = "liuli-blademage";
     writeSave(storage, mismatchedHero);
     expect(() => loadGame(storage)).toThrow(/heroId/i);
+  });
+
+  it("migrates legacy heat-only saves into class resource storage", () => {
+    const storage = new MemoryStorage();
+    const legacyState = selectBaseClass({
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        heat: 34
+      }
+    }, "liuli-blademage");
+    const legacySave = cloneSave({
+      ...legacyState,
+      player: {
+        ...legacyState.player,
+        heat: 34
+      }
+    });
+
+    delete (legacySave.player as Record<string, unknown>).classResources;
+    writeSave(storage, legacySave);
+
+    expect(loadGame(storage)?.player.classResources).toEqual({
+      "liuli-blademage": 34
+    });
+  });
+
+  it("rejects malformed class resource save data", () => {
+    const storage = new MemoryStorage();
+    const save = cloneSave(createInitialState());
+
+    (save.player as Record<string, unknown>).classResources = {
+      "ember-warden": 10,
+      "missing-class": 5
+    };
+    writeSave(storage, save);
+
+    expect(() => loadGame(storage)).toThrow(/classResources/i);
   });
 });

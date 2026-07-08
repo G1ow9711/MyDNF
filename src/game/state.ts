@@ -123,6 +123,9 @@ export function createInitialState(): GameState {
       level: 1,
       experience: 0,
       heat: 0,
+      classResources: {
+        "ember-warden": 0
+      },
       currencies: { ...starterCurrency },
       inventory,
       equipment: ownedWeapon ? { weapon: ownedWeapon.instanceId } : {},

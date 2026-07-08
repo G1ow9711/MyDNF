@@ -39,7 +39,7 @@ import {
   type AudioState
 } from "../systems/audio";
 import { createBrowserAudioSink } from "../systems/audio-browser";
-import { advanceClass as applyClassAdvancement, selectBaseClass as applyBaseClass } from "../systems/classes";
+import { advanceClass as applyClassAdvancement, selectBaseClass as applyBaseClass, syncCurrentClassResource } from "../systems/classes";
 import { dismantleItem, equipItem, sellItem, setItemLock } from "../systems/inventory";
 import { acceptTrade, listAuction, resolveAuctions } from "../systems/market";
 import { applyQuestEvent, claimQuestReward, getActiveQuestText } from "../systems/quests";
@@ -1890,13 +1890,7 @@ function applyCombatLoot(state: GameState, loot: CombatLootEvent): GameState {
 }
 
 function syncCombatResourceToState(state: GameState, run: CombatRun): GameState {
-  return {
-    ...state,
-    player: {
-      ...state.player,
-      heat: run.player.resource.current
-    }
-  };
+  return syncCurrentClassResource(state, run.player.resource.current);
 }
 
 function applyFinishedRoom(model: AppModel, finishedRun: CombatRun, roomMessage: string): AppModel {

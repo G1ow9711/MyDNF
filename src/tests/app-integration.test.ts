@@ -61,7 +61,25 @@ function withHeat(state: GameState, heat: number): GameState {
     ...state,
     player: {
       ...state.player,
-      heat
+      heat,
+      classResources: {
+        ...state.player.classResources,
+        [state.player.classId]: heat
+      }
+    }
+  };
+}
+
+function withClassResource(state: GameState, classId: GameState["player"]["classId"], value: number): GameState {
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      heat: state.player.classId === classId ? value : state.player.heat,
+      classResources: {
+        ...state.player.classResources,
+        [classId]: value
+      }
     }
   };
 }
@@ -2133,6 +2151,52 @@ describe("playable app integration actions", () => {
 
     expect(resourceBeforeSettlement).toBeGreaterThan(20);
     expect(settled.state.player.heat).toBe(settled.combatRun?.player.resource.current);
+    expect(settled.state.player.classResources?.["liuli-blademage"]).toBe(settled.combatRun?.player.resource.current);
+  });
+
+  it("preserves separate class resources across combat settlement and class swaps", () => {
+    const liuliState = withClassResource(
+      selectBaseClass(withClassResource(createInitialState(), "ember-warden", 64), "liuli-blademage"),
+      "liuli-blademage",
+      40
+    );
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: liuliState
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    expect(renderAppHtml(model)).toContain('data-resource-current="40"');
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: {
+          ...model.combatRun.player,
+          resource: {
+            ...model.combatRun.player.resource,
+            current: 52
+          }
+        }
+      }
+    };
+    model = defeatCurrentRoom(model);
+
+    const resourceBeforeSettlement = model.combatRun?.player.resource.current;
+    const settled = walkThroughOpenGate(model);
+    const emberAgain = selectBaseClass(settled.state, "ember-warden");
+
+    expect(resourceBeforeSettlement).toBeGreaterThan(52);
+    expect(settled.state.player.heat).toBe(resourceBeforeSettlement);
+    expect(settled.state.player.classResources?.["liuli-blademage"]).toBe(resourceBeforeSettlement);
+    expect(settled.state.player.classResources?.["ember-warden"]).toBe(64);
+    expect(emberAgain.player.heat).toBe(64);
   });
 
   it("disables cooling skill buttons and filters cooling skill hotkeys", () => {

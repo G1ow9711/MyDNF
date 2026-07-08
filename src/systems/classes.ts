@@ -40,6 +40,12 @@ function advancementGateMet(state: GameState, advancement: ClassAdvancementDefin
   return missing;
 }
 
+function resourceValueForClass(classId: ClassId, value: number): number {
+  const max = getClassDefinition(classId).resource.max;
+
+  return Math.min(max, Math.max(0, Math.round(value)));
+}
+
 export function getClassDefinition(classId: string): ClassDefinition {
   const classDef = findClass(classId);
 
@@ -50,6 +56,38 @@ export function getClassDefinition(classId: string): ClassDefinition {
   return classDef;
 }
 
+export function classResourceValue(state: GameState, classId: ClassId = state.player.classId): number {
+  if (classId === state.player.classId) {
+    const stored = state.player.classResources?.[classId];
+
+    if (typeof stored === "number" && Number.isFinite(stored) && stored > 0) {
+      return resourceValueForClass(classId, stored);
+    }
+
+    return resourceValueForClass(classId, state.player.heat);
+  }
+
+  const stored = state.player.classResources?.[classId];
+
+  return resourceValueForClass(classId, typeof stored === "number" && Number.isFinite(stored) ? stored : 0);
+}
+
+export function syncCurrentClassResource(state: GameState, current = state.player.heat): GameState {
+  const nextCurrent = resourceValueForClass(state.player.classId, current);
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      heat: nextCurrent,
+      classResources: {
+        ...state.player.classResources,
+        [state.player.classId]: nextCurrent
+      }
+    }
+  };
+}
+
 export function selectBaseClass(state: GameState, classId: string): GameState {
   const classDef = getClassDefinition(classId);
 
@@ -57,13 +95,20 @@ export function selectBaseClass(state: GameState, classId: string): GameState {
     throw new Error("Cannot change base class after advancement");
   }
 
+  const syncedState = syncCurrentClassResource(state);
+  const nextResource = classResourceValue(syncedState, classDef.id);
+
   return {
-    ...state,
+    ...syncedState,
     player: {
-      ...state.player,
+      ...syncedState.player,
       heroId: classDef.id,
       classId: classDef.id,
-      heat: 0
+      heat: nextResource,
+      classResources: {
+        ...syncedState.player.classResources,
+        [classDef.id]: nextResource
+      }
     }
   };
 }

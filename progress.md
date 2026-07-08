@@ -3257,3 +3257,23 @@
   - Full combat file passed: `npm test -- src/tests/combat.test.ts --reporter=dot`, 228 tests.
   - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --reporter=dot`, 408 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/stage-linked-burst-check.html` confirmed `sword-prism-field` burst rendered exactly one impact VFX on the locked target, computed animation `sword-prism-field-burst-core`, locked target motion `knockdown`, and late entrant motion `idle`. Temporary page was deleted after validation.
+
+## Task 126 DNF-Style Room Gate Open-Rift VFX
+- Continued toward the full DNF-style room flow goal: after clearing a room, the next-room gate should read as a real transition cue, not only a static door state or button label.
+- Used one read-only agent:
+  - UI/CSS audit confirmed the gate renderer only had `data-room-gate-state` / `data-room-gate-target-room` plus a generic `gate-pulse`, and warned not to change `enterGateIfReady`, `enterRoomGate`, or room index logic.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` now verifies cleared-room HTML includes `data-room-gate-vfx="open-rift"`, `data-room-gate-transition="ready"`, `room-gate-rift`, and `room-gate-threshold`, then still enters room 1 by walking into the gate.
+  - The same test verifies the next locked room does not leak `open-rift`.
+  - `src/tests/ui-smoke.test.ts` now verifies the gate DOM contract plus CSS selectors/keyframes for `open-rift`.
+- RED evidence:
+  - Focused RED failed because cleared-room HTML did not contain `data-room-gate-vfx="open-rift"`.
+- Implemented:
+  - Added render-only gate VFX attributes in `src/ui/app.ts`: locked gates use `sealed/blocked`, open gates use `open-rift/ready`, boss gates use `boss-rift/ready`, and completion gates use `exit-rift/ready`.
+  - Added `room-gate-rift` and `room-gate-threshold` layers to the gate DOM.
+  - Added CSS for gate rift column, threshold glow, `room-gate-open-rift`, `room-gate-rift-column`, and `room-gate-threshold` animations.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --testNamePattern "room gate|combat room after clear" --reporter=dot`, 1 matched app test.
+  - Focused smoke GREEN passed: `npm test -- src/tests/ui-smoke.test.ts --testNamePattern "makes cleared combat rooms obvious" --reporter=dot`, 1 matched smoke test.
+  - Related app/UI suite passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --reporter=dot`, 180 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/gate-vfx-check.html` confirmed open gate selector, target room `1`, `pointer-events: none`, core animation `gate-pulse, room-gate-open-rift`, rift animation `room-gate-rift-column`, and threshold animation `room-gate-threshold`. Temporary page was deleted after validation.

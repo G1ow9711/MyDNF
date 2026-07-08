@@ -430,6 +430,10 @@ describe("playable app integration actions", () => {
     const clearedHtml = renderAppHtml(model);
 
     expect(clearedHtml).toContain('data-room-gate-state="open"');
+    expect(clearedHtml).toContain('data-room-gate-vfx="open-rift"');
+    expect(clearedHtml).toContain('data-room-gate-transition="ready"');
+    expect(clearedHtml).toContain('class="room-gate-rift"');
+    expect(clearedHtml).toContain('class="room-gate-threshold"');
     expect(clearedHtml).toContain('data-room-gate-target-room="1"');
     expect(clearedHtml).not.toContain("settle-button");
 
@@ -441,7 +445,10 @@ describe("playable app integration actions", () => {
     expect(model.combatRun?.player.x).toBeLessThan(220);
     expect(model.state.player.currencies.gold).toBeGreaterThan(goldBefore);
     expect(model.message).toContain("进入下一房间");
-    expect(renderAppHtml(model)).toContain('data-room-gate-state="locked"');
+    const nextRoomHtml = renderAppHtml(model);
+
+    expect(nextRoomHtml).toContain('data-room-gate-state="locked"');
+    expect(nextRoomHtml).not.toContain('data-room-gate-vfx="open-rift"');
   });
 
   it("maps PC movement keys to combat movement actions", () => {

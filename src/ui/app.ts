@@ -1637,9 +1637,14 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const roomFailed = run.failed || run.player.defeated;
   const objective = roomFailed ? "failed" : roomCleared ? "cleared" : "active";
   const roomGate = roomGateForRun(run);
+  const roomGateVfx =
+    roomGate.state === "locked" ? "sealed" : roomGate.state === "boss" ? "boss-rift" : roomGate.state === "complete" ? "exit-rift" : "open-rift";
+  const roomGateTransition = roomGate.state === "locked" ? "blocked" : "ready";
   const roomGateMarkup = `
-    <div class="room-gate room-gate-${roomGate.state}" data-room-gate="true" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" style="${combatActorStyle(run, roomGate.x, roomGate.y)}" aria-label="${roomGate.label}">
+    <div class="room-gate room-gate-${roomGate.state}" data-room-gate="true" data-room-gate-state="${roomGate.state}" data-room-gate-vfx="${roomGateVfx}" data-room-gate-transition="${roomGateTransition}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" style="${combatActorStyle(run, roomGate.x, roomGate.y)}" aria-label="${roomGate.label}">
       <span class="room-gate-core"></span>
+      <span class="room-gate-rift"></span>
+      <span class="room-gate-threshold"></span>
       <span class="room-gate-label">${roomGate.label}</span>
     </div>
   `;

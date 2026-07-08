@@ -2630,10 +2630,18 @@ describe("town app shell", () => {
 
     expect(html).toContain('data-combat-objective="cleared"');
     expect(html).toContain('data-room-gate-state="open"');
+    expect(html).toContain('data-room-gate-vfx="open-rift"');
+    expect(html).toContain('data-room-gate-transition="ready"');
     expect(html).toContain('data-room-gate-target-room="1"');
+    expect(html).toContain('class="room-gate-rift"');
+    expect(html).toContain('class="room-gate-threshold"');
     expect(html).toContain('class="room-clear-banner"');
     expect(html).toContain('data-enemy-state="defeated"');
     expect(html).not.toContain("settle-button");
+    expect(stylesCss).toContain('[data-room-gate-vfx="open-rift"] .room-gate-core');
+    expect(stylesCss).toContain('[data-room-gate-vfx="open-rift"] .room-gate-rift');
+    expect(stylesCss).toContain("@keyframes room-gate-open-rift");
+    expect(stylesCss).toContain("@keyframes room-gate-threshold");
   });
 
   it("renders DNF-style skill-slot hotkeys with visible hotkey badge styling", () => {

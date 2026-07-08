@@ -924,3 +924,11 @@
 - Fix note: each second-stage hitbox now requires `requiresStatusSourceSkillId: skill.id`, so it can only select enemies that still carry same-skill control/stagger source from the real first stage.
 - VFX note: because impact bursts are rendered from hit events, late entrants no longer receive false bloom/burst impact VFX. Browser validation confirmed `sword-prism-field` created one burst VFX on the locked target while the late entrant stayed idle.
 - Queue note: read-only audit identified `iron-palm` as a future test-hardening candidate for explicit recheck/MISS/interruption coverage, and UI audit identified room-gate open/enter VFX as a later presentation pass.
+
+## DNF-Style Room Gate Open-Rift Findings
+- Current priority still favors full playable flow and combat feel over heavy model geometry: room transitions must be readable, responsive, and verifiable as part of the DNF-style dungeon loop.
+- UI audit note: the old cleared-room gate exposed the correct `open` state and room target, but presentation was only a static door plus `gate-pulse`; there was no VFX cue that distinguished an opened rift from a locked door.
+- RED note: focused app test failed on missing `data-room-gate-vfx="open-rift"`, proving the new DOM contract was not already present.
+- Fix note: gate VFX is render-only. It does not change `enterGateIfReady`, `enterRoomGate`, combat movement, or room index state. Walking into the right-side gate still drives the actual transition.
+- CSS note: open gates now have separate animated core, rift column, and threshold glow layers. Locked gates keep a sealed/blocked state and do not leak the open-rift cue into the next room.
+- Browser validation note: live computed styles confirmed `pointer-events: none` on the gate, core animation `gate-pulse, room-gate-open-rift`, rift animation `room-gate-rift-column`, and threshold animation `room-gate-threshold`.

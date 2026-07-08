@@ -5756,6 +5756,39 @@ p {
     0 0 20px rgba(148, 163, 184, 0.22);
 }
 
+.room-gate-rift,
+.room-gate-threshold {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.room-gate-rift {
+  left: 50%;
+  top: 19px;
+  width: 36px;
+  height: 88px;
+  border-radius: 999px;
+  transform: translateX(-50%) scaleY(0.72);
+  background:
+    radial-gradient(ellipse at 50% 48%, rgba(240, 249, 255, 0.92), rgba(125, 211, 252, 0.48) 36%, transparent 70%),
+    linear-gradient(180deg, transparent, rgba(56, 189, 248, 0.56), transparent);
+  filter: blur(0.1px);
+  mix-blend-mode: screen;
+}
+
+.room-gate-threshold {
+  left: 50%;
+  bottom: 21px;
+  width: 112px;
+  height: 18px;
+  border-radius: 50%;
+  transform: translateX(-50%) scaleX(0.82);
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(240, 249, 255, 0.72), rgba(125, 211, 252, 0.32) 42%, transparent 74%),
+    radial-gradient(ellipse at 50% 50%, rgba(14, 165, 233, 0.36), transparent 68%);
+}
+
 .room-gate-core::before,
 .room-gate-core::after {
   content: "";
@@ -5804,6 +5837,34 @@ p {
 .room-gate-boss .room-gate-core,
 .room-gate-complete .room-gate-core {
   animation: gate-pulse 1.25s ease-in-out infinite;
+}
+
+[data-room-gate-vfx="open-rift"] .room-gate-core {
+  animation:
+    gate-pulse 1.25s ease-in-out infinite,
+    room-gate-open-rift 880ms ease-out both;
+}
+
+[data-room-gate-vfx="open-rift"] .room-gate-rift {
+  opacity: 1;
+  animation: room-gate-rift-column 1.18s ease-in-out infinite;
+}
+
+[data-room-gate-vfx="open-rift"] .room-gate-threshold {
+  opacity: 1;
+  animation: room-gate-threshold 1.18s ease-in-out infinite;
+}
+
+[data-room-gate-vfx="boss-rift"] .room-gate-rift,
+[data-room-gate-vfx="exit-rift"] .room-gate-rift {
+  opacity: 1;
+  animation: room-gate-rift-column 1.08s ease-in-out infinite;
+}
+
+[data-room-gate-vfx="boss-rift"] .room-gate-threshold,
+[data-room-gate-vfx="exit-rift"] .room-gate-threshold {
+  opacity: 1;
+  animation: room-gate-threshold 1.08s ease-in-out infinite;
 }
 
 .room-gate-open .room-gate-core {
@@ -8310,6 +8371,43 @@ p {
   50% {
     transform: translateY(-3px) scale(1.04);
     filter: brightness(1.18);
+  }
+}
+
+@keyframes room-gate-open-rift {
+  0% {
+    transform: scaleX(0.82) scaleY(0.96);
+    filter: brightness(0.9);
+  }
+  46% {
+    transform: scaleX(1.06) scaleY(1.02);
+    filter: brightness(1.28);
+  }
+  100% {
+    transform: scaleX(1) scaleY(1);
+    filter: brightness(1.04);
+  }
+}
+
+@keyframes room-gate-rift-column {
+  0%, 100% {
+    transform: translateX(-50%) scaleX(0.82) scaleY(0.82);
+    opacity: 0.68;
+  }
+  50% {
+    transform: translateX(-50%) scaleX(1.18) scaleY(1.05);
+    opacity: 1;
+  }
+}
+
+@keyframes room-gate-threshold {
+  0%, 100% {
+    transform: translateX(-50%) scaleX(0.8);
+    opacity: 0.58;
+  }
+  50% {
+    transform: translateX(-50%) scaleX(1.08);
+    opacity: 0.98;
   }
 }
 

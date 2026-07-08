@@ -3146,25 +3146,6 @@ function applyHeatBloom(run: CombatRun, skill: ClassSkillDefinition, canceledFro
 const furnaceHeartOverdrivePulseDelayMs = 360;
 const furnaceHeartOverdriveReleaseDelayMs = 560;
 
-function selectFurnaceHeartOverdriveTargets(run: CombatRun): CombatEnemy[] {
-  const hitbox: PlayerHitboxDefinition = {
-    action: "skill",
-    skillId: "furnace-heart-overdrive",
-    rangeX: 220,
-    laneRange: 108,
-    targetCap: 3,
-    frontOnly: false,
-    damage: 1,
-    hitstopMs: 1,
-    knockback: 0,
-    juggle: false,
-    inputToHitMs: furnaceHeartOverdrivePulseDelayMs,
-    canceledFromCombo: false
-  };
-
-  return selectPlayerTargets(run, hitbox);
-}
-
 function applyFurnaceHeartOverdrive(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const castRun = appendSkillCastEvent(
     startPlayerSkillMovement(
@@ -3179,84 +3160,54 @@ function applyFurnaceHeartOverdrive(run: CombatRun, skill: ClassSkillDefinition,
     skill,
     canceledFromCombo
   );
-  const targetingHitbox: PlayerHitboxDefinition = {
+  const center = { x: run.player.x, y: run.player.y };
+  const baseDamage = skillDamage(run, skill);
+  const pulseHitbox: PlayerHitboxDefinition = {
     action: "skill",
     skillId: skill.id,
     rangeX: 220,
     laneRange: 108,
     targetCap: 3,
     frontOnly: false,
-    damage: skillDamage(run, skill),
-    hitstopMs: 66,
-    knockback: 18,
+    damage: Math.max(1, Math.round(baseDamage * 0.5)),
+    hitstopMs: 62,
+    knockback: 14,
     juggle: false,
     inputToHitMs: furnaceHeartOverdrivePulseDelayMs,
     canceledFromCombo,
     statusTags: ["stagger"]
   };
-  const targets = selectFurnaceHeartOverdriveTargets(run);
+  const releaseHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 220,
+    laneRange: 108,
+    targetCap: 3,
+    frontOnly: false,
+    damage: Math.max(1, Math.round(baseDamage * 1.05)),
+    hitstopMs: 104,
+    knockback: 68,
+    juggle: false,
+    inputToHitMs: furnaceHeartOverdriveReleaseDelayMs,
+    canceledFromCombo,
+    statusTags: ["stagger"],
+    actionTags: ["knockdown"],
+    requiresStatusSourceSkillId: skill.id
+  };
+  const pulseRun = schedulePlayerHitboxEffect(castRun, pulseHitbox, center, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-overdrive-pulse`,
+    hitPhase: "overdrive-pulse",
+    vfxCue: "overdrive-core-pulse",
+    vfxWindowMs: 360
+  });
 
-  if (targets.length === 0) {
-    return scheduleMissEffect(castRun, targetingHitbox);
-  }
-
-  const baseDamage = skillDamage(run, skill);
-  const stages: Array<{
-    phase: CombatHitPhase;
-    vfxCue: CombatVfxCue;
-    delayMs: number;
-    damageMultiplier: number;
-    hitstopMs: number;
-    knockback: number;
-    statusTags: CombatSkillStatusTag[];
-    actionTags: CombatActionTag[];
-    vfxWindowMs: number;
-  }> = [
-    {
-      phase: "overdrive-pulse",
-      vfxCue: "overdrive-core-pulse",
-      delayMs: furnaceHeartOverdrivePulseDelayMs,
-      damageMultiplier: 0.5,
-      hitstopMs: 62,
-      knockback: 14,
-      statusTags: ["stagger"],
-      actionTags: [],
-      vfxWindowMs: 360
-    },
-    {
-      phase: "overdrive-release",
-      vfxCue: "overdrive-core-release",
-      delayMs: furnaceHeartOverdriveReleaseDelayMs,
-      damageMultiplier: 1.05,
-      hitstopMs: 104,
-      knockback: 68,
-      statusTags: ["stagger"],
-      actionTags: ["knockdown"],
-      vfxWindowMs: 560
-    }
-  ];
-
-  return stages.reduce((nextRun, stage) => {
-    return targets.reduce((stageRun, target) => {
-      return scheduleEnemyHitEffect(stageRun, {
-        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${target.id}`,
-        targetId: target.id,
-        damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
-        hitstopMs: stage.hitstopMs,
-        knockback: stage.knockback,
-        juggle: false,
-        action: "skill",
-        skillId: skill.id,
-        inputToHitMs: stage.delayMs,
-        canceledFromCombo,
-        statusTags: stage.statusTags,
-        actionTags: stage.actionTags,
-        hitPhase: stage.phase,
-        vfxCue: stage.vfxCue,
-        vfxWindowMs: stage.vfxWindowMs
-      });
-    }, nextRun);
-  }, castRun);
+  return schedulePlayerHitboxEffect(pulseRun, releaseHitbox, center, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-overdrive-release`,
+    hitPhase: "overdrive-release",
+    vfxCue: "overdrive-core-release",
+    vfxWindowMs: 560,
+    missOnEmpty: false
+  });
 }
 
 function applyPrismStep(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {

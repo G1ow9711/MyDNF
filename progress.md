@@ -3098,3 +3098,25 @@
   - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t "heat-bloom" --reporter=basic`, 5 tests.
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 409 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/heat-bloom-live-check.html` confirmed times `[240,390]`, two queued dynamic effects with no target ids, no pre-draw impact burst, moved-out target ignored, moved-in target drawn and erupted, initially empty field target caught before draw, cast anchor style `--actor-x: 36.67%`, airborne eruption enemies, and resolved animations `player-ember-bloom-cast`, `weapon-pull-bloom`, `heat-bloom-cast-core/ring/sparks`, `heat-bloom-draw-core/ring/shards`, and `heat-bloom-eruption-core/ring/shards`. Browser warning/error logs were empty, the temporary page was deleted, and the browser returned to `http://127.0.0.1:5178/`.
+
+## Task 119 DNF-Style Furnace Heart Overdrive Live Pulse-Frame Recheck
+- Continued from the user's clarified priority: character/monster geometry can stay simpler while the playable loop is being completed, but combat action flow, model-following state changes, strict hit frames, hit feedback, skill VFX, and monster VFX remain strict gates.
+- Used a read-only UI/CSS agent audit:
+  - It confirmed `furnace-heart-overdrive` already exposes player preset `ember-overdrive`, weapon arc `core-overdrive`, cast VFX `overdrive-core`, target phases `overdrive-pulse` / `overdrive-release`, cue hooks `overdrive-core-pulse` / `overdrive-core-release`, and hitstop/screen-shake scene hooks.
+  - It mapped browser-resolved animations: `player-ember-overdrive-cast`, `weapon-core-overdrive`, `overdrive-core-cast-core/ring/sparks`, `overdrive-core-pulse-core/ring/shards`, and `overdrive-core-release-core/ring/shards`.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies that enemies moved out before the 360 ms pulse are ignored, enemies moved into the core before pulse are hit, and the 560 ms release only damages enemies pulsed by this cast.
+  - `src/tests/combat.test.ts` now verifies an initially empty core can still catch an enemy that enters before pulse without stale MISS feedback.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t "furnace-heart-overdrive" --reporter=basic` failed because the old implementation still hit cast-frame targets and had no scheduled effects for initially empty casts.
+- Implemented:
+  - Removed the stale `selectFurnaceHeartOverdriveTargets()` cast-frame helper.
+  - Reworked `applyFurnaceHeartOverdrive()` to schedule dynamic self-centered hitboxes at 360 ms and 560 ms.
+  - Pulse now rechecks live targets around the core and tags this skill as the status source.
+  - Release now requires `requiresStatusSourceSkillId: "furnace-heart-overdrive"`, so late entrants after pulse do not receive ghost release damage or knockdown.
+  - Empty-core MISS feedback is delayed until pulse; release uses `missOnEmpty: false` to avoid duplicate whiffs.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t "furnace-heart-overdrive" --reporter=dot`, 5 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 411 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/furnace-heart-overdrive-live-check.html` confirmed times `[360,560]`, no pre-pulse impacts, pulse impact count `2`, cumulative release impact count `4`, recheck scenario hits only the moved-in pulse target twice, initially empty core catches a target entering before pulse, MISS count stays `0`, hitstop and skill screen shake activate on release, and resolved animations are `player-ember-overdrive-cast`, `weapon-core-overdrive`, `overdrive-core-cast-core/ring/sparks`, `overdrive-core-pulse-core/ring/shards`, and `overdrive-core-release-core/ring/shards`. Temporary page was deleted after validation and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 493 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

@@ -5118,6 +5118,83 @@ describe("combat actions and impact feel", () => {
     expect(releaseRun.enemies.every((enemy) => enemy.downed && (enemy.downedUntilMs ?? 0) > releaseRun.elapsedMs)).toBe(true);
   });
 
+  it("rechecks furnace-heart-overdrive targets at pulse and releases only pulsed enemies", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(createInitialState(), 100)),
+      "ember-furnace-master"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 320, y: 340, facing: 1 },
+      [
+        { x: 238, y: 340, hp: 260, maxHp: 260, armor: 0 },
+        { x: 760, y: 430, hp: 260, maxHp: 260, armor: 0 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "furnace-heart-overdrive" });
+    const [pulseAtMs, releaseAtMs] = scheduledSkillTimes(cast, "furnace-heart-overdrive");
+    const movedBeforePulse: CombatRun = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) => ({
+        ...enemy,
+        position: index === 0 ? { x: 760, y: 430 } : { x: 420, y: 350 }
+      }))
+    };
+    const pulseRun = stepToElapsed(movedBeforePulse, pulseAtMs);
+    const withLateEntrant: CombatRun = {
+      ...pulseRun,
+      enemies: pulseRun.enemies.map((enemy, index) => ({
+        ...enemy,
+        position: index === 0 ? { x: 250, y: 340 } : enemy.position
+      }))
+    };
+    const releaseRun = stepToElapsed(withLateEntrant, releaseAtMs);
+    const overdriveHits = skillHitEvents(releaseRun, "furnace-heart-overdrive");
+
+    expect(skillHitEvents(pulseRun, "furnace-heart-overdrive").map((event) => event.targetId)).toEqual([run.enemies[1].id]);
+    expect(overdriveHits.map((event) => event.targetId)).toEqual([run.enemies[1].id, run.enemies[1].id]);
+    expect(overdriveHits.map((event) => event.hitPhase)).toEqual(["overdrive-pulse", "overdrive-release"]);
+    expect(releaseRun.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(releaseRun.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+    expect(releaseRun.enemies[1].downed).toBe(true);
+  });
+
+  it("lets furnace-heart-overdrive catch enemies entering an initially empty core before pulse", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(createInitialState(), 100)),
+      "ember-furnace-master"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 320, y: 340, facing: 1 },
+      [
+        { x: 40, y: 430, hp: 260, maxHp: 260, armor: 0 },
+        { x: 760, y: 430, hp: 260, maxHp: 260, armor: 0 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "furnace-heart-overdrive" });
+    const [pulseAtMs, releaseAtMs] = scheduledSkillTimes(cast, "furnace-heart-overdrive");
+    const movedIntoCore: CombatRun = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) => ({
+        ...enemy,
+        position: index === 1 ? { x: 420, y: 350 } : enemy.position
+      }))
+    };
+    const beforePulse = stepToElapsed(movedIntoCore, pulseAtMs - 1);
+    const releaseRun = stepToElapsed(movedIntoCore, releaseAtMs);
+    const overdriveHits = skillHitEvents(releaseRun, "furnace-heart-overdrive");
+
+    expect(skillHitEvents(beforePulse, "furnace-heart-overdrive")).toHaveLength(0);
+    expect(skillMissEvents(releaseRun, "furnace-heart-overdrive")).toHaveLength(0);
+    expect(overdriveHits.map((event) => event.targetId)).toEqual([run.enemies[1].id, run.enemies[1].id]);
+    expect(overdriveHits.map((event) => event.hitPhase)).toEqual(["overdrive-pulse", "overdrive-release"]);
+    expect(releaseRun.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(releaseRun.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
   it("delays furnace-heart-overdrive whiff feedback and cancels it when interrupted", () => {
     const state = advanceClass(
       readyForAdvancement(withHeat(createInitialState(), 100)),
@@ -5132,9 +5209,9 @@ describe("combat actions and impact feel", () => {
       ]
     );
     const whiffCast = performAction(missRun, { type: "skill", skillId: "furnace-heart-overdrive" });
-    const [missAtMs] = scheduledMissTimes(whiffCast, "furnace-heart-overdrive");
-    const beforeMiss = stepToElapsed(whiffCast, missAtMs - 1);
-    const whiffed = stepToElapsed(whiffCast, missAtMs);
+    const [pulseAtMs] = scheduledSkillTimes(whiffCast, "furnace-heart-overdrive");
+    const beforeMiss = stepToElapsed(whiffCast, pulseAtMs - 1);
+    const whiffed = stepToElapsed(whiffCast, pulseAtMs);
 
     expect(skillMissEvents(whiffCast, "furnace-heart-overdrive")).toHaveLength(0);
     expect(skillMissEvents(beforeMiss, "furnace-heart-overdrive")).toHaveLength(0);

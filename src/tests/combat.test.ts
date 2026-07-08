@@ -1851,6 +1851,68 @@ describe("combat actions and impact feel", () => {
     expect(eruptionRun.enemies.every((enemy) => enemy.airborne && (enemy.airborneUntilMs ?? 0) > eruptionRun.elapsedMs)).toBe(true);
   });
 
+  it("rechecks heat-bloom targets at the draw frame and erupts only drawn enemies", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 315, y: 340, hp: 220, maxHp: 220 },
+        { x: 650, y: 420, hp: 220, maxHp: 220 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "heat-bloom" });
+    const [drawAtMs, eruptAtMs] = scheduledSkillTimes(cast, "heat-bloom");
+    const movedBeforeDraw: CombatRun = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) => ({
+        ...enemy,
+        position: index === 0 ? { x: 720, y: 420 } : { x: 352, y: 340 }
+      }))
+    };
+    const drawRun = stepToElapsed(movedBeforeDraw, drawAtMs);
+    const eruptionRun = stepToElapsed(drawRun, eruptAtMs);
+    const heatBloomHits = skillHitEvents(eruptionRun, "heat-bloom");
+
+    expect(skillHitEvents(drawRun, "heat-bloom").map((event) => event.targetId)).toEqual([run.enemies[1].id]);
+    expect(heatBloomHits.map((event) => event.targetId)).toEqual([run.enemies[1].id, run.enemies[1].id]);
+    expect(heatBloomHits.map((event) => event.hitPhase)).toEqual(["heat-draw", "heat-eruption"]);
+    expect(eruptionRun.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(eruptionRun.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+    expect(eruptionRun.enemies[1].airborne).toBe(true);
+  });
+
+  it("lets heat-bloom catch targets entering an initially empty field before draw", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 110, y: 340, hp: 220, maxHp: 220 },
+        { x: 650, y: 420, hp: 220, maxHp: 220 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "heat-bloom" });
+    const [drawAtMs, eruptAtMs] = scheduledSkillTimes(cast, "heat-bloom");
+    const movedIntoField: CombatRun = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) => ({
+        ...enemy,
+        position: index === 1 ? { x: 352, y: 340 } : enemy.position
+      }))
+    };
+    const beforeDraw = stepToElapsed(movedIntoField, drawAtMs - 1);
+    const eruptionRun = stepToElapsed(movedIntoField, eruptAtMs);
+    const heatBloomHits = skillHitEvents(eruptionRun, "heat-bloom");
+
+    expect(skillHitEvents(beforeDraw, "heat-bloom")).toHaveLength(0);
+    expect(skillMissEvents(eruptionRun, "heat-bloom")).toHaveLength(0);
+    expect(heatBloomHits.map((event) => event.targetId)).toEqual([run.enemies[1].id, run.enemies[1].id]);
+    expect(heatBloomHits.map((event) => event.hitPhase)).toEqual(["heat-draw", "heat-eruption"]);
+    expect(eruptionRun.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(eruptionRun.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
   it("cancels pending heat-bloom draw and eruption when monster damage interrupts the cast", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"),

@@ -3077,3 +3077,24 @@
   - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t "furnace-step" --reporter=basic`, 5 tests.
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 407 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/furnace-step-live-check.html` confirmed impact time `170`, one queued dynamic hitbox with no cast-frame target id, no pre-impact hits, no pre-impact impact burst, target that moved out was ignored, target that moved in was hit, and resolved animations were `player-ember-shoulder-rush`, `weapon-dash-burst`, `furnace-trail-cast-core/ring/sparks`, and `furnace-shoulder-impact-core/ring/shards`. Browser warning/error logs were empty, the temporary page was deleted, and the browser returned to `http://127.0.0.1:5178/`.
+
+## Task 118 DNF-Style Heat Bloom Live Draw-Frame Recheck
+- Continued the remaining fixed-target audit on Ember skills. `heat-bloom` still selected targets at cast time even though its visuals imply a live draw field and delayed eruption.
+- Used a read-only UI/CSS agent audit:
+  - It confirmed app hooks for player preset `ember-bloom`, weapon arc `pull-bloom`, cast VFX `heat-bloom`, target cues `heat-bloom-draw` / `heat-bloom-eruption`, and enemy airborne feedback.
+  - It mapped browser-resolved animations: `player-ember-bloom-cast`, `weapon-pull-bloom`, `heat-bloom-cast-core/ring/sparks`, `heat-bloom-draw-core/ring/shards`, and `heat-bloom-eruption-core/ring/shards`.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies that `heat-bloom` ignores a cast-time target moved out before 240 ms draw, draws a target moved into the field, and erupts only enemies drawn by this cast.
+  - `src/tests/combat.test.ts` now verifies an initially empty field can still hit a target entering before draw, without a stale MISS at eruption.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t "heat-bloom" --reporter=basic` failed because the old implementation still hit a cast-frame target and produced no scheduled hit effects for an empty initial field.
+- Implemented:
+  - Removed the stale `selectHeatBloomTargets()` cast-frame helper.
+  - Reworked `applyHeatBloom()` to schedule dynamic hitbox effects at 240 ms draw and 390 ms eruption.
+  - Draw now rechecks live enemies around the fixed bloom center, pulls them inward, and tags this skill as the status source.
+  - Eruption now requires that same status source, so enemies entering only after draw do not receive final ghost damage or launcher state.
+  - Empty-field MISS feedback is emitted only at draw; eruption uses `missOnEmpty: false`.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t "heat-bloom" --reporter=basic`, 5 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 409 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/heat-bloom-live-check.html` confirmed times `[240,390]`, two queued dynamic effects with no target ids, no pre-draw impact burst, moved-out target ignored, moved-in target drawn and erupted, initially empty field target caught before draw, cast anchor style `--actor-x: 36.67%`, airborne eruption enemies, and resolved animations `player-ember-bloom-cast`, `weapon-pull-bloom`, `heat-bloom-cast-core/ring/sparks`, `heat-bloom-draw-core/ring/shards`, and `heat-bloom-eruption-core/ring/shards`. Browser warning/error logs were empty, the temporary page was deleted, and the browser returned to `http://127.0.0.1:5178/`.

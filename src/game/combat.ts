@@ -3078,27 +3078,6 @@ function heatBloomCenter(run: CombatRun): CombatVector {
   };
 }
 
-function selectHeatBloomTargets(run: CombatRun, center: CombatVector): CombatEnemy[] {
-  return run.enemies
-    .filter((enemy) => {
-      if (enemy.hp <= 0) {
-        return false;
-      }
-
-      const xDistance = axisDistanceOutsideHalfSize(enemy.position.x - center.x, enemy.hurtbox.width / 2);
-      const yDistance = axisDistanceOutsideHalfSize(enemy.position.y - center.y, enemy.hurtbox.height / 2);
-
-      return xDistance <= 170 && yDistance <= 82;
-    })
-    .sort((left, right) => {
-      const leftDistance = Math.abs(left.position.x - center.x) + Math.abs(left.position.y - center.y) * 0.5;
-      const rightDistance = Math.abs(right.position.x - center.x) + Math.abs(right.position.y - center.y) * 0.5;
-
-      return leftDistance - rightDistance;
-    })
-    .slice(0, 3);
-}
-
 function applyHeatBloom(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const center = heatBloomCenter(run);
   const castingRun = appendSkillCastEvent(
@@ -3114,90 +3093,54 @@ function applyHeatBloom(run: CombatRun, skill: ClassSkillDefinition, canceledFro
     skill,
     canceledFromCombo
   );
-  const targetingHitbox: PlayerHitboxDefinition = {
+  const baseDamage = skillDamage(run, skill);
+  const drawHitbox: PlayerHitboxDefinition = {
     action: "skill",
     skillId: skill.id,
     rangeX: 170,
     laneRange: 82,
     targetCap: 3,
     frontOnly: false,
-    damage: skillDamage(run, skill),
-    hitstopMs: 56,
+    damage: Math.max(1, Math.round(baseDamage * 0.34)),
+    hitstopMs: 48,
     knockback: 0,
     juggle: false,
     inputToHitMs: heatBloomDrawDelayMs,
     canceledFromCombo,
+    pullCenter: center,
     statusTags: ["stagger"]
   };
-  const targets = selectHeatBloomTargets(run, center);
+  const eruptionHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 170,
+    laneRange: 82,
+    targetCap: 3,
+    frontOnly: false,
+    damage: Math.max(1, Math.round(baseDamage * 0.96)),
+    hitstopMs: 86,
+    knockback: 36,
+    juggle: true,
+    inputToHitMs: heatBloomEruptionDelayMs,
+    canceledFromCombo,
+    statusTags: ["stagger"],
+    actionTags: ["launcher"],
+    requiresStatusSourceSkillId: skill.id
+  };
+  const drawnRun = schedulePlayerHitboxEffect(castingRun, drawHitbox, center, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-heat-draw`,
+    hitPhase: "heat-draw",
+    vfxCue: "heat-bloom-draw",
+    vfxWindowMs: 340
+  });
 
-  if (targets.length === 0) {
-    return scheduleMissEffect(castingRun, targetingHitbox);
-  }
-
-  const baseDamage = skillDamage(run, skill);
-  const stages: Array<{
-    phase: CombatHitPhase;
-    vfxCue: CombatVfxCue;
-    delayMs: number;
-    damageMultiplier: number;
-    hitstopMs: number;
-    knockback: number;
-    juggle: boolean;
-    pullCenter?: CombatVector;
-    statusTags: CombatSkillStatusTag[];
-    actionTags: CombatActionTag[];
-    vfxWindowMs: number;
-  }> = [
-    {
-      phase: "heat-draw",
-      vfxCue: "heat-bloom-draw",
-      delayMs: heatBloomDrawDelayMs,
-      damageMultiplier: 0.34,
-      hitstopMs: 48,
-      knockback: 0,
-      juggle: false,
-      pullCenter: center,
-      statusTags: ["stagger"],
-      actionTags: [],
-      vfxWindowMs: 340
-    },
-    {
-      phase: "heat-eruption",
-      vfxCue: "heat-bloom-eruption",
-      delayMs: heatBloomEruptionDelayMs,
-      damageMultiplier: 0.96,
-      hitstopMs: 86,
-      knockback: 36,
-      juggle: true,
-      statusTags: ["stagger"],
-      actionTags: ["launcher"],
-      vfxWindowMs: 520
-    }
-  ];
-
-  return stages.reduce((nextRun, stage) => {
-    return targets.reduce((stageRun, target) => {
-      return scheduleEnemyHitEffect(stageRun, {
-        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${target.id}`,
-        targetId: target.id,
-        damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
-        hitstopMs: stage.hitstopMs,
-        knockback: stage.knockback,
-        juggle: stage.juggle,
-        action: "skill",
-        skillId: skill.id,
-        inputToHitMs: stage.delayMs,
-        canceledFromCombo,
-        pullCenter: stage.pullCenter,
-        statusTags: stage.statusTags,
-        actionTags: stage.actionTags,
-        hitPhase: stage.phase,
-        vfxCue: stage.vfxCue,
-        vfxWindowMs: stage.vfxWindowMs
-      });
-    }, nextRun);
-  }, castingRun);
+  return schedulePlayerHitboxEffect(drawnRun, eruptionHitbox, center, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-heat-eruption`,
+    hitPhase: "heat-eruption",
+    vfxCue: "heat-bloom-eruption",
+    vfxWindowMs: 520,
+    missOnEmpty: false
+  });
 }
 
 const furnaceHeartOverdrivePulseDelayMs = 360;

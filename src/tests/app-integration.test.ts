@@ -2209,7 +2209,7 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run after prism-step");
     }
 
-    const [, finalImpactAtMs] = scheduledSkillTimes(model.combatRun, "prism-step");
+    const [impactAtMs] = scheduledSkillTimes(model.combatRun, "prism-step");
     const immediateStepHits = skillHitEvents(model.combatRun, "prism-step");
     const castHtml = renderAppHtml(model);
     const beforeImpactRun = stepCombat(model.combatRun, {}, 82);
@@ -2217,7 +2217,7 @@ describe("playable app integration actions", () => {
       ...model,
       combatRun: beforeImpactRun
     });
-    const impactRun = stepToElapsed(model.combatRun, finalImpactAtMs);
+    const impactRun = stepToElapsed(model.combatRun, impactAtMs);
     const stepHits = skillHitEvents(impactRun, "prism-step");
     const hitFrameHtml = renderAppHtml({
       ...model,
@@ -2225,6 +2225,7 @@ describe("playable app integration actions", () => {
     });
 
     expect(model.combatRun.player.x).toBe(player.x);
+    expect(impactAtMs).toBe(165);
     expect(beforeImpactRun.player.x).toBeGreaterThan(player.x);
     expect(beforeImpactRun.player.x).toBeLessThan(344);
     expect(immediateStepHits).toHaveLength(0);

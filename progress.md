@@ -2992,3 +2992,25 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 399 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/flowing-light-live-check.html` confirmed scheduled times `[220,340,470]`, 3 hits only on the moved-in third target, old target HP `[180,180]`, new target HP `56`, MISS count `0`, player animation `player-liuli-light-chain-cast`, weapon animation `weapon-chain-cut`, cast animations `flowing-chain-cast-core/ring/sparks`, impact animations `flowing-chain-impact-core/ring/shards`, and empty browser warning/error logs. Temporary page was deleted after validation.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 481 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 114 DNF-Style Prism Step Live Hit-Frame Recheck
+- Continued from the remaining strict-DNF combat gap: `prism-step` still needed live hit-frame target recheck after `flowing-light-chain` was fixed.
+- Used a read-only UI/CSS agent audit:
+  - It confirmed current UI coverage renders delayed path-pierce DOM, but prism animation checks were mostly string-level.
+  - It mapped the intended resolved animations: `player-liuli-step-dash`, `weapon-prism-dash`, `prism-afterimage-core/wave/sparks`, and `prism-pierce-core/ring/shards`.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies `prism-step` ignores two enemies moved out of the dash path before the 165 ms impact and hits a third enemy moved into the path.
+  - `src/tests/combat.test.ts` now verifies empty-path MISS feedback is delayed until the 165 ms dash impact frame.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t "prism-step" --reporter=basic` failed because the old implementation still hit the cast-frame target id and produced no scheduled effect in the empty-path case.
+- Implemented:
+  - Reworked `applyPrismStep()` to schedule one dynamic path hitbox at the 165 ms dash impact frame instead of scheduling fixed cast-frame target ids.
+  - Kept the 104 px model-following dash, two-target cap, `pierce` hit phase, `prism-pierce` cue, stagger status tag, and target-bound VFX window.
+  - Removed the stale `selectPrismStepTargets()` helper to prevent returning to input-frame target locking.
+  - Updated prism UI/app tests to use the single real 165 ms impact frame instead of assuming separate per-target scheduled times.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t "prism-step" --reporter=dot`, 5 tests.
+  - UI/app focused GREEN passed: `npx vitest run src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts -t "prism-step" --reporter=dot`, 2 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 401 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/prism-step-live-check.html` confirmed impact time `165`, one live hit only on the moved-in third target, old target HP `[160,160]`, new target HP `124`, empty-path MISS count `0` before impact and `1` at impact, player animation `player-liuli-step-dash`, weapon animation `weapon-prism-dash`, cast animations `prism-afterimage-core/wave/sparks`, impact animations `prism-pierce-core/ring/shards`, and empty browser warning/error logs. Temporary page was deleted after validation.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 483 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

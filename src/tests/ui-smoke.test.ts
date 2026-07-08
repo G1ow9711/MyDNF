@@ -2115,7 +2115,7 @@ describe("town app shell", () => {
       },
       { type: "skill", skillId: "prism-step" }
     );
-    const [, finalImpactAtMs] = scheduledSkillTimes(castRun, "prism-step");
+    const [impactAtMs] = scheduledSkillTimes(castRun, "prism-step");
     const immediateStepHits = skillHitEvents(castRun, "prism-step");
     const beforeImpactRun = stepCombat(castRun, {}, 82);
     const beforeImpactHtml = renderAppHtml({
@@ -2123,7 +2123,7 @@ describe("town app shell", () => {
       mode: "combat",
       combatRun: beforeImpactRun
     });
-    const impactRun = stepToElapsed(castRun, finalImpactAtMs);
+    const impactRun = stepToElapsed(castRun, impactAtMs);
     const stepHits = skillHitEvents(impactRun, "prism-step");
     const html = renderAppHtml({
       state,
@@ -2132,6 +2132,7 @@ describe("town app shell", () => {
     });
 
     expect(immediateStepHits).toHaveLength(0);
+    expect(impactAtMs).toBe(165);
     expect(stepHits).toHaveLength(2);
     expect(beforeImpactHtml).toContain('data-player-skill-move="prism-step"');
     expect(beforeImpactHtml).not.toContain('data-skill-impact-vfx="prism-step"');

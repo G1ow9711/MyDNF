@@ -809,3 +809,12 @@
 - MISS note: no-target feedback is delayed until the 220 ms opening slash and only emits once; cross/finish frames do not spam MISS when still empty.
 - Browser validation note: a temporary local page confirmed times `[220,340,470]`, three hits only on the moved-in third target, old target HP stayed `[180,180]`, MISS count stayed `0`, and computed animations resolved to `player-liuli-light-chain-cast`, `weapon-chain-cut`, `flowing-chain-cast-*`, and `flowing-chain-impact-*` with no browser warnings/errors.
 - Cleanup note: the old `selectFlowingLightChainTargets()` cast-frame helper was removed to prevent future regression back to input-frame target locking.
+
+## DNF-Style Prism Step Live Hit-Frame Recheck Findings
+- Current priority remains strict combat feel over heavier character geometry: `prism-step` must behave like a real dash strike, with model-following movement, live target recheck, delayed MISS, target VFX, and no ghost hits on enemies that left the path.
+- Read-only UI audit found `prism-step` already had DOM coverage for delayed path-pierce impact, but animation coverage was mostly string-level. The actual CSS selectors resolve `player-liuli-step-dash`, `weapon-prism-dash`, `prism-afterimage-*`, and `prism-pierce-*`; browser computed-style validation was therefore used for this slice.
+- RED note: focused combat tests failed because old `selectPrismStepTargets()` carried cast-frame target ids, and an empty path produced immediate MISS with no scheduled hit frame.
+- Combat note: `prism-step` now schedules one dynamic path hitbox at the 165 ms dash impact frame, centered on the dash path, targeting up to two live enemies. It keeps the existing 104 px model-following dash, `pierce` phase, `prism-pierce` cue, stagger tag, and target-bound VFX window.
+- MISS note: empty-path feedback is now scheduled at the same 165 ms impact frame; there is no cast-frame MISS.
+- Browser validation note: a temporary local page confirmed live hit count `1` only on the moved-in third target, old target HP stayed `[160,160]`, new target HP became `124`, MISS count stayed `0` before 165 ms and became `1` at 165 ms for the empty-path scenario, and computed animations resolved to `player-liuli-step-dash`, `weapon-prism-dash`, `prism-afterimage-core/wave/sparks`, and `prism-pierce-core/ring/shards` with no browser warnings/errors.
+- Cleanup note: the old `selectPrismStepTargets()` cast-frame helper was removed so future work cannot silently reintroduce input-frame target locking.

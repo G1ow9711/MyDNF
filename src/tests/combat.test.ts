@@ -5156,6 +5156,90 @@ describe("combat actions and impact feel", () => {
     expect((afterFinalImpact.player as typeof afterFinalImpact.player & { activeSkillMovement?: unknown }).activeSkillMovement).toBeUndefined();
   });
 
+  it("rechecks prism-step targets live at the dash impact frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40);
+    const twoTargetRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 292, y: 340, hp: 160, maxHp: 160 },
+        { x: 332, y: 348, hp: 160, maxHp: 160 }
+      ]
+    );
+    const run: CombatRun = {
+      ...twoTargetRun,
+      enemies: [
+        ...twoTargetRun.enemies,
+        {
+          ...twoTargetRun.enemies[0],
+          id: "test-prism-step-live-third",
+          hp: 160,
+          maxHp: 160,
+          armor: 0,
+          position: { x: 720, y: 430 },
+          nextAttackAtMs: 9999
+        }
+      ]
+    };
+    const cast = performAction(run, { type: "skill", skillId: "prism-step" });
+    const [impactAtMs] = scheduledSkillTimes(cast, "prism-step");
+    const movedBeforeImpact = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) => {
+        if (index < 2) {
+          return {
+            ...enemy,
+            position: { x: 760 + index * 32, y: 430 }
+          };
+        }
+
+        return {
+          ...enemy,
+          position: { x: 310, y: 340 }
+        };
+      })
+    };
+    const beforeImpact = stepToElapsed(movedBeforeImpact, impactAtMs - 1);
+    const impact = stepToElapsed(movedBeforeImpact, impactAtMs);
+    const stepHits = skillHitEvents(impact, "prism-step");
+    const targetIds = [...new Set(stepHits.map((event) => event.targetId))];
+
+    expect(impactAtMs).toBe(165);
+    expect(skillHitEvents(cast, "prism-step")).toHaveLength(0);
+    expect(skillHitEvents(beforeImpact, "prism-step")).toHaveLength(0);
+    expect(stepHits).toHaveLength(1);
+    expect(targetIds).toEqual([cast.enemies[2].id]);
+    expect(impact.enemies[0].hp).toBe(cast.enemies[0].hp);
+    expect(impact.enemies[1].hp).toBe(cast.enemies[1].hp);
+    expect(impact.enemies[2].hp).toBeLessThan(cast.enemies[2].hp);
+    expect(skillMissEvents(impact, "prism-step")).toHaveLength(0);
+  });
+
+  it("delays prism-step MISS feedback until the dash impact frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 720, y: 430, hp: 160, maxHp: 160 },
+        { x: 760, y: 430, hp: 160, maxHp: 160 }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "prism-step" });
+    const [impactAtMs] = scheduledSkillTimes(cast, "prism-step");
+    const beforeImpact = stepToElapsed(cast, impactAtMs - 1);
+    const impact = stepToElapsed(cast, impactAtMs);
+
+    expect(impactAtMs).toBe(165);
+    expect(skillMissEvents(cast, "prism-step")).toHaveLength(0);
+    expect(skillMissEvents(beforeImpact, "prism-step")).toHaveLength(0);
+    expect(skillMissEvents(impact, "prism-step")).toHaveLength(1);
+    expect(skillMissEvents(impact, "prism-step")[0]).toMatchObject({
+      occurredAtMs: impactAtMs,
+      inputToHitMs: impactAtMs
+    });
+  });
+
   it("samples prism-step movement for arena hazards inside a large frame", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 40);
     const run = withPlayerAndEnemies(

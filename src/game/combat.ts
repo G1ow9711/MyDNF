@@ -2799,29 +2799,6 @@ function applySwordPrismField(run: CombatRun, skill: ClassSkillDefinition, cance
   );
 }
 
-function selectPrismStepTargets(run: CombatRun, scriptedRun: CombatRun, skill: ClassSkillDefinition): CombatEnemy[] {
-  const startX = run.player.x;
-  const endX = scriptedRun.player.x;
-  const minX = Math.min(startX, endX) - 22;
-  const maxX = Math.max(startX, endX) + 22;
-  const laneRange = skillLaneRange(skill.tags);
-
-  return run.enemies
-    .filter((enemy) => {
-      if (enemy.hp <= 0) {
-        return false;
-      }
-
-      const enemyMinX = enemy.position.x - enemy.hurtbox.width / 2;
-      const enemyMaxX = enemy.position.x + enemy.hurtbox.width / 2;
-      const yDistance = axisDistanceOutsideHalfSize(enemy.position.y - run.player.y, enemy.hurtbox.height / 2);
-
-      return enemyMaxX >= minX && enemyMinX <= maxX && yDistance <= laneRange;
-    })
-    .sort((left, right) => (left.position.x - right.position.x) * run.player.facing)
-    .slice(0, 2);
-}
-
 function selectFurnaceStepTargets(run: CombatRun, endPosition: CombatVector, skill: ClassSkillDefinition): CombatEnemy[] {
   const startX = run.player.x;
   const endX = endPosition.x;
@@ -3377,14 +3354,18 @@ function applyFurnaceHeartOverdrive(run: CombatRun, skill: ClassSkillDefinition,
 function applyPrismStep(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const scriptedRun = applySkillStartupMovement(run, skill);
   const movingRun = appendSkillCastEvent(startPlayerSkillMovement(run, skill, scriptedRun.player), skill, canceledFromCombo);
-  const targetingHitbox: PlayerHitboxDefinition = {
+  const pathCenter = {
+    x: (run.player.x + scriptedRun.player.x) / 2,
+    y: run.player.y
+  };
+  const hitbox: PlayerHitboxDefinition = {
     action: "skill",
     skillId: skill.id,
-    rangeX: skillRangeX(skill.tags),
+    rangeX: Math.abs(scriptedRun.player.x - run.player.x) / 2 + 22,
     laneRange: skillLaneRange(skill.tags),
     targetCap: 2,
     frontOnly: false,
-    damage: skillDamage(run, skill),
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.88)),
     hitstopMs: 56,
     knockback: 24,
     juggle: false,
@@ -3392,30 +3373,13 @@ function applyPrismStep(run: CombatRun, skill: ClassSkillDefinition, canceledFro
     canceledFromCombo,
     statusTags: ["stagger"]
   };
-  const targets = selectPrismStepTargets(run, scriptedRun, skill);
 
-  if (targets.length === 0) {
-    return applyMiss(movingRun, targetingHitbox);
-  }
-
-  return targets.reduce((nextRun, target, targetIndex) => {
-    return scheduleEnemyHitEffect(nextRun, {
-      id: `hit-${run.elapsedMs}-skill-${skill.id}-pierce-${targetIndex}-${target.id}`,
-      targetId: target.id,
-      damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.88)),
-      hitstopMs: 56,
-      knockback: 24,
-      juggle: false,
-      action: "skill",
-      skillId: skill.id,
-      inputToHitMs: skill.animation.hitFrameMs + targetIndex * 28,
-      canceledFromCombo,
-      statusTags: ["stagger"],
-      hitPhase: "pierce",
-      vfxCue: "prism-pierce",
-      vfxWindowMs: 340
-    });
-  }, movingRun);
+  return schedulePlayerHitboxEffect(movingRun, hitbox, pathCenter, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-pierce`,
+    hitPhase: "pierce",
+    vfxCue: "prism-pierce",
+    vfxWindowMs: 340
+  });
 }
 
 const flowingLightChainEndDelayMs = 470;

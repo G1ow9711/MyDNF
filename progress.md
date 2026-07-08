@@ -2781,3 +2781,26 @@
   - Focused GREEN passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t mountain-guard-break --reporter=basic`, 2 tests.
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 380 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/mountain-guard-break-check.html` confirmed 330 ms impact timing, no cast/before-impact damage, player movement 240 -> 272, two guard-break hits, escape delayed MISS, moved-in hit, monster interruption cancellation, `data-enemy-motion="guard-break"`, computed animations `player-ember-mountain-break`, `weapon-guard-break`, `mountain-guard-break-cast-core`, `mountain-guard-break-impact-core`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+
+## Task 103 DNF-Style Anvil Guard Strict Guard Window
+- Continued the strict-combat goal after the user clarified that character geometry can stay lightweight, but combat timing, model-following motion, skill VFX, and action-state changes remain hard gates.
+- Used two read-only agents:
+  - Combat audit confirmed `anvil-guard`, `molten-wall`, and `black-furnace-aegis` still fell through the generic skill path and opened shield/guard immediately.
+  - UI/CSS audit confirmed `data-player-motion="shield"` already existed, but `iron-guard`, `guard-raise`, and `guard-rune` lacked dedicated selectors/keyframes.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `anvil-guard` to schedule a strict 180 ms guard-open frame, avoid cast-frame enemy hits or mitigation, move the actor 10 px, mitigate only after the guard frame, consume shield on the next monster hit, and cancel the pending guard if monster damage interrupts startup.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require delayed shield-active DOM state, `data-player-skill-move="anvil-guard"`, `iron-guard`, `guard-raise`, `guard-rune`, and dedicated player/weapon/cast CSS keyframes.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t anvil-guard --reporter=basic` failed because no scheduled effects existed for `anvil-guard`.
+  - `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t anvil-guard --reporter=basic` failed for the same missing scheduled-effect path.
+- Implemented:
+  - Added a delayed player shield-status scheduled effect path with `playerShieldWindowMs` and `playerShieldReduction`.
+  - Added `applyAnvilGuard()` with a 10 px model-following shield raise and a 180 ms delayed guard window; it no longer uses generic cast-frame skill damage.
+  - Skipped immediate `guard` status application for `anvil-guard`, so startup remains punishable.
+  - Added dedicated `player-iron-anvil-guard`, `weapon-guard-raise`, and `guard-rune-cast-*` CSS animations.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t anvil-guard --reporter=basic`, 2 tests.
+  - Focused GREEN passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t anvil-guard --reporter=basic`, 2 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 383 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/anvil-guard-check.html` confirmed 180 ms guard timing, no cast-frame shield or enemy hit, movement 240 -> 250, shield active only at the guard frame, post-guard monster hit damage 15 with shield consumed, startup interruption produced one player hit and no shield/pending effect, and computed animations `player-iron-anvil-guard`, `weapon-guard-raise`, `guard-rune-cast-core`, `guard-rune-cast-ring`, and `guard-rune-cast-sparks`. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 465 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

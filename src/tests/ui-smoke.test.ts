@@ -849,6 +849,60 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes shield-quake-impact-core");
   });
 
+  it("defines dedicated anvil-guard shield raise, guard weapon, and guard-rune animations", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 40);
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          armor: 0,
+          position: { x: 320, y: 340 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "anvil-guard" }
+    );
+    const [guardAtMs] = scheduledSkillTimes(castRun, "anvil-guard");
+    const castHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: castRun
+    });
+    const beforeGuardHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, guardAtMs - 1)
+    });
+    const guardHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, guardAtMs)
+    });
+
+    expect(guardAtMs).toBe(180);
+    expect(castHtml).toContain('data-player-skill-move="anvil-guard"');
+    expect(castHtml).toContain('data-skill-animation-preset="iron-guard"');
+    expect(castHtml).toContain('data-skill-weapon-arc="guard-raise"');
+    expect(castHtml).toContain('data-skill-vfx-shape="guard-rune"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-anvil-guard skill-vfx-shape-guard-rune"');
+    expect(beforeGuardHtml).toContain('data-shield-active="false"');
+    expect(guardHtml).toContain('data-shield-active="true"');
+    expect(guardHtml).toContain('data-player-motion="shield"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="anvil-guard"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="iron-guard"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="guard-raise"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-guard-rune");
+    expect(stylesCss).toContain("@keyframes player-iron-anvil-guard");
+    expect(stylesCss).toContain("@keyframes weapon-guard-raise");
+    expect(stylesCss).toContain("@keyframes guard-rune-cast-core");
+  });
+
   it("renders anvil-crash as a delayed hammer-drop slam with target sparks", () => {
     const state = {
       ...createInitialState(),

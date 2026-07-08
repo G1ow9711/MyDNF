@@ -6011,18 +6011,89 @@ describe("combat actions and impact feel", () => {
     expect(interrupted.enemies[0].controlledUntilMs ?? 0).toBe(0);
   });
 
-  it("guard skills open a mitigation window like shield skills", () => {
+  it("delays anvil-guard mitigation until the guard frame", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 40);
     const run = withPlayerAndEnemies(
       createCombatRun(state, "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1 },
-      [{ x: 310, y: 340 }]
+      [{ x: 310, y: 340, hp: 180, maxHp: 180, armor: 0 }]
     );
 
-    const guarded = performAction(run, { type: "skill", skillId: "anvil-guard" });
+    const cast = performAction(run, { type: "skill", skillId: "anvil-guard" });
+    const [guardAtMs] = scheduledSkillTimes(cast, "anvil-guard");
+    const beforeGuard = stepToElapsed(cast, guardAtMs - 1);
+    const guarded = stepToElapsed(cast, guardAtMs);
+    const armedEnemyRun: CombatRun = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: guardAtMs + 20,
+              attackRecoverUntilMs: guardAtMs + 520,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const afterGuardHit = stepToElapsed(armedEnemyRun, guardAtMs + 20);
+    const playerHits = afterGuardHit.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
 
+    expect(guardAtMs).toBe(180);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("anvil-guard");
+    expect(cast.player.activeSkillMovement?.endX).toBe(250);
+    expect(cast.player.shieldUntilMs).toBeLessThanOrEqual(cast.elapsedMs);
+    expect(cast.enemies[0].hp).toBe(180);
+    expect(skillHitEvents(cast, "anvil-guard")).toHaveLength(0);
+    expect(beforeGuard.player.shieldUntilMs).toBeLessThanOrEqual(beforeGuard.elapsedMs);
     expect(guarded.player.shieldUntilMs).toBeGreaterThan(guarded.elapsedMs);
     expect(guarded.player.shieldReduction).toBeGreaterThanOrEqual(0.45);
+    expect(playerHits).toHaveLength(1);
+    expect(playerHits[0].damage).toBeLessThan(20);
+    expect(afterGuardHit.player.shieldUntilMs).toBeLessThanOrEqual(afterGuardHit.elapsedMs);
+  });
+
+  it("cancels anvil-guard opening when monster damage interrupts startup", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 40);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 310, y: 340, hp: 180, maxHp: 180, armor: 0 }]
+    );
+    const interruptingRun: CombatRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 120,
+              attackRecoverUntilMs: 620,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+
+    const cast = performAction(interruptingRun, { type: "skill", skillId: "anvil-guard" });
+    const [guardAtMs] = scheduledSkillTimes(cast, "anvil-guard");
+    const interrupted = stepToElapsed(cast, guardAtMs);
+    const playerHits = interrupted.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(playerHits).toHaveLength(1);
+    expect(interrupted.player.shieldUntilMs).toBeLessThanOrEqual(interrupted.elapsedMs);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "anvil-guard")).toHaveLength(0);
   });
 });
 

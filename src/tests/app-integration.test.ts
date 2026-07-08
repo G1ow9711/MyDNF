@@ -1390,6 +1390,43 @@ describe("playable app integration actions", () => {
     expect(breakHtml).toContain('class="enemy-art actor-model actor-model-guard-break"');
   });
 
+  it("renders anvil-guard as a delayed shield raise with guard-rune VFX", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 40)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "anvil-guard" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after anvil-guard");
+    }
+
+    const [guardAtMs] = scheduledSkillTimes(model.combatRun, "anvil-guard");
+    const castHtml = renderAppHtml(model);
+    const beforeGuardHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, guardAtMs - 1)
+    });
+    const guardHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, guardAtMs)
+    });
+
+    expect(castHtml).toContain('data-active-skill-id="anvil-guard"');
+    expect(castHtml).toContain('data-skill-animation-preset="iron-guard"');
+    expect(castHtml).toContain('data-skill-weapon-arc="guard-raise"');
+    expect(castHtml).toContain('data-skill-vfx-shape="guard-rune"');
+    expect(castHtml).toContain('data-player-skill-move="anvil-guard"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-anvil-guard skill-vfx-shape-guard-rune"');
+    expect(beforeGuardHtml).toContain('data-shield-active="false"');
+    expect(guardHtml).toContain('data-shield-active="true"');
+    expect(guardHtml).toContain('data-player-motion="shield"');
+    expect(guardHtml).toContain('class="combat-player-art actor-model actor-model-shield');
+  });
+
   it("renders crow-feint as a delayed dodge window with a feint-shot impact", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

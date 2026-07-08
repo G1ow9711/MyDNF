@@ -713,3 +713,12 @@
 - Cancellation note: a monster hit before 330 ms clears the pending impact and active movement, so interrupted casts do not create ghost damage, stale impact VFX, or fake MISS feedback.
 - Presentation note: browser computed-style validation confirmed dedicated `player-ember-mountain-break`, `weapon-guard-break`, `mountain-guard-break-cast-core`, and `mountain-guard-break-impact-core` animations, with enemy motion shown as `guard-break`.
 - Queue note: remaining fallback skills are now defensive Iron/Guardian-style skills: `anvil-guard`, `molten-wall`, and `black-furnace-aegis`. Their selectors must account for `data-player-motion="shield"` rather than only `skill`.
+
+## DNF-Style Anvil Guard Strict Guard Window Findings
+- Current priority remains strict combat feel over heavier model geometry: `anvil-guard` is a defensive skill, but it still needs startup, model-following shield raise, delayed active window, and clear guard-rune VFX.
+- Parallel combat audit confirmed `anvil-guard`, `molten-wall`, and `black-furnace-aegis` were still generic fallback skills. `anvil-guard` opened mitigation immediately through `applyPlayerSkillStatus()` and could also flow through generic skill hitbox behavior.
+- Parallel UI/CSS audit confirmed shield motion already exists through `data-player-motion="shield"`, so defensive skill selectors need to match shield motion. Missing hooks were dedicated `iron-guard`, `guard-raise`, and `guard-rune` selectors/keyframes.
+- Combat note: `anvil-guard` now schedules a delayed player shield-status effect at the catalog 180 ms frame. Cast-frame mitigation is gone, enemy HP is not mutated by a generic skill hit, and the guard window opens only after startup.
+- Cancellation note: because the delayed shield status lives in `scheduledEnemyHitEffects` with `skillId="anvil-guard"`, the existing interruption path clears it when a monster hit lands during startup.
+- Presentation note: `anvil-guard` now has dedicated `player-iron-anvil-guard`, `weapon-guard-raise`, and `guard-rune-cast-*` animations. The cast can show shield-raise motion while `data-shield-active` remains false until the real guard frame.
+- Queue note: `molten-wall` and `black-furnace-aegis` remain next defensive follow-ups; both should reuse the delayed shield-status pattern but with stronger wall/aegis VFX and different startup/window values.

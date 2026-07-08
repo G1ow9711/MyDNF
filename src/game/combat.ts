@@ -503,6 +503,8 @@ export interface CombatScheduledEnemyHitEffect {
   resourceGainOnHit?: number;
   cancelWindowUntilMsOnHit?: number;
   resetComboStepOnMiss?: boolean;
+  playerShieldWindowMs?: number;
+  playerShieldReduction?: number;
 }
 
 export interface CombatScheduledMissEffect {
@@ -1995,6 +1997,52 @@ function applyIronPalm(run: CombatRun, skill: ClassSkillDefinition, canceledFrom
     vfxCue: "iron-shield-jab",
     vfxWindowMs: 260
   });
+}
+
+function schedulePlayerShieldEffect(
+  run: CombatRun,
+  skill: ClassSkillDefinition,
+  canceledFromCombo: boolean,
+  windowMs: number,
+  reduction: number
+): CombatRun {
+  const effect: CombatScheduledEnemyHitEffect = {
+    id: `player-status-${run.elapsedMs}-skill-${skill.id}-shield`,
+    applyAtMs: run.elapsedMs + skill.animation.hitFrameMs,
+    action: "skill",
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    damage: 0,
+    hitstopMs: 0,
+    knockback: 0,
+    juggle: false,
+    playerFacing: run.player.facing,
+    skillId: skill.id,
+    statusTags: skillStatusTags(skill.tags),
+    casterPosition: { x: run.player.x, y: run.player.y },
+    casterFacing: run.player.facing,
+    playerShieldWindowMs: windowMs,
+    playerShieldReduction: reduction
+  };
+
+  return {
+    ...run,
+    scheduledEnemyHitEffects: [...(run.scheduledEnemyHitEffects ?? []), effect]
+  };
+}
+
+function applyAnvilGuard(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x + skill.animation.lungePx * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+
+  return schedulePlayerShieldEffect(movingRun, skill, canceledFromCombo, 900, 0.48);
 }
 
 function furnaceTauntCenter(run: CombatRun): CombatVector {
@@ -3856,7 +3904,7 @@ function applyPlayerSkillStatus(player: CombatPlayer, run: CombatRun, statusTags
     };
   }
 
-  if (hasStatus(statusTags, "guard")) {
+  if (hasStatus(statusTags, "guard") && skillId !== "anvil-guard") {
     next = {
       ...next,
       shieldUntilMs: Math.max(next.shieldUntilMs, run.elapsedMs + 900),
@@ -4986,6 +5034,17 @@ function applyScheduledEnemyHitEffect(
   const targetId = effect.targetId;
 
   if (!targetId) {
+    if (effect.playerShieldWindowMs !== undefined) {
+      return {
+        ...impactResolvedRun,
+        player: {
+          ...impactResolvedRun.player,
+          shieldUntilMs: Math.max(impactResolvedRun.player.shieldUntilMs, effect.applyAtMs + effect.playerShieldWindowMs),
+          shieldReduction: Math.max(impactResolvedRun.player.shieldReduction, effect.playerShieldReduction ?? 0)
+        }
+      };
+    }
+
     return impactResolvedRun;
   }
 
@@ -6130,6 +6189,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "iron-palm") {
     return finishSkillAction(applyIronPalm(run, skill, canceledFromCombo));
+  }
+
+  if (skill.id === "anvil-guard") {
+    return finishSkillAction(applyAnvilGuard(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "furnace-taunt") {

@@ -60,6 +60,8 @@ export type CombatHitPhase =
   | "mirror-counter"
   | "lotus-bind"
   | "lotus-bloom"
+  | "mirrorflame-lock"
+  | "mirrorflame-burst"
   | "uppercut"
   | "chain-open"
   | "chain-cross"
@@ -107,6 +109,8 @@ export type CombatVfxCue =
   | "mirror-counter-burst"
   | "glass-lotus-bind"
   | "glass-lotus-bloom"
+  | "mirrorflame-lock"
+  | "mirrorflame-burst"
   | "cinder-uppercut-rise"
   | "flowing-chain-open"
   | "flowing-chain-cross"
@@ -2411,6 +2415,82 @@ function applyGlassLotus(run: CombatRun, skill: ClassSkillDefinition, canceledFr
       hitPhase: "lotus-bloom",
       vfxCue: "glass-lotus-bloom",
       vfxWindowMs: 460,
+      missOnEmpty: false
+    }
+  );
+}
+
+const mirrorflameLockDelayMs = 180;
+const mirrorflameBurstDelayMs = 350;
+
+function mirrorflameCenter(run: CombatRun): CombatVector {
+  return {
+    x: clamp(run.player.x + 148 * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+}
+
+function mirrorflameHitbox(
+  run: CombatRun,
+  skill: ClassSkillDefinition,
+  canceledFromCombo: boolean,
+  delayMs: number,
+  stage: "lock" | "burst"
+): PlayerHitboxDefinition {
+  const burst = stage === "burst";
+
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: burst ? 270 : 250,
+    laneRange: burst ? 112 : 104,
+    targetCap: 3,
+    frontOnly: false,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * (burst ? 1.18 : 0.36))),
+    hitstopMs: burst ? 96 : 58,
+    knockback: burst ? 34 : 0,
+    juggle: false,
+    inputToHitMs: delayMs,
+    canceledFromCombo,
+    statusTags: burst ? ["stagger"] : ["control"],
+    actionTags: burst ? ["knockdown"] : []
+  };
+}
+
+function applyMirrorflameBurst(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const center = mirrorflameCenter(run);
+  const endPosition = {
+    x: clamp(run.player.x + skill.animation.lungePx * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const castingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + mirrorflameBurstDelayMs),
+    skill,
+    canceledFromCombo
+  );
+  const lockedRun = schedulePlayerHitboxEffect(
+    castingRun,
+    mirrorflameHitbox(run, skill, canceledFromCombo, mirrorflameLockDelayMs, "lock"),
+    center,
+    run.player.facing,
+    {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-mirrorflame-lock`,
+      hitPhase: "mirrorflame-lock",
+      vfxCue: "mirrorflame-lock",
+      vfxWindowMs: 420
+    }
+  );
+
+  return schedulePlayerHitboxEffect(
+    lockedRun,
+    mirrorflameHitbox(run, skill, canceledFromCombo, mirrorflameBurstDelayMs, "burst"),
+    center,
+    run.player.facing,
+    {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-mirrorflame-burst`,
+      hitPhase: "mirrorflame-burst",
+      vfxCue: "mirrorflame-burst",
+      vfxWindowMs: 560,
       missOnEmpty: false
     }
   );
@@ -6041,6 +6121,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "glass-lotus") {
     return finishSkillAction(applyGlassLotus(run, skill, canceledFromCombo));
+  }
+
+  if (skill.id === "mirrorflame-burst") {
+    return finishSkillAction(applyMirrorflameBurst(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "furnace-step") {

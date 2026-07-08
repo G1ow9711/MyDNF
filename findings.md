@@ -696,3 +696,11 @@
 - Cancellation note: monster damage before bloom clears both pending lotus stages through the same scheduled-effect interruption guard used by other strict skills, preventing ghost damage or stale VFX.
 - Presentation note: browser computed-style validation confirmed dedicated `player-liuli-lotus-cast`, `weapon-lotus-bloom`, `glass-lotus-cast-core`, `glass-lotus-bind-core`, and `glass-lotus-bloom-core` animations, with no fallback to generic player/weapon/impact animations.
 - Audit queue note: the combat read-only agent selected `mirrorflame-burst` as the next high-value Liuli advancement gap after `glass-lotus`; it still falls through the generic skill path.
+
+## DNF-Style Mirrorflame Burst Strict Lock Burst Findings
+- Current priority remains strict combat feel over heavier geometry: `mirrorflame-burst` can use the lightweight Liuli model, but it must read as a staged advancement burst with real timing, target control, target knockdown, and dedicated VFX.
+- Parallel combat and UI/CSS audits confirmed the old path had only catalog metadata. It used generic immediate hit logic and generic player/weapon/impact presentation instead of a `liuli-mirrorflame` action.
+- Combat note: `mirrorflame-burst` now schedules a 180 ms dynamic lock frame and a 350 ms dynamic burst frame. It does not mutate target HP at cast time, and both frames sample live target positions from a fixed field center.
+- Target-action note: the lock applies `control`, while the burst applies `stagger` plus forced knockdown. This gives readable monster state changes while keeping character geometry lightweight.
+- Cancellation note: a monster hit before the burst clears both pending mirrorflame stages through the scheduled-effect interruption guard, preventing ghost damage and stale VFX.
+- Presentation note: browser computed-style validation confirmed dedicated `player-liuli-mirrorflame-cast`, `weapon-mirrorflame-fan`, `mirrorflame-cast-core`, `mirrorflame-lock-core`, and `mirrorflame-burst-core` animations, with no fallback to generic player/weapon/impact animations.

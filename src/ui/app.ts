@@ -1189,6 +1189,10 @@ function playerSkillVfxStyle(
     return `${combatActorStyle(run, origin.x + 150 * facing, origin.y)}${durationStyle}`;
   }
 
+  if (skillId === "mirrorflame-burst") {
+    return `${combatActorStyle(run, origin.x + 148 * facing, origin.y)}${durationStyle}`;
+  }
+
   if (skillId === "heat-bloom") {
     return `${combatActorStyle(run, origin.x + 112 * facing, origin.y)}${durationStyle}`;
   }

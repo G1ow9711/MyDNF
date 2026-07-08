@@ -1260,6 +1260,89 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes glass-lotus-bloom-core");
   });
 
+  it("defines dedicated mirrorflame-burst player, weapon, lock, and burst animations", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100);
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: [
+          {
+            ...baseRun.enemies[0],
+            hp: 260,
+            maxHp: 260,
+            armor: 20,
+            position: { x: 330, y: 340 },
+            nextAttackAtMs: 9999
+          },
+          {
+            ...baseRun.enemies[1],
+            hp: 260,
+            maxHp: 260,
+            armor: 20,
+            position: { x: 410, y: 352 },
+            nextAttackAtMs: 9999
+          },
+          {
+            ...baseRun.enemies[0],
+            id: "test-mirrorflame-third",
+            hp: 260,
+            maxHp: 260,
+            armor: 20,
+            position: { x: 492, y: 332 },
+            nextAttackAtMs: 9999
+          }
+        ]
+      },
+      { type: "skill", skillId: "mirrorflame-burst" }
+    );
+    const [lockAtMs, burstAtMs] = scheduledSkillTimes(castRun, "mirrorflame-burst");
+    const startupHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: castRun
+    });
+    const beforeLockHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, lockAtMs - 1)
+    });
+    const lockHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, lockAtMs)
+    });
+    const burstRun = stepToElapsed(castRun, burstAtMs);
+    const burstHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: burstRun
+    });
+
+    expect(skillHitEvents(castRun, "mirrorflame-burst")).toHaveLength(0);
+    expect(startupHtml).toContain('data-player-skill-move="mirrorflame-burst"');
+    expect(beforeLockHtml).not.toContain('data-skill-impact-vfx="mirrorflame-burst"');
+    expect(lockHtml).toContain('data-hit-phase="mirrorflame-lock"');
+    expect(lockHtml).toContain('data-vfx-cue="mirrorflame-lock"');
+    expect(lockHtml).toContain('class="skill-impact-burst skill-impact-shape-mirrorflame-burst"');
+    expect(burstHtml).toContain('data-hit-phase="mirrorflame-burst"');
+    expect(burstHtml).toContain('data-vfx-cue="mirrorflame-burst"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="mirrorflame-burst"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="liuli-mirrorflame"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="mirrorflame-fan"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-mirrorflame-burst");
+    expect(stylesCss).toContain(".skill-impact-shape-mirrorflame-burst");
+    expect(stylesCss).toContain('[data-vfx-cue="mirrorflame-lock"]');
+    expect(stylesCss).toContain('[data-vfx-cue="mirrorflame-burst"]');
+    expect(stylesCss).toContain("@keyframes player-liuli-mirrorflame-cast");
+    expect(stylesCss).toContain("@keyframes weapon-mirrorflame-fan");
+    expect(stylesCss).toContain("@keyframes mirrorflame-cast-core");
+    expect(stylesCss).toContain("@keyframes mirrorflame-lock-core");
+    expect(stylesCss).toContain("@keyframes mirrorflame-burst-core");
+  });
+
   it("renders liuli-rain as staggered glass-rain impact waves", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const state = {

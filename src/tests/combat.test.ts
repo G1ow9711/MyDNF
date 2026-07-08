@@ -3102,6 +3102,119 @@ describe("combat actions and impact feel", () => {
     expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "glass-lotus")).toHaveLength(0);
   });
 
+  it("casts mirrorflame-burst as delayed lock and burst frames with live area recheck", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100);
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const };
+    const run: CombatRun = {
+      ...baseRun,
+      player,
+      enemies: [
+        { ...baseRun.enemies[0], hp: 260, maxHp: 260, armor: 20, position: { x: 330, y: 340 }, nextAttackAtMs: 9999 },
+        { ...baseRun.enemies[1], hp: 260, maxHp: 260, armor: 20, position: { x: 410, y: 348 }, nextAttackAtMs: 9999 },
+        {
+          ...baseRun.enemies[0],
+          id: "test-mirrorflame-third",
+          hp: 260,
+          maxHp: 260,
+          armor: 20,
+          position: { x: 492, y: 356 },
+          nextAttackAtMs: 9999
+        }
+      ]
+    };
+
+    const cast = performAction(run, { type: "skill", skillId: "mirrorflame-burst" });
+    const [lockAtMs, burstAtMs] = scheduledSkillTimes(cast, "mirrorflame-burst");
+    const beforeLock = stepToElapsed(cast, lockAtMs - 1);
+    const locked = stepToElapsed(cast, lockAtMs);
+    const bursted = stepToElapsed(cast, burstAtMs);
+    const lockHits = skillHitEvents(locked, "mirrorflame-burst").filter((event) => event.hitPhase === "mirrorflame-lock");
+    const burstHits = skillHitEvents(bursted, "mirrorflame-burst").filter((event) => event.hitPhase === "mirrorflame-burst");
+
+    expect([lockAtMs, burstAtMs]).toEqual([180, 350]);
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("mirrorflame-burst");
+    expect(skillHitEvents(cast, "mirrorflame-burst")).toHaveLength(0);
+    expect(cast.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(beforeLock.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(locked.player.x).toBeGreaterThan(run.player.x);
+    expect(lockHits).toHaveLength(3);
+    expect(lockHits.every((event) => event.vfxCue === "mirrorflame-lock")).toBe(true);
+    expect(lockHits.every((event) => event.statusTags?.includes("control"))).toBe(true);
+    expect(burstHits).toHaveLength(3);
+    expect(burstHits.every((event) => event.vfxCue === "mirrorflame-burst")).toBe(true);
+    expect(burstHits.every((event) => event.actionTags?.includes("knockdown"))).toBe(true);
+    expect(bursted.enemies.every((enemy) => enemy.downed)).toBe(true);
+  });
+
+  it("rechecks and cancels mirrorflame-burst stages instead of locking cast-time targets", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100);
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const };
+    const escapeRun: CombatRun = {
+      ...baseRun,
+      player,
+      enemies: [{ ...baseRun.enemies[0], hp: 260, maxHp: 260, position: { x: 330, y: 340 }, nextAttackAtMs: 9999 }]
+    };
+    const escapeCast = performAction(escapeRun, { type: "skill", skillId: "mirrorflame-burst" });
+    const [lockAtMs, burstAtMs] = scheduledSkillTimes(escapeCast, "mirrorflame-burst");
+    const escapedBeforeLock: CombatRun = {
+      ...escapeCast,
+      enemies: escapeCast.enemies.map((enemy, index) =>
+        index === 0 ? { ...enemy, position: { ...enemy.position, x: 760 } } : enemy
+      )
+    };
+    const avoidedLock = stepToElapsed(escapedBeforeLock, lockAtMs);
+
+    expect(skillHitEvents(avoidedLock, "mirrorflame-burst")).toHaveLength(0);
+    expect(skillMissEvents(avoidedLock, "mirrorflame-burst")).toHaveLength(1);
+
+    const burstEscapeCast = performAction(escapeRun, { type: "skill", skillId: "mirrorflame-burst" });
+    const locked = stepToElapsed(burstEscapeCast, lockAtMs);
+    const movedOutBeforeBurst: CombatRun = {
+      ...locked,
+      enemies: locked.enemies.map((enemy, index) =>
+        index === 0 ? { ...enemy, position: { ...enemy.position, x: 760 } } : enemy
+      )
+    };
+    const avoidedBurst = stepToElapsed(movedOutBeforeBurst, burstAtMs);
+
+    expect(skillHitEvents(avoidedBurst, "mirrorflame-burst").filter((event) => event.hitPhase === "mirrorflame-lock")).toHaveLength(1);
+    expect(skillHitEvents(avoidedBurst, "mirrorflame-burst").filter((event) => event.hitPhase === "mirrorflame-burst")).toHaveLength(0);
+
+    const interruptedPlayer = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, hp: 500, maxHp: 500 };
+    const interruptedRun: CombatRun = {
+      ...baseRun,
+      player: interruptedPlayer,
+      enemies: [{ ...baseRun.enemies[0], hp: 260, maxHp: 260, position: { x: 310, y: 340 }, nextAttackAtMs: 9999 }]
+    };
+    const interruptedCast = performAction(interruptedRun, { type: "skill", skillId: "mirrorflame-burst" });
+    const attackedCast: CombatRun = {
+      ...interruptedCast,
+      enemies: interruptedCast.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: interruptedCast.elapsedMs,
+              attackImpactAtMs: interruptedCast.elapsedMs + 120,
+              attackRecoverUntilMs: interruptedCast.elapsedMs + 340,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const interrupted = stepToElapsed(attackedCast, burstAtMs);
+
+    expect(interrupted.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-ember-spit")).toBe(true);
+    expect(skillHitEvents(interrupted, "mirrorflame-burst")).toHaveLength(0);
+    expect(skillMissEvents(interrupted, "mirrorflame-burst")).toHaveLength(0);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "mirrorflame-burst")).toHaveLength(0);
+  });
+
   it("turns trap and break tags into monster control and armor-break state", () => {
     const trapState = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
     const trapRun = withPlayerAndEnemies(

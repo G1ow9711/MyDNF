@@ -2738,3 +2738,25 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 372 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/glass-lotus-check.html` confirmed 180/320 ms timings, no cast/before-bind HP mutation, two bind hits, two bloom hits, inward pull to `[348,368]`, knockdown on both targets, escape delayed MISS, monster interruption cancellation, DOM hooks, computed animations `player-liuli-lotus-cast`, `weapon-lotus-bloom`, `glass-lotus-cast-core`, `glass-lotus-bind-core`, `glass-lotus-bloom-core`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 454 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 101 DNF-Style Mirrorflame Burst Strict Lock Burst
+- Continued from the user's latest clarification: character and monster models may stay simpler while full functionality is connected, but fight motion smoothness, strict hit frames, model-following actions, skill VFX, monster VFX, and actor state changes remain hard gates.
+- Used two read-only agents:
+  - Combat audit confirmed `mirrorflame-burst` had catalog metadata but no dedicated script, so it still fell through to the generic immediate skill path.
+  - UI/CSS audit confirmed DOM metadata was already exposed, but `liuli-mirrorflame`, `mirrorflame-fan`, and `mirrorflame-burst` had no dedicated CSS animations.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires 180 ms lock and 350 ms burst frames, no cast-frame HP mutation, live area recheck, delayed miss, startup interruption cancellation, `mirrorflame-lock` / `mirrorflame-burst` VFX cues, and burst knockdown.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require model-following `data-player-skill-move="mirrorflame-burst"`, Liuli mirrorflame player/weapon metadata, target-bound lock/burst impact markup, and dedicated CSS selectors/keyframes.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t mirrorflame-burst --reporter=basic` failed because no scheduled effects existed for `mirrorflame-burst`.
+  - `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t mirrorflame-burst --reporter=basic` failed for the same missing scheduled-effect path and missing dedicated CSS.
+- Implemented:
+  - Added `mirrorflame-lock` / `mirrorflame-burst` hit phases and VFX cues.
+  - Added `applyMirrorflameBurst()` with a 24 px model-following cast movement, fixed 148 px field center, 180 ms dynamic control lock, 350 ms dynamic burst, live area target recheck, delayed miss only on lock, knockdown on burst, and interruption-safe pending effect cancellation.
+  - Added cast VFX anchoring for `mirrorflame-burst` plus dedicated `liuli-mirrorflame`, `mirrorflame-fan`, cast-field, lock, and burst CSS/keyframes.
+- Verification:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t mirrorflame-burst --reporter=basic`, 2 tests.
+  - Focused GREEN passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t mirrorflame-burst --reporter=basic`, 2 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 376 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/mirrorflame-burst-check.html` confirmed 180/350 ms timings, no cast/before-lock HP mutation, three lock hits, three burst hits, all targets downed, escaped target produces one delayed miss, monster interruption cancels pending mirrorflame effects, DOM hooks, computed animations `player-liuli-mirrorflame-cast`, `weapon-mirrorflame-fan`, `mirrorflame-cast-core`, `mirrorflame-lock-core`, `mirrorflame-burst-core`, `mirrorflame-burst-ring`, `mirrorflame-burst-shards`, and empty warning/error logs. Temporary page was deleted.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 458 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

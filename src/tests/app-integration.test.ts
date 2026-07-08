@@ -2887,6 +2887,103 @@ describe("playable app integration actions", () => {
     expect(countSkillImpactBursts(bloomHtml, "glass-lotus-bloom")).toBe(2);
   });
 
+  it("renders mirrorflame-burst as delayed lock and burst VFX instead of cast-frame damage", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: [
+          {
+            ...model.combatRun.enemies[0],
+            hp: 260,
+            maxHp: 260,
+            armor: 20,
+            position: { x: 330, y: 340 },
+            nextAttackAtMs: 9999
+          },
+          {
+            ...model.combatRun.enemies[1],
+            hp: 260,
+            maxHp: 260,
+            armor: 20,
+            position: { x: 410, y: 352 },
+            nextAttackAtMs: 9999
+          },
+          {
+            ...model.combatRun.enemies[0],
+            id: "test-mirrorflame-third",
+            hp: 260,
+            maxHp: 260,
+            armor: 20,
+            position: { x: 492, y: 332 },
+            nextAttackAtMs: 9999
+          }
+        ]
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "mirrorflame-burst" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after mirrorflame-burst");
+    }
+
+    const [lockAtMs, burstAtMs] = scheduledSkillTimes(model.combatRun, "mirrorflame-burst");
+    const castHtml = renderAppHtml(model);
+    const beforeLockHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, lockAtMs - 1)
+    });
+    const lockRun = stepToElapsed(model.combatRun, lockAtMs);
+    const lockHtml = renderAppHtml({
+      ...model,
+      combatRun: lockRun
+    });
+    const burstRun = stepToElapsed(model.combatRun, burstAtMs);
+    const burstHtml = renderAppHtml({
+      ...model,
+      combatRun: burstRun
+    });
+
+    expect(skillHitEvents(model.combatRun, "mirrorflame-burst")).toHaveLength(0);
+    expect(skillHitEvents(lockRun, "mirrorflame-burst").filter((event) => event.hitPhase === "mirrorflame-lock")).toHaveLength(3);
+    expect(skillHitEvents(burstRun, "mirrorflame-burst").filter((event) => event.hitPhase === "mirrorflame-burst")).toHaveLength(3);
+    expect(castHtml).toContain('data-active-skill-id="mirrorflame-burst"');
+    expect(castHtml).toContain('data-skill-animation-preset="liuli-mirrorflame"');
+    expect(castHtml).toContain('data-skill-weapon-arc="mirrorflame-fan"');
+    expect(castHtml).toContain('data-skill-vfx-shape="mirrorflame-burst"');
+    expect(castHtml).toContain('data-player-skill-move="mirrorflame-burst"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-mirrorflame-burst skill-vfx-shape-mirrorflame-burst"');
+    expect(beforeLockHtml).not.toContain('data-skill-impact-vfx="mirrorflame-burst"');
+    expect(lockHtml).toContain('data-hit-phase="mirrorflame-lock"');
+    expect(lockHtml).toContain('data-vfx-cue="mirrorflame-lock"');
+    expect(lockHtml).toContain('data-impact-vfx-shape="mirrorflame-burst"');
+    expect(lockHtml).toContain('class="skill-impact-burst skill-impact-shape-mirrorflame-burst"');
+    expect(countSkillImpactBursts(lockHtml, "mirrorflame-lock")).toBe(3);
+    expect(burstHtml).toContain('data-hit-phase="mirrorflame-burst"');
+    expect(burstHtml).toContain('data-vfx-cue="mirrorflame-burst"');
+    expect(countSkillImpactBursts(burstHtml, "mirrorflame-burst")).toBe(3);
+  });
+
   it("keeps ink-shot bolt VFX anchored to the cast origin after the player moves", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

@@ -3189,3 +3189,25 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 416 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/shield-open-live-check.html` confirmed `anvil-guard` at 180 ms with `guard-rune-open-core/ring/shards`, `molten-wall` at 260 ms with `molten-wall-open-core/ring/shards`, and `black-furnace-aegis` at 280 ms with `black-aegis-open-core/ring/shards`; no browser warning/error logs, no damage numbers, and no reused `data-skill-impact-vfx` hook. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 498 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 123 DNF-Style Night Mark Lock-Frame Strictness
+- Continued from the user's clarified priority: actor geometry can stay lightweight for now, but combat smoothness, model-following actions, strict hit frames, player/enemy action changes, skill VFX, and monster VFX remain hard gates.
+- Used two read-only agents:
+  - Combat audit confirmed `night-mark-detonation` selected marked targets at cast time, scheduled fixed target-id lock/burst hits, emitted no real lock control state at `mark-lock`, and reported no-mark MISS immediately.
+  - UI/CSS audit confirmed renderer hooks already existed for `ink-detonation`, `detonate-mark`, `night-detonation`, `night-mark-lock`, and `night-mark-burst`; the main gap was combat timing plus off-frame tests.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies no control/source state before lock, control/source state on the lock frame, no-mark MISS delayed to lock, and live marked-target recheck by moving the old marked target out and another marked target in before 310 ms.
+  - `src/tests/app-integration.test.ts` now verifies no `night-mark-lock` impact VFX appears before the lock frame.
+- RED evidence:
+  - `npm test -- src/tests/combat.test.ts --testNamePattern "night mark"` failed because lock had no control/source state, the stale cast-frame target was hit, and no-mark casts had no scheduled lock effects.
+- Implemented:
+  - Added `requiresMarks` to dynamic player hitboxes.
+  - Reworked `applyNightMarkDetonation()` to schedule dynamic lock and burst hitboxes instead of fixed target ids.
+  - Lock now samples marked live targets at 310 ms and applies `control` / `statusSourceSkillId: "night-mark-detonation"` while preserving marks.
+  - Burst now samples only targets still marked and locked by this cast at 490 ms, consumes marks there, applies stagger/knockdown, and uses current mark count for bonus damage.
+  - Empty marked-target feedback is delayed to the 310 ms lock frame; burst uses `missOnEmpty: false` to avoid duplicate whiffs after an empty lock.
+- Verification:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "night mark"`, 3 tests.
+  - Focused UI GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "night-mark-detonation"` and `npm test -- src/tests/ui-smoke.test.ts --testNamePattern "night-mark-detonation"`, 2 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/__codex-night-mark-verify.html` confirmed cast animations `player-ink-detonation-cast`, `weapon-detonate-mark`, `night-detonation-cast-core/ring/sparks`; no lock cue before 310 ms; lock count `2` with `night-mark-lock-core/ring/shards`; burst count `2` with `night-mark-burst-core/ring/shards`. Temporary page/script were deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 499 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

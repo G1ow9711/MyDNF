@@ -3760,6 +3760,11 @@ describe("playable app integration actions", () => {
     const [lockAtMs, finalBurstAtMs] = scheduledSkillTimes(model.combatRun, "night-mark-detonation");
     const immediateDetonationHits = skillHitEvents(model.combatRun, "night-mark-detonation");
     const castHtml = renderAppHtml(model);
+    const beforeLockRun = stepToElapsed(model.combatRun, lockAtMs - 1);
+    const beforeLockHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeLockRun
+    });
     const lockRun = stepToElapsed(model.combatRun, lockAtMs);
     const lockHtml = renderAppHtml({
       ...model,
@@ -3783,6 +3788,9 @@ describe("playable app integration actions", () => {
     expect(castHtml).toContain('data-ink-marks="3"');
     expect(castHtml).toContain('data-ink-marks="2"');
     expect(castHtml).not.toContain('data-hit-phase="detonate"');
+    expect(beforeLockHtml).not.toContain('data-hit-phase="mark-lock"');
+    expect(beforeLockHtml).not.toContain('data-vfx-cue="night-mark-lock"');
+    expect(beforeLockHtml).not.toContain('data-skill-impact-vfx="night-mark-detonation"');
     expect(lockHtml).toContain('data-hit-phase="mark-lock"');
     expect(lockHtml).toContain('data-vfx-cue="night-mark-lock"');
     expect(countOccurrences(lockHtml, 'data-skill-impact-vfx="night-mark-detonation"')).toBe(2);

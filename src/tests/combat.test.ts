@@ -2112,6 +2112,8 @@ describe("combat actions and impact feel", () => {
     expect(beforeLock.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
     expect(beforeLock.enemies.map((enemy) => enemy.hp)).toEqual([260, 260]);
     expect(beforeLock.enemies.some((enemy) => enemy.downed)).toBe(false);
+    expect(beforeLock.enemies.map((enemy) => enemy.controlledUntilMs ?? 0)).toEqual([0, 0]);
+    expect(beforeLock.enemies.map((enemy) => enemy.statusSourceSkillId)).toEqual([undefined, undefined]);
 
     const lockFrame = stepToElapsed(beforeLock, lockAtMs);
     const lockHp = lockFrame.enemies.map((enemy) => enemy.hp);
@@ -2120,6 +2122,11 @@ describe("combat actions and impact feel", () => {
     expect(lockHp[0]).toBeLessThan(260);
     expect(lockHp[1]).toBeLessThan(260);
     expect(lockFrame.enemies.some((enemy) => enemy.downed)).toBe(false);
+    expect(lockFrame.enemies.every((enemy) => (enemy.controlledUntilMs ?? 0) > lockAtMs)).toBe(true);
+    expect(lockFrame.enemies.map((enemy) => enemy.statusSourceSkillId)).toEqual([
+      "night-mark-detonation",
+      "night-mark-detonation"
+    ]);
 
     const burstFrame = stepToElapsed(lockFrame, burstAtMs);
     const detonationHits = skillHitEvents(burstFrame, "night-mark-detonation");
@@ -2142,6 +2149,56 @@ describe("combat actions and impact feel", () => {
     expect(burstFrame.enemies.every((enemy) => enemy.downed)).toBe(true);
   });
 
+  it("rechecks marked targets at the night mark lock frame", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 100)),
+      "night-contract-hunter"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 318, y: 340, hp: 260, maxHp: 260 },
+        { x: 860, y: 340, hp: 260, maxHp: 260 }
+      ]
+    );
+    const markedRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) => ({
+        ...enemy,
+        marks: index === 0 ? 3 : 2
+      }))
+    };
+    const detonated = performAction(markedRun, { type: "skill", skillId: "night-mark-detonation" });
+    const [lockAtMs] = scheduledSkillTimes(detonated, "night-mark-detonation");
+    const shiftedBeforeLock = {
+      ...detonated,
+      enemies: detonated.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: { x: 860, y: 340 }
+            }
+          : {
+              ...enemy,
+              position: { x: 330, y: 340 }
+            }
+      )
+    };
+    const beforeLock = stepToElapsed(shiftedBeforeLock, lockAtMs - 1);
+    const lockFrame = stepToElapsed(beforeLock, lockAtMs);
+    const lockHits = skillHitEvents(lockFrame, "night-mark-detonation");
+
+    expect(beforeLock.enemies.map((enemy) => enemy.hp)).toEqual([260, 260]);
+    expect(lockHits).toHaveLength(1);
+    expect(lockHits[0].hitPhase).toBe("mark-lock");
+    expect(lockHits[0].targetId).toBe(run.enemies[1].id);
+    expect(lockFrame.enemies[0].hp).toBe(260);
+    expect(lockFrame.enemies[1].hp).toBeLessThan(260);
+    expect(lockFrame.enemies[0].statusSourceSkillId).toBeUndefined();
+    expect(lockFrame.enemies[1].statusSourceSkillId).toBe("night-mark-detonation");
+  });
+
   it("makes night mark detonation miss when no marked target is available", () => {
     const state = advanceClass(
       readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 100)),
@@ -2156,9 +2213,20 @@ describe("combat actions and impact feel", () => {
       ]
     );
     const detonated = performAction(run, { type: "skill", skillId: "night-mark-detonation" });
+    const [lockAtMs] = scheduledSkillTimes(detonated, "night-mark-detonation");
+    const beforeLock = stepToElapsed(detonated, lockAtMs - 1);
+    const lockFrame = stepToElapsed(beforeLock, lockAtMs);
 
-    expect(detonated.events.at(-1)).toMatchObject({ kind: "miss", action: "skill", skillId: "night-mark-detonation" });
-    expect(detonated.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(skillMissEvents(detonated, "night-mark-detonation")).toHaveLength(0);
+    expect(skillMissEvents(beforeLock, "night-mark-detonation")).toHaveLength(0);
+    expect(skillMissEvents(lockFrame, "night-mark-detonation")).toHaveLength(1);
+    expect(skillMissEvents(lockFrame, "night-mark-detonation")[0]).toMatchObject({
+      kind: "miss",
+      action: "skill",
+      skillId: "night-mark-detonation",
+      occurredAtMs: lockAtMs
+    });
+    expect(lockFrame.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
   });
 
   it("delays molten-wall shield mitigation until the wall frame", () => {

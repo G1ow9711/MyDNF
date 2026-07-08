@@ -625,6 +625,7 @@ interface PlayerHitboxDefinition {
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
   requiresStatusSourceSkillId?: string;
+  requiresMarks?: boolean;
 }
 
 const arena: CombatArena = {
@@ -1647,6 +1648,10 @@ function selectPlayerTargets(run: CombatRun, hitbox: PlayerHitboxDefinition): Co
   return run.enemies
     .filter((enemy) => {
       if (!enemyInPlayerHitbox(run, enemy, hitbox)) {
+        return false;
+      }
+
+      if (hitbox.requiresMarks && enemy.marks <= 0) {
         return false;
       }
 
@@ -3341,98 +3346,61 @@ function applyFlowingLightChain(run: CombatRun, skill: ClassSkillDefinition, can
   }, movingRun);
 }
 
-function selectNightMarkDetonationTargets(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatEnemy[] {
-  return run.enemies
-    .filter((enemy) => enemy.marks > 0 && enemyInPlayerHitbox(run, enemy, hitbox))
-    .sort((left, right) => enemyDistanceScore(run, left) - enemyDistanceScore(run, right))
-    .slice(0, hitbox.targetCap);
-}
-
 function applyNightMarkDetonation(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const scriptedRun = applySkillStartupMovement(run, skill);
   const castRun = appendSkillCastEvent(scriptedRun, skill, canceledFromCombo);
-  const targetingHitbox: PlayerHitboxDefinition = {
+  const origin = { x: castRun.player.x, y: castRun.player.y };
+  const baseDamage = skillDamage(run, skill);
+  const baseHitbox: PlayerHitboxDefinition = {
     action: "skill",
     skillId: skill.id,
     rangeX: 380,
     laneRange: 96,
     targetCap: 3,
     frontOnly: false,
-    damage: skillDamage(run, skill),
-    hitstopMs: 58,
-    knockback: 14,
+    damage: baseDamage,
+    hitstopMs: 0,
+    knockback: 0,
     juggle: false,
-    inputToHitMs: skill.animation.hitFrameMs,
-    canceledFromCombo
+    inputToHitMs: 0,
+    canceledFromCombo,
+    requiresMarks: true
   };
-  const targets = selectNightMarkDetonationTargets(scriptedRun, targetingHitbox);
 
-  if (targets.length === 0) {
-    return applyMiss(scriptedRun, targetingHitbox);
-  }
+  const lockHitbox: PlayerHitboxDefinition = {
+    ...baseHitbox,
+    damage: Math.max(1, Math.round(baseDamage * 0.34)),
+    hitstopMs: 58,
+    knockback: 8,
+    inputToHitMs: skill.animation.hitFrameMs,
+    statusTags: ["control"]
+  };
+  const burstHitbox: PlayerHitboxDefinition = {
+    ...baseHitbox,
+    damage: Math.max(1, Math.round(baseDamage * 0.9)),
+    hitstopMs: 96,
+    knockback: 54,
+    consumeMarks: true,
+    bonusDamagePerMark: bonusDamagePerMarkForSkill(skill),
+    inputToHitMs: skill.animation.hitFrameMs + 180,
+    statusTags: ["stagger"],
+    actionTags: ["knockdown"],
+    requiresStatusSourceSkillId: skill.id
+  };
+  const lockedRun = schedulePlayerHitboxEffect(castRun, lockHitbox, origin, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-mark-lock`,
+    hitPhase: "mark-lock",
+    vfxCue: "night-mark-lock",
+    vfxWindowMs: 360
+  });
 
-  const baseDamage = skillDamage(run, skill);
-  const stages: Array<{
-    phase: CombatHitPhase;
-    vfxCue: CombatVfxCue;
-    delayMs: number;
-    damageMultiplier: number;
-    hitstopMs: number;
-    knockback: number;
-    consumeMarks: boolean;
-    statusTags: CombatSkillStatusTag[];
-    actionTags: CombatActionTag[];
-    vfxWindowMs: number;
-  }> = [
-    {
-      phase: "mark-lock",
-      vfxCue: "night-mark-lock",
-      delayMs: skill.animation.hitFrameMs,
-      damageMultiplier: 0.34,
-      hitstopMs: 58,
-      knockback: 8,
-      consumeMarks: false,
-      statusTags: [],
-      actionTags: [],
-      vfxWindowMs: 360
-    },
-    {
-      phase: "detonate",
-      vfxCue: "night-mark-burst",
-      delayMs: skill.animation.hitFrameMs + 180,
-      damageMultiplier: 0.9,
-      hitstopMs: 96,
-      knockback: 54,
-      consumeMarks: true,
-      statusTags: ["stagger"],
-      actionTags: ["knockdown"],
-      vfxWindowMs: 520
-    }
-  ];
-
-  return stages.reduce((nextRun, stage) => {
-    return targets.reduce((stageRun, target) => {
-      return scheduleEnemyHitEffect(stageRun, {
-        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${target.id}`,
-        targetId: target.id,
-        damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
-        hitstopMs: stage.hitstopMs,
-        knockback: stage.knockback,
-        juggle: false,
-        action: "skill",
-        skillId: skill.id,
-        inputToHitMs: stage.delayMs,
-        canceledFromCombo,
-        consumeMarks: stage.consumeMarks,
-        bonusDamagePerMark: bonusDamagePerMarkForSkill(skill),
-        statusTags: stage.statusTags,
-        actionTags: stage.actionTags,
-        hitPhase: stage.phase,
-        vfxCue: stage.vfxCue,
-        vfxWindowMs: stage.vfxWindowMs
-      });
-    }, nextRun);
-  }, castRun);
+  return schedulePlayerHitboxEffect(lockedRun, burstHitbox, origin, run.player.facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-detonate`,
+    hitPhase: "detonate",
+    vfxCue: "night-mark-burst",
+    vfxWindowMs: 520,
+    missOnEmpty: false
+  });
 }
 
 function mechanismShadowNetCenter(run: CombatRun): CombatVector {
@@ -4879,6 +4847,8 @@ function applyScheduledEnemyHitEffect(
     return impactResolvedRun;
   }
 
+  const bonusDamage = effect.consumeMarks ? target.marks * (effect.bonusDamagePerMark ?? 0) : 0;
+  const effectiveDamage = effect.damage + bonusDamage;
   const statusTags = effect.statusTags ?? [];
   const actionTags = effect.actionTags ?? [];
   const comboCount =
@@ -4892,7 +4862,7 @@ function applyScheduledEnemyHitEffect(
     action: effect.action ?? "test",
     skillId: effect.skillId,
     targetId,
-    damage: effect.damage,
+    damage: effectiveDamage,
     occurredAtMs: effect.applyAtMs,
     inputToHitMs: effect.inputToHitMs,
     hitstopMs: effect.hitstopMs,
@@ -4912,8 +4882,8 @@ function applyScheduledEnemyHitEffect(
       return enemy;
     }
 
-    const armorDamage = Math.min(enemy.armor, effect.damage);
-    const hpDamage = effect.damage - armorDamage;
+    const armorDamage = Math.min(enemy.armor, effectiveDamage);
+    const hpDamage = effectiveDamage - armorDamage;
     const nextMarks = effect.consumeMarks ? 0 : clamp(enemy.marks + (effect.marksApplied ?? 0), 0, 9);
     const controlUntil = hasStatus(statusTags, "trap") || hasStatus(statusTags, "control") ? effect.applyAtMs + 1100 : undefined;
     const staggerUntil = hasStatus(statusTags, "stagger") ? effect.applyAtMs + 780 : undefined;

@@ -3563,82 +3563,63 @@ function mechanismShadowNetCenter(run: CombatRun): CombatVector {
 }
 
 function applyMechanismShadowNet(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
-  const scriptedRun = applySkillStartupMovement(run, skill);
-  const castRun = appendSkillCastEvent(scriptedRun, skill, canceledFromCombo);
-  const netCenter = mechanismShadowNetCenter(scriptedRun);
-  const targetingHitbox: PlayerHitboxDefinition = {
+  const facing = run.player.facing;
+  const bindDelayMs = skill.animation.hitFrameMs;
+  const snapDelayMs = skill.animation.hitFrameMs + 180;
+  const netCenter = mechanismShadowNetCenter(run);
+  const endPosition = {
+    x: clamp(run.player.x + skill.animation.lungePx * facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const castRun = appendSkillCastEvent(startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + snapDelayMs), skill, canceledFromCombo);
+  const baseDamage = skillDamage(run, skill);
+  const bindHitbox: PlayerHitboxDefinition = {
     action: "skill",
     skillId: skill.id,
-    rangeX: 340,
+    rangeX: 190,
     laneRange: 110,
     targetCap: 3,
     frontOnly: false,
-    damage: skillDamage(run, skill),
-    hitstopMs: 52,
+    damage: Math.max(1, Math.round(baseDamage * 0.32)),
+    hitstopMs: 54,
     knockback: 0,
     juggle: false,
-    inputToHitMs: skill.animation.hitFrameMs,
-    canceledFromCombo
+    inputToHitMs: bindDelayMs,
+    canceledFromCombo,
+    statusTags: ["trap", "control"]
   };
-  const targets = selectPlayerTargets(scriptedRun, targetingHitbox);
+  const snapHitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 210,
+    laneRange: 116,
+    targetCap: 3,
+    frontOnly: false,
+    damage: Math.max(1, Math.round(baseDamage * 0.72)),
+    hitstopMs: 82,
+    knockback: 0,
+    juggle: false,
+    inputToHitMs: snapDelayMs,
+    canceledFromCombo,
+    pullCenter: netCenter,
+    statusTags: ["trap", "control", "stagger"],
+    actionTags: ["pull"],
+    requiresStatusSourceSkillId: skill.id
+  };
+  const boundRun = schedulePlayerHitboxEffect(castRun, bindHitbox, netCenter, facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-trap-bind`,
+    hitPhase: "trap-bind",
+    vfxCue: "mechanism-net-bind",
+    vfxWindowMs: 420
+  });
 
-  if (targets.length === 0) {
-    return applyMiss(scriptedRun, targetingHitbox);
-  }
-
-  const baseDamage = skillDamage(run, skill);
-  const stages: Array<{
-    phase: CombatHitPhase;
-    vfxCue: CombatVfxCue;
-    delayMs: number;
-    damageMultiplier: number;
-    hitstopMs: number;
-    statusTags: CombatSkillStatusTag[];
-    pullCenter?: CombatVector;
-    vfxWindowMs: number;
-  }> = [
-    {
-      phase: "trap-bind",
-      vfxCue: "mechanism-net-bind",
-      delayMs: skill.animation.hitFrameMs,
-      damageMultiplier: 0.32,
-      hitstopMs: 54,
-      statusTags: ["trap", "control"],
-      vfxWindowMs: 420
-    },
-    {
-      phase: "trap-snap",
-      vfxCue: "mechanism-net-snap",
-      delayMs: skill.animation.hitFrameMs + 180,
-      damageMultiplier: 0.72,
-      hitstopMs: 82,
-      statusTags: ["trap", "control", "stagger"],
-      pullCenter: netCenter,
-      vfxWindowMs: 560
-    }
-  ];
-
-  return stages.reduce((nextRun, stage) => {
-    return targets.reduce((stageRun, target) => {
-      return scheduleEnemyHitEffect(stageRun, {
-        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${target.id}`,
-        targetId: target.id,
-        damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
-        hitstopMs: stage.hitstopMs,
-        knockback: 0,
-        juggle: false,
-        action: "skill",
-        skillId: skill.id,
-        inputToHitMs: stage.delayMs,
-        canceledFromCombo,
-        pullCenter: stage.pullCenter,
-        statusTags: stage.statusTags,
-        hitPhase: stage.phase,
-        vfxCue: stage.vfxCue,
-        vfxWindowMs: stage.vfxWindowMs
-      });
-    }, nextRun);
-  }, castRun);
+  return schedulePlayerHitboxEffect(boundRun, snapHitbox, netCenter, facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-trap-snap`,
+    hitPhase: "trap-snap",
+    vfxCue: "mechanism-net-snap",
+    vfxWindowMs: 560,
+    missOnEmpty: false
+  });
 }
 
 const earthFurnaceCrackDelayMs = 260;

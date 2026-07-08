@@ -5693,7 +5693,7 @@ describe("combat actions and impact feel", () => {
       "mechanism-net-snap",
       "mechanism-net-snap"
     ]);
-    expect(cast.scheduledEnemyHitEffects).toHaveLength(4);
+    expect(cast.scheduledEnemyHitEffects).toHaveLength(2);
     expect(cast.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
     expect(cast.enemies.every((enemy) => enemy.controlledUntilMs === undefined)).toBe(true);
     expect(beforeBindRun.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
@@ -5709,6 +5709,101 @@ describe("combat actions and impact feel", () => {
         return Math.abs(enemy.position.x - netCenterX) < Math.abs(before.position.x - netCenterX);
       })
     ).toBe(true);
+  });
+
+  it("rechecks mechanism-shadow-net targets at the bind frame and snaps only bound enemies", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 100)),
+      "mechanism-shadow-weaver"
+    );
+    const baseRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 332, y: 340, hp: 260, maxHp: 260, armor: 0 },
+        { x: 418, y: 356, hp: 240, maxHp: 240, armor: 0 }
+      ]
+    );
+    const lateTarget: CombatEnemy = {
+      ...baseRun.enemies[0],
+      id: "late-mechanism-target",
+      hp: 260,
+      maxHp: 260,
+      armor: 0,
+      position: { x: 820, y: 500 },
+      nextAttackAtMs: 9999
+    };
+    const run = {
+      ...baseRun,
+      enemies: [...baseRun.enemies, lateTarget]
+    };
+
+    const cast = performAction(run, { type: "skill", skillId: "mechanism-shadow-net" });
+    const [bindAtMs, snapAtMs] = scheduledSkillTimes(cast, "mechanism-shadow-net");
+    const movedBeforeBind = {
+      ...cast,
+      enemies: cast.enemies.map((enemy) =>
+        enemy.id === lateTarget.id
+          ? {
+              ...enemy,
+              position: { x: 390, y: 340 }
+            }
+          : {
+              ...enemy,
+              position: { x: 820, y: 500 }
+            }
+      )
+    };
+    const bound = stepToElapsed(movedBeforeBind, bindAtMs);
+    const movedBeforeSnap = {
+      ...bound,
+      enemies: bound.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: { x: 400, y: 340 }
+            }
+          : enemy
+      )
+    };
+    const snapped = stepToElapsed(movedBeforeSnap, snapAtMs);
+    const hits = skillHitEvents(snapped, "mechanism-shadow-net");
+
+    expect(bindAtMs).toBe(290);
+    expect(snapAtMs).toBe(470);
+    expect(skillHitEvents(bound, "mechanism-shadow-net").map((event) => event.targetId)).toEqual([lateTarget.id]);
+    expect(hits.map((event) => event.targetId)).toEqual([lateTarget.id, lateTarget.id]);
+    expect(hits.map((event) => event.hitPhase)).toEqual(["trap-bind", "trap-snap"]);
+    expect(snapped.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(snapped.enemies[1].hp).toBe(run.enemies[1].hp);
+    expect(snapped.enemies.find((enemy) => enemy.id === lateTarget.id)?.hp).toBeLessThan(lateTarget.hp);
+  });
+
+  it("delays mechanism-shadow-net miss feedback until the bind frame", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 100)),
+      "mechanism-shadow-weaver"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 820, y: 500, hp: 260, maxHp: 260 },
+        { x: 860, y: 500, hp: 240, maxHp: 240 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "mechanism-shadow-net" });
+    const [bindAtMs, snapAtMs] = scheduledSkillTimes(cast, "mechanism-shadow-net");
+    const beforeBind = stepToElapsed(cast, bindAtMs - 1);
+    const missedBind = stepToElapsed(cast, bindAtMs);
+    const afterSnap = stepToElapsed(missedBind, snapAtMs);
+
+    expect(skillMissEvents(cast, "mechanism-shadow-net")).toHaveLength(0);
+    expect(skillMissEvents(beforeBind, "mechanism-shadow-net")).toHaveLength(0);
+    expect(skillMissEvents(missedBind, "mechanism-shadow-net")).toHaveLength(1);
+    expect(skillMissEvents(afterSnap, "mechanism-shadow-net")).toHaveLength(1);
+    expect(skillHitEvents(afterSnap, "mechanism-shadow-net")).toHaveLength(0);
   });
 
   it("mountain-crack-hammer staggers first and then breaks armor on the impact frame", () => {

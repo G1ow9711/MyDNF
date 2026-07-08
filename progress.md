@@ -3014,3 +3014,24 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 401 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/prism-step-live-check.html` confirmed impact time `165`, one live hit only on the moved-in third target, old target HP `[160,160]`, new target HP `124`, empty-path MISS count `0` before impact and `1` at impact, player animation `player-liuli-step-dash`, weapon animation `weapon-prism-dash`, cast animations `prism-afterimage-core/wave/sparks`, impact animations `prism-pierce-core/ring/shards`, and empty browser warning/error logs. Temporary page was deleted after validation.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 483 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 115 DNF-Style Mechanism Shadow Net Live Bind-Frame Recheck
+- Continued from the user's clarified priority: character geometry can stay lighter for now, but combat action flow, real hit frames, actor motion, skill VFX, monster VFX, and hit feedback remain strict gates.
+- Used a read-only UI/CSS agent audit:
+  - It confirmed `mechanism-shadow-net` already exposes player, weapon, cast VFX, target burst, bind/snap cue, and controlled enemy hooks.
+  - It mapped browser-resolved animations: `player-ink-shadow-net-cast`, `weapon-net-cast`, `mechanism-net-cast-core/ring/sparks`, `mechanism-net-bind-core/ring/shards`, and `mechanism-net-snap-core/ring/shards`.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies that `mechanism-shadow-net` ignores two enemies moved out before the 290 ms bind frame, hits a third enemy moved into the net, and snaps only enemies bound by this cast.
+  - `src/tests/combat.test.ts` now verifies empty-net MISS feedback is delayed until the 290 ms bind frame and does not duplicate at the 470 ms snap frame.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t "mechanism-shadow-net" --reporter=basic` failed because the old implementation still hit cast-frame targets and produced no scheduled effects for empty-net casts.
+- Implemented:
+  - Reworked `applyMechanismShadowNet()` to schedule two dynamic hitbox effects instead of fixed target-id effects.
+  - Bind now rechecks live targets at 290 ms, applies trap/control, and emits `mechanism-net-bind`.
+  - Snap now rechecks only targets with this skill's live control source at 470 ms, pulls them toward the net center, and emits `mechanism-net-snap` without a duplicate MISS.
+  - The skill now has a short `activeSkillMovement` window from cast to snap, so the lightweight model still performs a visible cast action instead of staying static.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t "mechanism-shadow-net" --reporter=dot`, 3 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 403 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/mechanism-shadow-net-live-check.html` confirmed `[290,470]` bind/snap timing, only the moved-in target was hit twice, old target HP stayed `[260,240]`, empty-net MISS counts were `0/0/1/1`, no cast-frame damage or controlled enemy DOM appeared, player/weapon/cast/bind/snap animation names resolved correctly, hitstop and skill screen shake were active on snap, and browser warning/error logs were empty. Temporary page was deleted after validation and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 485 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

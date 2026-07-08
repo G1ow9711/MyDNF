@@ -957,6 +957,65 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes molten-wall-cast-core");
   });
 
+  it("defines dedicated black-furnace-aegis shield brace, aegis weapon, and black-aegis animations", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)),
+      "black-furnace-vanguard"
+    );
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          armor: 0,
+          position: { x: 320, y: 340 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "black-furnace-aegis" }
+    );
+    const [aegisAtMs] = scheduledSkillTimes(castRun, "black-furnace-aegis");
+    const castHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: castRun
+    });
+    const beforeAegisHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, aegisAtMs - 1)
+    });
+    const aegisHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, aegisAtMs)
+    });
+
+    expect(aegisAtMs).toBe(280);
+    expect(castHtml).toContain('data-player-skill-move="black-furnace-aegis"');
+    expect(castHtml).toContain('data-skill-animation-preset="iron-aegis"');
+    expect(castHtml).toContain('data-skill-weapon-arc="aegis-raise"');
+    expect(castHtml).toContain('data-skill-vfx-shape="black-aegis"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-black-furnace-aegis skill-vfx-shape-black-aegis"');
+    expect(beforeAegisHtml).toContain('data-shield-active="false"');
+    expect(aegisHtml).toContain('data-shield-active="true"');
+    expect(aegisHtml).toContain('data-player-motion="shield"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="black-furnace-aegis"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="iron-aegis"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="aegis-raise"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-black-aegis");
+    expect(stylesCss).toContain("@keyframes player-iron-black-aegis");
+    expect(stylesCss).toContain("@keyframes weapon-aegis-raise");
+    expect(stylesCss).toContain("@keyframes black-aegis-cast-core");
+    expect(stylesCss).toContain("@keyframes black-aegis-cast-ring");
+    expect(stylesCss).toContain("@keyframes black-aegis-cast-sparks");
+  });
+
   it("renders anvil-crash as a delayed hammer-drop slam with target sparks", () => {
     const state = {
       ...createInitialState(),

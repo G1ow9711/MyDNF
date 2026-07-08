@@ -1473,6 +1473,52 @@ describe("playable app integration actions", () => {
     expect(guardHtml).toContain('class="combat-player-art actor-model actor-model-shield');
   });
 
+  it("renders black-furnace-aegis as a delayed advancement shield with black-aegis VFX", () => {
+    const advancedState = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)),
+      "black-furnace-vanguard"
+    );
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: advancedState
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "black-furnace-aegis" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after black-furnace-aegis");
+    }
+
+    const [aegisAtMs] = scheduledSkillTimes(model.combatRun, "black-furnace-aegis");
+    const castHtml = renderAppHtml(model);
+    const beforeAegisHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, aegisAtMs - 1)
+    });
+    const aegisHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, aegisAtMs)
+    });
+
+    expect(aegisAtMs).toBe(280);
+    expect(castHtml).toContain('data-active-skill-id="black-furnace-aegis"');
+    expect(castHtml).toContain('data-advancement-id="black-furnace-vanguard"');
+    expect(castHtml).toContain('data-skill-animation-preset="iron-aegis"');
+    expect(castHtml).toContain('data-skill-weapon-arc="aegis-raise"');
+    expect(castHtml).toContain('data-skill-vfx-shape="black-aegis"');
+    expect(castHtml).toContain('data-player-skill-move="black-furnace-aegis"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-black-furnace-aegis skill-vfx-shape-black-aegis"');
+    expect(castHtml).not.toContain('data-damage-number="true"');
+    expect(beforeAegisHtml).not.toContain('data-skill-impact-vfx="black-furnace-aegis"');
+    expect(beforeAegisHtml).not.toContain('data-damage-number="true"');
+    expect(beforeAegisHtml).toContain('data-shield-active="false"');
+    expect(aegisHtml).toContain('data-shield-active="true"');
+    expect(aegisHtml).toContain('data-player-motion="shield"');
+    expect(aegisHtml).toContain('class="combat-player-art actor-model actor-model-shield');
+  });
+
   it("renders crow-feint as a delayed dodge window with a feint-shot impact", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

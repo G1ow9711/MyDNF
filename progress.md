@@ -2826,3 +2826,26 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 386 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/molten-wall-check.html` confirmed 260 ms wall timing, no cast-frame shield or enemy hit, movement 240 -> 246, shield active only at the wall frame, post-wall monster hit damage 14 with shield consumed, startup interruption produced one player hit and no pending wall effect, and computed animations `player-iron-molten-wall`, `weapon-wall-guard`, `molten-wall-cast-core`, `molten-wall-cast-ring`, and `molten-wall-cast-sparks`. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 468 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 105 DNF-Style Black Furnace Aegis Strict Shield Frame
+- Continued the active DNF-style combat goal after the user clarified that character models can stay lighter while combat action smoothness, strict frames, model-following movement, and skill/monster VFX remain hard gates.
+- Used two read-only agents:
+  - Combat audit confirmed `black-furnace-aegis` still fell through generic skill fallback and opened shield immediately through `applyPlayerSkillStatus()`.
+  - UI/CSS audit confirmed DOM metadata existed for `iron-aegis`, `aegis-raise`, and `black-aegis`, and then verified the newly added CSS hooks/keyframes were present.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `black-furnace-aegis` to schedule a 280 ms aegis frame, avoid cast-frame mitigation and enemy hits, move the player model 8 px, mitigate only after the aegis frame, consume shield on the next monster hit, and cancel pending aegis status when interrupted.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require delayed shield-active DOM state, `data-advancement-id="black-furnace-vanguard"`, no pre-frame impact/damage markup, `data-player-skill-move="black-furnace-aegis"`, `iron-aegis`, `aegis-raise`, `black-aegis`, and dedicated player/weapon/cast CSS keyframes.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t black-furnace-aegis --reporter=dot` failed because no scheduled effects existed for `black-furnace-aegis`.
+  - `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t black-furnace-aegis --reporter=dot` failed for the same missing scheduled-effect path.
+- Implemented:
+  - Added `applyBlackFurnaceAegis()` with an 8 px model-following brace movement and a 280 ms delayed shield-status frame.
+  - Skipped immediate `shield` status application for `black-furnace-aegis`, so startup remains punishable and the cast no longer creates generic enemy hits.
+  - Tuned the advancement shield to 1800 ms / 58% mitigation, producing 9 damage from the browser ash-hit check after class passive defense.
+  - Added dedicated `player-iron-black-aegis`, `weapon-aegis-raise`, and `black-aegis-cast-*` CSS animations.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t black-furnace-aegis --reporter=dot`, 2 tests.
+  - Focused GREEN passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t black-furnace-aegis --reporter=dot`, 2 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 390 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/black-aegis-check.html` confirmed 280 ms aegis timing, no cast-frame shield or enemy hit, movement 240 -> 248, shield active only at the aegis frame, post-aegis monster hit damage 9 with shield consumed, startup interruption produced one player hit and no pending aegis effect, and computed animations `player-iron-black-aegis`, `weapon-aegis-raise`, `black-aegis-cast-core`, `black-aegis-cast-ring`, and `black-aegis-cast-sparks`. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 472 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

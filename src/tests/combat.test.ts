@@ -6152,6 +6152,98 @@ describe("combat actions and impact feel", () => {
     expect(interrupted.player.shieldUntilMs).toBeLessThanOrEqual(interrupted.elapsedMs);
     expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "anvil-guard")).toHaveLength(0);
   });
+
+  it("delays black-furnace-aegis mitigation until the aegis frame", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)),
+      "black-furnace-vanguard"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 310, y: 340, hp: 180, maxHp: 180, armor: 0 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "black-furnace-aegis" });
+    const [aegisAtMs] = scheduledSkillTimes(cast, "black-furnace-aegis");
+    const beforeAegis = stepToElapsed(cast, aegisAtMs - 1);
+    const aegisOpen = stepToElapsed(cast, aegisAtMs);
+    const armedEnemyRun: CombatRun = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: aegisAtMs + 20,
+              attackRecoverUntilMs: aegisAtMs + 520,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const afterAegisHit = stepToElapsed(armedEnemyRun, aegisAtMs + 20);
+    const playerHits = afterAegisHit.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(aegisAtMs).toBe(280);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("black-furnace-aegis");
+    expect(cast.player.activeSkillMovement?.endX).toBe(248);
+    expect(cast.player.shieldUntilMs).toBeLessThanOrEqual(cast.elapsedMs);
+    expect(cast.enemies[0].hp).toBe(180);
+    expect(skillHitEvents(cast, "black-furnace-aegis")).toHaveLength(0);
+    expect(beforeAegis.player.shieldUntilMs).toBeLessThanOrEqual(beforeAegis.elapsedMs);
+    expect(aegisOpen.player.shieldUntilMs).toBeGreaterThan(aegisOpen.elapsedMs);
+    expect(aegisOpen.player.shieldReduction).toBeGreaterThanOrEqual(0.55);
+    expect(playerHits).toHaveLength(1);
+    expect(playerHits[0].damage).toBeGreaterThan(0);
+    expect(playerHits[0].damage).toBeLessThanOrEqual(12);
+    expect(afterAegisHit.player.shieldUntilMs).toBeLessThanOrEqual(afterAegisHit.elapsedMs);
+  });
+
+  it("cancels black-furnace-aegis opening when monster damage interrupts startup", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)),
+      "black-furnace-vanguard"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 310, y: 340, hp: 180, maxHp: 180, armor: 0 }]
+    );
+    const interruptingRun: CombatRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 120,
+              attackRecoverUntilMs: 620,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+
+    const cast = performAction(interruptingRun, { type: "skill", skillId: "black-furnace-aegis" });
+    const [aegisAtMs] = scheduledSkillTimes(cast, "black-furnace-aegis");
+    const interrupted = stepToElapsed(cast, aegisAtMs);
+    const playerHits = interrupted.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(playerHits).toHaveLength(1);
+    expect(interrupted.player.shieldUntilMs).toBeLessThanOrEqual(interrupted.elapsedMs);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "black-furnace-aegis")).toHaveLength(0);
+  });
 });
 
 describe("enemy attacks and player defeat", () => {

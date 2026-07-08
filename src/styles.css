@@ -5601,15 +5601,15 @@ p {
   animation: taotie-flame-breath-sustain-ring 620ms cubic-bezier(0.1, 0.78, 0.14, 1) both;
 }
 
-.enemy-skill-taotie-flame-breath[data-enemy-attack-hit-index="1"] .enemy-cast-trail {
+.enemy-skill-taotie-flame-breath[data-enemy-vfx-cue="taotie-flame-breath-sustain"][data-enemy-attack-hit-index="1"] .enemy-cast-trail {
   animation: taotie-flame-breath-tick-one 540ms cubic-bezier(0.14, 0.78, 0.16, 1) both;
 }
 
-.enemy-skill-taotie-flame-breath[data-enemy-attack-hit-index="2"] .enemy-cast-trail {
+.enemy-skill-taotie-flame-breath[data-enemy-vfx-cue="taotie-flame-breath-sustain"][data-enemy-attack-hit-index="2"] .enemy-cast-trail {
   animation: taotie-flame-breath-tick-two 560ms cubic-bezier(0.14, 0.78, 0.16, 1) both;
 }
 
-.enemy-skill-taotie-flame-breath[data-enemy-attack-hit-index="3"] .enemy-cast-trail {
+.enemy-skill-taotie-flame-breath[data-enemy-vfx-cue="taotie-flame-breath-sustain"][data-enemy-attack-hit-index="3"] .enemy-cast-trail {
   animation: taotie-flame-breath-tick-three 620ms cubic-bezier(0.12, 0.78, 0.14, 1) both;
 }
 
@@ -5853,9 +5853,9 @@ p {
   animation: taotie-chain-cleave-smash-trail 620ms ease-out both;
 }
 
-.enemy-skill-vfx[data-enemy-skill-vfx] .enemy-cast-ring,
-.enemy-skill-vfx[data-enemy-skill-vfx] .enemy-cast-core,
-.enemy-skill-vfx[data-enemy-skill-vfx] .enemy-cast-trail {
+.enemy-skill-vfx[data-enemy-skill-vfx][data-enemy-vfx-cue] .enemy-cast-ring,
+.enemy-skill-vfx[data-enemy-skill-vfx][data-enemy-vfx-cue] .enemy-cast-core,
+.enemy-skill-vfx[data-enemy-skill-vfx][data-enemy-vfx-cue] .enemy-cast-trail {
   animation-duration: var(--enemy-vfx-duration, var(--enemy-attack-duration, 560ms));
 }
 

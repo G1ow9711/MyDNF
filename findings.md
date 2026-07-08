@@ -977,3 +977,12 @@
 - Fix note: enemy attacks now track real connected hit indexes for the current cast. `taotie-chain-cleave` marks smash as requiring the previous hit, so the second frame still emits its own MISS/VFX cue but cannot damage or hurt-lock unless drag actually connected.
 - State note: the connected-hit list is initialized at enemy windup and cleared when the attack recovers, is interrupted, the boss phase resets its attack, or a spawned enemy is created. This avoids stale chain state leaking into later attacks.
 - Verification note: focused boss tests now cover both successful drag/smash and the dodge-then-reenter MISS path for `taotie-chain-cleave`, plus the existing forge-shackle strict hit-frame paths.
+
+## DNF-Style Real Browser Monster VFX Findings
+- Current priority follows the user's latest clarification: models can stay lighter for now, but skill effects and monster skill effects must be strict and cannot rely on static selector guesses.
+- Read-only UI/CSS audit confirmed the current `ui-smoke` legacy VFX test uses a custom selector resolver, not a browser CSS engine, so it cannot catch real cascade specificity or computed duration regressions.
+- Test-harness note: the new browser computed-style test launches local Edge/Chrome through the DevTools protocol without adding Playwright dependencies. It stores the temporary browser profile under `.codex-local/tmp/browser-computed-style` to keep runtime artifacts project-local.
+- RED note: once the CDP helper cleanup was fixed, the real browser test failed because `taotie-flame-breath` with `data-enemy-attack-hit-index="2"` but no active cue still computed `animationName: taotie-flame-breath-tick-two`.
+- Duration RED note: the next browser failure showed flame-breath trail computed `0.54s` from the shorthand keyframe selector instead of the runtime `--enemy-vfx-duration` value `0.52s`.
+- CSS note: flame-breath hit-index trail selectors now also require `data-enemy-vfx-cue="taotie-flame-breath-sustain"`, and the shared runtime duration override gained enough specificity to beat cue/hit-index shorthands.
+- Verification note: the durable browser test now covers ash spit, crawler burst, Zheng shockwave, Zheng horn charge, and Taotie flame breath active cue names, uncued idle parts, generic fallback rejection, hit indexes 1/2/3, and runtime VFX durations.

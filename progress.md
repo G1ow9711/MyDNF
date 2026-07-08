@@ -3385,3 +3385,25 @@
   - Boss related focused tests passed: `npm test -- src/tests/combat.test.ts --testNamePattern "taotie chain cleave|taotie forge shackle" --reporter=basic`, 6 matched tests.
   - Combat suite passed: `npm test -- src/tests/combat.test.ts --reporter=dot`, 232 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 514 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 132 DNF-Style Real Browser Monster VFX Regression
+- Continued from the user's clarified priority: character and monster geometry can remain lighter while the loop is completed, but skill VFX, monster VFX, animation timing, and hit feedback must be strict.
+- Used read-only parallel agent audits:
+  - Test-architecture audit confirmed the project has Vitest only, no Playwright/jsdom/happy-dom root dependency, and current UI smoke tests use Node plus a custom CSS resolver.
+  - UI/CSS audit produced the required browser-computed animation names and runtime durations for ash spit, crawler burst, Zheng shockwave, Zheng horn charge, and Taotie flame breath.
+- Added RED coverage:
+  - Added `src/tests/browser-computed-style.test.ts` plus a project-local Edge/Chrome CDP helper in `src/tests/support/real-browser-computed-style.ts`.
+  - The test asserts real `getComputedStyle()` animation names and durations for legacy monster skill VFX, including uncued idle states, active cue states, generic fallback rejection, and flame-breath hit indexes 1/2/3.
+- RED evidence:
+  - First run exposed a helper cleanup issue: Edge profile `lockfile` stayed busy. The helper now waits for browser process exit and retries profile deletion.
+  - Correct RED then failed because uncued `taotie-flame-breath` with hit index 2 still computed `taotie-flame-breath-tick-two`.
+  - First GREEN attempt then failed because flame-breath trail kept `0.54s` from the shorthand instead of runtime `0.52s`.
+- Implemented:
+  - Gated flame-breath tick-one/tick-two/tick-three trail selectors on `data-enemy-vfx-cue="taotie-flame-breath-sustain"`.
+  - Increased the shared enemy VFX runtime duration override specificity so cue/hit-index shorthands still use `--enemy-vfx-duration`.
+- Verification so far:
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --reporter=basic`, 1 test.
+  - Related UI/browser suite passed: `npm test -- src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --testNamePattern "legacy monster skill VFX|monster attack animation duration|real browser computed" --reporter=dot`, 3 matched tests.
+  - Full suite initially found one stale static UI smoke selector expectation, then passed after updating it: `npm test -- --reporter=dot`, 14 files / 515 tests.
+  - Build initially exposed Node timer global bleed-through after adding `@types/node`; `tsconfig.json` now limits build globals and excludes tests from app typecheck, while `audio-browser.ts` stores timer handles with `ReturnType<typeof globalThis.setInterval>`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- src/tests/render-audio.test.ts --reporter=dot` (14 tests), `npm test -- --reporter=dot` (14 files / 515 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

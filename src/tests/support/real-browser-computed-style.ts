@@ -1,0 +1,328 @@
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+
+export type EnemyVfxFixture = {
+  key: string;
+  skillId: string;
+  cue?: string;
+  hitIndex?: number;
+  attackDurationMs?: number;
+  vfxDurationMs?: number;
+};
+
+export type ComputedVfxPartStyle = {
+  animationName: string;
+  animationDuration: string;
+};
+
+export type ComputedEnemyVfxStyles = Record<
+  string,
+  {
+    ring: ComputedVfxPartStyle;
+    core: ComputedVfxPartStyle;
+    trail: ComputedVfxPartStyle;
+  }
+>;
+
+type CdpResponse<T> = {
+  id?: number;
+  result?: T;
+  error?: {
+    message: string;
+  };
+};
+
+class CdpClient {
+  private nextId = 1;
+  private pending = new Map<
+    number,
+    {
+      resolve: (value: unknown) => void;
+      reject: (error: Error) => void;
+    }
+  >();
+
+  private constructor(private readonly socket: WebSocket) {
+    this.socket.addEventListener("message", (event) => {
+      const message = JSON.parse(String(event.data)) as CdpResponse<unknown>;
+      if (message.id === undefined) {
+        return;
+      }
+
+      const callback = this.pending.get(message.id);
+      if (!callback) {
+        return;
+      }
+
+      this.pending.delete(message.id);
+      if (message.error) {
+        callback.reject(new Error(message.error.message));
+        return;
+      }
+
+      callback.resolve(message.result);
+    });
+  }
+
+  static async connect(url: string): Promise<CdpClient> {
+    const socket = new WebSocket(url);
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Timed out connecting to browser DevTools websocket")), 5000);
+      socket.addEventListener(
+        "open",
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        { once: true }
+      );
+      socket.addEventListener(
+        "error",
+        () => {
+          clearTimeout(timer);
+          reject(new Error("Failed to connect to browser DevTools websocket"));
+        },
+        { once: true }
+      );
+    });
+
+    return new CdpClient(socket);
+  }
+
+  async send<T>(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<T> {
+    const id = this.nextId;
+    this.nextId += 1;
+
+    const payload: Record<string, unknown> = { id, method, params };
+    if (sessionId) {
+      payload.sessionId = sessionId;
+    }
+
+    const response = new Promise<T>((resolve, reject) => {
+      this.pending.set(id, {
+        resolve: (value) => resolve(value as T),
+        reject
+      });
+    });
+
+    this.socket.send(JSON.stringify(payload));
+    return response;
+  }
+
+  close(): void {
+    this.socket.close();
+  }
+}
+
+export async function computeEnemyVfxStylesInRealBrowser(
+  css: string,
+  fixtures: EnemyVfxFixture[]
+): Promise<ComputedEnemyVfxStyles> {
+  const browserPath = findBrowserExecutable();
+  const profileRoot = join(process.cwd(), ".codex-local", "tmp", "browser-computed-style");
+  await mkdir(profileRoot, { recursive: true });
+  const profileDir = await mkdtemp(join(profileRoot, "profile-"));
+  let browser: ChildProcessWithoutNullStreams | undefined;
+  let client: CdpClient | undefined;
+
+  try {
+    browser = spawn(
+      browserPath,
+      [
+        "--headless=new",
+        "--disable-gpu",
+        "--disable-background-networking",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--remote-debugging-port=0",
+        `--user-data-dir=${profileDir}`,
+        "about:blank"
+      ],
+      { stdio: "pipe", windowsHide: true }
+    );
+
+    const browserDebug = await waitForDevToolsEndpoint(profileDir);
+    client = await CdpClient.connect(`ws://127.0.0.1:${browserDebug.port}${browserDebug.path}`);
+    const target = await client.send<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
+    const session = await client.send<{ sessionId: string }>("Target.attachToTarget", {
+      targetId: target.targetId,
+      flatten: true
+    });
+
+    await client.send("Runtime.enable", {}, session.sessionId);
+    await client.send(
+      "Runtime.evaluate",
+      {
+        expression: `document.open(); document.write(${JSON.stringify(buildFixtureHtml(css, fixtures))}); document.close();`,
+        awaitPromise: true
+      },
+      session.sessionId
+    );
+
+    const evaluation = await client.send<{
+      result: {
+        value: ComputedEnemyVfxStyles;
+      };
+    }>(
+      "Runtime.evaluate",
+      {
+        expression: `
+          (() => {
+            const parts = [
+              ["ring", ".enemy-cast-ring"],
+              ["core", ".enemy-cast-core"],
+              ["trail", ".enemy-cast-trail"]
+            ];
+            const result = {};
+            for (const root of document.querySelectorAll("[data-vfx-fixture]")) {
+              result[root.getAttribute("data-vfx-fixture")] = Object.fromEntries(
+                parts.map(([name, selector]) => {
+                  const style = getComputedStyle(root.querySelector(selector));
+                  return [name, {
+                    animationName: style.animationName,
+                    animationDuration: style.animationDuration
+                  }];
+                })
+              );
+            }
+            return result;
+          })()
+        `,
+        returnByValue: true
+      },
+      session.sessionId
+    );
+
+    return evaluation.result.value;
+  } finally {
+    if (client) {
+      await client.send("Browser.close").catch(() => undefined);
+      client.close();
+    }
+    if (browser) {
+      await waitForProcessExit(browser, 2500);
+    }
+    await removeWithRetry(profileDir);
+  }
+}
+
+function findBrowserExecutable(): string {
+  const candidates = [
+    process.env.DNF_BROWSER_EXECUTABLE,
+    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser"
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  const browserPath = candidates.find((candidate) => existsSync(candidate));
+  if (!browserPath) {
+    throw new Error("No Edge/Chrome executable found for real browser computed-style tests");
+  }
+
+  return browserPath;
+}
+
+async function waitForDevToolsEndpoint(profileDir: string): Promise<{ port: number; path: string }> {
+  const portFile = join(profileDir, "DevToolsActivePort");
+
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    try {
+      const [portText, path] = (await readFile(portFile, "utf8")).trim().split(/\r?\n/);
+      const port = Number(portText);
+      if (Number.isFinite(port) && path) {
+        return { port, path };
+      }
+    } catch {
+      // Browser has not written DevToolsActivePort yet.
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error("Timed out waiting for browser DevToolsActivePort");
+}
+
+async function waitForProcessExit(process: ChildProcessWithoutNullStreams, timeoutMs: number): Promise<void> {
+  if (process.exitCode !== null) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      if (!process.killed) {
+        process.kill();
+      }
+      resolve();
+    }, timeoutMs);
+
+    process.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+async function removeWithRetry(path: string): Promise<void> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      await rm(path, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  }
+
+  throw lastError;
+}
+
+function buildFixtureHtml(css: string, fixtures: EnemyVfxFixture[]): string {
+  return `<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>${css.replace(/<\/style/gi, "<\\/style")}</style>
+      </head>
+      <body>
+        ${fixtures.map((fixture) => fixtureMarkup(fixture)).join("\n")}
+      </body>
+    </html>`;
+}
+
+function fixtureMarkup(fixture: EnemyVfxFixture): string {
+  const attackDurationMs = fixture.attackDurationMs ?? 660;
+  const vfxDurationMs = fixture.vfxDurationMs ?? 460;
+  const cue = fixture.cue ?? "";
+  const hitIndex = fixture.hitIndex?.toString() ?? "";
+
+  return `<div
+    data-vfx-fixture="${escapeAttribute(fixture.key)}"
+    class="enemy-skill-vfx enemy-skill-${escapeAttribute(fixture.skillId)}"
+    data-enemy-skill-vfx="${escapeAttribute(fixture.skillId)}"
+    data-enemy-vfx-cue="${escapeAttribute(cue)}"
+    data-enemy-attack-hit-index="${escapeAttribute(hitIndex)}"
+    data-enemy-attack-duration-ms="${attackDurationMs}"
+    data-enemy-vfx-duration-ms="${vfxDurationMs}"
+    style="--enemy-attack-duration: ${attackDurationMs}ms; --enemy-vfx-duration: ${vfxDurationMs}ms;"
+  >
+    <i class="enemy-cast-ring"></i>
+    <i class="enemy-cast-core"></i>
+    <i class="enemy-cast-trail"></i>
+  </div>`;
+}
+
+function escapeAttribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}

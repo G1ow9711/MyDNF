@@ -558,9 +558,9 @@ describe("town app shell", () => {
     expect(stylesCss).toContain(".enemy-skill-taotie-chain-cleave .enemy-cast-core");
     expect(stylesCss).toContain('.enemy-skill-taotie-flame-breath[data-enemy-vfx-cue="taotie-flame-breath-sustain"] .enemy-cast-core');
     expect(stylesCss).toContain('.enemy-skill-taotie-flame-breath[data-enemy-vfx-cue="taotie-flame-breath-sustain"] .enemy-cast-ring');
-    expect(stylesCss).toContain('.enemy-skill-taotie-flame-breath[data-enemy-attack-hit-index="1"] .enemy-cast-trail');
-    expect(stylesCss).toContain('.enemy-skill-taotie-flame-breath[data-enemy-attack-hit-index="2"] .enemy-cast-trail');
-    expect(stylesCss).toContain('.enemy-skill-taotie-flame-breath[data-enemy-attack-hit-index="3"] .enemy-cast-trail');
+    expect(stylesCss).toContain('.enemy-skill-taotie-flame-breath[data-enemy-vfx-cue="taotie-flame-breath-sustain"][data-enemy-attack-hit-index="1"] .enemy-cast-trail');
+    expect(stylesCss).toContain('.enemy-skill-taotie-flame-breath[data-enemy-vfx-cue="taotie-flame-breath-sustain"][data-enemy-attack-hit-index="2"] .enemy-cast-trail');
+    expect(stylesCss).toContain('.enemy-skill-taotie-flame-breath[data-enemy-vfx-cue="taotie-flame-breath-sustain"][data-enemy-attack-hit-index="3"] .enemy-cast-trail');
     expect(stylesCss).toContain(".enemy-summon-rift-taotie-ash-summon");
     expect(stylesCss).toContain(".combat-feedback-skill-ash-ember-spit");
     expect(stylesCss).toContain(".combat-feedback-skill-ash-crawler-burst");

@@ -44,7 +44,7 @@ export function createBrowserAudioSink(): AudioPlaybackSink {
   }
 
   let context: AudioContext | undefined;
-  let musicTimer: number | undefined;
+  let musicTimer: ReturnType<typeof globalThis.setInterval> | undefined;
   let activeMusicNodes: OscillatorNode[] = [];
   let disabled = false;
 

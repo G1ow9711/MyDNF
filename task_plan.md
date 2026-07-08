@@ -201,6 +201,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current strict-combat clarification: character and monster geometry may stay lightweight while the full loop is completed, but combat motion smoothness, model-following attacks, real hit frames, hitstop/feedback, skill VFX, and monster skill VFX remain the hard acceptance gate.
 - Current clear-room action-lock progress: cleared rooms now block direct `performAction()` combat actions so the player cannot spend resources, start cooldowns, queue hitboxes, or create fake whiff/combat effects after all monsters are dead; gate movement remains available.
 - Current Flowing Light Chain phase-motion progress: `flowing-light-chain` hit events now drive player and weapon phase hooks for `chain-open`, `chain-cross`, and `chain-finish`, so the model and weapon can follow the actual slash stage instead of using only one whole-skill animation.
+- Current Iron ultimate stage-link progress: `earth-furnace-breaker` eruption now requires the same cast's `earth-crack` stage to have hit and marked the target first, preventing late entrants from receiving fake eruption damage, knockdown, armor-break, or target-bound VFX.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

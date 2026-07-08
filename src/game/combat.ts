@@ -3640,6 +3640,7 @@ function applyEarthFurnaceBreaker(run: CombatRun, skill: ClassSkillDefinition, c
     juggle: false,
     inputToHitMs: skill.animation.hitFrameMs,
     canceledFromCombo,
+    requiresStatusSourceSkillId: skill.id,
     statusTags: ["guard-break", "stagger"],
     actionTags: ["slam", "knockdown"]
   };

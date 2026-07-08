@@ -1004,3 +1004,10 @@
 - Fix note: `performAction()` now returns unchanged for `completed` or cleared runs while preserving `stepCombat()` gate movement. `playerSkillVisualState()` now exposes the latest real hit phase and cue, and combat render passes them to the player root, model class, and weapon layer.
 - CSS note: `flowing-light-chain` now has phase-specific player and weapon selectors plus `player-flowing-chain-open/cross/finish` and `weapon-flowing-chain-open/cross/finish` keyframes that override the generic whole-skill chain animation during each real slash phase.
 - Verification note: focused combat/app/UI tests pass for clear-room action lock and all three flowing-chain phase hooks. A real Edge/Chrome computed-style regression also confirms the browser resolves the generic chain animation before hit phase and resolves `player-flowing-chain-*` / `weapon-flowing-chain-*` during the three real slash phases.
+
+## DNF-Style Earth Furnace Breaker Stage-Link Findings
+- Current priority follows the user's clarified scope: character and monster geometry can stay light, but staged action timing, hit-frame truth, target state changes, and target-bound skill VFX must be strict.
+- Read-only combat audit found `earth-furnace-breaker` already had a 260 ms `earth-crack` frame and a 410 ms `furnace-eruption` frame, but the second hitbox reselected any live target in range instead of only targets cracked by the same cast.
+- RED note: the new focused test first failed because a second enemy moved into range after `earth-crack` still received `furnace-eruption` hit events.
+- Fix note: the eruption hitbox now requires `requiresStatusSourceSkillId: "earth-furnace-breaker"`, reusing the status source written by the real crack frame. Late entrants keep HP, armor state, knockdown state, and no eruption VFX.
+- Verification note: focused `earth-furnace-breaker` tests pass, including delayed quake recheck, eruption whiff, late-entrant rejection, and interruption cancellation.

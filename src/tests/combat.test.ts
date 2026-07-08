@@ -6760,6 +6760,48 @@ describe("combat actions and impact feel", () => {
     });
   });
 
+  it("does not erupt earth-furnace-breaker on targets that enter after the crack frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 336, y: 340, hp: 320, maxHp: 320, armor: 42 },
+        { x: 720, y: 500, hp: 320, maxHp: 320, armor: 42 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "earth-furnace-breaker" });
+    const [crackAtMs, eruptionAtMs] = scheduledSkillTimes(cast, "earth-furnace-breaker");
+    const cracked = stepToElapsed(cast, crackAtMs);
+    const lateHpBeforeEruption = cracked.enemies[1].hp;
+    const lateEntrantBeforeEruption: CombatRun = {
+      ...cracked,
+      enemies: cracked.enemies.map((enemy, index) =>
+        index === 1
+          ? {
+              ...enemy,
+              position: { x: 390, y: 344 }
+            }
+          : enemy
+      )
+    };
+    const erupted = stepToElapsed(lateEntrantBeforeEruption, eruptionAtMs);
+    const crackHits = skillHitEvents(cracked, "earth-furnace-breaker").filter((event) => event.hitPhase === "earth-crack");
+    const eruptionHits = skillHitEvents(erupted, "earth-furnace-breaker").filter((event) => event.hitPhase === "furnace-eruption");
+
+    expect([crackAtMs, eruptionAtMs]).toEqual([260, 410]);
+    expect(crackHits.map((event) => event.targetId)).toEqual([run.enemies[0].id]);
+    expect(cracked.enemies[0].statusSourceSkillId).toBe("earth-furnace-breaker");
+    expect(cracked.enemies[1].statusSourceSkillId).toBeUndefined();
+    expect(eruptionHits.map((event) => event.targetId)).toEqual([run.enemies[0].id]);
+    expect(erupted.enemies[0].hp).toBeLessThan(cracked.enemies[0].hp);
+    expect(erupted.enemies[1].hp).toBe(lateHpBeforeEruption);
+    expect(erupted.enemies[1].armorBrokenUntilMs).toBeUndefined();
+    expect(erupted.enemies[1].downed).toBe(false);
+    expect(skillMissEvents(erupted, "earth-furnace-breaker")).toHaveLength(0);
+  });
+
   it("cancels earth-furnace-breaker pending quake when monster damage interrupts the cast", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100);
     const run = withPlayerAndEnemies(

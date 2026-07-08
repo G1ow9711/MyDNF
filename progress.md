@@ -3452,3 +3452,20 @@
   - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "blocks combat actions after room clear" --reporter=basic`, 1 matched test.
   - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --testNamePattern "flowing-light-chain" --reporter=basic`, 2 matched tests.
   - Real browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --reporter=basic`, 3 tests, including browser-resolved `player-flowing-chain-open/cross/finish` and `weapon-flowing-chain-open/cross/finish` animation names.
+
+## Task 135 DNF-Style Earth Furnace Breaker Stage-Link Strictness
+- Continued toward the strict DNF goal: model geometry can stay lightweight, but staged hits must be truthful and target-bound VFX must not appear on targets that were not actually set up by the prior stage.
+- Used parallel read-only agent audit:
+  - Combat audit selected `earth-furnace-breaker` because `furnace-eruption` could hit targets that walked in after the real `earth-crack` frame.
+  - UI/VFX audit was closed before producing a usable result; no files were changed by it.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires `earth-furnace-breaker` eruption to ignore a late entrant moved into range after crack, while still erupting the original cracked target and avoiding duplicate MISS feedback.
+- RED evidence:
+  - Focused RED failed because `furnace-eruption` produced target ids for both original target and late entrant.
+- Implemented:
+  - Added same-skill status-source gating to the `furnace-eruption` hitbox through `requiresStatusSourceSkillId: skill.id`.
+  - This keeps eruption damage, knockdown, armor-break, and target-bound VFX tied to enemies actually hit by the 260 ms crack stage.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "does not erupt earth-furnace-breaker" --reporter=basic`, 1 matched test.
+  - Related GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "earth-furnace-breaker" --reporter=basic`, 5 matched tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --reporter=dot` (417 tests), `npm test -- --reporter=dot` (14 files / 519 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

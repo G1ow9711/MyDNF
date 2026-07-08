@@ -704,3 +704,12 @@
 - Target-action note: the lock applies `control`, while the burst applies `stagger` plus forced knockdown. This gives readable monster state changes while keeping character geometry lightweight.
 - Cancellation note: a monster hit before the burst clears both pending mirrorflame stages through the scheduled-effect interruption guard, preventing ghost damage and stale VFX.
 - Presentation note: browser computed-style validation confirmed dedicated `player-liuli-mirrorflame-cast`, `weapon-mirrorflame-fan`, `mirrorflame-cast-core`, `mirrorflame-lock-core`, and `mirrorflame-burst-core` animations, with no fallback to generic player/weapon/impact animations.
+
+## DNF-Style Mountain Guard Break Strict Impact Findings
+- Current priority remains strict combat feel over heavier model geometry: `mountain-guard-break` should be a readable Ember advancement破防重击 with startup, forward model motion, hit-frame target recheck, and target-bound crack VFX.
+- Parallel combat audit confirmed `mountain-guard-break` was still in the generic fallback path. The old behavior applied armor damage and `guard-break` state at cast time, making the 330 ms hit frame only metadata.
+- Parallel UI/CSS audit confirmed the DOM already emitted `ember-mountain-break`, `guard-break`, and `mountain-crack`, but CSS did not consume those hooks with dedicated player/weapon keyframes.
+- Combat note: `mountain-guard-break` now schedules a single 330 ms dynamic hitbox from the player's 32 px lunge endpoint. It does not mutate enemy HP/armor/status on cast, and live target movement can turn it into hit or delayed MISS.
+- Cancellation note: a monster hit before 330 ms clears the pending impact and active movement, so interrupted casts do not create ghost damage, stale impact VFX, or fake MISS feedback.
+- Presentation note: browser computed-style validation confirmed dedicated `player-ember-mountain-break`, `weapon-guard-break`, `mountain-guard-break-cast-core`, and `mountain-guard-break-impact-core` animations, with enemy motion shown as `guard-break`.
+- Queue note: remaining fallback skills are now defensive Iron/Guardian-style skills: `anvil-guard`, `molten-wall`, and `black-furnace-aegis`. Their selectors must account for `data-player-motion="shield"` rather than only `skill`.

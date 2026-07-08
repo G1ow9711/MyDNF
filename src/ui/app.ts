@@ -1217,6 +1217,10 @@ function playerSkillVfxStyle(
     return `${combatActorStyle(run, origin.x + 96 * facing, origin.y)}${durationStyle}`;
   }
 
+  if (skillId === "mountain-guard-break") {
+    return `${combatActorStyle(run, origin.x + 88 * facing, origin.y)}${durationStyle}`;
+  }
+
   if (skillId === "ink-shot") {
     return `${combatActorStyle(run, origin.x + 128 * facing, origin.y)}${durationStyle}`;
   }

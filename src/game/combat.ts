@@ -39,6 +39,7 @@ export type CombatHitPhase =
   | "trap-snap"
   | "hammer-stagger"
   | "hammer-impact"
+  | "mountain-guard-break"
   | "shoulder-impact"
   | "heat-draw"
   | "heat-eruption"
@@ -86,6 +87,7 @@ export type CombatVfxCue =
   | "mechanism-net-snap"
   | "mountain-hammer-stagger"
   | "mountain-crack-impact"
+  | "mountain-guard-break-impact"
   | "furnace-shoulder-impact"
   | "heat-bloom-draw"
   | "heat-bloom-eruption"
@@ -3763,6 +3765,41 @@ function applyMountainCrackHammer(run: CombatRun, skill: ClassSkillDefinition, c
   }, castRun);
 }
 
+function applyMountainGuardBreak(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const facing = run.player.facing;
+  const endPosition = {
+    x: clamp(run.player.x + skill.animation.lungePx * facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+  const hitbox: PlayerHitboxDefinition = {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 176,
+    laneRange: 58,
+    targetCap: 2,
+    frontOnly: true,
+    damage: skillDamage(run, skill),
+    hitstopMs: 110,
+    knockback: 78,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    statusTags: ["guard-break"]
+  };
+
+  return schedulePlayerHitboxEffect(movingRun, hitbox, endPosition, facing, {
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-impact`,
+    hitPhase: "mountain-guard-break",
+    vfxCue: "mountain-guard-break-impact",
+    vfxWindowMs: 620
+  });
+}
+
 function classResource(state: GameState): Omit<CombatResource, "current"> {
   const classDef = catalog.classes.find((item) => item.id === state.player.classId);
   const resource = classDef?.resource ?? { id: "heat", displayName: "热能", max: 100 };
@@ -6181,6 +6218,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "mountain-crack-hammer") {
     return finishSkillAction(applyMountainCrackHammer(run, skill, canceledFromCombo));
+  }
+
+  if (skill.id === "mountain-guard-break") {
+    return finishSkillAction(applyMountainGuardBreak(run, skill, canceledFromCombo));
   }
 
   const scriptedRun = appendSkillCastEvent(applySkillStartupMovement(run, skill), skill, canceledFromCombo);

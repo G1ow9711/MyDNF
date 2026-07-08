@@ -1560,6 +1560,69 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes mountain-crack-impact-core");
   });
 
+  it("renders mountain-guard-break with delayed Ember guard-break metadata", () => {
+    const emberState = advanceClass(
+      readyForAdvancement({
+        ...selectBaseClass(createInitialState(), "ember-warden"),
+        player: {
+          ...selectBaseClass(createInitialState(), "ember-warden").player,
+          heat: 100
+        }
+      }),
+      "mountain-breaker"
+    );
+    const baseRun = createCombatRun(emberState, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.slice(0, 2).map((enemy, index) => ({
+          ...enemy,
+          hp: 260,
+          maxHp: 260,
+          armor: 40,
+          position: { x: player.x + 92 + index * 58, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "mountain-guard-break" }
+    );
+    const [breakAtMs] = scheduledSkillTimes(castRun, "mountain-guard-break");
+    const beforeBreakHtml = renderAppHtml({
+      state: emberState,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, breakAtMs - 1)
+    });
+    const breakRun = stepToElapsed(castRun, breakAtMs);
+    const breakHits = skillHitEvents(breakRun, "mountain-guard-break");
+    const html = renderAppHtml({
+      state: emberState,
+      mode: "combat",
+      combatRun: breakRun
+    });
+
+    expect(skillHitEvents(castRun, "mountain-guard-break")).toHaveLength(0);
+    expect(breakHits).toHaveLength(2);
+    expect(beforeBreakHtml).toContain('data-player-skill-move="mountain-guard-break"');
+    expect(beforeBreakHtml).not.toContain('data-skill-impact-vfx="mountain-guard-break"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="mountain-guard-break"')).toBe(2);
+    expect(html).toContain('data-impact-vfx-shape="mountain-crack"');
+    expect(html).toContain('data-hit-phase="mountain-guard-break"');
+    expect(html).toContain('data-vfx-cue="mountain-guard-break-impact"');
+    expect(html).toContain('data-enemy-motion="guard-break"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-mountain-crack"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="mountain-guard-break"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="ember-mountain-break"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="guard-break"]');
+    expect(stylesCss).toContain('[data-player-skill-vfx="mountain-guard-break"]');
+    expect(stylesCss).toContain('[data-vfx-cue="mountain-guard-break-impact"]');
+    expect(stylesCss).toContain("@keyframes player-ember-mountain-break");
+    expect(stylesCss).toContain("@keyframes weapon-guard-break");
+    expect(stylesCss).toContain("@keyframes mountain-guard-break-cast-core");
+    expect(stylesCss).toContain("@keyframes mountain-guard-break-impact-core");
+  });
+
   it("renders earth-furnace-breaker with staged forge-quake ultimate metadata", () => {
     const ironState = selectBaseClass(createInitialState(), "iron-forge-guardian");
     const state = {

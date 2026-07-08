@@ -2760,3 +2760,24 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 376 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/mirrorflame-burst-check.html` confirmed 180/350 ms timings, no cast/before-lock HP mutation, three lock hits, three burst hits, all targets downed, escaped target produces one delayed miss, monster interruption cancels pending mirrorflame effects, DOM hooks, computed animations `player-liuli-mirrorflame-cast`, `weapon-mirrorflame-fan`, `mirrorflame-cast-core`, `mirrorflame-lock-core`, `mirrorflame-burst-core`, `mirrorflame-burst-ring`, `mirrorflame-burst-shards`, and empty warning/error logs. Temporary page was deleted.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 458 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 102 DNF-Style Mountain Guard Break Strict Impact
+- Continued from the user's clarification: character models can stay lightweight for now, but fight motion, model-following attacks, strict hit frames, skill VFX, monster VFX, and target action changes remain strict acceptance criteria.
+- Used two read-only agents:
+  - Combat audit confirmed `mountain-guard-break`, `anvil-guard`, `molten-wall`, and `black-furnace-aegis` were the remaining fallback skills, with `mountain-guard-break` the highest-impact attack gap.
+  - UI/CSS audit confirmed `mountain-guard-break` had catalog metadata but lacked a dedicated player preset selector, weapon selector, and specific keyframes.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `mountain-guard-break` to schedule a 330 ms impact, avoid cast-frame target mutation, move the player model 32 px, live-recheck targets, delayed MISS on escape, hit moved-in targets, and cancel pending impact when interrupted.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require `ember-mountain-break`, `guard-break`, target-bound `mountain-crack` impact markup, guard-break enemy motion, and dedicated player/weapon/cast/impact CSS keyframes.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t mountain-guard-break --reporter=basic` failed because no scheduled effects existed.
+  - `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t mountain-guard-break --reporter=basic` failed for the same missing scheduled path and missing dedicated CSS.
+- Implemented:
+  - Added `applyMountainGuardBreak()` with a model-following 32 px lunge, strict 330 ms dynamic front hitbox, target cap 2, guard-break status, delayed MISS, and interruption-safe pending impact cancellation.
+  - Added `mountain-guard-break` hit phase and `mountain-guard-break-impact` VFX cue.
+  - Added cast VFX anchoring plus dedicated `player-ember-mountain-break`, `weapon-guard-break`, `mountain-guard-break-cast-*`, and `mountain-guard-break-impact-*` CSS/keyframes.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t mountain-guard-break --reporter=basic`, 2 tests.
+  - Focused GREEN passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t mountain-guard-break --reporter=basic`, 2 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 380 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/mountain-guard-break-check.html` confirmed 330 ms impact timing, no cast/before-impact damage, player movement 240 -> 272, two guard-break hits, escape delayed MISS, moved-in hit, monster interruption cancellation, `data-enemy-motion="guard-break"`, computed animations `player-ember-mountain-break`, `weapon-guard-break`, `mountain-guard-break-cast-core`, `mountain-guard-break-impact-core`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.

@@ -3240,7 +3240,7 @@ describe("combat actions and impact feel", () => {
       { x: 240, y: 340, facing: 1 },
       [{ x: 310, y: 340 }]
     );
-    const broken = performAction(
+    const brokenCast = performAction(
       {
         ...breakRun,
         enemies: breakRun.enemies.map((enemy, index) =>
@@ -3254,7 +3254,12 @@ describe("combat actions and impact feel", () => {
       },
       { type: "skill", skillId: "mountain-guard-break" }
     );
+    const [breakAtMs] = scheduledSkillTimes(brokenCast, "mountain-guard-break");
+    const beforeBreak = stepToElapsed(brokenCast, breakAtMs - 1);
+    const broken = stepToElapsed(brokenCast, breakAtMs);
 
+    expect(skillHitEvents(brokenCast, "mountain-guard-break")).toHaveLength(0);
+    expect(beforeBreak.enemies[0].armorBrokenUntilMs).toBeUndefined();
     expect(broken.enemies[0].armorBrokenUntilMs).toBeGreaterThan(broken.elapsedMs);
     expect(broken.enemies[0].armor).toBeLessThan(40);
     expect(broken.enemies[0].nextAttackAtMs).toBeGreaterThan(broken.elapsedMs);
@@ -5531,6 +5536,134 @@ describe("combat actions and impact feel", () => {
     expect(jumped.enemies[0].attackSkillId).toBeUndefined();
     expect(jumped.enemies[0].controlledUntilMs ?? 0).toBeGreaterThan(jumped.elapsedMs);
     expect(jumped.enemies[0].downed).toBe(true);
+  });
+
+  it("mountain-guard-break lunges before the delayed guard-break frame", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "ember-warden"), 100)),
+      "mountain-breaker"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 334, y: 340, hp: 260, maxHp: 260, armor: 40 },
+        { x: 396, y: 354, hp: 240, maxHp: 240, armor: 32 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "mountain-guard-break" });
+    const [breakAtMs] = scheduledSkillTimes(cast, "mountain-guard-break");
+    const beforeBreak = stepToElapsed(cast, breakAtMs - 1);
+    const broken = stepToElapsed(cast, breakAtMs);
+    const hits = skillHitEvents(broken, "mountain-guard-break");
+
+    expect(breakAtMs).toBe(330);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("mountain-guard-break");
+    expect(cast.player.activeSkillMovement?.endX).toBe(run.player.x + 32);
+    expect(cast.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(cast.enemies.every((enemy) => enemy.armorBrokenUntilMs === undefined)).toBe(true);
+    expect(skillHitEvents(cast, "mountain-guard-break")).toHaveLength(0);
+    expect(skillHitEvents(beforeBreak, "mountain-guard-break")).toHaveLength(0);
+    expect(beforeBreak.player.x).toBeGreaterThan(run.player.x);
+    expect(beforeBreak.player.x).toBeLessThan(run.player.x + 32);
+    expect(hits).toHaveLength(2);
+    expect(hits.map((event) => event.hitPhase)).toEqual(["mountain-guard-break", "mountain-guard-break"]);
+    expect(hits.map((event) => event.vfxCue)).toEqual(["mountain-guard-break-impact", "mountain-guard-break-impact"]);
+    expect(hits.every((event) => event.statusTags?.includes("guard-break"))).toBe(true);
+    expect(broken.enemies.every((enemy) => (enemy.armorBrokenUntilMs ?? 0) > broken.elapsedMs)).toBe(true);
+    expect(broken.enemies.every((enemy) => enemy.nextAttackAtMs > broken.elapsedMs)).toBe(true);
+  });
+
+  it("mountain-guard-break rechecks targets at impact and cancels when interrupted", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "ember-warden"), 100)),
+      "mountain-breaker"
+    );
+    const castWithTarget = performAction(
+      withPlayerAndEnemies(
+        createCombatRun(state, "cinder-kiln-alley"),
+        { x: 240, y: 340, facing: 1 },
+        [{ x: 334, y: 340, hp: 260, maxHp: 260, armor: 40 }]
+      ),
+      { type: "skill", skillId: "mountain-guard-break" }
+    );
+    const [breakAtMs] = scheduledSkillTimes(castWithTarget, "mountain-guard-break");
+    const movedOutBeforeBreak = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: castWithTarget.enemies.map((enemy) => ({
+          ...enemy,
+          position: { x: 720, y: enemy.position.y }
+        }))
+      },
+      breakAtMs
+    );
+
+    expect(skillHitEvents(movedOutBeforeBreak, "mountain-guard-break")).toHaveLength(0);
+    expect(skillMissEvents(movedOutBeforeBreak, "mountain-guard-break")).toHaveLength(1);
+
+    const castWithoutTarget = performAction(
+      withPlayerAndEnemies(
+        createCombatRun(state, "cinder-kiln-alley"),
+        { x: 240, y: 340, facing: 1 },
+        [{ x: 720, y: 340, hp: 260, maxHp: 260, armor: 40 }]
+      ),
+      { type: "skill", skillId: "mountain-guard-break" }
+    );
+    const [lateBreakAtMs] = scheduledSkillTimes(castWithoutTarget, "mountain-guard-break");
+    const movedInBeforeBreak = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: castWithoutTarget.enemies.map((enemy) => ({
+          ...enemy,
+          position: { x: 336, y: enemy.position.y }
+        }))
+      },
+      lateBreakAtMs
+    );
+    const [lateHit] = skillHitEvents(movedInBeforeBreak, "mountain-guard-break");
+
+    expect(lateHit).toMatchObject({
+      hitPhase: "mountain-guard-break",
+      vfxCue: "mountain-guard-break-impact"
+    });
+    expect(skillMissEvents(movedInBeforeBreak, "mountain-guard-break")).toHaveLength(0);
+
+    const interruptBase = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 334, y: 340, hp: 260, maxHp: 260, armor: 40 }]
+    );
+    const interruptingRun: CombatRun = {
+      ...interruptBase,
+      enemies: interruptBase.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 160,
+              attackRecoverUntilMs: 520,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const interruptedCast = performAction(interruptingRun, { type: "skill", skillId: "mountain-guard-break" });
+    const [interruptedBreakAtMs] = scheduledSkillTimes(interruptedCast, "mountain-guard-break");
+    const interrupted = stepToElapsed(interruptedCast, interruptedBreakAtMs);
+    const playerHits = interrupted.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(playerHits).toHaveLength(1);
+    expect(skillHitEvents(interrupted, "mountain-guard-break")).toHaveLength(0);
+    expect(skillMissEvents(interrupted, "mountain-guard-break")).toHaveLength(0);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "mountain-guard-break")).toHaveLength(0);
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
   });
 
   it("earth-furnace-breaker charges before cracking the floor and erupting", () => {

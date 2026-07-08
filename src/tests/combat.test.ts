@@ -5891,7 +5891,7 @@ describe("combat actions and impact feel", () => {
     expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "earth-furnace-breaker")).toHaveLength(0);
   });
 
-  it("meteor-knuckle resolves as staged fall and impact hits with forced knockdown", () => {
+  it("meteor-knuckle schedules staged fall and impact frames instead of cast-frame damage", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1 },
@@ -5901,25 +5901,127 @@ describe("combat actions and impact feel", () => {
       ]
     );
 
-    const meteor = performAction(run, { type: "skill", skillId: "meteor-knuckle" });
-    const meteorHits = meteor.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "meteor-knuckle"
-    );
+    const cast = performAction(run, { type: "skill", skillId: "meteor-knuckle" });
+    const [fallAtMs, impactAtMs] = scheduledSkillTimes(cast, "meteor-knuckle");
+    const beforeFall = stepToElapsed(cast, fallAtMs - 1);
+    const fall = stepToElapsed(cast, fallAtMs);
+    const impact = stepToElapsed(fall, impactAtMs);
+    const meteorHits = skillHitEvents(impact, "meteor-knuckle");
     const hitTimes = [...new Set(meteorHits.map((event) => event.occurredAtMs))];
     const meteorPhases = meteorHits.map((event) => event.hitPhase);
     const fallHits = meteorHits.filter((event) => event.hitPhase === "fall");
     const impactHits = meteorHits.filter((event) => event.hitPhase === "impact");
 
+    expect(skillHitEvents(cast, "meteor-knuckle")).toHaveLength(0);
+    expect(cast.enemies.map((enemy) => enemy.hp)).toEqual([260, 220]);
+    expect(cast.enemies.some((enemy) => enemy.downed || (enemy.armorBrokenUntilMs ?? 0) > cast.elapsedMs)).toBe(false);
+    expect(cast.player.x).toBe(240);
+    expect(cast.player.activeSkillMovement).toMatchObject({
+      skillId: "meteor-knuckle",
+      startX: 240,
+      endX: 278
+    });
+    expect(skillHitEvents(beforeFall, "meteor-knuckle")).toHaveLength(0);
+    expect(skillHitEvents(fall, "meteor-knuckle")).toHaveLength(2);
     expect(meteorHits).toHaveLength(4);
     expect(hitTimes).toHaveLength(2);
-    expect(Math.max(...hitTimes) - Math.min(...hitTimes)).toBeGreaterThanOrEqual(180);
+    expect(impactAtMs - fallAtMs).toBeGreaterThanOrEqual(180);
     expect(meteorPhases).toEqual(["fall", "fall", "impact", "impact"]);
     expect(fallHits.every((event) => event.hitstopMs < impactHits[0].hitstopMs)).toBe(true);
     expect(impactHits.every((event) => event.hitstopMs > 100)).toBe(true);
     expect(impactHits.every((event) => event.statusTags?.includes("guard-break"))).toBe(true);
     expect(impactHits.every((event) => event.actionTags?.includes("knockdown"))).toBe(true);
-    expect(meteor.enemies.every((enemy) => enemy.downed && (enemy.downedUntilMs ?? 0) > meteor.elapsedMs)).toBe(true);
-    expect(meteor.enemies.every((enemy) => (enemy.armorBrokenUntilMs ?? 0) > meteor.elapsedMs)).toBe(true);
+    expect(impact.enemies.every((enemy) => enemy.downed && (enemy.downedUntilMs ?? 0) > impact.elapsedMs)).toBe(true);
+    expect(impact.enemies.every((enemy) => (enemy.armorBrokenUntilMs ?? 0) > impact.elapsedMs)).toBe(true);
+  });
+
+  it("rechecks meteor-knuckle targets at the falling impact frame", () => {
+    const castWithTarget = performAction(
+      withPlayerAndEnemies(
+        createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),
+        { x: 240, y: 340, facing: 1 },
+        [{ x: 330, y: 340, hp: 260, maxHp: 260, armor: 30 }]
+      ),
+      { type: "skill", skillId: "meteor-knuckle" }
+    );
+    const [fallAtMs] = scheduledSkillTimes(castWithTarget, "meteor-knuckle");
+    const movedOutBeforeFall = stepToElapsed(
+      {
+        ...castWithTarget,
+        enemies: castWithTarget.enemies.map((enemy) => ({
+          ...enemy,
+          position: { x: 720, y: enemy.position.y }
+        }))
+      },
+      fallAtMs
+    );
+
+    expect(skillHitEvents(movedOutBeforeFall, "meteor-knuckle")).toHaveLength(0);
+    expect(skillMissEvents(movedOutBeforeFall, "meteor-knuckle")).toHaveLength(1);
+
+    const castWithoutTarget = performAction(
+      withPlayerAndEnemies(
+        createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),
+        { x: 240, y: 340, facing: 1 },
+        [{ x: 720, y: 340, hp: 260, maxHp: 260, armor: 30 }]
+      ),
+      { type: "skill", skillId: "meteor-knuckle" }
+    );
+    const [lateFallAtMs] = scheduledSkillTimes(castWithoutTarget, "meteor-knuckle");
+    const movedInBeforeFall = stepToElapsed(
+      {
+        ...castWithoutTarget,
+        enemies: castWithoutTarget.enemies.map((enemy) => ({
+          ...enemy,
+          position: { x: 336, y: enemy.position.y }
+        }))
+      },
+      lateFallAtMs
+    );
+    const [lateHit] = skillHitEvents(movedInBeforeFall, "meteor-knuckle");
+
+    expect(lateHit).toMatchObject({
+      hitPhase: "fall",
+      vfxCue: "meteor-fall"
+    });
+    expect(skillMissEvents(movedInBeforeFall, "meteor-knuckle")).toHaveLength(0);
+  });
+
+  it("cancels meteor-knuckle staged impacts when monster damage interrupts before the fall", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 330, y: 340, hp: 260, maxHp: 260, armor: 30 }]
+    );
+    const interruptingRun: CombatRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 180,
+              attackRecoverUntilMs: 620,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+
+    const cast = performAction(interruptingRun, { type: "skill", skillId: "meteor-knuckle" });
+    const [, impactAtMs] = scheduledSkillTimes(cast, "meteor-knuckle");
+    const interrupted = stepToElapsed(cast, impactAtMs);
+    const playerHits = interrupted.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(playerHits).toHaveLength(1);
+    expect(skillHitEvents(interrupted, "meteor-knuckle")).toHaveLength(0);
+    expect(skillMissEvents(interrupted, "meteor-knuckle")).toHaveLength(0);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "meteor-knuckle")).toHaveLength(0);
   });
 
   it("makes shield-quake resolve as a delayed area slam with target knockdown", () => {

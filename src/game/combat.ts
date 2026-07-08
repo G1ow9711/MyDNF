@@ -1820,6 +1820,10 @@ function skillMovementDistance(skill: ClassSkillDefinition): number {
     return 74;
   }
 
+  if (skill.id === "meteor-knuckle") {
+    return 38;
+  }
+
   if (skill.id === "earth-furnace-breaker") {
     return 46;
   }
@@ -2207,27 +2211,16 @@ function applyAnvilCrash(run: CombatRun, skill: ClassSkillDefinition, canceledFr
 }
 
 function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
-  const scriptedRun = applySkillStartupMovement(run, skill);
-  const targetingHitbox: PlayerHitboxDefinition = {
-    action: "skill",
-    skillId: skill.id,
-    rangeX: skillRangeX(skill.tags),
-    laneRange: skillLaneRange(skill.tags),
-    targetCap: skillTargetCap(skill.tags),
-    frontOnly: skillIsFrontOnly(skill.tags),
-    damage: skillDamage(run, skill),
-    hitstopMs: 82,
-    knockback: 48,
-    juggle: false,
-    inputToHitMs: skill.animation.hitFrameMs,
-    canceledFromCombo
+  const facing = run.player.facing;
+  const endPosition = {
+    x: clamp(run.player.x + skillMovementDistance(skill) * facing, 0, run.arena.width),
+    y: run.player.y
   };
-  const targets = selectPlayerTargets(scriptedRun, targetingHitbox);
-
-  if (targets.length === 0) {
-    return applyMiss(scriptedRun, targetingHitbox);
-  }
-
+  const castingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs + 220),
+    skill,
+    canceledFromCombo
+  );
   const baseDamage = skillDamage(run, skill);
   const stages: Array<{
     phase: CombatHitPhase;
@@ -2265,25 +2258,31 @@ function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, cancele
   ];
 
   return stages.reduce((nextRun, stage) => {
-    return targets.reduce((stageRun, target) => {
-      return applyHit(stageRun, {
-        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${target.id}`,
-        targetId: target.id,
-        damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
-        hitstopMs: stage.hitstopMs,
-        knockback: stage.knockback,
-        juggle: stage.juggle,
-        action: "skill",
-        skillId: skill.id,
-        inputToHitMs: stage.delayMs,
-        canceledFromCombo,
-        statusTags: stage.statusTags,
-        actionTags: stage.actionTags,
-        hitPhase: stage.phase,
-        vfxCue: stage.vfxCue
-      });
-    }, nextRun);
-  }, scriptedRun);
+    const hitbox: PlayerHitboxDefinition = {
+      action: "skill",
+      skillId: skill.id,
+      rangeX: skillRangeX(skill.tags),
+      laneRange: skillLaneRange(skill.tags),
+      targetCap: skillTargetCap(skill.tags),
+      frontOnly: skillIsFrontOnly(skill.tags),
+      damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
+      hitstopMs: stage.hitstopMs,
+      knockback: stage.knockback,
+      juggle: stage.juggle,
+      inputToHitMs: stage.delayMs,
+      canceledFromCombo,
+      statusTags: stage.statusTags,
+      actionTags: stage.actionTags
+    };
+
+    return schedulePlayerHitboxEffect(nextRun, hitbox, endPosition, facing, {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}`,
+      hitPhase: stage.phase,
+      vfxCue: stage.vfxCue,
+      vfxWindowMs: stage.phase === "impact" ? 720 : 520,
+      missOnEmpty: stage.phase !== "impact"
+    });
+  }, castingRun);
 }
 
 function cinderUppercutHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {

@@ -2270,18 +2270,16 @@ describe("town app shell", () => {
       },
       { type: "skill", skillId: "meteor-knuckle" }
     );
-    const meteorHits = castRun.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "meteor-knuckle"
-    );
+    const [, impactAtMs] = scheduledSkillTimes(castRun, "meteor-knuckle");
+    const impactRun = stepToElapsed(castRun, impactAtMs);
+    const meteorHits = skillHitEvents(impactRun, "meteor-knuckle");
     const html = renderAppHtml({
       state,
       mode: "combat",
-      combatRun: {
-        ...castRun,
-        elapsedMs: Math.max(...meteorHits.map((event) => event.occurredAtMs))
-      }
+      combatRun: impactRun
     });
 
+    expect(skillHitEvents(castRun, "meteor-knuckle")).toHaveLength(0);
     expect(meteorHits).toHaveLength(4);
     expect(html).toContain('class="player-skill-vfx skill-vfx-meteor-knuckle skill-vfx-shape-meteor-impact"');
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-meteor-impact"');

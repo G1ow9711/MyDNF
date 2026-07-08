@@ -4293,26 +4293,25 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run");
     }
 
-    const meteorHits = model.combatRun.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "meteor-knuckle"
-    );
-    const impactAtMs = Math.max(...meteorHits.map((event) => event.occurredAtMs));
+    const [, impactAtMs] = scheduledSkillTimes(model.combatRun, "meteor-knuckle");
+    const impactRun = stepToElapsed(model.combatRun, impactAtMs);
+    const meteorHits = skillHitEvents(impactRun, "meteor-knuckle");
     const castHtml = renderAppHtml(model);
     const impactHtml = renderAppHtml({
       ...model,
-      combatRun: {
-        ...model.combatRun,
-        elapsedMs: impactAtMs
-      }
+      combatRun: impactRun
     });
 
+    expect(skillHitEvents(model.combatRun, "meteor-knuckle")).toHaveLength(0);
     expect(meteorHits).toHaveLength(4);
     expect(castHtml).toContain('data-active-skill-id="meteor-knuckle"');
     expect(castHtml).toContain('data-skill-animation-preset="ember-meteor"');
     expect(castHtml).toContain('data-skill-weapon-arc="meteor-smash"');
     expect(castHtml).toContain('data-skill-vfx-shape="meteor-impact"');
     expect(castHtml).toContain('class="player-skill-vfx skill-vfx-meteor-knuckle skill-vfx-shape-meteor-impact"');
+    expect(castHtml).toContain('data-player-skill-move="meteor-knuckle"');
     expect(castHtml).not.toContain('data-impact-spark="true"');
+    expect(castHtml).not.toContain('data-skill-impact-vfx="meteor-knuckle"');
     expect(impactHtml).toContain('data-hitstop-active="true"');
     expect(impactHtml).toContain('data-screen-shake="ultimate"');
     expect(impactHtml).toContain('data-screen-flash="meteor"');

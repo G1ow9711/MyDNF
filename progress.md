@@ -2849,3 +2849,24 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 390 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/black-aegis-check.html` confirmed 280 ms aegis timing, no cast-frame shield or enemy hit, movement 240 -> 248, shield active only at the aegis frame, post-aegis monster hit damage 9 with shield consumed, startup interruption produced one player hit and no pending aegis effect, and computed animations `player-iron-black-aegis`, `weapon-aegis-raise`, `black-aegis-cast-core`, `black-aegis-cast-ring`, and `black-aegis-cast-sparks`. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 472 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 106 DNF-Style Meteor Knuckle Strict Staged Impact
+- Continued after the user clarified that character modeling can stay simpler for now, but combat action flow, actor motion following attacks, skill effects, and monster/action feedback must remain strict.
+- Selected `meteor-knuckle` because the current UI suggests a staged ultimate while the combat reducer still applies fall/impact hit state at cast time through direct hit application.
+- Used two read-only agents:
+  - Combat audit selected `meteor-knuckle` first, then `liuli-rain`, because both had staged visuals but direct hit application still caused fake delayed damage/state.
+  - UI/CSS audit selected `taotie-flame-breath` as the next visual follow-up because boss breath has hit-index hooks but core/ring effects still rely on generic enemy cast animations.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `meteor-knuckle` to schedule fall/impact frames, keep cast-frame HP/downed/armor-break unchanged, expose model-following movement, recheck targets at the fall frame, and cancel all staged impacts if monster damage interrupts before the fall.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require cast-frame no-impact markup, delayed target-bound meteor VFX, meteor screen flash, knockdown feedback, and dedicated player/weapon/impact animation hooks.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t meteor-knuckle --reporter=basic` failed with `Expected scheduled effects for meteor-knuckle`.
+- Implemented:
+  - Converted `applyMeteorKnuckle()` from direct `applyHit()` calls to two dynamic `schedulePlayerHitboxEffect()` frames at 420 ms and 640 ms.
+  - Added a 38 px meteor lunge to `skillMovementDistance()` and start/end active skill movement so the actor model follows the ultimate instead of mutating position at input.
+  - Preserved `meteor-fall` and `meteor-impact` target VFX cues while letting the existing interruption guard clear pending staged effects on monster hit.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t meteor-knuckle --reporter=basic`, 5 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 390 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/meteor-knuckle-check.html` confirmed scheduled times `[420,640]`, cast hits `0`, cast impact VFX `0`, fall VFX `2`, impact VFX `2`, player animation `player-ember-meteor-crash`, weapon animation `weapon-meteor-smash`, fall core `meteor-fall-core`, impact core `meteor-impact-core`, screen flash true, knockdown true, and empty validation errors. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 474 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

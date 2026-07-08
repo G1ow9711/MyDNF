@@ -986,3 +986,12 @@
 - Duration RED note: the next browser failure showed flame-breath trail computed `0.54s` from the shorthand keyframe selector instead of the runtime `--enemy-vfx-duration` value `0.52s`.
 - CSS note: flame-breath hit-index trail selectors now also require `data-enemy-vfx-cue="taotie-flame-breath-sustain"`, and the shared runtime duration override gained enough specificity to beat cue/hit-index shorthands.
 - Verification note: the durable browser test now covers ash spit, crawler burst, Zheng shockwave, Zheng horn charge, and Taotie flame breath active cue names, uncued idle parts, generic fallback rejection, hit indexes 1/2/3, and runtime VFX durations.
+
+## DNF-Style Room Gate Enter Transition Findings
+- Current priority follows the user's clarification: character and monster modeling may stay simpler for the prototype, but combat flow, model-following actions, input truth, skill VFX, and monster VFX remain strict acceptance gates.
+- Read-only combat audit found `enterRoomGate()` directly called `finishRoom()`, so walking into a gate synchronously changed rooms, spawned enemies, and had no input-locked transition frame.
+- Read-only UI audit found the gate had an `open-rift` idle presentation but no `enter-rift`, no scene transition state, and no player/weapon crossing animation hook.
+- RED note: focused combat/app/UI tests failed because the player entered room 1 immediately, rewards were applied immediately, and rendered HTML never exposed `data-room-gate-transition="entering"` or `data-room-gate-vfx="enter-rift"`.
+- Fix note: room entry now creates a 480 ms `roomTransition`, clears pending effects, locks movement/actions/buffered input, and resolves `finishRoom()` only when `stepCombat()` reaches the transition completion time.
+- UI/CSS note: the combat scene now exposes `data-room-transition-state="entering"`, the player exposes `data-player-room-transition="entering"`, and the gate uses `enter-rift` animations while the player model and weapon animate into the rift.
+- Verification note: focused room-transition tests, the full combat/app/UI suite, and a real Edge/Chrome computed-style regression for `enter-rift` animations passed after the change.

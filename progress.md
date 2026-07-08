@@ -3407,3 +3407,27 @@
   - Full suite initially found one stale static UI smoke selector expectation, then passed after updating it: `npm test -- --reporter=dot`, 14 files / 515 tests.
   - Build initially exposed Node timer global bleed-through after adding `@types/node`; `tsconfig.json` now limits build globals and excludes tests from app typecheck, while `audio-browser.ts` stores timer handles with `ReturnType<typeof globalThis.setInterval>`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- src/tests/render-audio.test.ts --reporter=dot` (14 tests), `npm test -- --reporter=dot` (14 files / 515 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 133 DNF-Style Room Gate Enter Transition
+- Continued from the user's latest clarification: character and monster modeling can stay simpler while the full playable loop is connected, but action smoothness, strict input state, skill effects, monster effects, and visible actor motion remain hard gates.
+- Used read-only parallel agent audits:
+  - Combat audit selected room entry staging because `enterRoomGate()` directly called `finishRoom()` and there was no input-locked transition state.
+  - UI audit confirmed `open-rift` existed only as an idle opened-gate cue; there was no `enter-rift`, scene transition state, or player crossing animation hook.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires gate entry to keep the current `roomIndex`, create an `entering` transition with target room metadata, lock movement, block actions, and only spawn the next room after the transition completes.
+  - `src/tests/app-integration.test.ts` now requires the app to render `enter-rift`, hold rewards until the transition resolves, and settle loot after combat ticks complete the transition.
+  - `src/tests/ui-smoke.test.ts` now verifies `data-room-transition-state="entering"`, `data-player-room-transition="entering"`, and CSS support for `room-gate-enter-rift`.
+- RED evidence:
+  - Focused RED failed because the old code immediately rendered room 1 with a locked gate and no entering state.
+- Implemented:
+  - Added a 480 ms `CombatRoomTransition` state plus `room-transition` event metadata.
+  - `stepCombat()` now advances transition frames before movement/enemy logic, locks player input, clears pending effects, and calls `finishRoom()` only when the transition completes.
+  - `performAction()` and `canEnterRoomGate()` now block during room transitions, preventing repeated entry, buffered attacks, or action spam.
+  - UI reducer now keeps the staged combat run during entry and applies room rewards only after transition completion creates a new loot event.
+  - Combat DOM/CSS now renders `enter-rift`, scene/player transition hooks, and player/weapon rift-entry animations.
+  - Real browser computed-style coverage now verifies `enter-rift` resolves to dedicated gate core/rift/threshold animation names and the runtime 480 ms duration.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --testNamePattern "room gate|combat rooms obvious" --reporter=basic`, 3 matched tests.
+  - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --reporter=dot`, 415 tests.
+  - Real browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --reporter=basic`, 2 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 516 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

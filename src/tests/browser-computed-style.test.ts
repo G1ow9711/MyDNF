@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { computeEnemyVfxStylesInRealBrowser, type EnemyVfxFixture } from "./support/real-browser-computed-style";
+import {
+  computeEnemyVfxStylesInRealBrowser,
+  computeRoomGateStylesInRealBrowser,
+  type EnemyVfxFixture,
+  type RoomGateFixture
+} from "./support/real-browser-computed-style";
 
 const stylesCss = readFileSync("src/styles.css", "utf8");
 const genericEnemyAnimations = ["enemy-cast-pulse", "enemy-core-flicker", "enemy-trail-flow"];
@@ -54,5 +59,20 @@ describe("real browser computed style regressions", () => {
         expect(part.animationDuration).toBe(`${(fixture.vfxDurationMs ?? 460) / 1000}s`);
       }
     }
+  }, 30000);
+
+  it("uses dedicated enter-rift animations for room gate transition", async () => {
+    const fixtures: RoomGateFixture[] = [
+      { key: "open-ready", vfx: "open-rift", transition: "ready", durationMs: 480 },
+      { key: "entering", vfx: "enter-rift", transition: "entering", durationMs: 480 }
+    ];
+    const computed = await computeRoomGateStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed["open-ready"].core.animationName).toContain("room-gate-open-rift");
+    expect(computed["open-ready"].rift.animationName).toBe("room-gate-rift-column");
+    expect(computed["entering"].core.animationName).toContain("room-gate-enter-rift");
+    expect(computed["entering"].rift.animationName).toBe("room-gate-enter-rift-column");
+    expect(computed["entering"].threshold.animationName).toBe("room-gate-enter-threshold");
+    expect(computed["entering"].rift.animationDuration).toBe("0.48s");
   }, 30000);
 });

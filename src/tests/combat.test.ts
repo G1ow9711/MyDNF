@@ -43,6 +43,18 @@ function withHeat(state: GameState, heat: number): GameState {
   };
 }
 
+function completeRoomGateTransition(run: CombatRun): CombatRun {
+  const transition = (
+    run as CombatRun & {
+      roomTransition?: {
+        completeAtMs: number;
+      };
+    }
+  ).roomTransition;
+
+  return transition ? stepCombat(run, {}, transition.completeAtMs - run.elapsedMs) : run;
+}
+
 function readyForAdvancement(state: GameState): GameState {
   return {
     ...state,
@@ -9306,8 +9318,34 @@ describe("room completion", () => {
         y: gate.y
       }
     };
-    const next = enterRoomGate(atGate);
+    const entering = enterRoomGate(atGate);
+    const transition = (
+      entering as CombatRun & {
+        roomTransition?: {
+          state: string;
+          fromRoomIndex: number;
+          targetRoomIndex?: number;
+          gateState: string;
+          completeAtMs: number;
+        };
+      }
+    ).roomTransition;
+    const blockedMove = stepCombat(entering, { moveX: -1, moveY: 0, dash: true }, 160);
+    const blockedAttack = performAction(entering, { type: "light" });
+    const next = completeRoomGateTransition(entering);
 
+    expect(entering.roomIndex).toBe(0);
+    expect(transition).toMatchObject({
+      state: "entering",
+      fromRoomIndex: 0,
+      targetRoomIndex: 1,
+      gateState: "open"
+    });
+    expect(entering.player.actionLockUntilMs).toBeGreaterThan(entering.elapsedMs);
+    expect(blockedMove.roomIndex).toBe(0);
+    expect(blockedMove.player.x).toBe(entering.player.x);
+    expect(blockedAttack.events).toHaveLength(entering.events.length);
+    expect(blockedAttack.player.bufferedAction).toBeUndefined();
     expect(next.roomIndex).toBe(1);
     expect(next.player.x).toBeLessThan(220);
     expect(next.enemies.length).toBeGreaterThan(0);
@@ -9322,24 +9360,24 @@ describe("room completion", () => {
 
   it("marks the boss door and final clear gate distinctly", () => {
     const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
-    const roomOne = enterRoomGate({
+    const roomOne = completeRoomGateTransition(enterRoomGate({
       ...defeatAll(run),
       player: {
         ...run.player,
         x: roomGateForRun(defeatAll(run)).x,
         y: roomGateForRun(defeatAll(run)).y
       }
-    });
+    }));
     const bossGateRun = defeatAll(roomOne);
     const bossGate = roomGateForRun(bossGateRun);
-    const bossRoom = enterRoomGate({
+    const bossRoom = completeRoomGateTransition(enterRoomGate({
       ...bossGateRun,
       player: {
         ...bossGateRun.player,
         x: bossGate.x,
         y: bossGate.y
       }
-    });
+    }));
     const finalClear = defeatAll(bossRoom);
 
     expect(bossGate.state).toBe("boss");

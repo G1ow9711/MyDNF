@@ -8,6 +8,7 @@ import {
   finishRoom,
   performAction,
   roomGateForRun,
+  roomTransitionActive,
   skillCooldownRemaining,
   stepCombat,
   type CombatActionInput,
@@ -1667,6 +1668,13 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   const playerSkillStage = playerSkillVisualState(run);
   const playerSkillStageStyle =
     playerSkillStage.stage === "none" ? "" : ` --player-skill-stage-progress: ${playerSkillStage.progress}%;`;
+  const roomTransition = run.roomTransition;
+  const roomTransitionProgress = roomTransition
+    ? Math.round(Math.min(1, Math.max(0, (run.elapsedMs - roomTransition.startedAtMs) / roomTransition.durationMs)) * 100)
+    : 0;
+  const roomTransitionStyle = roomTransition
+    ? ` --room-transition-progress: ${roomTransitionProgress}%; --room-transition-duration: ${roomTransition.durationMs}ms;`
+    : "";
   const normalAttackMovement = playerNormalAttackMovement(run);
   const skillMotionClass =
     playerMotionName === "skill" && activeSkill ? ` actor-skill-${activeSkill.animation.preset}` : "";
@@ -1710,7 +1718,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   return `
     <div class="combat-actors" data-last-hit-target="${[...hitTargetIds].at(-1) ?? ""}">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-player-normal-attack-active="${playerNormalAttackActive(run) ? "true" : "false"}" data-player-normal-attack-type="${run.player.normalAttackType}" data-player-normal-attack-started-at-ms="${run.player.normalAttackStartedAtMs || ""}" data-player-normal-attack-until-ms="${run.player.normalAttackUntilMs || ""}" data-player-normal-attack-move="${normalAttackMovement?.skillId ?? ""}" data-player-normal-attack-move-progress="${playerSkillMovementProgress(run, normalAttackMovement)}" data-player-normal-attack-start-x="${normalAttackMovement ? Math.round(normalAttackMovement.startX) : ""}" data-player-normal-attack-end-x="${normalAttackMovement ? Math.round(normalAttackMovement.endX) : ""}" data-player-normal-attack-hit-x="${normalAttackMovement ? Math.round(normalAttackMovement.endX) : ""}" data-player-normal-attack-hit-at-ms="${normalAttackMovement ? normalAttackMovement.endAtMs : ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-player-hurt-lock-active="${playerHurtLockActive(run) ? "true" : "false"}" data-player-invulnerable-active="${playerInvulnerableActive(run) ? "true" : "false"}" data-player-invulnerable-until-ms="${run.player.invulnerableUntilMs || ""}" data-player-recovery-state="${playerQuickRecoverActive(run) ? "quick-recover" : playerQuickRecoverReady(run) ? "ready" : "none"}" data-player-recovery-available="${playerQuickRecoverReady(run) ? "true" : "false"}" data-player-quick-recover-active="${playerQuickRecoverActive(run) ? "true" : "false"}" data-player-quick-recover-ready-until-ms="${playerQuickRecoverReady(run) ? run.player.quickRecoverReadyUntilMs : ""}" data-player-quick-recover-started-at-ms="${run.player.quickRecoverStartedAtMs || ""}" data-player-quick-recover-until-ms="${run.player.quickRecoverUntilMs || ""}" data-player-air-state="${airState}" data-player-airborne-active="${playerAirborneActive(run) ? "true" : "false"}" data-player-air-attack-active="${playerAirAttackActive(run) ? "true" : "false"}" data-player-air-attack-used="${run.player.airAttackUsed ? "true" : "false"}" data-player-air-attack-type="${run.player.airAttackType}" data-player-air-attack-started-at-ms="${run.player.airAttackStartedAtMs || ""}" data-player-air-attack-until-ms="${run.player.airAttackUntilMs || ""}" data-player-dash-attack-active="${playerDashAttackActive(run) ? "true" : "false"}" data-player-dash-attack-ready-until-ms="${run.player.dashAttackReadyUntilMs || ""}" data-player-dash-attack-started-at-ms="${run.player.dashAttackStartedAtMs || ""}" data-player-dash-attack-until-ms="${run.player.dashAttackUntilMs || ""}" data-player-airborne-until-ms="${run.player.airborneUntilMs || ""}" data-player-landing-until-ms="${run.player.landingUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-release-source="${releaseSource}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-stage="${playerSkillStage.stage}" data-player-skill-stage-progress="${playerSkillStage.progress}" data-player-skill-stage-duration-ms="${playerSkillStage.durationMs}" data-player-skill-active-frame-ms="${playerSkillStage.activeFrameMs}" data-player-skill-hit-at-ms="${playerSkillStage.hitAtMs}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run, activeSkillMovement)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}${playerSkillStageStyle}">
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-room-transition="${roomTransition?.state ?? "none"}" data-player-room-transition-progress="${roomTransitionProgress || ""}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-player-normal-attack-active="${playerNormalAttackActive(run) ? "true" : "false"}" data-player-normal-attack-type="${run.player.normalAttackType}" data-player-normal-attack-started-at-ms="${run.player.normalAttackStartedAtMs || ""}" data-player-normal-attack-until-ms="${run.player.normalAttackUntilMs || ""}" data-player-normal-attack-move="${normalAttackMovement?.skillId ?? ""}" data-player-normal-attack-move-progress="${playerSkillMovementProgress(run, normalAttackMovement)}" data-player-normal-attack-start-x="${normalAttackMovement ? Math.round(normalAttackMovement.startX) : ""}" data-player-normal-attack-end-x="${normalAttackMovement ? Math.round(normalAttackMovement.endX) : ""}" data-player-normal-attack-hit-x="${normalAttackMovement ? Math.round(normalAttackMovement.endX) : ""}" data-player-normal-attack-hit-at-ms="${normalAttackMovement ? normalAttackMovement.endAtMs : ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-player-hurt-lock-active="${playerHurtLockActive(run) ? "true" : "false"}" data-player-invulnerable-active="${playerInvulnerableActive(run) ? "true" : "false"}" data-player-invulnerable-until-ms="${run.player.invulnerableUntilMs || ""}" data-player-recovery-state="${playerQuickRecoverActive(run) ? "quick-recover" : playerQuickRecoverReady(run) ? "ready" : "none"}" data-player-recovery-available="${playerQuickRecoverReady(run) ? "true" : "false"}" data-player-quick-recover-active="${playerQuickRecoverActive(run) ? "true" : "false"}" data-player-quick-recover-ready-until-ms="${playerQuickRecoverReady(run) ? run.player.quickRecoverReadyUntilMs : ""}" data-player-quick-recover-started-at-ms="${run.player.quickRecoverStartedAtMs || ""}" data-player-quick-recover-until-ms="${run.player.quickRecoverUntilMs || ""}" data-player-air-state="${airState}" data-player-airborne-active="${playerAirborneActive(run) ? "true" : "false"}" data-player-air-attack-active="${playerAirAttackActive(run) ? "true" : "false"}" data-player-air-attack-used="${run.player.airAttackUsed ? "true" : "false"}" data-player-air-attack-type="${run.player.airAttackType}" data-player-air-attack-started-at-ms="${run.player.airAttackStartedAtMs || ""}" data-player-air-attack-until-ms="${run.player.airAttackUntilMs || ""}" data-player-dash-attack-active="${playerDashAttackActive(run) ? "true" : "false"}" data-player-dash-attack-ready-until-ms="${run.player.dashAttackReadyUntilMs || ""}" data-player-dash-attack-started-at-ms="${run.player.dashAttackStartedAtMs || ""}" data-player-dash-attack-until-ms="${run.player.dashAttackUntilMs || ""}" data-player-airborne-until-ms="${run.player.airborneUntilMs || ""}" data-player-landing-until-ms="${run.player.landingUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-release-source="${releaseSource}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-stage="${playerSkillStage.stage}" data-player-skill-stage-progress="${playerSkillStage.progress}" data-player-skill-stage-duration-ms="${playerSkillStage.durationMs}" data-player-skill-active-frame-ms="${playerSkillStage.activeFrameMs}" data-player-skill-hit-at-ms="${playerSkillStage.hitAtMs}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run, activeSkillMovement)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}${playerSkillStageStyle}${roomTransitionStyle}">
         ${playerTrailMarkup(run, playerMotionName, activeSkill)}
         <img class="combat-player-art actor-model actor-model-${playerMotionName}${skillMotionClass}${normalComboMotionClass}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run, activeSkill?.animation)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
         ${weaponLayerMarkup(state, "combat", activeSkill?.animation, playerMotionName, normalComboStep)}
@@ -1727,11 +1735,23 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const roomFailed = run.failed || run.player.defeated;
   const objective = roomFailed ? "failed" : roomCleared ? "cleared" : "active";
   const roomGate = roomGateForRun(run);
+  const activeRoomTransition = roomTransitionActive(run);
+  const roomTransitionProgress = run.roomTransition
+    ? Math.round(Math.min(1, Math.max(0, (run.elapsedMs - run.roomTransition.startedAtMs) / run.roomTransition.durationMs)) * 100)
+    : 0;
   const roomGateVfx =
-    roomGate.state === "locked" ? "sealed" : roomGate.state === "boss" ? "boss-rift" : roomGate.state === "complete" ? "exit-rift" : "open-rift";
-  const roomGateTransition = roomGate.state === "locked" ? "blocked" : "ready";
+    activeRoomTransition
+      ? "enter-rift"
+      : roomGate.state === "locked"
+        ? "sealed"
+        : roomGate.state === "boss"
+          ? "boss-rift"
+          : roomGate.state === "complete"
+            ? "exit-rift"
+            : "open-rift";
+  const roomGateTransition = activeRoomTransition ? "entering" : roomGate.state === "locked" ? "blocked" : "ready";
   const roomGateMarkup = `
-    <div class="room-gate room-gate-${roomGate.state}" data-room-gate="true" data-room-gate-state="${roomGate.state}" data-room-gate-vfx="${roomGateVfx}" data-room-gate-transition="${roomGateTransition}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" style="${combatActorStyle(run, roomGate.x, roomGate.y)}" aria-label="${roomGate.label}">
+    <div class="room-gate room-gate-${roomGate.state}" data-room-gate="true" data-room-gate-state="${roomGate.state}" data-room-gate-vfx="${roomGateVfx}" data-room-gate-transition="${roomGateTransition}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-progress="${roomTransitionProgress || ""}" style="${combatActorStyle(run, roomGate.x, roomGate.y)} --room-transition-duration: ${run.roomTransition?.durationMs ?? 0}ms;" aria-label="${roomGate.label}">
       <span class="room-gate-core"></span>
       <span class="room-gate-rift"></span>
       <span class="room-gate-threshold"></span>
@@ -1739,7 +1759,9 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
     </div>
   `;
   const doorStatusLabel =
-    roomGate.state === "locked"
+    activeRoomTransition
+      ? "穿越房门"
+      : roomGate.state === "locked"
       ? "房门封印"
       : roomGate.state === "boss"
         ? "前往首领房"
@@ -1846,7 +1868,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const commandReductionApplied = latestCast?.inputMethod === "command";
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
@@ -2018,16 +2040,37 @@ function applyFinishedRoom(model: AppModel, finishedRun: CombatRun, roomMessage:
   };
 }
 
+function roomTransitionCompleteMessage(previousRun: CombatRun): string {
+  return previousRun.roomTransition?.gateState === "boss" ? "进入首领房间" : "进入下一房间";
+}
+
+function applyFinishedRoomIfResolved(model: AppModel, previousRun: CombatRun, combatRun: CombatRun): AppModel | undefined {
+  if (combatRun.lootEvents.length <= previousRun.lootEvents.length) {
+    return undefined;
+  }
+
+  return applyFinishedRoom(model, combatRun, roomTransitionCompleteMessage(previousRun));
+}
+
 function enterGateIfReady(model: AppModel, run: CombatRun): AppModel | undefined {
   if (!canEnterRoomGate(run)) {
     return undefined;
   }
 
   const gate = roomGateForRun(run);
-  const finishedRun = enterRoomGate(run);
+  const enteredRun = enterRoomGate(run);
   const message = gate.state === "boss" ? "进入首领房间" : "进入下一房间";
 
-  return applyFinishedRoom(model, finishedRun, message);
+  if (enteredRun.roomTransition) {
+    return {
+      ...model,
+      combatRun: enteredRun,
+      message,
+      audio: playSfx(model.audio, "ui-select")
+    };
+  }
+
+  return applyFinishedRoom(model, enteredRun, message);
 }
 
 export function createAppModel(options: CreateAppModelOptions = {}): AppModel {
@@ -2070,11 +2113,16 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
 
       const roomCleared = model.combatRun.enemies.length === 0 || model.combatRun.enemies.every((enemy) => enemy.hp <= 0);
 
-      if (roomCleared || model.combatRun.failed || model.combatRun.player.defeated) {
+      if ((roomCleared && !model.combatRun.roomTransition) || model.combatRun.failed || model.combatRun.player.defeated) {
         return model;
       }
 
       const combatRun = stepCombat(model.combatRun, {}, combatTickMs);
+      const completedTransition = applyFinishedRoomIfResolved(model, model.combatRun, combatRun);
+
+      if (completedTransition) {
+        return completedTransition;
+      }
 
       return {
         ...model,
@@ -2105,6 +2153,12 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           },
           160
         );
+        const completedTransition = applyFinishedRoomIfResolved(model, model.combatRun, combatRun);
+
+        if (completedTransition) {
+          return completedTransition;
+        }
+
         const gateTransition = enterGateIfReady({ ...model, combatRun }, combatRun);
 
         if (gateTransition) {

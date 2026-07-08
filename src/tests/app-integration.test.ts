@@ -437,8 +437,21 @@ describe("playable app integration actions", () => {
     expect(clearedHtml).toContain('data-room-gate-target-room="1"');
     expect(clearedHtml).not.toContain("settle-button");
 
-    for (let attempt = 0; attempt < 20 && model.combatRun?.roomIndex === 0; attempt += 1) {
+    for (let attempt = 0; attempt < 20 && !renderAppHtml(model).includes('data-room-gate-transition="entering"'); attempt += 1) {
       model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: true });
+    }
+
+    expect(model.combatRun?.roomIndex).toBe(0);
+    expect(model.state.player.currencies.gold).toBe(goldBefore);
+    const enteringHtml = renderAppHtml(model);
+
+    expect(enteringHtml).toContain('data-room-gate-transition="entering"');
+    expect(enteringHtml).toContain('data-room-gate-vfx="enter-rift"');
+    expect(enteringHtml).toContain('data-room-transition-state="entering"');
+    expect(enteringHtml).toContain('data-player-room-transition="entering"');
+
+    for (let tick = 0; tick < 12 && model.combatRun?.roomIndex === 0; tick += 1) {
+      model = reduceAppAction(model, { type: "combatTick" });
     }
 
     expect(model.combatRun?.roomIndex).toBe(1);

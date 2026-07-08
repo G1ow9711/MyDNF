@@ -26,6 +26,22 @@ export type ComputedEnemyVfxStyles = Record<
   }
 >;
 
+export type RoomGateFixture = {
+  key: string;
+  vfx: string;
+  transition: string;
+  durationMs?: number;
+};
+
+export type ComputedRoomGateStyles = Record<
+  string,
+  {
+    core: ComputedVfxPartStyle;
+    rift: ComputedVfxPartStyle;
+    threshold: ComputedVfxPartStyle;
+  }
+>;
+
 type CdpResponse<T> = {
   id?: number;
   result?: T;
@@ -120,6 +136,64 @@ export async function computeEnemyVfxStylesInRealBrowser(
   css: string,
   fixtures: EnemyVfxFixture[]
 ): Promise<ComputedEnemyVfxStyles> {
+  return computeStylesInRealBrowser(
+    css,
+    fixtures.map((fixture) => enemyVfxFixtureMarkup(fixture)).join("\n"),
+    `
+      (() => {
+        const parts = [
+          ["ring", ".enemy-cast-ring"],
+          ["core", ".enemy-cast-core"],
+          ["trail", ".enemy-cast-trail"]
+        ];
+        const result = {};
+        for (const root of document.querySelectorAll("[data-vfx-fixture]")) {
+          result[root.getAttribute("data-vfx-fixture")] = Object.fromEntries(
+            parts.map(([name, selector]) => {
+              const style = getComputedStyle(root.querySelector(selector));
+              return [name, {
+                animationName: style.animationName,
+                animationDuration: style.animationDuration
+              }];
+            })
+          );
+        }
+        return result;
+      })()
+    `
+  );
+}
+
+export async function computeRoomGateStylesInRealBrowser(css: string, fixtures: RoomGateFixture[]): Promise<ComputedRoomGateStyles> {
+  return computeStylesInRealBrowser(
+    css,
+    fixtures.map((fixture) => roomGateFixtureMarkup(fixture)).join("\n"),
+    `
+      (() => {
+        const parts = [
+          ["core", ".room-gate-core"],
+          ["rift", ".room-gate-rift"],
+          ["threshold", ".room-gate-threshold"]
+        ];
+        const result = {};
+        for (const root of document.querySelectorAll("[data-room-gate-fixture]")) {
+          result[root.getAttribute("data-room-gate-fixture")] = Object.fromEntries(
+            parts.map(([name, selector]) => {
+              const style = getComputedStyle(root.querySelector(selector));
+              return [name, {
+                animationName: style.animationName,
+                animationDuration: style.animationDuration
+              }];
+            })
+          );
+        }
+        return result;
+      })()
+    `
+  );
+}
+
+async function computeStylesInRealBrowser<T>(css: string, bodyMarkup: string, expression: string): Promise<T> {
   const browserPath = findBrowserExecutable();
   const profileRoot = join(process.cwd(), ".codex-local", "tmp", "browser-computed-style");
   await mkdir(profileRoot, { recursive: true });
@@ -155,7 +229,7 @@ export async function computeEnemyVfxStylesInRealBrowser(
     await client.send(
       "Runtime.evaluate",
       {
-        expression: `document.open(); document.write(${JSON.stringify(buildFixtureHtml(css, fixtures))}); document.close();`,
+        expression: `document.open(); document.write(${JSON.stringify(buildFixtureHtml(css, bodyMarkup))}); document.close();`,
         awaitPromise: true
       },
       session.sessionId
@@ -168,34 +242,13 @@ export async function computeEnemyVfxStylesInRealBrowser(
     }>(
       "Runtime.evaluate",
       {
-        expression: `
-          (() => {
-            const parts = [
-              ["ring", ".enemy-cast-ring"],
-              ["core", ".enemy-cast-core"],
-              ["trail", ".enemy-cast-trail"]
-            ];
-            const result = {};
-            for (const root of document.querySelectorAll("[data-vfx-fixture]")) {
-              result[root.getAttribute("data-vfx-fixture")] = Object.fromEntries(
-                parts.map(([name, selector]) => {
-                  const style = getComputedStyle(root.querySelector(selector));
-                  return [name, {
-                    animationName: style.animationName,
-                    animationDuration: style.animationDuration
-                  }];
-                })
-              );
-            }
-            return result;
-          })()
-        `,
+        expression,
         returnByValue: true
       },
       session.sessionId
     );
 
-    return evaluation.result.value;
+    return evaluation.result.value as T;
   } finally {
     if (client) {
       await client.send("Browser.close").catch(() => undefined);
@@ -284,7 +337,7 @@ async function removeWithRetry(path: string): Promise<void> {
   throw lastError;
 }
 
-function buildFixtureHtml(css: string, fixtures: EnemyVfxFixture[]): string {
+function buildFixtureHtml(css: string, bodyMarkup: string): string {
   return `<!doctype html>
     <html>
       <head>
@@ -292,12 +345,12 @@ function buildFixtureHtml(css: string, fixtures: EnemyVfxFixture[]): string {
         <style>${css.replace(/<\/style/gi, "<\\/style")}</style>
       </head>
       <body>
-        ${fixtures.map((fixture) => fixtureMarkup(fixture)).join("\n")}
+        ${bodyMarkup}
       </body>
     </html>`;
 }
 
-function fixtureMarkup(fixture: EnemyVfxFixture): string {
+function enemyVfxFixtureMarkup(fixture: EnemyVfxFixture): string {
   const attackDurationMs = fixture.attackDurationMs ?? 660;
   const vfxDurationMs = fixture.vfxDurationMs ?? 460;
   const cue = fixture.cue ?? "";
@@ -316,6 +369,23 @@ function fixtureMarkup(fixture: EnemyVfxFixture): string {
     <i class="enemy-cast-ring"></i>
     <i class="enemy-cast-core"></i>
     <i class="enemy-cast-trail"></i>
+  </div>`;
+}
+
+function roomGateFixtureMarkup(fixture: RoomGateFixture): string {
+  const durationMs = fixture.durationMs ?? 480;
+
+  return `<div
+    data-room-gate-fixture="${escapeAttribute(fixture.key)}"
+    class="room-gate room-gate-open"
+    data-room-gate="true"
+    data-room-gate-vfx="${escapeAttribute(fixture.vfx)}"
+    data-room-gate-transition="${escapeAttribute(fixture.transition)}"
+    style="--room-transition-duration: ${durationMs}ms;"
+  >
+    <span class="room-gate-core"></span>
+    <span class="room-gate-rift"></span>
+    <span class="room-gate-threshold"></span>
   </div>`;
 }
 

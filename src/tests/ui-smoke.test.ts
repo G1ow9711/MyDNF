@@ -6,8 +6,10 @@ import { catalog } from "../data/catalog";
 import {
   applyHit,
   createCombatRun,
+  enterRoomGate,
   finishRoom,
   performAction,
+  roomGateForRun,
   stepCombat,
   type CombatEnemy,
   type CombatHitEvent,
@@ -2820,6 +2822,24 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('[data-room-gate-vfx="open-rift"] .room-gate-rift');
     expect(stylesCss).toContain("@keyframes room-gate-open-rift");
     expect(stylesCss).toContain("@keyframes room-gate-threshold");
+
+    const gate = roomGateForRun(clearedRun);
+    const enteringRun = enterRoomGate({
+      ...clearedRun,
+      player: {
+        ...clearedRun.player,
+        x: gate.x,
+        y: gate.y
+      }
+    });
+    const enteringHtml = renderAppHtml({ state, mode: "combat", combatRun: enteringRun });
+
+    expect(enteringHtml).toContain('data-room-gate-transition="entering"');
+    expect(enteringHtml).toContain('data-room-gate-vfx="enter-rift"');
+    expect(enteringHtml).toContain('data-room-transition-state="entering"');
+    expect(enteringHtml).toContain('data-player-room-transition="entering"');
+    expect(stylesCss).toContain('[data-room-gate-vfx="enter-rift"] .room-gate-rift');
+    expect(stylesCss).toContain("@keyframes room-gate-enter-rift");
   });
 
   it("renders DNF-style skill-slot hotkeys with visible hotkey badge styling", () => {

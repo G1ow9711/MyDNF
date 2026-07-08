@@ -279,6 +279,18 @@ export interface CombatArena {
 
 export type CombatRoomGateState = "locked" | "open" | "boss" | "complete";
 
+export interface CombatRoomTransition {
+  state: "entering";
+  startedAtMs: number;
+  completeAtMs: number;
+  durationMs: number;
+  fromRoomIndex: number;
+  targetRoomIndex?: number;
+  gateState: Exclude<CombatRoomGateState, "locked">;
+  gateX: number;
+  gateY: number;
+}
+
 export interface CombatRoomGate {
   state: CombatRoomGateState;
   x: number;
@@ -345,6 +357,18 @@ export interface CombatRoomClearedEvent {
   kind: "room-cleared";
   dungeonId: DungeonId;
   roomIndex: number;
+}
+
+export interface CombatRoomTransitionEvent {
+  kind: "room-transition";
+  id: string;
+  phase: "enter";
+  dungeonId: DungeonId;
+  fromRoomIndex: number;
+  targetRoomIndex?: number;
+  gateState: Exclude<CombatRoomGateState, "locked">;
+  occurredAtMs: number;
+  completeAtMs: number;
 }
 
 export interface CombatEnemyAttackEvent {
@@ -436,6 +460,7 @@ export type CombatEvent =
   | CombatMissEvent
   | CombatSkillCastEvent
   | CombatRoomClearedEvent
+  | CombatRoomTransitionEvent
   | CombatEnemyAttackEvent
   | CombatPlayerHitEvent
   | CombatPlayerStatusEvent
@@ -469,6 +494,7 @@ export interface CombatRun {
   scheduledEnemyHitEffects: CombatScheduledEnemyHitEffect[];
   scheduledMissEffects: CombatScheduledMissEffect[];
   scheduledArenaHazards: CombatScheduledArenaHazard[];
+  roomTransition?: CombatRoomTransition;
   completed: boolean;
   failed: boolean;
 }
@@ -648,6 +674,7 @@ const roomGateX = 900;
 const roomGateY = 345;
 const roomGateEnterRangeX = 34;
 const roomGateEnterRangeY = 76;
+export const roomGateTransitionDurationMs = 480;
 export const actionBufferWindowMs = 180;
 const backstepDistancePx = 74;
 const backstepEvadeMs = 420;
@@ -1005,6 +1032,49 @@ function clearBufferedAction(player: CombatPlayer): CombatPlayer {
     bufferedAction: undefined,
     bufferedActionQueuedAtMs: undefined,
     bufferedActionExecuteAtMs: undefined
+  };
+}
+
+export function roomTransitionActive(run: Pick<CombatRun, "roomTransition" | "elapsedMs">): boolean {
+  return Boolean(run.roomTransition && run.elapsedMs < run.roomTransition.completeAtMs);
+}
+
+function lockPlayerForRoomTransition(player: CombatPlayer, transition: CombatRoomTransition): CombatPlayer {
+  return {
+    ...clearBufferedAction(player),
+    facing: 1,
+    comboStep: 0,
+    actionLockUntilMs: Math.max(player.actionLockUntilMs, transition.completeAtMs),
+    cancelWindowUntilMs: 0,
+    hitstopUntilMs: Math.min(player.hitstopUntilMs, transition.startedAtMs),
+    boundUntilMs: Math.min(player.boundUntilMs, transition.startedAtMs),
+    airState: "grounded",
+    jumpStartedAtMs: 0,
+    airborneUntilMs: 0,
+    landingUntilMs: 0,
+    airAttackUsed: false,
+    airAttackType: "none",
+    airAttackStartedAtMs: 0,
+    airAttackUntilMs: 0,
+    normalAttackStartedAtMs: 0,
+    normalAttackUntilMs: 0,
+    normalAttackComboStep: 0,
+    normalAttackType: "none",
+    dashAttackReadyUntilMs: 0,
+    dashAttackStartedAtMs: 0,
+    dashAttackUntilMs: 0,
+    quickRecoverReadyUntilMs: 0,
+    quickRecoverStartedAtMs: 0,
+    quickRecoverUntilMs: 0,
+    activeSkillMovement: {
+      skillId: "room-gate-enter",
+      startAtMs: transition.startedAtMs,
+      endAtMs: transition.completeAtMs,
+      startX: player.x,
+      startY: player.y,
+      endX: transition.gateX,
+      endY: transition.gateY
+    }
   };
 }
 
@@ -4004,7 +4074,47 @@ function advanceCombatFrame(run: CombatRun, input: CombatInput, dtMs: number): C
   };
 }
 
+function advanceRoomTransitionFrame(run: CombatRun, dtMs: number): CombatRun {
+  const transition = run.roomTransition;
+
+  if (!transition) {
+    return run;
+  }
+
+  const elapsedMs = run.elapsedMs + dtMs;
+  const frameElapsedMs = Math.min(elapsedMs, transition.completeAtMs);
+  const lockedRun: CombatRun = {
+    ...run,
+    elapsedMs: frameElapsedMs,
+    comboCount: 0,
+    comboExpiresAtMs: 0,
+    player: lockPlayerForRoomTransition(run.player, transition),
+    scheduledEnemyHitEffects: [],
+    scheduledMissEffects: [],
+    scheduledArenaHazards: []
+  };
+
+  if (elapsedMs < transition.completeAtMs) {
+    return lockedRun;
+  }
+
+  return finishRoom({
+    ...lockedRun,
+    elapsedMs: transition.completeAtMs,
+    roomTransition: undefined,
+    player: {
+      ...lockedRun.player,
+      actionLockUntilMs: transition.completeAtMs,
+      activeSkillMovement: undefined
+    }
+  });
+}
+
 export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): CombatRun {
+  if (run.roomTransition) {
+    return advanceRoomTransitionFrame(run, dtMs);
+  }
+
   const elapsedMs = run.elapsedMs + dtMs;
   const buffer = run.player.bufferedAction;
   const bufferExecuteAtMs = run.player.bufferedActionExecuteAtMs;
@@ -5791,6 +5901,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     return run;
   }
 
+  if (run.roomTransition) {
+    return run;
+  }
+
   if (action.type === "jump" && canStartQuickRecover(run)) {
     return performQuickRecoverAction(run);
   }
@@ -6240,6 +6354,10 @@ export function roomGateForRun(run: CombatRun): CombatRoomGate {
 }
 
 export function canEnterRoomGate(run: CombatRun): boolean {
+  if (run.roomTransition) {
+    return false;
+  }
+
   const gate = roomGateForRun(run);
 
   return (
@@ -6254,7 +6372,42 @@ export function enterRoomGate(run: CombatRun): CombatRun {
     throw new Error("Room gate is not open or the player is not close enough to enter");
   }
 
-  return finishRoom(run);
+  const gate = roomGateForRun(run);
+  const completeAtMs = run.elapsedMs + roomGateTransitionDurationMs;
+  const transition: CombatRoomTransition = {
+    state: "entering",
+    startedAtMs: run.elapsedMs,
+    completeAtMs,
+    durationMs: roomGateTransitionDurationMs,
+    fromRoomIndex: run.roomIndex,
+    targetRoomIndex: gate.targetRoomIndex,
+    gateState: gate.state as Exclude<CombatRoomGateState, "locked">,
+    gateX: gate.x,
+    gateY: gate.y
+  };
+  const transitionEvent: CombatRoomTransitionEvent = {
+    kind: "room-transition",
+    id: `room-transition-${run.elapsedMs}-${run.roomIndex}`,
+    phase: "enter",
+    dungeonId: run.dungeonId,
+    fromRoomIndex: run.roomIndex,
+    targetRoomIndex: gate.targetRoomIndex,
+    gateState: transition.gateState,
+    occurredAtMs: run.elapsedMs,
+    completeAtMs
+  };
+
+  return {
+    ...run,
+    comboCount: 0,
+    comboExpiresAtMs: 0,
+    roomTransition: transition,
+    events: [...run.events, transitionEvent],
+    scheduledEnemyHitEffects: [],
+    scheduledMissEffects: [],
+    scheduledArenaHazards: [],
+    player: lockPlayerForRoomTransition(run.player, transition)
+  };
 }
 
 export function finishRoom(run: CombatRun): CombatRun {
@@ -6283,6 +6436,7 @@ export function finishRoom(run: CombatRun): CombatRun {
 
   return {
     ...run,
+    roomTransition: undefined,
     roomIndex: completed ? run.roomIndex : nextRoomIndex,
     comboCount: 0,
     comboExpiresAtMs: 0,

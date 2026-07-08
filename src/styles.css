@@ -6050,6 +6050,22 @@ p {
   animation: room-gate-threshold 1.18s ease-in-out infinite;
 }
 
+[data-room-gate-vfx="enter-rift"] .room-gate-core {
+  animation:
+    gate-pulse 480ms ease-in-out both,
+    room-gate-enter-rift var(--room-transition-duration, 480ms) cubic-bezier(0.2, 0.78, 0.24, 1) both;
+}
+
+[data-room-gate-vfx="enter-rift"] .room-gate-rift {
+  opacity: 1;
+  animation: room-gate-enter-rift-column var(--room-transition-duration, 480ms) cubic-bezier(0.16, 0.9, 0.22, 1) both;
+}
+
+[data-room-gate-vfx="enter-rift"] .room-gate-threshold {
+  opacity: 1;
+  animation: room-gate-enter-threshold var(--room-transition-duration, 480ms) ease-out both;
+}
+
 [data-room-gate-vfx="boss-rift"] .room-gate-rift,
 [data-room-gate-vfx="exit-rift"] .room-gate-rift {
   opacity: 1;
@@ -6111,6 +6127,19 @@ p {
   color: #fef3c7;
   background: rgba(120, 53, 15, 0.9);
   box-shadow: 0 0 18px rgba(250, 204, 21, 0.2);
+}
+
+.combat-scene[data-room-transition-state="entering"] .combat-player .combat-player-art {
+  animation: player-room-gate-enter var(--room-transition-duration, 480ms) cubic-bezier(0.18, 0.82, 0.22, 1) both;
+}
+
+.combat-scene[data-room-transition-state="entering"] .combat-player .weapon-layer {
+  animation: weapon-room-gate-enter var(--room-transition-duration, 480ms) cubic-bezier(0.18, 0.82, 0.22, 1) both;
+}
+
+.combat-scene[data-room-transition-state="entering"] .room-clear-banner {
+  opacity: 0.34;
+  transform: translate(-50%, -50%) scale(0.98);
 }
 
 .room-clear-banner {
@@ -8665,6 +8694,21 @@ p {
   }
 }
 
+@keyframes room-gate-enter-rift {
+  0% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+  48% {
+    filter: brightness(1.35);
+    transform: scale(1.12);
+  }
+  100% {
+    filter: brightness(1.95);
+    transform: scale(1.22);
+  }
+}
+
 @keyframes room-gate-rift-column {
   0%, 100% {
     transform: translateX(-50%) scaleX(0.82) scaleY(0.82);
@@ -8676,6 +8720,24 @@ p {
   }
 }
 
+@keyframes room-gate-enter-rift-column {
+  0% {
+    opacity: 0.72;
+    transform: translateX(-50%) scaleX(0.78) scaleY(0.62);
+    filter: blur(0.4px);
+  }
+  56% {
+    opacity: 1;
+    transform: translateX(-50%) scaleX(1.18) scaleY(1.28);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0.92;
+    transform: translateX(-50%) scaleX(1.42) scaleY(1.46);
+    filter: blur(1.2px);
+  }
+}
+
 @keyframes room-gate-threshold {
   0%, 100% {
     transform: translateX(-50%) scaleX(0.8);
@@ -8684,6 +8746,54 @@ p {
   50% {
     transform: translateX(-50%) scaleX(1.08);
     opacity: 0.98;
+  }
+}
+
+@keyframes room-gate-enter-threshold {
+  0% {
+    opacity: 0.5;
+    transform: translateX(-50%) scaleX(0.84);
+  }
+  66% {
+    opacity: 1;
+    transform: translateX(-50%) scaleX(1.22);
+  }
+  100% {
+    opacity: 0.66;
+    transform: translateX(-50%) scaleX(0.7);
+  }
+}
+
+@keyframes player-room-gate-enter {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: brightness(1);
+  }
+  58% {
+    opacity: 0.96;
+    transform: translate3d(44px, -8px, 0) scale(0.92);
+    filter: brightness(1.26);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(92px, -14px, 0) scale(0.48);
+    filter: brightness(1.8) blur(1.4px);
+  }
+}
+
+@keyframes weapon-room-gate-enter {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  55% {
+    opacity: 0.94;
+    transform: translate3d(38px, -10px, 0) rotate(12deg) scale(0.88);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(86px, -16px, 0) rotate(28deg) scale(0.42);
   }
 }
 

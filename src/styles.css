@@ -1225,6 +1225,18 @@ p {
   animation: weapon-chain-cut var(--skill-duration, 760ms) cubic-bezier(0.1, 0.82, 0.15, 1) both;
 }
 
+.combat-player[data-player-motion="skill"] .combat-weapon[data-weapon-hit-phase="chain-open"] {
+  animation: weapon-flowing-chain-open var(--skill-duration, 760ms) cubic-bezier(0.08, 0.84, 0.14, 1) both;
+}
+
+.combat-player[data-player-motion="skill"] .combat-weapon[data-weapon-hit-phase="chain-cross"] {
+  animation: weapon-flowing-chain-cross var(--skill-duration, 760ms) cubic-bezier(0.08, 0.84, 0.14, 1) both;
+}
+
+.combat-player[data-player-motion="skill"] .combat-weapon[data-weapon-hit-phase="chain-finish"] {
+  animation: weapon-flowing-chain-finish var(--skill-duration, 760ms) cubic-bezier(0.08, 0.84, 0.14, 1) both;
+}
+
 .combat-player[data-player-motion="skill"][data-skill-weapon-arc="trap-cast"] .combat-weapon {
   animation: weapon-trap-cast var(--skill-duration, 640ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
@@ -1674,6 +1686,18 @@ p {
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="liuli-light-chain"] .combat-player-art {
   animation: player-liuli-light-chain-cast var(--skill-duration, 760ms) cubic-bezier(0.1, 0.82, 0.15, 1) both;
+}
+
+.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="chain-open"] .combat-player-art {
+  animation: player-flowing-chain-open var(--skill-duration, 760ms) cubic-bezier(0.08, 0.86, 0.14, 1) both;
+}
+
+.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="chain-cross"] .combat-player-art {
+  animation: player-flowing-chain-cross var(--skill-duration, 760ms) cubic-bezier(0.08, 0.86, 0.14, 1) both;
+}
+
+.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="chain-finish"] .combat-player-art {
+  animation: player-flowing-chain-finish var(--skill-duration, 760ms) cubic-bezier(0.08, 0.86, 0.14, 1) both;
 }
 
 .combat-player[data-player-skill-move="prism-step"] .combat-player-art {
@@ -6426,6 +6450,27 @@ p {
   100% { transform: translateX(0) translateY(0) skewX(0deg) scale(1) scaleX(var(--model-scale-x, 1)); opacity: 1; filter: brightness(1.08); }
 }
 
+@keyframes player-flowing-chain-open {
+  0% { transform: translateX(calc(var(--skill-lunge-x, 44px) * -0.28)) translateY(2px) skewX(-4deg) scale(0.96) scaleX(var(--model-scale-x, 1)); opacity: 0.9; filter: brightness(1.02); }
+  42% { transform: translateX(calc(var(--skill-lunge-x, 44px) * 0.58)) translateY(-7px) skewX(-12deg) scale(1.08) scaleX(var(--model-scale-x, 1)); opacity: 0.76; filter: brightness(1.9) saturate(1.32); }
+  70% { transform: translateX(calc(var(--skill-lunge-x, 44px) * 0.36)) translateY(-2px) skewX(-5deg) scale(1.03) scaleX(var(--model-scale-x, 1)); opacity: 1; filter: brightness(1.42) saturate(1.14); }
+  100% { transform: translateX(0) translateY(0) skewX(0deg) scale(1) scaleX(var(--model-scale-x, 1)); opacity: 1; filter: brightness(1.08); }
+}
+
+@keyframes player-flowing-chain-cross {
+  0% { transform: translateX(calc(var(--skill-lunge-x, 44px) * 0.16)) translateY(-3px) skewX(6deg) scale(1.02) scaleX(var(--model-scale-x, 1)); opacity: 0.88; filter: brightness(1.28); }
+  44% { transform: translateX(calc(var(--skill-lunge-x, 44px) * 1.12)) translateY(1px) skewX(13deg) scale(1.1) scaleX(var(--model-scale-x, 1)); opacity: 0.9; filter: brightness(2.05) saturate(1.38); }
+  72% { transform: translateX(calc(var(--skill-lunge-x, 44px) * 0.7)) translateY(-4px) skewX(-4deg) scale(1.04) scaleX(var(--model-scale-x, 1)); opacity: 1; filter: brightness(1.52) saturate(1.18); }
+  100% { transform: translateX(0) translateY(0) skewX(0deg) scale(1) scaleX(var(--model-scale-x, 1)); opacity: 1; filter: brightness(1.08); }
+}
+
+@keyframes player-flowing-chain-finish {
+  0% { transform: translateX(calc(var(--skill-lunge-x, 44px) * 0.62)) translateY(-2px) skewX(-5deg) scale(1.04) scaleX(var(--model-scale-x, 1)); opacity: 0.82; filter: brightness(1.38); }
+  46% { transform: translateX(calc(var(--skill-lunge-x, 44px) * 1.78)) translateY(-7px) skewX(-15deg) scale(1.14) scaleX(var(--model-scale-x, 1)); opacity: 0.98; filter: brightness(2.24) saturate(1.46); }
+  76% { transform: translateX(calc(var(--skill-lunge-x, 44px) * 0.82)) translateY(2px) skewX(4deg) scale(1.05) scaleX(var(--model-scale-x, 1)); opacity: 1; filter: brightness(1.62) saturate(1.22); }
+  100% { transform: translateX(0) translateY(0) skewX(0deg) scale(1) scaleX(var(--model-scale-x, 1)); opacity: 1; filter: brightness(1.08); }
+}
+
 @keyframes player-ink-snare-cast {
   0% { transform: translateX(calc(var(--skill-lunge-x, 8px) * -0.55)) translateY(0) scale(0.98) scaleX(var(--model-scale-x, 1)); opacity: 0.96; }
   38% { transform: translateX(var(--skill-lunge-x, 8px)) translateY(-5px) rotate(-3deg) scale(1.04) scaleX(var(--model-scale-x, 1)); opacity: 0.86; filter: brightness(1.52) saturate(0.82); }
@@ -6804,6 +6849,27 @@ p {
   46% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 44px) * 1.24), -40%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 36deg)) scale(calc(var(--weapon-scale, 1) * 1.14)); opacity: 0.86; filter: drop-shadow(0 0 38px color-mix(in srgb, var(--weapon-glow, #a78bfa) 88%, transparent)) brightness(1.5); }
   68% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 44px) * 1.86), -62%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 58deg)) scale(calc(var(--weapon-scale, 1) * 1.18)); opacity: 1; filter: drop-shadow(0 0 44px color-mix(in srgb, var(--weapon-glow, #facc15) 82%, transparent)) brightness(1.62); }
   86% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 44px) * 0.54), -44%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 10deg)) scale(calc(var(--weapon-scale, 1) * 1.04)); opacity: 0.92; filter: brightness(1.24); }
+  100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 1; filter: brightness(1); }
+}
+
+@keyframes weapon-flowing-chain-open {
+  0% { transform: translate(calc(-50% - var(--weapon-skill-lunge, 44px) * 0.24), -48%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 38deg)) scale(calc(var(--weapon-scale, 1) * 0.94)); opacity: 0.82; }
+  42% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 44px) * 0.66), -68%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 42deg)) scale(calc(var(--weapon-scale, 1) * 1.12)); opacity: 1; filter: drop-shadow(0 0 38px color-mix(in srgb, var(--weapon-glow, #67e8f9) 96%, transparent)) brightness(1.52); }
+  78% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 44px) * 0.18), -44%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 8deg)) scale(calc(var(--weapon-scale, 1) * 1.02)); opacity: 0.92; filter: brightness(1.2); }
+  100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 1; filter: brightness(1); }
+}
+
+@keyframes weapon-flowing-chain-cross {
+  0% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 44px) * 0.28), -56%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 30deg)) scale(calc(var(--weapon-scale, 1) * 1.02)); opacity: 0.86; filter: brightness(1.18); }
+  44% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 44px) * 1.18), -38%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 54deg)) scale(calc(var(--weapon-scale, 1) * 1.16)); opacity: 1; filter: drop-shadow(0 0 40px color-mix(in srgb, var(--weapon-glow, #a78bfa) 92%, transparent)) brightness(1.58); }
+  78% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 44px) * 0.42), -62%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 10deg)) scale(calc(var(--weapon-scale, 1) * 1.04)); opacity: 0.94; filter: brightness(1.24); }
+  100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 1; filter: brightness(1); }
+}
+
+@keyframes weapon-flowing-chain-finish {
+  0% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 44px) * 0.54), -46%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 20deg)) scale(calc(var(--weapon-scale, 1) * 1.04)); opacity: 0.86; filter: brightness(1.22); }
+  46% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 44px) * 1.86), -70%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 72deg)) scale(calc(var(--weapon-scale, 1) * 1.2)); opacity: 1; filter: drop-shadow(0 0 48px color-mix(in srgb, var(--weapon-glow, #facc15) 86%, transparent)) brightness(1.7); }
+  82% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 44px) * 0.62), -42%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 14deg)) scale(calc(var(--weapon-scale, 1) * 1.06)); opacity: 0.96; filter: brightness(1.28); }
   100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 1; filter: brightness(1); }
 }
 

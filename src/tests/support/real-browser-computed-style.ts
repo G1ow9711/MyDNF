@@ -33,12 +33,27 @@ export type RoomGateFixture = {
   durationMs?: number;
 };
 
+export type PlayerSkillPhaseFixture = {
+  key: string;
+  phase?: string;
+  cue?: string;
+  durationMs?: number;
+};
+
 export type ComputedRoomGateStyles = Record<
   string,
   {
     core: ComputedVfxPartStyle;
     rift: ComputedVfxPartStyle;
     threshold: ComputedVfxPartStyle;
+  }
+>;
+
+export type ComputedPlayerSkillPhaseStyles = Record<
+  string,
+  {
+    player: ComputedVfxPartStyle;
+    weapon: ComputedVfxPartStyle;
   }
 >;
 
@@ -186,6 +201,36 @@ export async function computeRoomGateStylesInRealBrowser(css: string, fixtures: 
               }];
             })
           );
+        }
+        return result;
+      })()
+    `
+  );
+}
+
+export async function computePlayerSkillPhaseStylesInRealBrowser(
+  css: string,
+  fixtures: PlayerSkillPhaseFixture[]
+): Promise<ComputedPlayerSkillPhaseStyles> {
+  return computeStylesInRealBrowser(
+    css,
+    fixtures.map((fixture) => playerSkillPhaseFixtureMarkup(fixture)).join("\n"),
+    `
+      (() => {
+        const result = {};
+        for (const root of document.querySelectorAll("[data-player-phase-fixture]")) {
+          const playerStyle = getComputedStyle(root.querySelector(".combat-player-art"));
+          const weaponStyle = getComputedStyle(root.querySelector(".combat-weapon"));
+          result[root.getAttribute("data-player-phase-fixture")] = {
+            player: {
+              animationName: playerStyle.animationName,
+              animationDuration: playerStyle.animationDuration
+            },
+            weapon: {
+              animationName: weaponStyle.animationName,
+              animationDuration: weaponStyle.animationDuration
+            }
+          };
         }
         return result;
       })()
@@ -386,6 +431,26 @@ function roomGateFixtureMarkup(fixture: RoomGateFixture): string {
     <span class="room-gate-core"></span>
     <span class="room-gate-rift"></span>
     <span class="room-gate-threshold"></span>
+  </div>`;
+}
+
+function playerSkillPhaseFixtureMarkup(fixture: PlayerSkillPhaseFixture): string {
+  const durationMs = fixture.durationMs ?? 760;
+  const phase = fixture.phase ?? "";
+  const cue = fixture.cue ?? "";
+
+  return `<div
+    data-player-phase-fixture="${escapeAttribute(fixture.key)}"
+    class="combat-player"
+    data-player-motion="skill"
+    data-skill-animation-preset="liuli-light-chain"
+    data-skill-weapon-arc="chain-cut"
+    data-player-skill-hit-phase="${escapeAttribute(phase)}"
+    data-player-skill-vfx-cue="${escapeAttribute(cue)}"
+    style="--skill-duration: ${durationMs}ms;"
+  >
+    <span class="combat-player-art"></span>
+    <span class="combat-weapon" data-weapon-hit-phase="${escapeAttribute(phase)}" data-weapon-vfx-cue="${escapeAttribute(cue)}"></span>
   </div>`;
 }
 

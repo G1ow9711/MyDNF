@@ -3431,3 +3431,24 @@
   - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --reporter=dot`, 415 tests.
   - Real browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --reporter=basic`, 2 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 516 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 134 DNF-Style Clear-Room Lock and Flowing Chain Phase Motion
+- Continued from the user's latest clarification: character modeling can stay simpler for now, but action flow, model-following attacks, smooth combat motion, skill VFX, monster VFX, and hit feedback remain strict.
+- Used read-only parallel agent audits:
+  - Combat audit selected the cleared-room `performAction()` gap because attacks could still be started after all enemies were defeated but before walking through the gate.
+  - UI/CSS audit selected `flowing-light-chain` current-phase hooks because the target impact VFX had `chain-open/cross/finish`, but player and weapon animation still used one generic whole-skill animation.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires cleared rooms to block light and skill actions without spending resources or adding cooldowns, while preserving gate movement.
+  - `src/tests/app-integration.test.ts` now requires all three flowing-chain stages to expose player phase/cue attrs, model phase classes, and weapon phase/cue attrs.
+  - `src/tests/ui-smoke.test.ts` now requires flowing-chain finish HTML plus phase-specific player/weapon selectors and keyframes.
+- RED evidence:
+  - Focused combat RED failed because the old cleared-room light action queued `ground-light-0-1`.
+  - Focused app/UI RED failed because no `data-player-skill-hit-phase` or weapon phase attrs existed.
+- Implemented:
+  - `performAction()` now no-ops when the run is completed or the room is already cleared.
+  - `playerSkillVisualState()` now exposes the latest real hit `hitPhase` and `vfxCue`, and combat render passes them to the player root, player model class, and combat weapon layer.
+  - Added phase-specific `flowing-light-chain` player and weapon CSS animations for open, cross, and finish slash stages.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "blocks combat actions after room clear" --reporter=basic`, 1 matched test.
+  - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --testNamePattern "flowing-light-chain" --reporter=basic`, 2 matched tests.
+  - Real browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --reporter=basic`, 3 tests, including browser-resolved `player-flowing-chain-open/cross/finish` and `weapon-flowing-chain-open/cross/finish` animation names.

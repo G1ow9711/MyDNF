@@ -5905,6 +5905,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
     return run;
   }
 
+  if (run.completed || roomIsCleared(run)) {
+    return run;
+  }
+
   if (action.type === "jump" && canStartQuickRecover(run)) {
     return performQuickRecoverAction(run);
   }

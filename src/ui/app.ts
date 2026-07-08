@@ -405,7 +405,9 @@ function weaponLayerMarkup(
   layer: "town" | "combat",
   animation?: SkillAnimationDefinition,
   motion = "",
-  normalComboStep = 0
+  normalComboStep = 0,
+  skillHitPhase = "",
+  skillVfxCue = ""
 ): string {
   const equipped = equippedWeaponAppearanceFor(state);
 
@@ -419,7 +421,7 @@ function weaponLayerMarkup(
   const dashAction = motion === "dash-light" ? "light" : "";
   const combatAttr =
     layer === "combat"
-      ? ` data-combat-weapon-appearance-id="${appearance.id}" data-weapon-arc="${animation?.weaponArc ?? ""}" data-weapon-skill-preset="${animation?.preset ?? ""}" data-weapon-motion="${motion}" data-weapon-air-action="${airAction}" data-weapon-dash-action="${dashAction}" data-weapon-normal-combo-step="${normalComboStep || ""}"`
+      ? ` data-combat-weapon-appearance-id="${appearance.id}" data-weapon-arc="${animation?.weaponArc ?? ""}" data-weapon-skill-preset="${animation?.preset ?? ""}" data-weapon-motion="${motion}" data-weapon-air-action="${airAction}" data-weapon-dash-action="${dashAction}" data-weapon-normal-combo-step="${normalComboStep || ""}" data-weapon-hit-phase="${skillHitPhase}" data-weapon-vfx-cue="${skillVfxCue}"`
       : "";
 
   return `
@@ -665,6 +667,8 @@ interface PlayerSkillVisualState {
   durationMs: string;
   hitAtMs: string;
   activeFrameMs: string;
+  hitPhase: string;
+  vfxCue: string;
 }
 
 function eventAge(run: CombatRun, occurredAtMs: number): number {
@@ -912,7 +916,9 @@ function playerSkillVisualState(run: CombatRun): PlayerSkillVisualState {
     progress: "",
     durationMs: "",
     hitAtMs: "",
-    activeFrameMs: ""
+    activeFrameMs: "",
+    hitPhase: "",
+    vfxCue: ""
   };
   const action = latestPlayerActionEvent(run);
 
@@ -946,7 +952,9 @@ function playerSkillVisualState(run: CombatRun): PlayerSkillVisualState {
     progress,
     durationMs: String(durationMs),
     hitAtMs: String(actionStartAtMs + activeFrameMs),
-    activeFrameMs: String(activeFrameMs)
+    activeFrameMs: String(activeFrameMs),
+    hitPhase: action.kind === "hit" ? action.hitPhase ?? "" : "",
+    vfxCue: action.kind === "hit" ? action.vfxCue ?? "" : ""
   };
 }
 
@@ -1678,6 +1686,8 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   const normalAttackMovement = playerNormalAttackMovement(run);
   const skillMotionClass =
     playerMotionName === "skill" && activeSkill ? ` actor-skill-${activeSkill.animation.preset}` : "";
+  const skillPhaseClass =
+    playerMotionName === "skill" && playerSkillStage.hitPhase ? ` actor-skill-phase-${playerSkillStage.hitPhase}` : "";
   const normalComboStep =
     playerMotionName === "light" ? Math.min(3, Math.max(1, run.player.normalAttackComboStep || run.player.comboStep || 1)) : 0;
   const normalComboMotionClass = normalComboStep > 0 ? ` actor-model-light-${normalComboStep}` : "";
@@ -1718,10 +1728,10 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
 
   return `
     <div class="combat-actors" data-last-hit-target="${[...hitTargetIds].at(-1) ?? ""}">
-      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-room-transition="${roomTransition?.state ?? "none"}" data-player-room-transition-progress="${roomTransitionProgress || ""}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-player-normal-attack-active="${playerNormalAttackActive(run) ? "true" : "false"}" data-player-normal-attack-type="${run.player.normalAttackType}" data-player-normal-attack-started-at-ms="${run.player.normalAttackStartedAtMs || ""}" data-player-normal-attack-until-ms="${run.player.normalAttackUntilMs || ""}" data-player-normal-attack-move="${normalAttackMovement?.skillId ?? ""}" data-player-normal-attack-move-progress="${playerSkillMovementProgress(run, normalAttackMovement)}" data-player-normal-attack-start-x="${normalAttackMovement ? Math.round(normalAttackMovement.startX) : ""}" data-player-normal-attack-end-x="${normalAttackMovement ? Math.round(normalAttackMovement.endX) : ""}" data-player-normal-attack-hit-x="${normalAttackMovement ? Math.round(normalAttackMovement.endX) : ""}" data-player-normal-attack-hit-at-ms="${normalAttackMovement ? normalAttackMovement.endAtMs : ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-player-hurt-lock-active="${playerHurtLockActive(run) ? "true" : "false"}" data-player-invulnerable-active="${playerInvulnerableActive(run) ? "true" : "false"}" data-player-invulnerable-until-ms="${run.player.invulnerableUntilMs || ""}" data-player-recovery-state="${playerQuickRecoverActive(run) ? "quick-recover" : playerQuickRecoverReady(run) ? "ready" : "none"}" data-player-recovery-available="${playerQuickRecoverReady(run) ? "true" : "false"}" data-player-quick-recover-active="${playerQuickRecoverActive(run) ? "true" : "false"}" data-player-quick-recover-ready-until-ms="${playerQuickRecoverReady(run) ? run.player.quickRecoverReadyUntilMs : ""}" data-player-quick-recover-started-at-ms="${run.player.quickRecoverStartedAtMs || ""}" data-player-quick-recover-until-ms="${run.player.quickRecoverUntilMs || ""}" data-player-air-state="${airState}" data-player-airborne-active="${playerAirborneActive(run) ? "true" : "false"}" data-player-air-attack-active="${playerAirAttackActive(run) ? "true" : "false"}" data-player-air-attack-used="${run.player.airAttackUsed ? "true" : "false"}" data-player-air-attack-type="${run.player.airAttackType}" data-player-air-attack-started-at-ms="${run.player.airAttackStartedAtMs || ""}" data-player-air-attack-until-ms="${run.player.airAttackUntilMs || ""}" data-player-dash-attack-active="${playerDashAttackActive(run) ? "true" : "false"}" data-player-dash-attack-ready-until-ms="${run.player.dashAttackReadyUntilMs || ""}" data-player-dash-attack-started-at-ms="${run.player.dashAttackStartedAtMs || ""}" data-player-dash-attack-until-ms="${run.player.dashAttackUntilMs || ""}" data-player-airborne-until-ms="${run.player.airborneUntilMs || ""}" data-player-landing-until-ms="${run.player.landingUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-release-source="${releaseSource}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-stage="${playerSkillStage.stage}" data-player-skill-stage-progress="${playerSkillStage.progress}" data-player-skill-stage-duration-ms="${playerSkillStage.durationMs}" data-player-skill-active-frame-ms="${playerSkillStage.activeFrameMs}" data-player-skill-hit-at-ms="${playerSkillStage.hitAtMs}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run, activeSkillMovement)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}${playerSkillStageStyle}${roomTransitionStyle}">
+      <div class="combat-actor combat-player" data-player-facing="${run.player.facing}" data-player-motion="${playerMotionName}" data-player-state="${playerState(run)}" data-player-room-transition="${roomTransition?.state ?? "none"}" data-player-room-transition-progress="${roomTransitionProgress || ""}" data-player-combo-step="${run.player.comboStep}" data-player-combo-count="${run.comboCount}" data-player-normal-combo-step="${normalComboStep || ""}" data-player-normal-attack-active="${playerNormalAttackActive(run) ? "true" : "false"}" data-player-normal-attack-type="${run.player.normalAttackType}" data-player-normal-attack-started-at-ms="${run.player.normalAttackStartedAtMs || ""}" data-player-normal-attack-until-ms="${run.player.normalAttackUntilMs || ""}" data-player-normal-attack-move="${normalAttackMovement?.skillId ?? ""}" data-player-normal-attack-move-progress="${playerSkillMovementProgress(run, normalAttackMovement)}" data-player-normal-attack-start-x="${normalAttackMovement ? Math.round(normalAttackMovement.startX) : ""}" data-player-normal-attack-end-x="${normalAttackMovement ? Math.round(normalAttackMovement.endX) : ""}" data-player-normal-attack-hit-x="${normalAttackMovement ? Math.round(normalAttackMovement.endX) : ""}" data-player-normal-attack-hit-at-ms="${normalAttackMovement ? normalAttackMovement.endAtMs : ""}" data-shield-active="${playerShieldActive(run) ? "true" : "false"}" data-evade-active="${playerEvadeActive(run) ? "true" : "false"}" data-reflect-active="${playerReflectActive(run) ? "true" : "false"}" data-player-bound-active="${playerBoundActive(run) ? "true" : "false"}" data-player-bound-until-ms="${run.player.boundUntilMs || ""}" data-player-hurt-lock-active="${playerHurtLockActive(run) ? "true" : "false"}" data-player-invulnerable-active="${playerInvulnerableActive(run) ? "true" : "false"}" data-player-invulnerable-until-ms="${run.player.invulnerableUntilMs || ""}" data-player-recovery-state="${playerQuickRecoverActive(run) ? "quick-recover" : playerQuickRecoverReady(run) ? "ready" : "none"}" data-player-recovery-available="${playerQuickRecoverReady(run) ? "true" : "false"}" data-player-quick-recover-active="${playerQuickRecoverActive(run) ? "true" : "false"}" data-player-quick-recover-ready-until-ms="${playerQuickRecoverReady(run) ? run.player.quickRecoverReadyUntilMs : ""}" data-player-quick-recover-started-at-ms="${run.player.quickRecoverStartedAtMs || ""}" data-player-quick-recover-until-ms="${run.player.quickRecoverUntilMs || ""}" data-player-air-state="${airState}" data-player-airborne-active="${playerAirborneActive(run) ? "true" : "false"}" data-player-air-attack-active="${playerAirAttackActive(run) ? "true" : "false"}" data-player-air-attack-used="${run.player.airAttackUsed ? "true" : "false"}" data-player-air-attack-type="${run.player.airAttackType}" data-player-air-attack-started-at-ms="${run.player.airAttackStartedAtMs || ""}" data-player-air-attack-until-ms="${run.player.airAttackUntilMs || ""}" data-player-dash-attack-active="${playerDashAttackActive(run) ? "true" : "false"}" data-player-dash-attack-ready-until-ms="${run.player.dashAttackReadyUntilMs || ""}" data-player-dash-attack-started-at-ms="${run.player.dashAttackStartedAtMs || ""}" data-player-dash-attack-until-ms="${run.player.dashAttackUntilMs || ""}" data-player-airborne-until-ms="${run.player.airborneUntilMs || ""}" data-player-landing-until-ms="${run.player.landingUntilMs || ""}" data-dodge-result="${playerDodgeResult(run)}" data-prism-chain="${run.player.prismChain}" data-last-skill-id="${run.player.lastSkillId ?? ""}" data-active-skill-id="${activeSkill?.skillId ?? ""}" data-skill-release-source="${releaseSource}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-skill-animation-preset="${activeSkill?.animation.preset ?? ""}" data-skill-weapon-arc="${activeSkill?.animation.weaponArc ?? ""}" data-skill-vfx-shape="${activeSkill?.animation.vfxShape ?? ""}" data-skill-duration-ms="${activeSkill?.animation.durationMs ?? ""}" data-player-skill-stage="${playerSkillStage.stage}" data-player-skill-stage-progress="${playerSkillStage.progress}" data-player-skill-stage-duration-ms="${playerSkillStage.durationMs}" data-player-skill-active-frame-ms="${playerSkillStage.activeFrameMs}" data-player-skill-hit-at-ms="${playerSkillStage.hitAtMs}" data-player-skill-hit-phase="${playerSkillStage.hitPhase}" data-player-skill-vfx-cue="${playerSkillStage.vfxCue}" data-player-skill-move="${activeSkillMovement?.skillId ?? ""}" data-player-skill-move-progress="${playerSkillMovementProgress(run, activeSkillMovement)}" data-player-skill-move-end-x="${activeSkillMovement ? Math.round(activeSkillMovement.endX) : ""}" style="${combatActorStyle(run, run.player.x, run.player.y)}${playerSkillStageStyle}${roomTransitionStyle}">
         ${playerTrailMarkup(run, playerMotionName, activeSkill)}
-        <img class="combat-player-art actor-model actor-model-${playerMotionName}${skillMotionClass}${normalComboMotionClass}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run, activeSkill?.animation)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
-        ${weaponLayerMarkup(state, "combat", activeSkill?.animation, playerMotionName, normalComboStep)}
+        <img class="combat-player-art actor-model actor-model-${playerMotionName}${skillMotionClass}${skillPhaseClass}${normalComboMotionClass}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run, activeSkill?.animation)}" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
+        ${weaponLayerMarkup(state, "combat", activeSkill?.animation, playerMotionName, normalComboStep, playerSkillStage.hitPhase, playerSkillStage.vfxCue)}
         <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>
       </div>
       ${enemyActors}

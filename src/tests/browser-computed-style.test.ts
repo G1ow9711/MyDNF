@@ -2,8 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   computeEnemyVfxStylesInRealBrowser,
+  computePlayerSkillPhaseStylesInRealBrowser,
   computeRoomGateStylesInRealBrowser,
   type EnemyVfxFixture,
+  type PlayerSkillPhaseFixture,
   type RoomGateFixture
 } from "./support/real-browser-computed-style";
 
@@ -74,5 +76,26 @@ describe("real browser computed style regressions", () => {
     expect(computed["entering"].rift.animationName).toBe("room-gate-enter-rift-column");
     expect(computed["entering"].threshold.animationName).toBe("room-gate-enter-threshold");
     expect(computed["entering"].rift.animationDuration).toBe("0.48s");
+  }, 30000);
+
+  it("uses flowing-light-chain phase animations for the player and weapon in the browser cascade", async () => {
+    const fixtures: PlayerSkillPhaseFixture[] = [
+      { key: "generic" },
+      { key: "open", phase: "chain-open", cue: "flowing-chain-open" },
+      { key: "cross", phase: "chain-cross", cue: "flowing-chain-cross" },
+      { key: "finish", phase: "chain-finish", cue: "flowing-chain-finish" }
+    ];
+    const computed = await computePlayerSkillPhaseStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.generic.player.animationName).toBe("player-liuli-light-chain-cast");
+    expect(computed.generic.weapon.animationName).toBe("weapon-chain-cut");
+    expect(computed.open.player.animationName).toBe("player-flowing-chain-open");
+    expect(computed.open.weapon.animationName).toBe("weapon-flowing-chain-open");
+    expect(computed.cross.player.animationName).toBe("player-flowing-chain-cross");
+    expect(computed.cross.weapon.animationName).toBe("weapon-flowing-chain-cross");
+    expect(computed.finish.player.animationName).toBe("player-flowing-chain-finish");
+    expect(computed.finish.weapon.animationName).toBe("weapon-flowing-chain-finish");
+    expect(computed.finish.player.animationDuration).toBe("0.76s");
+    expect(computed.finish.weapon.animationDuration).toBe("0.76s");
   }, 30000);
 });

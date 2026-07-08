@@ -9300,6 +9300,25 @@ describe("enemy attacks and player defeat", () => {
 });
 
 describe("room completion", () => {
+  it("blocks combat actions after room clear while still allowing gate movement", () => {
+    const run = createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley");
+    const cleared = defeatAll(run);
+    const light = performAction(cleared, { type: "light" });
+    const skill = performAction(cleared, { type: "skill", skillId: "anvil-crash" });
+    const moved = stepCombat(cleared, { moveX: 1, moveY: 0, dash: true }, 80);
+
+    expect(light.events).toHaveLength(cleared.events.length);
+    expect(light.scheduledEnemyHitEffects).toHaveLength(0);
+    expect(light.scheduledMissEffects).toHaveLength(0);
+    expect(light.player.normalAttackType).toBe("none");
+    expect(skill.events.filter((event) => event.kind === "skill-cast")).toHaveLength(0);
+    expect(skill.scheduledEnemyHitEffects).toHaveLength(0);
+    expect(skill.scheduledMissEffects).toHaveLength(0);
+    expect(skill.player.resource.current).toBe(cleared.player.resource.current);
+    expect(skillCooldownRemaining(skill, "anvil-crash")).toBe(0);
+    expect(moved.player.x).toBeGreaterThan(cleared.player.x);
+  });
+
   it("opens a room gate after clear and requires walking to it before entering the next room", () => {
     const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
     const defeated = defeatAll(run);

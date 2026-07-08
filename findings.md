@@ -941,4 +941,13 @@
 - Motion note: `mountain-crack-hammer` now moves the player model 30 px toward the hammer impact endpoint, and both stagger/impact hitboxes resolve from that endpoint. This keeps the model and hitbox aligned.
 - Superarmor note: mountain hammer intentionally keeps the existing heavy-hammer behavior where an earlier monster hit in the same large frame does not cancel queued hammer stages. This preserves prior tested combat priority while adding model-following movement.
 - Browser validation note: temporary live page confirmed `spark-combo` transitions from windup progress `99` to active progress `100`, and `mountain-crack-hammer` exposes move hook `mountain-crack-hammer`, end x `270`, move/stage progress `76`, player animation `player-iron-mountain-crack-cast`, and weapon animation `weapon-mountain-hammer`.
-- Queue note: UI audit found a future P0 candidate: enemy skill-specific class data is currently emitted as `data-enemy-skill-motion-class` instead of an actual class, so future tests should verify the real computed animation hook or promote the value to the element class list.
+- Queue note: the former enemy skill-specific class gap has been addressed in the later enemy skill hook pass.
+
+## DNF-Style Enemy Skill Hook Timing Findings
+- Current priority follows the user's clarification: character and monster geometry can stay lightweight, but combat motion smoothness, strict hit frames, player/enemy action changes, skill VFX, and monster VFX remain hard gates.
+- Read-only UI audit confirmed `actor-enemy-skill-*` was only emitted through `data-enemy-skill-motion-class`, so previous substring tests did not prove that the monster bitmap model actually carried a skill-specific class.
+- RED note: focused app/UI tests failed after requiring `actor-enemy-skill-*` on the enemy `<img>` class list and after requiring crawler burst telegraph/active VFX to expose synchronized attack/VFX duration attributes and inline variables.
+- UI note: enemy model images now receive the real `actor-enemy-skill-${skillId}` class while retaining the old data attribute for compatibility.
+- Timing note: monster telegraphs now receive `--enemy-attack-duration`; active monster VFX receives both `--enemy-attack-duration` and `--enemy-vfx-duration`, so the windup warning follows the attack timeline while the explosion/sustain VFX follows its event window.
+- CSS note: high-specificity duration overrides keep existing cue-specific animation names but bind telegraph child layers and enemy cast ring/core/trail durations to runtime variables.
+- Browser validation note: temporary live page confirmed crawler burst model class `actor-enemy-skill-ash-crawler-burst`, model animation `monster-ash-crawler-burst` at `0.66s`, telegraph zone `ash-crawler-burst-telegraph` at `0.66s`, active ring/core/trail `ash-crawler-burst-*` at `0.46s`, and no browser warning/error logs.

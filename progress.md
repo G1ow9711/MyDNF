@@ -3302,3 +3302,24 @@
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/player-skill-stage-check.html` confirmed `spark-combo` windup progress `99`, active progress `100`, animation `player-ember-spark-combo`, and `mountain-crack-hammer` movement hook, end x `270`, progress `76`, player animation `player-iron-mountain-crack-cast`, and weapon animation `weapon-mountain-hammer`. Temporary page was deleted after validation.
   - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 422 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), HTTP 200 from `http://127.0.0.1:5178/`, `npm test -- --reporter=dot` (13 files / 507 tests), and `npm run build`.
+
+## Task 128 DNF-Style Enemy Skill Hook Timing
+- Continued from the user's clarification: character and monster modeling may stay lightweight during the playable prototype, but attack motion smoothness, model-following action, strict timing, skill VFX, and monster VFX remain strict acceptance gates.
+- Used one read-only agent:
+  - UI/CSS audit confirmed `actor-enemy-skill-*` existed only as `data-enemy-skill-motion-class`, not as a real class on the monster bitmap node, and telegraph/active monster VFX did not receive runtime attack/VFX duration variables.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` now requires enemy model images to carry the real `actor-enemy-skill-*` class for ash spit, Zheng horn charge, and crawler burst.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` now require crawler burst telegraph and active VFX to expose `data-enemy-attack-duration-ms`, `data-enemy-vfx-duration-ms`, `--enemy-attack-duration`, and `--enemy-vfx-duration`.
+  - `src/tests/ui-smoke.test.ts` now requires CSS duration overrides for telegraph timing and enemy VFX child layers.
+- RED evidence:
+  - Focused RED failed because the model class was still only a data attribute and CSS lacked the new runtime VFX duration binding.
+- Implemented:
+  - Added `enemyAttackPresentationTiming()` in `src/ui/app.ts` to derive attack duration from live enemy attack state and active VFX duration from the attack event window.
+  - Added real `actor-enemy-skill-${skillId}` classes to enemy image nodes while preserving `data-enemy-skill-motion-class`.
+  - Added runtime duration attributes and variables to enemy telegraph and enemy skill VFX roots.
+  - Added CSS duration overrides so telegraph zone/edge follow `--enemy-attack-duration` and active enemy cast ring/core/trail follow `--enemy-vfx-duration`.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --testNamePattern "crawler burst|runtime attack timing|monster skill effects" --reporter=dot`, 4 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 422 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/enemy-skill-hooks-check.html` confirmed crawler burst model class, model animation `monster-ash-crawler-burst` at `0.66s`, telegraph `ash-crawler-burst-telegraph` at `0.66s`, active ring/core/trail `ash-crawler-burst-*` at `0.46s`, and no browser warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 507 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

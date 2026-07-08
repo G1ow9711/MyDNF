@@ -950,7 +950,7 @@ describe("playable app integration actions", () => {
     const windupHtml = renderAppHtml(model);
 
     expect(windupHtml).toMatch(
-      /class="enemy-art actor-model actor-model-attack"[^>]+style="[^"]*--enemy-lunge-x: -20px;/
+      /class="enemy-art actor-model actor-model-attack actor-enemy-skill-ash-ember-spit"[^>]+style="[^"]*--enemy-lunge-x: -20px;/
     );
 
     model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
@@ -1001,7 +1001,7 @@ describe("playable app integration actions", () => {
     expect(chargeHtml).toContain('data-enemy-attack-duration-ms="780"');
     expect(chargeHtml).toContain('data-enemy-attack-progress="0.00"');
     expect(chargeHtml).toMatch(
-      /class="enemy-art actor-model actor-model-attack"[^>]+style="[^"]*--enemy-lunge-x: -64px;[^"]*--enemy-attack-duration: 780ms;[^"]*--enemy-attack-progress: 0.00;/
+      /class="enemy-art actor-model actor-model-attack actor-enemy-skill-zheng-horn-charge"[^>]+style="[^"]*--enemy-lunge-x: -64px;[^"]*--enemy-attack-duration: 780ms;[^"]*--enemy-attack-progress: 0.00;/
     );
 
     let spitModel = createAppModel({ storage: new MemoryStorage() });
@@ -1015,7 +1015,7 @@ describe("playable app integration actions", () => {
     expect(spitHtml).toContain('data-enemy-attack-skill-id="ash-ember-spit"');
     expect(spitHtml).toContain('data-enemy-attack-duration-ms="520"');
     expect(spitHtml).toMatch(
-      /class="enemy-art actor-model actor-model-attack"[^>]+style="[^"]*--enemy-lunge-x: -20px;[^"]*--enemy-attack-duration: 520ms;/
+      /class="enemy-art actor-model actor-model-attack actor-enemy-skill-ash-ember-spit"[^>]+style="[^"]*--enemy-lunge-x: -20px;[^"]*--enemy-attack-duration: 520ms;/
     );
   });
 
@@ -4578,7 +4578,9 @@ describe("playable app integration actions", () => {
     const windupHtml = renderAppHtml(model);
 
     expect(windupHtml).toContain('data-enemy-motion="attack"');
-    expect(windupHtml).toContain('class="enemy-art actor-model actor-model-attack"');
+    expect(windupHtml).toMatch(
+      /class="enemy-art actor-model actor-model-attack actor-enemy-skill-ash-ember-spit"[^>]+data-enemy-skill-motion-class="actor-enemy-skill-ash-ember-spit"/
+    );
     expect(windupHtml).toContain('data-enemy-telegraph="ash-ember-spit"');
     expect(windupHtml).toContain('data-telegraph-phase="windup"');
     expect(windupHtml).toContain('data-telegraph-shape="cone"');
@@ -5039,9 +5041,14 @@ describe("playable app integration actions", () => {
 
     expect(windupHtml).toContain('data-enemy-motion="attack"');
     expect(windupHtml).toContain('data-enemy-attack-skill-id="ash-crawler-burst"');
-    expect(windupHtml).toContain('actor-enemy-skill-ash-crawler-burst');
+    expect(windupHtml).toMatch(
+      /class="enemy-art actor-model actor-model-attack actor-enemy-skill-ash-crawler-burst"[^>]+data-enemy-skill-motion-class="actor-enemy-skill-ash-crawler-burst"/
+    );
     expect(windupHtml).toContain('data-enemy-telegraph="ash-crawler-burst"');
     expect(windupHtml).toContain('data-telegraph-shape="circle"');
+    expect(windupHtml).toMatch(
+      /class="enemy-telegraph[^"]*enemy-telegraph-ash-crawler-burst"[^>]+data-enemy-attack-duration-ms="660"[^>]+data-enemy-vfx-duration-ms="660"[^>]+style="[^"]*--enemy-attack-duration: 660ms;[^"]*--enemy-vfx-duration: 660ms;/
+    );
     expect(windupHtml).not.toContain('data-enemy-skill-vfx="ash-crawler-burst"');
 
     for (let guard = 0; guard < 6; guard += 1) {
@@ -5065,6 +5072,9 @@ describe("playable app integration actions", () => {
     expect(burstHtml).toContain('data-enemy-skill-vfx="ash-crawler-burst"');
     expect(burstHtml).toContain('data-enemy-attack-phase="active"');
     expect(burstHtml).toContain('data-enemy-vfx-cue="ash-crawler-burst-explode"');
+    expect(burstHtml).toMatch(
+      /class="enemy-skill-vfx enemy-skill-ash-crawler-burst"[^>]+data-enemy-attack-duration-ms="660"[^>]+data-enemy-vfx-duration-ms="460"[^>]+style="[^"]*--enemy-attack-duration: 660ms;[^"]*--enemy-vfx-duration: 460ms;/
+    );
     expect(burstHtml).toContain('data-combat-feedback="enemy-skill-hit"');
     expect(burstHtml).toContain('data-feedback-skill-id="ash-crawler-burst"');
     expect(burstHtml).toContain('data-player-feedback-cue="player-hurt-heavy"');

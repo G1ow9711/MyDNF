@@ -591,6 +591,27 @@ function enemyModelMotionStyle(run: CombatRun, enemy: CombatEnemy, attackVisual:
   return `--model-scale-x: ${directionToPlayer}; --enemy-lunge-x: ${lungePx}px;${attackVars} --hit-react-x: ${18 * run.player.facing}px;`;
 }
 
+function enemyAttackPresentationTiming(
+  run: CombatRun,
+  enemy: CombatEnemy,
+  event?: CombatEnemyAttackEvent
+): EnemyAttackPresentationTiming {
+  const attackVisual = enemyAttackVisualState(enemy, run.elapsedMs);
+  const attackDurationMs =
+    attackVisual.durationMs ||
+    (enemy.attackStartedAtMs !== undefined && enemy.attackRecoverUntilMs !== undefined
+      ? Math.max(1, enemy.attackRecoverUntilMs - enemy.attackStartedAtMs)
+      : 0);
+  const fallbackDurationMs = attackDurationMs || event?.vfxWindowMs || 520;
+  const vfxDurationMs = event?.phase === "windup" ? fallbackDurationMs : event?.vfxWindowMs || fallbackDurationMs;
+
+  return {
+    attackDurationMs: fallbackDurationMs,
+    vfxDurationMs,
+    styleVars: ` --enemy-attack-duration: ${fallbackDurationMs}ms; --enemy-vfx-duration: ${vfxDurationMs}ms;`
+  };
+}
+
 function enemyHpPercent(enemy: CombatEnemy): number {
   if (enemy.maxHp <= 0) {
     return 0;
@@ -627,6 +648,12 @@ interface EnemyAttackVisualState {
   stage: "none" | "windup" | "active" | "recovery";
   durationMs: number;
   progress: string;
+}
+
+interface EnemyAttackPresentationTiming {
+  attackDurationMs: number;
+  vfxDurationMs: number;
+  styleVars: string;
 }
 
 interface PlayerSkillVisualState {
@@ -1481,10 +1508,12 @@ function renderCombatVfx(run: CombatRun): string {
 
       const effect = enemySkillEffect(enemy, event.skillId);
       const telegraphShape = enemyTelegraphShape(effect.id);
+      const timing = enemyAttackPresentationTiming(run, enemy, event);
+      const effectStyle = `${combatActorStyle(run, enemy.position.x, enemy.position.y)}${timing.styleVars}`;
       const telegraph =
         event.phase === "windup"
           ? `
-            <div class="enemy-telegraph enemy-telegraph-${telegraphShape} enemy-telegraph-${effect.id}" data-enemy-id="${enemy.id}" data-enemy-telegraph="${effect.id}" data-telegraph-phase="${event.phase}" data-telegraph-shape="${telegraphShape}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+            <div class="enemy-telegraph enemy-telegraph-${telegraphShape} enemy-telegraph-${effect.id}" data-enemy-id="${enemy.id}" data-enemy-telegraph="${effect.id}" data-telegraph-phase="${event.phase}" data-telegraph-shape="${telegraphShape}" data-enemy-attack-duration-ms="${timing.attackDurationMs}" data-enemy-vfx-duration-ms="${timing.vfxDurationMs}" style="${effectStyle}">
               <span class="enemy-telegraph-zone"></span>
               <span class="enemy-telegraph-edge"></span>
             </div>
@@ -1493,7 +1522,7 @@ function renderCombatVfx(run: CombatRun): string {
       const skillVfx =
         event.phase !== "windup"
           ? `
-            <div class="enemy-skill-vfx enemy-skill-${effect.id}" data-enemy-id="${enemy.id}" data-enemy-skill-vfx="${effect.id}" data-enemy-attack-phase="${event.phase}" data-enemy-attack-hit-index="${event.hitIndex ?? ""}" data-enemy-attack-total-hits="${event.totalHits ?? ""}" data-enemy-vfx-cue="${event.vfxCue ?? ""}" aria-label="${effect.label}" style="${combatActorStyle(run, enemy.position.x, enemy.position.y)}">
+            <div class="enemy-skill-vfx enemy-skill-${effect.id}" data-enemy-id="${enemy.id}" data-enemy-skill-vfx="${effect.id}" data-enemy-attack-phase="${event.phase}" data-enemy-attack-hit-index="${event.hitIndex ?? ""}" data-enemy-attack-total-hits="${event.totalHits ?? ""}" data-enemy-vfx-cue="${event.vfxCue ?? ""}" data-enemy-attack-duration-ms="${timing.attackDurationMs}" data-enemy-vfx-duration-ms="${timing.vfxDurationMs}" aria-label="${effect.label}" style="${effectStyle}">
               <span class="enemy-cast-ring"></span>
               <span class="enemy-cast-core"></span>
               <span class="enemy-cast-trail"></span>
@@ -1663,7 +1692,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
         <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-enemy-attack-stage="${attackVisual.stage}" data-enemy-attack-duration-ms="${attackVisual.durationMs || ""}" data-enemy-attack-progress="${attackVisual.progress}" data-hit-recent="${hitRecent ? "true" : "false"}" data-hit-action="${recentTargetHit?.action ?? ""}" data-hit-phase="${recentTargetHit?.hitPhase ?? ""}" data-hit-air-action="${hitAirAction}" data-enemy-hit-air-action="${hitAirAction}" data-hit-dash-action="${hitDashAction}" data-enemy-hit-dash-action="${hitDashAction}" data-enemy-hit-ground-light-step="${hitGroundLightStep}" data-hit-vfx-cue="${recentTargetHit?.vfxCue ?? ""}" data-enemy-hit-slide-active="${hitSlide.active ? "true" : "false"}" data-enemy-hit-slide-progress="${hitSlide.progress.toFixed(2)}" data-enemy-hit-slide-start-x="${hitSlide.start ? Math.round(hitSlide.start.x) : ""}" data-enemy-hit-slide-start-y="${hitSlide.start ? Math.round(hitSlide.start.y) : ""}" data-enemy-hit-slide-end-x="${hitSlide.end ? Math.round(hitSlide.end.x) : ""}" data-enemy-hit-slide-end-y="${hitSlide.end ? Math.round(hitSlide.end.y) : ""}" data-enemy-hit-slide-duration-ms="${enemyHitSlideDurationMs}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy, hitSlide.position)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
-            <img class="enemy-art actor-model actor-model-${motion}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy, attackVisual)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
+            <img class="enemy-art actor-model actor-model-${motion}${enemySkillMotionClass ? ` ${enemySkillMotionClass}` : ""}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy, attackVisual)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
           </div>
           <div class="enemy-health" aria-label="${enemy.displayName} HP ${enemy.hp}/${enemy.maxHp}">
             <span class="enemy-health-fill" style="--hp: ${hpPercent}%;"></span>

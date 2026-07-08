@@ -5302,6 +5302,11 @@ p {
   animation: taotie-forge-shackle-telegraph-edge 720ms linear infinite;
 }
 
+.enemy-telegraph[data-enemy-telegraph] .enemy-telegraph-zone,
+.enemy-telegraph[data-enemy-telegraph] .enemy-telegraph-edge {
+  animation-duration: var(--enemy-attack-duration, 660ms);
+}
+
 .enemy-cast-ring {
   left: 50%;
   bottom: -8px;
@@ -5678,6 +5683,12 @@ p {
     linear-gradient(90deg, transparent, rgba(127, 29, 29, 0.36), rgba(248, 113, 113, 0.82), rgba(253, 224, 71, 0.62), transparent),
     radial-gradient(ellipse at 50% 50%, rgba(251, 146, 60, 0.62), transparent 62%);
   animation: taotie-forge-shackle-slam-trail 620ms ease-out both;
+}
+
+.enemy-skill-vfx[data-enemy-skill-vfx] .enemy-cast-ring,
+.enemy-skill-vfx[data-enemy-skill-vfx] .enemy-cast-core,
+.enemy-skill-vfx[data-enemy-skill-vfx] .enemy-cast-trail {
+  animation-duration: var(--enemy-vfx-duration, var(--enemy-attack-duration, 560ms));
 }
 
 .enemy-summon-vfx {

@@ -461,29 +461,45 @@ describe("town app shell", () => {
     );
     expect(crawlerHtml).toContain('data-enemy-telegraph="ash-crawler-burst"');
     expect(crawlerHtml).toContain('data-telegraph-shape="circle"');
-    expect(crawlerHtml).toContain('actor-enemy-skill-ash-crawler-burst');
+    expect(crawlerHtml).toMatch(
+      /class="enemy-art actor-model actor-model-attack actor-enemy-skill-ash-crawler-burst"[^>]+data-enemy-skill-motion-class="actor-enemy-skill-ash-crawler-burst"/
+    );
+    expect(crawlerHtml).toMatch(
+      /class="enemy-telegraph[^"]*enemy-telegraph-ash-crawler-burst"[^>]+data-enemy-attack-duration-ms="660"[^>]+data-enemy-vfx-duration-ms="660"[^>]+style="[^"]*--enemy-attack-duration: 660ms;[^"]*--enemy-vfx-duration: 660ms;/
+    );
     expect(renderAppHtml({ state, mode: "combat", combatRun: eliteRun })).toContain(
       'data-enemy-telegraph="zheng-shockwave"'
     );
     expect(zhengChargeHtml).toContain('data-enemy-telegraph="zheng-horn-charge"');
     expect(zhengChargeHtml).toContain('data-telegraph-shape="line"');
-    expect(zhengChargeHtml).toContain('actor-enemy-skill-zheng-horn-charge');
+    expect(zhengChargeHtml).toMatch(
+      /class="enemy-art actor-model actor-model-attack actor-enemy-skill-zheng-horn-charge"[^>]+data-enemy-skill-motion-class="actor-enemy-skill-zheng-horn-charge"/
+    );
     expect(renderAppHtml({ state, mode: "combat", combatRun: bossRun })).toContain(
       'data-enemy-telegraph="taotie-flame-breath"'
     );
     expect(taotieDevourHtml).toContain('data-enemy-telegraph="taotie-devour-pull"');
     expect(taotieDevourHtml).toContain('data-telegraph-shape="circle"');
-    expect(taotieDevourHtml).toContain('actor-enemy-skill-taotie-devour-pull');
+    expect(taotieDevourHtml).toMatch(
+      /class="enemy-art actor-model actor-model-attack actor-enemy-skill-taotie-devour-pull"[^>]+data-enemy-skill-motion-class="actor-enemy-skill-taotie-devour-pull"/
+    );
     expect(taotieSummonHtml).toContain('data-enemy-telegraph="taotie-ash-summon"');
     expect(taotieSummonHtml).toContain('data-telegraph-shape="circle"');
-    expect(taotieSummonHtml).toContain('actor-enemy-skill-taotie-ash-summon');
+    expect(taotieSummonHtml).toMatch(
+      /class="enemy-art actor-model actor-model-attack actor-enemy-skill-taotie-ash-summon"[^>]+data-enemy-skill-motion-class="actor-enemy-skill-taotie-ash-summon"/
+    );
     expect(taotieShackleHtml).toContain('data-enemy-telegraph="taotie-forge-shackle"');
     expect(taotieShackleHtml).toContain('data-telegraph-shape="circle"');
-    expect(taotieShackleHtml).toContain('actor-enemy-skill-taotie-forge-shackle');
+    expect(taotieShackleHtml).toMatch(
+      /class="enemy-art actor-model actor-model-attack actor-enemy-skill-taotie-forge-shackle"[^>]+data-enemy-skill-motion-class="actor-enemy-skill-taotie-forge-shackle"/
+    );
     expect(activeTrashHtml).toContain('data-enemy-skill-vfx="ash-ember-spit"');
     expect(activeTrashHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-ash-ember-spit"');
     expect(activeCrawlerHtml).toContain('data-enemy-skill-vfx="ash-crawler-burst"');
     expect(activeCrawlerHtml).toContain('data-enemy-vfx-cue="ash-crawler-burst-explode"');
+    expect(activeCrawlerHtml).toMatch(
+      /class="enemy-skill-vfx enemy-skill-ash-crawler-burst"[^>]+data-enemy-attack-duration-ms="660"[^>]+data-enemy-vfx-duration-ms="460"[^>]+style="[^"]*--enemy-attack-duration: 660ms;[^"]*--enemy-vfx-duration: 460ms;/
+    );
     expect(activeCrawlerHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-ash-crawler-burst"');
     expect(activeEliteHtml).toContain('data-enemy-skill-vfx="zheng-shockwave"');
     expect(activeEliteHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-zheng-shockwave"');
@@ -494,13 +510,17 @@ describe("town app shell", () => {
     expect(activeBossHtml).toContain('data-enemy-attack-hit-index="1"');
     expect(activeBossHtml).toContain('data-enemy-attack-total-hits="3"');
     expect(activeBossHtml).toContain('data-enemy-vfx-cue="taotie-flame-breath-sustain"');
-    expect(activeBossHtml).toContain('actor-enemy-skill-taotie-flame-breath');
+    expect(activeBossHtml).toMatch(
+      /class="enemy-art actor-model actor-model-attack actor-enemy-skill-taotie-flame-breath"[^>]+data-enemy-skill-motion-class="actor-enemy-skill-taotie-flame-breath"/
+    );
     expect(activeBossHtml).toContain(
       'class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-flame-breath"'
     );
     expect(activeTaotieDevourHtml).toContain('data-enemy-skill-vfx="taotie-devour-pull"');
     expect(activeTaotieDevourHtml).toContain('data-enemy-vfx-cue="taotie-devour-bite"');
-    expect(activeTaotieDevourHtml).toContain('actor-enemy-skill-taotie-devour-pull');
+    expect(activeTaotieDevourHtml).toMatch(
+      /class="enemy-art actor-model actor-model-attack actor-enemy-skill-taotie-devour-pull"[^>]+data-enemy-skill-motion-class="actor-enemy-skill-taotie-devour-pull"/
+    );
     expect(activeTaotieDevourHtml).toContain(
       'class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-devour-pull"'
     );
@@ -683,6 +703,8 @@ describe("town app shell", () => {
 
   it("syncs monster attack animation duration to runtime attack timing", () => {
     expect(stylesCss).toContain("animation-duration: var(--enemy-attack-duration, 520ms);");
+    expect(stylesCss).toContain("animation-duration: var(--enemy-attack-duration, 660ms);");
+    expect(stylesCss).toContain("animation-duration: var(--enemy-vfx-duration, var(--enemy-attack-duration, 560ms));");
   });
 
   it("renders taotie boss phase and forge collapse arena hazard effects", () => {

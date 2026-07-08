@@ -793,3 +793,19 @@
 - Test gap note: the old CSS put bind ring/core/trail animations on `.enemy-skill-taotie-forge-shackle` without requiring `data-enemy-vfx-cue="taotie-forge-shackle-bind"`, so an uncued active VFX node would still play bind animation.
 - CSS note: the base forge-shackle ring/core/trail now set `animation: none`, while bind and slam animations are selected only by their exact `data-enemy-vfx-cue` values.
 - Browser validation note: live computed-style validation confirmed uncued forge-shackle VFX parts resolve to `none`, bind resolves to `taotie-forge-shackle-ring`, `taotie-forge-shackle-bind-core`, and `taotie-forge-shackle-chain-trail`, and slam resolves to `taotie-forge-shackle-slam-ring`, `taotie-forge-shackle-slam-core`, and `taotie-forge-shackle-slam-trail` with an empty error list.
+
+## DNF-Style Taotie Devour And Ash Summon Cue-Driven VFX Findings
+- Current priority remains strict boss skill feedback: phase-specific boss VFX must not animate from broad skill classes before an active cue exists.
+- Local audit found `taotie-devour-pull` and `taotie-ash-summon` had the same broad-selector problem as forge shackle: ring/core/trail animations were attached directly to `.enemy-skill-*`, while combat events provide exact active cues `taotie-devour-bite` and `taotie-ash-summon-rift`.
+- CSS note: both boss skills now set base ring/core/trail `animation: none`; `taotie-devour-bite` enables the devour vortex ring/core/trail, and `taotie-ash-summon-rift` enables the summon rift ring/core/trail.
+- Browser validation note: live computed-style validation confirmed uncued devour/summon VFX parts resolve to `none`, devour active VFX resolves to `taotie-devour-vortex-ring/core/trail`, summon active VFX resolves to `taotie-ash-summon-rift-ring/core/trail`, and the temporary check page reported an empty error list.
+- Queue note: a read-only follow-up audit selected `flowing-light-chain` next because its staged three-hit visual currently locks targets at cast time instead of rechecking live positions at hit frames.
+
+## DNF-Style Flowing Light Chain Live Hit-Frame Recheck Findings
+- Current priority follows the user's latest clarification: character modeling can stay simpler for now, but combat animation flow, model-following attacks, strict hit frames, hit feedback, skill VFX, monster VFX, and action-state changes remain hard acceptance criteria.
+- Read-only audit found `flowing-light-chain` scheduled staged-looking hits, but still selected target ids at the cast frame. That meant enemies that moved out could still be hit, and enemies that moved into the slash path before the real hit frame could be ignored.
+- RED note: the first live-recheck test was corrected to create a real third enemy. The initial helper only repositioned existing room enemies, and this room starts with two enemies.
+- Combat note: `flowing-light-chain` now uses dynamic scheduled hitboxes for its 220/340/470 ms slash frames, rechecking live enemy positions at each frame instead of carrying cast-frame target ids.
+- MISS note: no-target feedback is delayed until the 220 ms opening slash and only emits once; cross/finish frames do not spam MISS when still empty.
+- Browser validation note: a temporary local page confirmed times `[220,340,470]`, three hits only on the moved-in third target, old target HP stayed `[180,180]`, MISS count stayed `0`, and computed animations resolved to `player-liuli-light-chain-cast`, `weapon-chain-cut`, `flowing-chain-cast-*`, and `flowing-chain-impact-*` with no browser warnings/errors.
+- Cleanup note: the old `selectFlowingLightChainTargets()` cast-frame helper was removed to prevent future regression back to input-frame target locking.

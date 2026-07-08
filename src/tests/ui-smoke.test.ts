@@ -629,6 +629,50 @@ describe("town app shell", () => {
     );
   });
 
+  it("resolves taotie devour and ash summon monster VFX only from active cues", () => {
+    const enemySkillRoot = (skillId: string, cue: string): CssElementSnapshot => ({
+      classList: ["enemy-skill-vfx", `enemy-skill-${skillId}`],
+      attributes: {
+        "data-enemy-skill-vfx": skillId,
+        "data-enemy-vfx-cue": cue
+      }
+    });
+    const enemySkillPart = (root: CssElementSnapshot, className: string): CssElementSnapshot => ({
+      classList: [className],
+      parent: root
+    });
+    const devourUncued = enemySkillRoot("taotie-devour-pull", "");
+    const devourActive = enemySkillRoot("taotie-devour-pull", "taotie-devour-bite");
+    const summonUncued = enemySkillRoot("taotie-ash-summon", "");
+    const summonActive = enemySkillRoot("taotie-ash-summon", "taotie-ash-summon-rift");
+
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(devourUncued, "enemy-cast-ring"))).toBe("none");
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(devourUncued, "enemy-cast-core"))).toBe("none");
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(devourUncued, "enemy-cast-trail"))).toBe("none");
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(devourActive, "enemy-cast-ring"))).toBe(
+      "taotie-devour-vortex-ring"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(devourActive, "enemy-cast-core"))).toBe(
+      "taotie-devour-vortex-core"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(devourActive, "enemy-cast-trail"))).toBe(
+      "taotie-devour-vortex-trail"
+    );
+
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(summonUncued, "enemy-cast-ring"))).toBe("none");
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(summonUncued, "enemy-cast-core"))).toBe("none");
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(summonUncued, "enemy-cast-trail"))).toBe("none");
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(summonActive, "enemy-cast-ring"))).toBe(
+      "taotie-ash-summon-rift-ring"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(summonActive, "enemy-cast-core"))).toBe(
+      "taotie-ash-summon-rift-core"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(summonActive, "enemy-cast-trail"))).toBe(
+      "taotie-ash-summon-rift-trail"
+    );
+  });
+
   it("limits taotie summon emerge animation to idle spawned monsters so attack motion can take over", () => {
     expect(stylesCss).toContain('.combat-enemy[data-enemy-spawn-source="taotie-ash-summon"][data-enemy-motion="idle"] .enemy-art');
     expect(stylesCss).not.toContain(

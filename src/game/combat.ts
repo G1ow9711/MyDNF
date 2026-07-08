@@ -3455,30 +3455,13 @@ const flowingLightChainStages: Array<{
   }
 ];
 
-function selectFlowingLightChainTargets(run: CombatRun, endPosition: CombatVector, skill: ClassSkillDefinition): CombatEnemy[] {
-  const minX = Math.min(run.player.x, endPosition.x) - 24;
-  const maxX = Math.max(run.player.x, endPosition.x) + 28;
-  const laneRange = Math.max(46, skillLaneRange(skill.tags));
-
-  return run.enemies
-    .filter((enemy) => {
-      if (enemy.hp <= 0) {
-        return false;
-      }
-
-      const enemyMinX = enemy.position.x - enemy.hurtbox.width / 2;
-      const enemyMaxX = enemy.position.x + enemy.hurtbox.width / 2;
-      const yDistance = axisDistanceOutsideHalfSize(enemy.position.y - run.player.y, enemy.hurtbox.height / 2);
-
-      return enemyMaxX >= minX && enemyMinX <= maxX && yDistance <= laneRange;
-    })
-    .sort((left, right) => (left.position.x - right.position.x) * run.player.facing)
-    .slice(0, 2);
-}
-
 function applyFlowingLightChain(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const endPosition = {
     x: clamp(run.player.x + run.player.facing * 142, 0, run.arena.width),
+    y: run.player.y
+  };
+  const chainCenter = {
+    x: (run.player.x + endPosition.x) / 2,
     y: run.player.y
   };
   const movingRun = appendSkillCastEvent(
@@ -3486,45 +3469,31 @@ function applyFlowingLightChain(run: CombatRun, skill: ClassSkillDefinition, can
     skill,
     canceledFromCombo
   );
-  const targetingHitbox: PlayerHitboxDefinition = {
-    action: "skill",
-    skillId: skill.id,
-    rangeX: 172,
-    laneRange: 52,
-    targetCap: 2,
-    frontOnly: false,
-    damage: skillDamage(run, skill),
-    hitstopMs: 52,
-    knockback: 24,
-    juggle: false,
-    inputToHitMs: skill.animation.hitFrameMs,
-    canceledFromCombo
-  };
-  const targets = selectFlowingLightChainTargets(run, endPosition, skill);
 
-  if (targets.length === 0) {
-    return applyMiss(movingRun, targetingHitbox);
-  }
+  return flowingLightChainStages.reduce((stageRun, stage, index) => {
+    const hitbox: PlayerHitboxDefinition = {
+      action: "skill",
+      skillId: skill.id,
+      rangeX: Math.abs(endPosition.x - run.player.x) / 2 + 40,
+      laneRange: 52,
+      targetCap: 2,
+      frontOnly: false,
+      damage: Math.max(1, Math.round(skillDamage(run, skill) * stage.damageMultiplier)),
+      hitstopMs: stage.hitstopMs,
+      knockback: stage.knockback,
+      juggle: false,
+      inputToHitMs: stage.delayMs,
+      canceledFromCombo,
+      statusTags: stage.statusTags
+    };
 
-  return targets.reduce((targetRun, target, targetIndex) => {
-    return flowingLightChainStages.reduce((stageRun, stage) => {
-      return scheduleEnemyHitEffect(stageRun, {
-        id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}-${targetIndex}-${target.id}`,
-        targetId: target.id,
-        damage: Math.max(1, Math.round(skillDamage(run, skill) * stage.damageMultiplier)),
-        hitstopMs: stage.hitstopMs,
-        knockback: stage.knockback,
-        juggle: false,
-        action: "skill",
-        skillId: skill.id,
-        inputToHitMs: stage.delayMs,
-        canceledFromCombo,
-        statusTags: stage.statusTags,
-        hitPhase: stage.phase,
-        vfxCue: stage.cue,
-        vfxWindowMs: 260
-      });
-    }, targetRun);
+    return schedulePlayerHitboxEffect(stageRun, hitbox, chainCenter, run.player.facing, {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}`,
+      hitPhase: stage.phase,
+      vfxCue: stage.cue,
+      vfxWindowMs: 260,
+      missOnEmpty: index === 0
+    });
   }, movingRun);
 }
 

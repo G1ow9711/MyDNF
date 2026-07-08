@@ -2957,3 +2957,38 @@
   - Focused GREEN passed: `npx vitest run src/tests/ui-smoke.test.ts -t "taotie forge shackle" --reporter=basic`, 1 test.
   - Related UI/app/audio suite passed: `npx vitest run src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts src/tests/render-audio.test.ts --reporter=basic`, 190 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/taotie-shackle-style-check.html` confirmed uncued ring/core/trail animations are `none`, bind animations are `taotie-forge-shackle-ring`, `taotie-forge-shackle-bind-core`, and `taotie-forge-shackle-chain-trail`, slam animations are `taotie-forge-shackle-slam-ring`, `taotie-forge-shackle-slam-core`, and `taotie-forge-shackle-slam-trail`, and validation errors are empty. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+
+## Task 112 DNF-Style Taotie Devour And Ash Summon Cue-Driven VFX
+- Continued the boss monster VFX strictness work by applying the same cue-driven rule to `taotie-devour-pull` and `taotie-ash-summon`.
+- Added RED coverage:
+  - `src/tests/ui-smoke.test.ts` now requires devour/summon active VFX to resolve no animation without a cue, `taotie-devour-bite` to resolve devour vortex ring/core/trail, and `taotie-ash-summon-rift` to resolve summon rift ring/core/trail.
+- RED evidence:
+  - `npx vitest run src/tests/ui-smoke.test.ts -t "taotie devour and ash summon" --reporter=basic` failed with uncued devour ring resolving to `taotie-devour-vortex-ring` instead of `none`.
+- Implemented:
+  - Changed base `taotie-devour-pull` and `taotie-ash-summon` ring/core/trail animations to `none`.
+  - Added exact active-cue selectors for `taotie-devour-bite` and `taotie-ash-summon-rift`.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/ui-smoke.test.ts -t "taotie devour and ash summon" --reporter=basic`, 1 test.
+  - Related UI/app/audio suite passed: `npx vitest run src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts src/tests/render-audio.test.ts --reporter=basic`, 191 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/taotie-boss-vfx-cue-check.html` confirmed uncued devour/summon ring/core/trail animations are `none`, active devour animations are `taotie-devour-vortex-ring`, `taotie-devour-vortex-core`, and `taotie-devour-vortex-trail`, active summon animations are `taotie-ash-summon-rift-ring`, `taotie-ash-summon-rift-core`, and `taotie-ash-summon-rift-trail`, and validation errors are empty. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+- Agent audit:
+  - A read-only follow-up audit recommended `flowing-light-chain` next because its staged three-hit action still locks targets at cast time and lacks live hit-frame recheck coverage.
+
+## Task 113 DNF-Style Flowing Light Chain Live Hit-Frame Recheck
+- Continued from the user's clarified priority: character models can stay simpler while combat action smoothness, strict hit frames, model-following motion, skill VFX, monster VFX, and hit feedback remain strict.
+- Used a read-only agent audit for target selection. It recommended `flowing-light-chain` because its staged three-hit Liuli slash still locked targets at cast time.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies that `flowing-light-chain` rechecks targets live at 220/340/470 ms, ignores two enemies moved out before the first slash, and hits a third enemy moved into the path before the hit frames.
+  - `src/tests/combat.test.ts` now verifies no-target MISS feedback is delayed until the first slash frame and emits only once.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t "flowing-light-chain" --reporter=dot` initially failed with old behavior still hitting cast-frame targets.
+  - A test fixture correction was needed because the room only had two enemies; the live-recheck test now explicitly clones a third enemy.
+- Implemented:
+  - Reworked `applyFlowingLightChain()` to schedule dynamic player hitboxes for the open/cross/finish slash frames instead of resolving target ids at cast.
+  - Kept the existing 142 px model-following dash, 220/340/470 ms timing, per-stage damage, hitstop, knockback, final stagger, and `flowing-chain-*` VFX cues.
+  - Removed the stale `selectFlowingLightChainTargets()` helper so this skill cannot silently drift back to cast-frame target locking.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t "flowing-light-chain" --reporter=dot`, 5 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 399 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/flowing-light-live-check.html` confirmed scheduled times `[220,340,470]`, 3 hits only on the moved-in third target, old target HP `[180,180]`, new target HP `56`, MISS count `0`, player animation `player-liuli-light-chain-cast`, weapon animation `weapon-chain-cut`, cast animations `flowing-chain-cast-core/ring/sparks`, impact animations `flowing-chain-impact-core/ring/shards`, and empty browser warning/error logs. Temporary page was deleted after validation.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 481 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

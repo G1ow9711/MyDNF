@@ -5271,6 +5271,93 @@ describe("combat actions and impact feel", () => {
     expect(final.enemies[0].controlledUntilMs).toBeGreaterThan(finishAtMs);
   });
 
+  it("rechecks flowing-light-chain targets live on each slash frame", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),
+      "flowing-light-swordmaster"
+    );
+    const twoTargetRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 294, y: 340, hp: 180, maxHp: 180 },
+        { x: 362, y: 348, hp: 180, maxHp: 180 }
+      ]
+    );
+    const run: CombatRun = {
+      ...twoTargetRun,
+      enemies: [
+        ...twoTargetRun.enemies,
+        {
+          ...twoTargetRun.enemies[0],
+          id: "test-flowing-light-live-third",
+          hp: 180,
+          maxHp: 180,
+          armor: 0,
+          position: { x: 720, y: 430 },
+          nextAttackAtMs: 9999
+        }
+      ]
+    };
+    const cast = performAction(run, { type: "skill", skillId: "flowing-light-chain" });
+    const [, , finishAtMs] = scheduledSkillTimes(cast, "flowing-light-chain");
+    const movedBeforeOpen = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) => {
+        if (index < 2) {
+          return {
+            ...enemy,
+            position: { x: 760 + index * 32, y: 430 }
+          };
+        }
+
+        return {
+          ...enemy,
+          position: { x: 318, y: 340 }
+        };
+      })
+    };
+    const final = stepToElapsed(movedBeforeOpen, finishAtMs);
+    const chainHits = skillHitEvents(final, "flowing-light-chain");
+    const hitTargetIds = [...new Set(chainHits.map((event) => event.targetId))];
+
+    expect(chainHits).toHaveLength(3);
+    expect(hitTargetIds).toEqual([cast.enemies[2].id]);
+    expect(final.enemies[0].hp).toBe(cast.enemies[0].hp);
+    expect(final.enemies[1].hp).toBe(cast.enemies[1].hp);
+    expect(final.enemies[2].hp).toBeLessThan(cast.enemies[2].hp);
+    expect(skillMissEvents(final, "flowing-light-chain")).toHaveLength(0);
+  });
+
+  it("delays flowing-light-chain MISS feedback until the first slash frame", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),
+      "flowing-light-swordmaster"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 720, y: 430, hp: 180, maxHp: 180 },
+        { x: 760, y: 430, hp: 180, maxHp: 180 }
+      ]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "flowing-light-chain" });
+    const [openAtMs, , finishAtMs] = scheduledSkillTimes(cast, "flowing-light-chain");
+    const beforeOpen = stepToElapsed(cast, openAtMs - 1);
+    const atOpen = stepToElapsed(cast, openAtMs);
+    const final = stepToElapsed(cast, finishAtMs);
+
+    expect(skillMissEvents(cast, "flowing-light-chain")).toHaveLength(0);
+    expect(skillMissEvents(beforeOpen, "flowing-light-chain")).toHaveLength(0);
+    expect(skillMissEvents(atOpen, "flowing-light-chain")).toHaveLength(1);
+    expect(skillMissEvents(final, "flowing-light-chain")).toHaveLength(1);
+    expect(skillMissEvents(final, "flowing-light-chain")[0]).toMatchObject({
+      occurredAtMs: openAtMs,
+      inputToHitMs: openAtMs
+    });
+  });
+
   it("cancels pending flowing-light-chain hits when monster damage interrupts the dash", () => {
     const state = advanceClass(
       readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),

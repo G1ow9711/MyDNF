@@ -5349,6 +5349,10 @@ p {
   height: 58px;
   border-color: rgba(216, 180, 254, 0.82);
   box-shadow: 0 0 38px rgba(168, 85, 247, 0.68), inset 0 0 20px rgba(253, 224, 71, 0.18);
+  animation: none;
+}
+
+.enemy-skill-taotie-devour-pull[data-enemy-vfx-cue="taotie-devour-bite"] .enemy-cast-ring {
   animation: taotie-devour-vortex-ring 620ms cubic-bezier(0.1, 0.78, 0.14, 1) both;
 }
 
@@ -5359,6 +5363,10 @@ p {
   background:
     radial-gradient(circle, rgba(255, 251, 235, 0.98), rgba(216, 180, 254, 0.82), rgba(88, 28, 135, 0.5), transparent 74%),
     conic-gradient(from 18deg, rgba(253, 224, 71, 0.42), transparent, rgba(168, 85, 247, 0.52), transparent);
+  animation: none;
+}
+
+.enemy-skill-taotie-devour-pull[data-enemy-vfx-cue="taotie-devour-bite"] .enemy-cast-core {
   animation: taotie-devour-vortex-core 620ms ease-out both;
 }
 
@@ -5370,6 +5378,10 @@ p {
   background:
     linear-gradient(90deg, transparent, rgba(88, 28, 135, 0.28), rgba(168, 85, 247, 0.72), rgba(253, 224, 71, 0.56), transparent),
     radial-gradient(ellipse at 50% 50%, rgba(216, 180, 254, 0.66), transparent 64%);
+  animation: none;
+}
+
+.enemy-skill-taotie-devour-pull[data-enemy-vfx-cue="taotie-devour-bite"] .enemy-cast-trail {
   animation: taotie-devour-vortex-trail 620ms ease-out both;
 }
 
@@ -5385,6 +5397,10 @@ p {
   height: 66px;
   border-color: rgba(253, 186, 116, 0.86);
   box-shadow: 0 0 42px rgba(251, 146, 60, 0.72), inset 0 0 24px rgba(15, 23, 42, 0.5);
+  animation: none;
+}
+
+.enemy-skill-taotie-ash-summon[data-enemy-vfx-cue="taotie-ash-summon-rift"] .enemy-cast-ring {
   animation: taotie-ash-summon-rift-ring 720ms cubic-bezier(0.1, 0.78, 0.14, 1) both;
 }
 
@@ -5395,6 +5411,10 @@ p {
   background:
     radial-gradient(circle, rgba(255, 247, 237, 0.98), rgba(251, 146, 60, 0.82), rgba(127, 29, 29, 0.46), transparent 74%),
     conic-gradient(from 18deg, rgba(15, 23, 42, 0.56), rgba(254, 240, 138, 0.28), rgba(127, 29, 29, 0.48), rgba(15, 23, 42, 0.56));
+  animation: none;
+}
+
+.enemy-skill-taotie-ash-summon[data-enemy-vfx-cue="taotie-ash-summon-rift"] .enemy-cast-core {
   animation: taotie-ash-summon-rift-core 720ms ease-out both;
 }
 
@@ -5406,6 +5426,10 @@ p {
   background:
     linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.42), rgba(251, 146, 60, 0.78), rgba(254, 240, 138, 0.66), transparent),
     radial-gradient(ellipse at 50% 50%, rgba(239, 68, 68, 0.52), transparent 64%);
+  animation: none;
+}
+
+.enemy-skill-taotie-ash-summon[data-enemy-vfx-cue="taotie-ash-summon-rift"] .enemy-cast-trail {
   animation: taotie-ash-summon-rift-trail 720ms ease-out both;
 }
 

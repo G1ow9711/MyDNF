@@ -5421,6 +5421,10 @@ p {
   height: 64px;
   border-color: rgba(253, 186, 116, 0.88);
   box-shadow: 0 0 42px rgba(251, 146, 60, 0.72), inset 0 0 22px rgba(88, 28, 135, 0.38);
+  animation: none;
+}
+
+.enemy-skill-taotie-forge-shackle[data-enemy-vfx-cue="taotie-forge-shackle-bind"] .enemy-cast-ring {
   animation: taotie-forge-shackle-ring 620ms cubic-bezier(0.1, 0.78, 0.14, 1) both;
 }
 
@@ -5431,6 +5435,10 @@ p {
   background:
     radial-gradient(circle, rgba(255, 247, 237, 0.98), rgba(251, 146, 60, 0.82), rgba(88, 28, 135, 0.46), transparent 74%),
     conic-gradient(from 28deg, rgba(253, 224, 71, 0.28), rgba(127, 29, 29, 0.48), rgba(216, 180, 254, 0.22), rgba(15, 23, 42, 0.5));
+  animation: none;
+}
+
+.enemy-skill-taotie-forge-shackle[data-enemy-vfx-cue="taotie-forge-shackle-bind"] .enemy-cast-core {
   animation: taotie-forge-shackle-bind-core 620ms ease-out both;
 }
 
@@ -5442,6 +5450,10 @@ p {
   background:
     linear-gradient(90deg, transparent, rgba(88, 28, 135, 0.38), rgba(251, 146, 60, 0.78), rgba(254, 240, 138, 0.66), transparent),
     repeating-linear-gradient(90deg, transparent 0 18px, rgba(253, 224, 71, 0.38) 18px 24px, transparent 24px 42px);
+  animation: none;
+}
+
+.enemy-skill-taotie-forge-shackle[data-enemy-vfx-cue="taotie-forge-shackle-bind"] .enemy-cast-trail {
   animation: taotie-forge-shackle-chain-trail 620ms ease-out both;
 }
 

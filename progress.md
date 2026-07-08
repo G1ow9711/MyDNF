@@ -2928,3 +2928,32 @@
 - Agent audit:
   - A read-only UI/CSS audit found no other catalog skill obviously using the generic catalog fallback path, but highlighted that `meteor-knuckle` still lacks a dedicated computed-style regression for its resolved player, weapon, fall, and impact animation names.
   - Next strict visual-combat slice should add browser-style validation for `meteor-knuckle` actual animations before widening to more model detail.
+
+## Task 110 DNF-Style Meteor Knuckle Resolved Animation Regression
+- Continued the strict combat/VFX goal after confirming the working tree was clean and the latest pushed branch was `feature/vertical-slice`.
+- Added RED coverage:
+  - `src/tests/ui-smoke.test.ts` now includes a `meteor-knuckle` resolved-animation regression that requires player art, weapon, cast core, fall core, and impact core to resolve to dedicated animation names rather than generic fallback animations.
+- RED evidence:
+  - `npx vitest run src/tests/ui-smoke.test.ts -t "meteor-knuckle" --reporter=basic` failed with `expected '' to be 'player-ember-meteor-crash'`.
+- Implemented:
+  - Added a lightweight CSS animation resolver in the UI smoke tests for the project's class/attribute selector subset. It applies rule order and basic specificity to resolve `animation` names from `src/styles.css`.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/ui-smoke.test.ts -t "meteor-knuckle" --reporter=basic`, 2 tests.
+  - Related UI/app/audio suite passed: `npx vitest run src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts src/tests/render-audio.test.ts --reporter=basic`, 189 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/meteor-knuckle-style-check.html` confirmed actual `animationName` values `player-ember-meteor-crash`, `weapon-meteor-smash`, `meteor-fall`, `meteor-fall-core`, and `meteor-impact-core` with empty validation errors. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+- Agent audit:
+  - A read-only follow-up audit recommended `taotie-forge-shackle` monster VFX validation next because boss phase-2 control-chain CSS has dedicated bind/slam animations but weak resolved/computed animation coverage.
+
+## Task 111 DNF-Style Taotie Forge Shackle Cue-Driven VFX
+- Continued from the read-only agent recommendation because `taotie-forge-shackle` is a high-visibility boss phase-2 control-chain skill and directly affects monster skill VFX strictness.
+- Added RED coverage:
+  - `src/tests/ui-smoke.test.ts` now requires forge-shackle active VFX to resolve no animation without a cue, bind cue to resolve bind ring/core/trail animations, and slam cue to resolve slam ring/core/trail animations.
+- RED evidence:
+  - `npx vitest run src/tests/ui-smoke.test.ts -t "taotie forge shackle" --reporter=basic` failed with uncued core resolving to `taotie-forge-shackle-bind-core` instead of `none`.
+- Implemented:
+  - Changed base `.enemy-skill-taotie-forge-shackle` ring/core/trail animation to `none`.
+  - Added exact bind-cue selectors for ring/core/trail while preserving the existing slam-cue selectors.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/ui-smoke.test.ts -t "taotie forge shackle" --reporter=basic`, 1 test.
+  - Related UI/app/audio suite passed: `npx vitest run src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts src/tests/render-audio.test.ts --reporter=basic`, 190 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/taotie-shackle-style-check.html` confirmed uncued ring/core/trail animations are `none`, bind animations are `taotie-forge-shackle-ring`, `taotie-forge-shackle-bind-core`, and `taotie-forge-shackle-chain-trail`, slam animations are `taotie-forge-shackle-slam-ring`, `taotie-forge-shackle-slam-core`, and `taotie-forge-shackle-slam-trail`, and validation errors are empty. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.

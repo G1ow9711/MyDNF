@@ -779,3 +779,17 @@
 - Browser validation note: computed-style validation confirmed `player-liuli-rain-cast`, `weapon-liuli-rain-fan`, `glass-rain-cast-core`, `glass-rain-cast-wave`, `glass-rain-fall`, and the existing glass-rain target core/ring/shatter animations with an empty error list.
 - Parallel audit note: a read-only UI/CSS pass found no other catalog skill obviously falling back to generic catalog animation hooks, but it also found that several checks remain string-based rather than computed-style browser validation.
 - Queue note: next visual-combat work should target `meteor-knuckle` computed-style validation first because it is a high-visibility Ember ultimate and the current test coverage verifies hooks more than actual resolved animation names.
+
+## DNF-Style Meteor Knuckle Resolved Animation Regression Findings
+- Current priority remains strict action readability over heavier model geometry: the Ember ultimate must prove the player, weapon, cast field, and target impacts resolve to the intended animation keyframes, not just render matching HTML hooks.
+- Test gap note: `ui-smoke.test.ts` previously verified `meteor-knuckle` HTML markers, screen shake, and screen flash, but it did not assert that CSS cascade selected `player-ember-meteor-crash`, `weapon-meteor-smash`, `meteor-fall`, `meteor-fall-core`, or `meteor-impact-core`.
+- Regression note: `ui-smoke.test.ts` now includes a lightweight CSS animation resolver for the project's class/attribute selector subset and asserts `meteor-knuckle` resolved animation names, including negative checks against `player-skill-cast` and `weapon-skill-flare`.
+- Browser validation note: live computed-style validation on a temporary local page confirmed actual browser `animationName` values `player-ember-meteor-crash`, `weapon-meteor-smash`, `meteor-fall`, `meteor-fall-core`, and `meteor-impact-core` with an empty error list.
+- Queue note: continue using resolved-animation checks for future high-visibility skills before adding heavier character or monster model detail; this keeps the acceptance bar focused on motion and VFX correctness.
+
+## DNF-Style Taotie Forge Shackle Cue-Driven VFX Findings
+- Current priority remains strict monster skill feedback: Taotie phase-2 control-chain effects must be keyed by real bind/slam cues, not by a broad enemy skill class that could animate during the wrong phase.
+- Parallel audit note: a read-only agent selected `taotie-forge-shackle` because it is a boss phase-2 control-chain skill with dedicated CSS animations but weak resolved/computed-style validation.
+- Test gap note: the old CSS put bind ring/core/trail animations on `.enemy-skill-taotie-forge-shackle` without requiring `data-enemy-vfx-cue="taotie-forge-shackle-bind"`, so an uncued active VFX node would still play bind animation.
+- CSS note: the base forge-shackle ring/core/trail now set `animation: none`, while bind and slam animations are selected only by their exact `data-enemy-vfx-cue` values.
+- Browser validation note: live computed-style validation confirmed uncued forge-shackle VFX parts resolve to `none`, bind resolves to `taotie-forge-shackle-ring`, `taotie-forge-shackle-bind-core`, and `taotie-forge-shackle-chain-trail`, and slam resolves to `taotie-forge-shackle-slam-ring`, `taotie-forge-shackle-slam-core`, and `taotie-forge-shackle-slam-trail` with an empty error list.

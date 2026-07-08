@@ -42,6 +42,113 @@ const publicWeaponAssetModules = import.meta.glob("../../public/assets/weapons/*
 
 const stylesCss = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
+type CssElementSnapshot = {
+  classList: string[];
+  attributes?: Record<string, string>;
+  parent?: CssElementSnapshot;
+};
+
+function resolvedAnimationName(css: string, element: CssElementSnapshot): string {
+  const rules = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
+  let match: RegExpExecArray | null;
+  let resolved = { name: "", specificity: -1, order: -1 };
+  let order = 0;
+
+  while ((match = rulePattern.exec(rules))) {
+    const [, selectorText, declarations] = match;
+    const animation = /(?:^|;)\s*animation\s*:\s*([^;]+)/.exec(declarations);
+
+    if (!animation) {
+      order += 1;
+      continue;
+    }
+
+    for (const selector of selectorText.split(",")) {
+      const trimmedSelector = selector.trim();
+
+      if (trimmedSelector === "" || !matchesSelector(element, trimmedSelector)) {
+        continue;
+      }
+
+      const specificity = selectorSpecificity(trimmedSelector);
+
+      if (specificity > resolved.specificity || (specificity === resolved.specificity && order >= resolved.order)) {
+        resolved = {
+          name: animation[1].trim().split(/\s+/)[0],
+          specificity,
+          order
+        };
+      }
+    }
+
+    order += 1;
+  }
+
+  return resolved.name;
+}
+
+function matchesSelector(element: CssElementSnapshot, selector: string): boolean {
+  if (selector.includes(":")) {
+    return false;
+  }
+
+  const parts = selector.split(/\s+/).filter(Boolean);
+  let current: CssElementSnapshot | undefined = element;
+
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    if (!current) {
+      return false;
+    }
+
+    if (index === parts.length - 1) {
+      if (!matchesSimpleSelector(current, parts[index])) {
+        return false;
+      }
+
+      current = current.parent;
+      continue;
+    }
+
+    while (current && !matchesSimpleSelector(current, parts[index])) {
+      current = current.parent;
+    }
+
+    if (!current) {
+      return false;
+    }
+
+    current = current.parent;
+  }
+
+  return true;
+}
+
+function matchesSimpleSelector(element: CssElementSnapshot, selector: string): boolean {
+  const classNames = [...selector.matchAll(/\.([A-Za-z0-9_-]+)/g)].map((match) => match[1]);
+  const attributes = [...selector.matchAll(/\[([^\]=]+)(?:="([^"]*)")?\]/g)].map((match) => ({
+    name: match[1],
+    value: match[2]
+  }));
+
+  return (
+    classNames.every((className) => element.classList.includes(className)) &&
+    attributes.every((attribute) => {
+      const actual = element.attributes?.[attribute.name];
+
+      return attribute.value === undefined ? actual !== undefined : actual === attribute.value;
+    })
+  );
+}
+
+function selectorSpecificity(selector: string): number {
+  const idCount = (selector.match(/#[A-Za-z0-9_-]+/g) ?? []).length;
+  const classCount = (selector.match(/\.[A-Za-z0-9_-]+/g) ?? []).length;
+  const attributeCount = (selector.match(/\[[^\]]+\]/g) ?? []).length;
+
+  return idCount * 100 + (classCount + attributeCount) * 10;
+}
+
 function withHeat(state: GameState, heat: number): GameState {
   return {
     ...state,
@@ -470,6 +577,56 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes taotie-forge-shackle-bind-core");
     expect(stylesCss).toContain("@keyframes taotie-forge-shackle-slam-core");
     expect(stylesCss).toContain("@keyframes taotie-forge-shackle-hit-feedback");
+  });
+
+  it("resolves taotie forge shackle monster VFX from bind and slam cues", () => {
+    const uncuedRoot: CssElementSnapshot = {
+      classList: ["enemy-skill-vfx", "enemy-skill-taotie-forge-shackle"],
+      attributes: {
+        "data-enemy-skill-vfx": "taotie-forge-shackle",
+        "data-enemy-vfx-cue": ""
+      }
+    };
+    const bindRoot: CssElementSnapshot = {
+      classList: ["enemy-skill-vfx", "enemy-skill-taotie-forge-shackle"],
+      attributes: {
+        "data-enemy-skill-vfx": "taotie-forge-shackle",
+        "data-enemy-vfx-cue": "taotie-forge-shackle-bind"
+      }
+    };
+    const slamRoot: CssElementSnapshot = {
+      classList: ["enemy-skill-vfx", "enemy-skill-taotie-forge-shackle"],
+      attributes: {
+        "data-enemy-skill-vfx": "taotie-forge-shackle",
+        "data-enemy-vfx-cue": "taotie-forge-shackle-slam"
+      }
+    };
+    const shacklePart = (root: CssElementSnapshot, className: string): CssElementSnapshot => ({
+      classList: [className],
+      parent: root
+    });
+
+    expect(resolvedAnimationName(stylesCss, shacklePart(uncuedRoot, "enemy-cast-core"))).toBe("none");
+    expect(resolvedAnimationName(stylesCss, shacklePart(uncuedRoot, "enemy-cast-ring"))).toBe("none");
+    expect(resolvedAnimationName(stylesCss, shacklePart(uncuedRoot, "enemy-cast-trail"))).toBe("none");
+    expect(resolvedAnimationName(stylesCss, shacklePart(bindRoot, "enemy-cast-core"))).toBe(
+      "taotie-forge-shackle-bind-core"
+    );
+    expect(resolvedAnimationName(stylesCss, shacklePart(bindRoot, "enemy-cast-ring"))).toBe(
+      "taotie-forge-shackle-ring"
+    );
+    expect(resolvedAnimationName(stylesCss, shacklePart(bindRoot, "enemy-cast-trail"))).toBe(
+      "taotie-forge-shackle-chain-trail"
+    );
+    expect(resolvedAnimationName(stylesCss, shacklePart(slamRoot, "enemy-cast-core"))).toBe(
+      "taotie-forge-shackle-slam-core"
+    );
+    expect(resolvedAnimationName(stylesCss, shacklePart(slamRoot, "enemy-cast-ring"))).toBe(
+      "taotie-forge-shackle-slam-ring"
+    );
+    expect(resolvedAnimationName(stylesCss, shacklePart(slamRoot, "enemy-cast-trail"))).toBe(
+      "taotie-forge-shackle-slam-trail"
+    );
   });
 
   it("limits taotie summon emerge animation to idle spawned monsters so attack motion can take over", () => {
@@ -2324,6 +2481,70 @@ describe("town app shell", () => {
     expect(html).toContain('data-screen-shake="ultimate"');
     expect(html).toContain('data-screen-flash="meteor"');
     expect(html).not.toContain('data-screen-shake="skill"');
+  });
+
+  it("resolves meteor-knuckle player, weapon, cast, and target impact animations to dedicated keyframes", () => {
+    const playerRoot: CssElementSnapshot = {
+      classList: ["combat-player"],
+      attributes: {
+        "data-player-motion": "skill",
+        "data-skill-animation-preset": "ember-meteor",
+        "data-skill-weapon-arc": "meteor-smash",
+        "data-player-skill-move": "meteor-knuckle"
+      }
+    };
+    const playerArt: CssElementSnapshot = {
+      classList: ["combat-player-art", "actor-model", "actor-model-skill"],
+      parent: playerRoot
+    };
+    const weapon: CssElementSnapshot = {
+      classList: ["combat-weapon"],
+      parent: playerRoot
+    };
+    const castRoot: CssElementSnapshot = {
+      classList: ["player-skill-vfx", "skill-vfx-meteor-knuckle", "skill-vfx-shape-meteor-impact"],
+      attributes: {
+        "data-player-skill-vfx": "meteor-knuckle",
+        "data-skill-vfx-shape": "meteor-impact",
+        "data-weapon-arc": "meteor-smash"
+      }
+    };
+    const castCore: CssElementSnapshot = {
+      classList: ["skill-core"],
+      parent: castRoot
+    };
+    const fallImpactRoot: CssElementSnapshot = {
+      classList: ["skill-impact-burst", "skill-impact-shape-meteor-impact"],
+      attributes: {
+        "data-skill-impact-vfx": "meteor-knuckle",
+        "data-impact-vfx-shape": "meteor-impact",
+        "data-vfx-cue": "meteor-fall"
+      }
+    };
+    const impactRoot: CssElementSnapshot = {
+      classList: ["skill-impact-burst", "skill-impact-shape-meteor-impact"],
+      attributes: {
+        "data-skill-impact-vfx": "meteor-knuckle",
+        "data-impact-vfx-shape": "meteor-impact",
+        "data-vfx-cue": "meteor-impact"
+      }
+    };
+    const fallCore: CssElementSnapshot = {
+      classList: ["skill-impact-core"],
+      parent: fallImpactRoot
+    };
+    const impactCore: CssElementSnapshot = {
+      classList: ["skill-impact-core"],
+      parent: impactRoot
+    };
+
+    expect(resolvedAnimationName(stylesCss, playerArt)).toBe("player-ember-meteor-crash");
+    expect(resolvedAnimationName(stylesCss, weapon)).toBe("weapon-meteor-smash");
+    expect(resolvedAnimationName(stylesCss, castCore)).toBe("meteor-fall");
+    expect(resolvedAnimationName(stylesCss, fallCore)).toBe("meteor-fall-core");
+    expect(resolvedAnimationName(stylesCss, impactCore)).toBe("meteor-impact-core");
+    expect(resolvedAnimationName(stylesCss, playerArt)).not.toBe("player-skill-cast");
+    expect(resolvedAnimationName(stylesCss, weapon)).not.toBe("weapon-skill-flare");
   });
 
   it("makes cleared combat rooms obvious before settlement", () => {

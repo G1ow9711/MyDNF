@@ -722,3 +722,13 @@
 - Cancellation note: because the delayed shield status lives in `scheduledEnemyHitEffects` with `skillId="anvil-guard"`, the existing interruption path clears it when a monster hit lands during startup.
 - Presentation note: `anvil-guard` now has dedicated `player-iron-anvil-guard`, `weapon-guard-raise`, and `guard-rune-cast-*` animations. The cast can show shield-raise motion while `data-shield-active` remains false until the real guard frame.
 - Queue note: `molten-wall` and `black-furnace-aegis` remain next defensive follow-ups; both should reuse the delayed shield-status pattern but with stronger wall/aegis VFX and different startup/window values.
+
+## DNF-Style Molten Wall Strict Shield Frame Findings
+- Current priority remains strict combat feel over heavier model geometry: character models can stay simpler for this prototype phase, but `molten-wall` must have visible brace movement, a real delayed wall frame, cancelable startup, and dedicated VFX.
+- Parallel combat audit confirmed `molten-wall` still fell through the generic skill path and immediate `shield` status path. The RED tests failed with `Expected scheduled effects for molten-wall`.
+- Parallel UI/CSS audit confirmed catalog metadata already existed (`iron-wall`, `wall-guard`, `molten-wall`), but CSS had no dedicated player, weapon, or molten-wall VFX selectors/keyframes.
+- Combat note: `molten-wall` now schedules a delayed player shield-status effect at the catalog 260 ms frame, moves the actor 6 px into the brace, does not mutate enemy HP at cast time, and skips immediate `shield` status for this skill.
+- Cancellation note: a monster hit before 260 ms clears the pending wall status through the existing scheduled-effect interruption path, so the shield does not open after startup interruption.
+- Presentation note: `molten-wall` now uses dedicated `player-iron-molten-wall`, `weapon-wall-guard`, and `molten-wall-cast-*` animations. The DOM keeps `data-shield-active="false"` before the wall frame and flips to shield motion at the real frame.
+- Browser validation note: live computed-style verification confirmed 260 ms wall timing, no cast-frame shield or enemy hit, movement 240 -> 246, post-wall monster hit damage 14 with shield consumed, startup interruption produced one player hit and no pending wall effect, computed animations `player-iron-molten-wall`, `weapon-wall-guard`, `molten-wall-cast-core`, `molten-wall-cast-ring`, `molten-wall-cast-sparks`, and empty warning/error console output.
+- Queue note: `black-furnace-aegis` is now the remaining defensive fallback and should get its own RED coverage before implementation.

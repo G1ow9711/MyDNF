@@ -2804,3 +2804,25 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 383 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/anvil-guard-check.html` confirmed 180 ms guard timing, no cast-frame shield or enemy hit, movement 240 -> 250, shield active only at the guard frame, post-guard monster hit damage 15 with shield consumed, startup interruption produced one player hit and no shield/pending effect, and computed animations `player-iron-anvil-guard`, `weapon-guard-raise`, `guard-rune-cast-core`, `guard-rune-cast-ring`, and `guard-rune-cast-sparks`. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 465 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 104 DNF-Style Molten Wall Strict Shield Frame
+- Continued from the user's clarification: character/monster geometry can stay simple while full gameplay is connected, but combat action smoothness, model-following movement, strict hit frames, skill VFX, and monster VFX remain hard gates.
+- Used two read-only agents:
+  - Combat audit confirmed `molten-wall` still had no dedicated handler and still opened immediate `shield` status through the generic path.
+  - UI/CSS audit confirmed `iron-wall`, `wall-guard`, and `molten-wall` catalog metadata existed but had no dedicated CSS selectors/keyframes.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `molten-wall` to schedule a 260 ms wall frame, avoid cast-frame mitigation and enemy hits, move the player model 6 px, mitigate only after the wall frame, consume shield on the next monster hit, and cancel pending wall status when interrupted.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require delayed shield-active DOM state, `data-player-skill-move="molten-wall"`, `iron-wall`, `wall-guard`, `molten-wall`, and dedicated player/weapon/cast CSS keyframes.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t molten-wall --reporter=dot` failed because no scheduled effects existed for `molten-wall`.
+  - `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t molten-wall --reporter=dot` failed for the same missing scheduled-effect path.
+- Implemented:
+  - Added `applyMoltenWall()` with a 6 px model-following brace movement and a 260 ms delayed shield-status frame.
+  - Skipped immediate `shield` status application for `molten-wall`, so startup remains punishable and the cast no longer creates generic enemy hits.
+  - Added dedicated `player-iron-molten-wall`, `weapon-wall-guard`, and `molten-wall-cast-*` CSS animations.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t molten-wall --reporter=dot`, 2 tests.
+  - Focused GREEN passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t molten-wall --reporter=dot`, 2 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 386 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/molten-wall-check.html` confirmed 260 ms wall timing, no cast-frame shield or enemy hit, movement 240 -> 246, shield active only at the wall frame, post-wall monster hit damage 14 with shield consumed, startup interruption produced one player hit and no pending wall effect, and computed animations `player-iron-molten-wall`, `weapon-wall-guard`, `molten-wall-cast-core`, `molten-wall-cast-ring`, and `molten-wall-cast-sparks`. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 468 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

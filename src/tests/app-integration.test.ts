@@ -1295,7 +1295,15 @@ describe("playable app integration actions", () => {
     shieldModel = placeAliveEnemiesInFront(shieldModel);
     shieldModel = reduceAppAction(shieldModel, { type: "combatAction", action: "skill", skillId: "molten-wall" });
 
-    const shieldHtml = renderAppHtml(shieldModel);
+    if (!shieldModel.combatRun) {
+      throw new Error("Expected active combat run after molten-wall");
+    }
+
+    const [wallAtMs] = scheduledSkillTimes(shieldModel.combatRun, "molten-wall");
+    const shieldHtml = renderAppHtml({
+      ...shieldModel,
+      combatRun: stepToElapsed(shieldModel.combatRun, wallAtMs)
+    });
 
     expect(shieldHtml).toContain('data-shield-active="true"');
     expect(shieldHtml).toContain('data-player-motion="shield"');
@@ -1388,6 +1396,44 @@ describe("playable app integration actions", () => {
     expect(breakHtml).toContain('data-armor-state="broken"');
     expect(breakHtml).toContain('data-enemy-motion="guard-break"');
     expect(breakHtml).toContain('class="enemy-art actor-model actor-model-guard-break"');
+  });
+
+  it("renders molten-wall as a delayed self shield with molten-wall VFX", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "molten-wall" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after molten-wall");
+    }
+
+    const [wallAtMs] = scheduledSkillTimes(model.combatRun, "molten-wall");
+    const castHtml = renderAppHtml(model);
+    const beforeWallHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, wallAtMs - 1)
+    });
+    const wallHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, wallAtMs)
+    });
+
+    expect(wallAtMs).toBe(260);
+    expect(castHtml).toContain('data-active-skill-id="molten-wall"');
+    expect(castHtml).toContain('data-skill-animation-preset="iron-wall"');
+    expect(castHtml).toContain('data-skill-weapon-arc="wall-guard"');
+    expect(castHtml).toContain('data-skill-vfx-shape="molten-wall"');
+    expect(castHtml).toContain('data-player-skill-move="molten-wall"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-molten-wall skill-vfx-shape-molten-wall"');
+    expect(beforeWallHtml).toContain('data-shield-active="false"');
+    expect(wallHtml).toContain('data-shield-active="true"');
+    expect(wallHtml).toContain('data-player-motion="shield"');
+    expect(wallHtml).toContain('class="combat-player-art actor-model actor-model-shield');
   });
 
   it("renders anvil-guard as a delayed shield raise with guard-rune VFX", () => {

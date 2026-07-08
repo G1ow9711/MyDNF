@@ -1165,6 +1165,12 @@ p {
   animation: weapon-guard-raise var(--skill-duration, 520ms) cubic-bezier(0.16, 0.84, 0.18, 1) both;
 }
 
+.combat-player[data-player-motion="shield"][data-skill-weapon-arc="wall-guard"] .combat-weapon,
+.combat-player[data-player-motion="skill"][data-skill-weapon-arc="wall-guard"] .combat-weapon,
+.combat-player[data-player-skill-move="molten-wall"][data-skill-weapon-arc="wall-guard"] .combat-weapon {
+  animation: weapon-wall-guard var(--skill-duration, 760ms) cubic-bezier(0.14, 0.82, 0.16, 1) both;
+}
+
 .combat-player[data-player-motion="skill"][data-skill-weapon-arc="taunt-ring"] .combat-weapon {
   animation: weapon-taunt-ring var(--skill-duration, 600ms) cubic-bezier(0.14, 0.82, 0.18, 1) both;
 }
@@ -1822,6 +1828,12 @@ p {
 .combat-player[data-player-skill-move="anvil-guard"][data-player-motion="shield"][data-skill-animation-preset="iron-guard"] .combat-player-art {
   animation: player-iron-anvil-guard var(--skill-duration, 520ms) cubic-bezier(0.16, 0.84, 0.18, 1) both;
   filter: drop-shadow(0 0 22px rgba(250, 204, 21, 0.66)) drop-shadow(0 0 14px rgba(148, 163, 184, 0.42)) brightness(1.16);
+}
+
+.combat-player[data-player-skill-move="molten-wall"][data-skill-animation-preset="iron-wall"] .combat-player-art,
+.combat-player[data-player-motion="shield"][data-skill-animation-preset="iron-wall"] .combat-player-art {
+  animation: player-iron-molten-wall var(--skill-duration, 760ms) cubic-bezier(0.14, 0.82, 0.16, 1) both;
+  filter: drop-shadow(0 0 24px rgba(251, 113, 133, 0.42)) drop-shadow(0 0 18px rgba(45, 212, 191, 0.32)) brightness(1.14) saturate(1.08);
 }
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="iron-taunt"] .combat-player-art {
@@ -4317,6 +4329,42 @@ p {
   animation: guard-rune-cast-sparks var(--skill-duration, 520ms) ease-out both;
 }
 
+.skill-vfx-shape-molten-wall {
+  width: 246px;
+  height: 236px;
+  margin-top: -86px;
+  transform: translate(-50%, -76%);
+  filter: drop-shadow(0 0 26px rgba(251, 113, 133, 0.44)) drop-shadow(0 0 18px rgba(45, 212, 191, 0.3));
+}
+
+.skill-vfx-shape-molten-wall .skill-core {
+  inset: 10% 18% 18%;
+  border-radius: 46% 46% 30% 30%;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 237, 0.9), rgba(251, 146, 60, 0.7) 26%, rgba(239, 68, 68, 0.62) 58%, rgba(30, 41, 59, 0.68) 80%, transparent 86%),
+    radial-gradient(ellipse at 50% 68%, rgba(45, 212, 191, 0.36), transparent 56%);
+  clip-path: polygon(12% 100%, 16% 44%, 28% 12%, 43% 0, 56% 10%, 72% 2%, 86% 34%, 92% 100%);
+  animation: molten-wall-cast-core var(--skill-duration, 760ms) cubic-bezier(0.14, 0.82, 0.16, 1) both;
+}
+
+.skill-vfx-shape-molten-wall .skill-wave {
+  inset: 12% 8% 8%;
+  border-color: rgba(45, 212, 191, 0.62);
+  border-radius: 42% 42% 26% 26%;
+  box-shadow: 0 0 36px rgba(251, 113, 133, 0.32), inset 0 0 30px rgba(251, 146, 60, 0.24);
+  animation: molten-wall-cast-ring var(--skill-duration, 760ms) ease-out both;
+}
+
+.skill-vfx-shape-molten-wall .skill-sparks {
+  background:
+    linear-gradient(86deg, transparent 20%, rgba(255, 247, 237, 0.84) 21% 24%, transparent 25%),
+    linear-gradient(102deg, transparent 45%, rgba(251, 146, 60, 0.78) 46% 50%, transparent 51%),
+    linear-gradient(76deg, transparent 64%, rgba(45, 212, 191, 0.62) 65% 68%, transparent 69%),
+    radial-gradient(circle at 28% 58%, rgba(251, 146, 60, 0.94) 0 4px, transparent 5px),
+    radial-gradient(circle at 70% 34%, rgba(248, 250, 252, 0.86) 0 3px, transparent 4px);
+  animation: molten-wall-cast-sparks var(--skill-duration, 760ms) ease-out both;
+}
+
 .skill-vfx-shape-shield-quake {
   width: 268px;
   height: 152px;
@@ -5850,6 +5898,14 @@ p {
   100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
 }
 
+@keyframes player-iron-molten-wall {
+  0% { transform: translateX(calc(var(--skill-lunge-x, 6px) * -0.38)) translateY(4px) rotate(-3deg) scale(0.96) scaleX(var(--model-scale-x, 1)); filter: brightness(0.9) saturate(0.9); }
+  22% { transform: translateX(calc(var(--skill-lunge-x, 6px) * 0.22)) translateY(-5px) rotate(3deg) scale(1.04) scaleX(var(--model-scale-x, 1)); filter: brightness(1.22) saturate(1.04); }
+  34% { transform: translateX(var(--skill-lunge-x, 6px)) translateY(1px) rotate(-1deg) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.7) saturate(1.16); }
+  58% { transform: translateX(calc(var(--skill-lunge-x, 6px) * 0.82)) translateY(2px) rotate(0deg) scale(1.05) scaleX(var(--model-scale-x, 1)); filter: brightness(1.36) saturate(1.08); }
+  100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
+}
+
 @keyframes player-iron-furnace-taunt {
   0% { transform: translateX(calc(var(--skill-lunge-x, 12px) * -0.42)) translateY(3px) rotate(-3deg) scale(0.96) scaleX(var(--model-scale-x, 1)); filter: brightness(0.94) saturate(0.92); }
   28% { transform: translateX(calc(var(--skill-lunge-x, 12px) * 0.48)) translateY(-4px) rotate(3deg) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.42) saturate(1.08); }
@@ -6005,6 +6061,14 @@ p {
   26% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 10px) * 0.12), -62%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * 8deg)) scale(calc(var(--weapon-scale, 1) * 1.08)); filter: drop-shadow(0 0 28px color-mix(in srgb, var(--weapon-glow, #facc15) 88%, transparent)) brightness(1.28); opacity: 1; }
   42% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 10px) * 0.78), -58%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * 18deg)) scale(calc(var(--weapon-scale, 1) * 1.16)); filter: drop-shadow(0 0 36px color-mix(in srgb, var(--weapon-glow, #eab308) 94%, transparent)) brightness(1.46); }
   70% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 10px) * 0.34), -52%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * 6deg)) scale(calc(var(--weapon-scale, 1) * 1.06)); filter: brightness(1.18); }
+  100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 0.94; }
+}
+
+@keyframes weapon-wall-guard {
+  0% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 6px) * -0.5), -42%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * -26deg)) scale(calc(var(--weapon-scale, 1) * 0.96)); opacity: 0.84; }
+  24% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 6px) * 0.18), -72%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * -4deg)) scale(calc(var(--weapon-scale, 1) * 1.1)); filter: drop-shadow(0 0 28px color-mix(in srgb, var(--weapon-glow, #fb7185) 84%, transparent)) brightness(1.28); opacity: 1; }
+  36% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 6px) * 0.78), -58%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * 10deg)) scale(calc(var(--weapon-scale, 1) * 1.2)); filter: drop-shadow(0 0 38px color-mix(in srgb, var(--weapon-glow, #f97316) 92%, transparent)) brightness(1.5); }
+  62% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 6px) * 0.48), -54%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * 2deg)) scale(calc(var(--weapon-scale, 1) * 1.12)); filter: drop-shadow(0 0 24px rgba(45, 212, 191, 0.42)) brightness(1.2); }
   100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 0.94; }
 }
 
@@ -7164,6 +7228,27 @@ p {
   34% { opacity: 0.88; transform: translateY(0) scale(0.94); filter: blur(0.2px); }
   60% { opacity: 1; transform: translateY(-12px) scale(1.1); filter: blur(0); }
   100% { opacity: 0; transform: translateY(-44px) translateX(10px) scale(1.24); filter: blur(2px); }
+}
+
+@keyframes molten-wall-cast-core {
+  0% { opacity: 0; transform: translateY(28px) scaleX(0.62) scaleY(0.28); filter: blur(2px) brightness(0.78); }
+  24% { opacity: 0.78; transform: translateY(4px) scaleX(0.88) scaleY(0.82); filter: blur(0.8px) brightness(1.22); }
+  36% { opacity: 1; transform: translateY(-4px) scaleX(1.08) scaleY(1.1); filter: blur(0) brightness(1.74); }
+  100% { opacity: 0.24; transform: translateY(-10px) scaleX(1.14) scaleY(1.04); filter: blur(1.4px) brightness(1.06); }
+}
+
+@keyframes molten-wall-cast-ring {
+  0% { opacity: 0; transform: scaleX(0.5) scaleY(0.34); }
+  30% { opacity: 0.74; transform: scaleX(0.9) scaleY(0.8); }
+  58% { opacity: 0.96; transform: scaleX(1.08) scaleY(1.06); }
+  100% { opacity: 0; transform: scaleX(1.36) scaleY(1.22); }
+}
+
+@keyframes molten-wall-cast-sparks {
+  0% { opacity: 0; transform: translateY(26px) scale(0.58); filter: blur(1.4px); }
+  30% { opacity: 0.86; transform: translateY(0) scale(0.92); filter: blur(0.3px); }
+  56% { opacity: 1; transform: translateY(-22px) translateX(6px) scale(1.08); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-58px) translateX(18px) scale(1.28); filter: blur(2.2px); }
 }
 
 @keyframes shield-quake-cast-core {

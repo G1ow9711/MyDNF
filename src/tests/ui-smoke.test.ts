@@ -903,6 +903,60 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes guard-rune-cast-core");
   });
 
+  it("defines dedicated molten-wall shield brace, wall weapon, and molten-wall animations", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90);
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy) => ({
+          ...enemy,
+          hp: 180,
+          maxHp: 180,
+          armor: 0,
+          position: { x: 320, y: 340 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "molten-wall" }
+    );
+    const [wallAtMs] = scheduledSkillTimes(castRun, "molten-wall");
+    const castHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: castRun
+    });
+    const beforeWallHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, wallAtMs - 1)
+    });
+    const wallHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, wallAtMs)
+    });
+
+    expect(wallAtMs).toBe(260);
+    expect(castHtml).toContain('data-player-skill-move="molten-wall"');
+    expect(castHtml).toContain('data-skill-animation-preset="iron-wall"');
+    expect(castHtml).toContain('data-skill-weapon-arc="wall-guard"');
+    expect(castHtml).toContain('data-skill-vfx-shape="molten-wall"');
+    expect(castHtml).toContain('class="player-skill-vfx skill-vfx-molten-wall skill-vfx-shape-molten-wall"');
+    expect(beforeWallHtml).toContain('data-shield-active="false"');
+    expect(wallHtml).toContain('data-shield-active="true"');
+    expect(wallHtml).toContain('data-player-motion="shield"');
+    expect(stylesCss).toContain('.combat-player[data-player-skill-move="molten-wall"]');
+    expect(stylesCss).toContain('[data-skill-animation-preset="iron-wall"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="wall-guard"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-molten-wall");
+    expect(stylesCss).toContain("@keyframes player-iron-molten-wall");
+    expect(stylesCss).toContain("@keyframes weapon-wall-guard");
+    expect(stylesCss).toContain("@keyframes molten-wall-cast-core");
+  });
+
   it("renders anvil-crash as a delayed hammer-drop slam with target sparks", () => {
     const state = {
       ...createInitialState(),

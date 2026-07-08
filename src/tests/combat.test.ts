@@ -2093,25 +2093,45 @@ describe("combat actions and impact feel", () => {
     expect(detonated.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
   });
 
-  it("turns shield skills into a visible mitigation window for the next monster hit", () => {
+  it("delays molten-wall shield mitigation until the wall frame", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90);
     const run = withPlayerAndEnemies(
       createCombatRun(state, "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1 },
-      [{ x: 310, y: 340 }]
+      [{ x: 310, y: 340, hp: 180, maxHp: 180, armor: 0 }]
     );
     const shielded = performAction(run, { type: "skill", skillId: "molten-wall" });
-    const telegraph = stepCombat(
-      withEnemyInRange(shielded, {
-        nextAttackAtMs: shielded.elapsedMs + 1
-      }),
-      {},
-      80
-    );
-    const impacted = stepCombat(telegraph, {}, 360);
+    const [wallAtMs] = scheduledSkillTimes(shielded, "molten-wall");
+    const beforeWall = stepToElapsed(shielded, wallAtMs - 1);
+    const walled = stepToElapsed(shielded, wallAtMs);
+    const armedEnemyRun: CombatRun = {
+      ...shielded,
+      enemies: shielded.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: wallAtMs + 20,
+              attackRecoverUntilMs: wallAtMs + 520,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const impacted = stepToElapsed(armedEnemyRun, wallAtMs + 20);
 
-    expect(shielded.player.shieldUntilMs).toBeGreaterThan(shielded.elapsedMs);
-    expect(shielded.player.shieldReduction).toBeGreaterThan(0);
+    expect(wallAtMs).toBe(260);
+    expect(shielded.player.activeSkillMovement?.skillId).toBe("molten-wall");
+    expect(shielded.player.activeSkillMovement?.endX).toBe(246);
+    expect(shielded.player.shieldUntilMs).toBeLessThanOrEqual(shielded.elapsedMs);
+    expect(shielded.enemies[0].hp).toBe(180);
+    expect(skillHitEvents(shielded, "molten-wall")).toHaveLength(0);
+    expect(beforeWall.player.shieldUntilMs).toBeLessThanOrEqual(beforeWall.elapsedMs);
+    expect(walled.player.shieldUntilMs).toBeGreaterThan(walled.elapsedMs);
+    expect(walled.player.shieldReduction).toBeGreaterThanOrEqual(0.5);
     expect(impacted.player.hp).toBeGreaterThan(run.player.hp - 28);
     expect(impacted.player.shieldUntilMs).toBeLessThanOrEqual(impacted.elapsedMs);
     expect(impacted.events).toEqual(
@@ -2122,6 +2142,43 @@ describe("combat actions and impact feel", () => {
         })
       ])
     );
+  });
+
+  it("cancels molten-wall opening when monster damage interrupts startup", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 310, y: 340, hp: 180, maxHp: 180, armor: 0 }]
+    );
+    const interruptingRun: CombatRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 120,
+              attackRecoverUntilMs: 620,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+
+    const cast = performAction(interruptingRun, { type: "skill", skillId: "molten-wall" });
+    const [wallAtMs] = scheduledSkillTimes(cast, "molten-wall");
+    const interrupted = stepToElapsed(cast, wallAtMs);
+    const playerHits = interrupted.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(playerHits).toHaveLength(1);
+    expect(interrupted.player.shieldUntilMs).toBeLessThanOrEqual(interrupted.elapsedMs);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "molten-wall")).toHaveLength(0);
   });
 
   it("delays crow-feint dodge and shot until their strict action frames", () => {

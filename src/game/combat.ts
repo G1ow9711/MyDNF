@@ -2045,6 +2045,20 @@ function applyAnvilGuard(run: CombatRun, skill: ClassSkillDefinition, canceledFr
   return schedulePlayerShieldEffect(movingRun, skill, canceledFromCombo, 900, 0.48);
 }
 
+function applyMoltenWall(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x + skill.animation.lungePx * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+
+  return schedulePlayerShieldEffect(movingRun, skill, canceledFromCombo, 1500, 0.5);
+}
+
 function furnaceTauntCenter(run: CombatRun): CombatVector {
   return {
     x: clamp(run.player.x + 112 * run.player.facing, 0, run.arena.width),
@@ -3896,7 +3910,7 @@ function spendAndGainPlayerResource(player: CombatPlayer, run: CombatRun, cost: 
 function applyPlayerSkillStatus(player: CombatPlayer, run: CombatRun, statusTags: readonly CombatSkillStatusTag[], skillId: string): CombatPlayer {
   let next = player;
 
-  if (hasStatus(statusTags, "shield")) {
+  if (hasStatus(statusTags, "shield") && skillId !== "molten-wall") {
     next = {
       ...next,
       shieldUntilMs: Math.max(next.shieldUntilMs, run.elapsedMs + 1500),
@@ -6193,6 +6207,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "anvil-guard") {
     return finishSkillAction(applyAnvilGuard(run, skill, canceledFromCombo));
+  }
+
+  if (skill.id === "molten-wall") {
+    return finishSkillAction(applyMoltenWall(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "furnace-taunt") {

@@ -3345,3 +3345,23 @@
   - Related combat/app/UI/audio suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 425 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/taotie-chain-cleave-check.html` confirmed windup model animation `monster-taotie-chain-cleave`, `--enemy-lunge-x: -56px`, line telegraph animation `taotie-chain-cleave-telegraph`, drag active cue `taotie-chain-cleave-drag` with `taotie-chain-cleave-drag-core`, smash active cue `taotie-chain-cleave-smash` with `taotie-chain-cleave-smash-core`, player bound during drag, hit frames at 520 ms and 700 ms, and no browser warnings/errors. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), HTTP 200 from `http://127.0.0.1:5178/`, `npm test -- --reporter=dot` (13 files / 510 tests), and `npm run build`.
+
+## Task 130 DNF-Style Zheng Shockwave and Legacy Monster VFX Cue Gates
+- Continued from the user's clarified priority: character/monster geometry can stay lightweight while the full playable loop is connected, but combat motion, strict hit frames, actor state changes, skill effects, and monster effects remain hard gates.
+- Used read-only parallel agent audits:
+  - Combat audit selected `zheng-shockwave` for strict hit-frame coverage: quake damage must land only on its impact frame, live-sample player lane, emit the quake cue, and cancel cleanly when staggered.
+  - UI audit selected older monster VFX rules because `ash-ember-spit`, `ash-crawler-burst`, `zheng-shockwave`, `zheng-horn-charge`, and `taotie-flame-breath` still inherited generic `enemy-cast-*` animations without a live cue.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies `zheng-shockwave` windup/no-hit-before-impact, active quake frame, lane escape MISS, cue metadata, hit feedback, and stagger cancellation.
+  - `src/tests/ui-smoke.test.ts` now resolves legacy monster skill ring/core/trail animations and requires uncued parts to be `none` while active cues resolve to skill-specific keyframes.
+- RED evidence:
+  - Focused combat/UI test first failed because the old shockwave fixture did not isolate lane movement correctly, then the corrected combat tests passed while UI still failed on uncued `enemy-cast-pulse`.
+- Implemented:
+  - Kept `zheng-shockwave` combat behavior intact and locked it with targeted tests.
+  - Changed legacy monster VFX CSS so old skill roots default ring/core/trail animations to `none`.
+  - Added cue-specific selectors for ash spit, crawler burst, shockwave, horn charge, and boss flame breath active windows.
+  - Added new ash spit ring/core and shockwave core/trail keyframes, so active cues no longer fall back to generic flicker/pulse/trail visuals.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/ui-smoke.test.ts --testNamePattern "zheng shockwave|legacy monster skill VFX" --reporter=basic`, 3 matched tests.
+  - Fresh checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 513 tests), and `npm run build`.
+  - Browser computed-style validation on `http://127.0.0.1:5174/.codex-local/tmp/legacy-monster-vfx-check.html` confirmed every uncued legacy monster VFX part resolved to `none`; active cues resolved to `ash-ember-spit-*`, `ash-crawler-burst-*`, `zheng-shockwave-*`, `zheng-horn-charge-*`, and `taotie-flame-breath-*` animation names with no browser warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5174/`.

@@ -8413,6 +8413,113 @@ describe("enemy attacks and player defeat", () => {
     expect(afterImpact.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-crawler-burst")).toBe(false);
   });
 
+  it("casts zheng shockwave only on the quake frame and live-samples the player lane", () => {
+    const baseRun = reachEliteRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const laneBaseRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        y: baseRun.arena.maxY
+      }
+    };
+    const shockwavePatch = { attackProfileId: "zheng-shockwave" } as unknown as Partial<CombatEnemy>;
+    const run = withEnemyInRange(laneBaseRun, {
+      ...shockwavePatch,
+      position: {
+        x: laneBaseRun.player.x + 130,
+        y: laneBaseRun.player.y
+      },
+      nextAttackAtMs: 1
+    });
+    const isolatedRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) => (index === 0 ? enemy : { ...enemy, nextAttackAtMs: 9999 }))
+    };
+    const telegraph = stepCombat(isolatedRun, {}, 80);
+    const impactAtMs = telegraph.enemies[0].attackImpactAtMs ?? 0;
+    const beforeImpact = stepToElapsed(telegraph, impactAtMs - 1);
+    const impacted = stepToElapsed(beforeImpact, impactAtMs);
+    const sidestepped = {
+      ...telegraph,
+      player: {
+        ...telegraph.player,
+        y: telegraph.arena.minY
+      }
+    };
+    const missed = stepToElapsed(sidestepped, impactAtMs);
+    const active = impacted.events.find(
+      (event) => event.kind === "enemy-attack" && event.skillId === "zheng-shockwave" && event.phase === "active"
+    );
+    const playerHit = impacted.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "zheng-shockwave"
+    );
+
+    expect(telegraph.player.hp).toBe(isolatedRun.player.hp);
+    expect(telegraph.enemies[0].attackSkillId).toBe("zheng-shockwave");
+    expect(impactAtMs).toBe(telegraph.elapsedMs + 360);
+    expect(beforeImpact.events.some((event) => event.kind === "player-hit" && event.skillId === "zheng-shockwave")).toBe(false);
+    expect(active).toMatchObject({
+      occurredAtMs: impactAtMs,
+      impactAtMs,
+      hitIndex: 1,
+      totalHits: 1,
+      vfxCue: "zheng-shockwave-impact",
+      vfxWindowMs: 420
+    });
+    expect(playerHit).toMatchObject({
+      damage: 52,
+      occurredAtMs: impactAtMs,
+      hitstopMs: 48,
+      feedbackCue: "player-hurt-heavy"
+    });
+    expect(missed.player.hp).toBe(isolatedRun.player.hp);
+    expect(missed.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "enemy-attack",
+          skillId: "zheng-shockwave",
+          phase: "miss",
+          vfxCue: "zheng-shockwave-impact"
+        })
+      ])
+    );
+    expect(missed.events.some((event) => event.kind === "player-hit" && event.skillId === "zheng-shockwave")).toBe(false);
+  });
+
+  it("cancels zheng shockwave when the elite is staggered before the quake frame", () => {
+    const baseRun = reachEliteRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const shockwavePatch = { attackProfileId: "zheng-shockwave" } as unknown as Partial<CombatEnemy>;
+    const run = withEnemyInRange(baseRun, {
+      ...shockwavePatch,
+      position: {
+        x: baseRun.player.x + 130,
+        y: baseRun.player.y
+      },
+      nextAttackAtMs: 1
+    });
+    const isolatedRun = {
+      ...run,
+      enemies: run.enemies.map((enemy, index) => (index === 0 ? enemy : { ...enemy, nextAttackAtMs: 9999 }))
+    };
+    const telegraph = stepCombat(isolatedRun, {}, 80);
+    const impactAtMs = telegraph.enemies[0].attackImpactAtMs ?? 0;
+    const interrupted = applyHit(telegraph, {
+      id: "test-stagger-zheng-shockwave",
+      targetId: telegraph.enemies[0].id,
+      damage: 1,
+      hitstopMs: 40,
+      knockback: 0,
+      juggle: false,
+      statusTags: ["stagger"]
+    });
+    const afterImpact = stepToElapsed(interrupted, impactAtMs);
+
+    expect(telegraph.enemies[0].attackSkillId).toBe("zheng-shockwave");
+    expect(interrupted.enemies[0].attackSkillId).toBeUndefined();
+    expect(afterImpact.events.some((event) => event.kind === "enemy-attack" && event.skillId === "zheng-shockwave" && event.phase !== "windup")).toBe(false);
+    expect(afterImpact.events.some((event) => event.kind === "player-hit" && event.skillId === "zheng-shockwave")).toBe(false);
+  });
+
   it("rushes an elite zheng horn charge through a line telegraph before impact", () => {
     const baseRun = reachEliteRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
     const chargePatch = { attackProfileId: "zheng-horn-charge" } as unknown as Partial<CombatEnemy>;

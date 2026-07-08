@@ -5398,6 +5398,7 @@ p {
   height: 24px;
   border-color: rgba(251, 146, 60, 0.72);
   box-shadow: 0 0 22px rgba(251, 146, 60, 0.56), inset 0 0 14px rgba(252, 211, 77, 0.24);
+  animation: none;
 }
 
 .enemy-skill-ash-ember-spit .enemy-cast-core {
@@ -5405,6 +5406,7 @@ p {
   width: 26px;
   height: 26px;
   background: radial-gradient(circle, rgba(255, 247, 237, 0.98), rgba(251, 146, 60, 0.72), rgba(127, 29, 29, 0.28), transparent 74%);
+  animation: none;
 }
 
 .enemy-skill-ash-ember-spit .enemy-cast-trail {
@@ -5415,6 +5417,18 @@ p {
   background:
     linear-gradient(90deg, rgba(127, 29, 29, 0.2), rgba(251, 146, 60, 0.82), rgba(254, 240, 138, 0.62), transparent),
     radial-gradient(ellipse at 48% 50%, rgba(248, 113, 113, 0.62), transparent 62%);
+  animation: none;
+}
+
+.enemy-skill-ash-ember-spit[data-enemy-vfx-cue="ash-ember-spit-impact"] .enemy-cast-ring {
+  animation: ash-ember-spit-ring 520ms cubic-bezier(0.12, 0.78, 0.16, 1) both;
+}
+
+.enemy-skill-ash-ember-spit[data-enemy-vfx-cue="ash-ember-spit-impact"] .enemy-cast-core {
+  animation: ash-ember-spit-core 520ms ease-out both;
+}
+
+.enemy-skill-ash-ember-spit[data-enemy-vfx-cue="ash-ember-spit-impact"] .enemy-cast-trail {
   animation: ash-ember-spit-trail 520ms ease-in-out infinite;
 }
 
@@ -5430,7 +5444,7 @@ p {
   height: 46px;
   border-color: rgba(248, 113, 113, 0.82);
   box-shadow: 0 0 34px rgba(248, 113, 113, 0.64), inset 0 0 18px rgba(251, 146, 60, 0.24);
-  animation: ash-crawler-burst-ring 560ms cubic-bezier(0.12, 0.78, 0.14, 1) both;
+  animation: none;
 }
 
 .enemy-skill-ash-crawler-burst .enemy-cast-core {
@@ -5438,7 +5452,7 @@ p {
   width: 58px;
   height: 58px;
   background: radial-gradient(circle, rgba(255, 247, 237, 0.98), rgba(251, 146, 60, 0.82), rgba(185, 28, 28, 0.4), transparent 74%);
-  animation: ash-crawler-burst-core 560ms ease-out both;
+  animation: none;
 }
 
 .enemy-skill-ash-crawler-burst .enemy-cast-trail {
@@ -5449,12 +5463,25 @@ p {
   background:
     linear-gradient(90deg, transparent, rgba(248, 113, 113, 0.46), rgba(254, 240, 138, 0.82), rgba(127, 29, 29, 0.16)),
     radial-gradient(ellipse at 55% 50%, rgba(251, 146, 60, 0.7), transparent 62%);
+  animation: none;
+}
+
+.enemy-skill-ash-crawler-burst[data-enemy-vfx-cue="ash-crawler-burst-explode"] .enemy-cast-ring {
+  animation: ash-crawler-burst-ring 560ms cubic-bezier(0.12, 0.78, 0.14, 1) both;
+}
+
+.enemy-skill-ash-crawler-burst[data-enemy-vfx-cue="ash-crawler-burst-explode"] .enemy-cast-core {
+  animation: ash-crawler-burst-core 560ms ease-out both;
+}
+
+.enemy-skill-ash-crawler-burst[data-enemy-vfx-cue="ash-crawler-burst-explode"] .enemy-cast-trail {
   animation: ash-crawler-burst-trail 560ms ease-out both;
 }
 
 .enemy-skill-zheng-shockwave .enemy-cast-ring {
   border-color: rgba(125, 211, 252, 0.72);
   box-shadow: 0 0 26px rgba(14, 165, 233, 0.62);
+  animation: none;
 }
 
 .enemy-skill-zheng-shockwave[data-enemy-vfx-cue="zheng-shockwave-impact"] .enemy-cast-ring {
@@ -5468,6 +5495,15 @@ p {
 .enemy-skill-zheng-shockwave .enemy-cast-core,
 .enemy-skill-zheng-shockwave .enemy-cast-trail {
   background: radial-gradient(circle, rgba(224, 242, 254, 0.94), rgba(14, 165, 233, 0.56), transparent 72%);
+  animation: none;
+}
+
+.enemy-skill-zheng-shockwave[data-enemy-vfx-cue="zheng-shockwave-impact"] .enemy-cast-core {
+  animation: zheng-shockwave-core 520ms ease-out both;
+}
+
+.enemy-skill-zheng-shockwave[data-enemy-vfx-cue="zheng-shockwave-impact"] .enemy-cast-trail {
+  animation: zheng-shockwave-trail 540ms ease-out both;
 }
 
 .enemy-skill-zheng-horn-charge {
@@ -5482,7 +5518,7 @@ p {
   height: 34px;
   border-color: rgba(103, 232, 249, 0.82);
   box-shadow: 0 0 30px rgba(34, 211, 238, 0.64), inset 0 0 16px rgba(254, 240, 138, 0.2);
-  animation: zheng-horn-charge-impact-ring 520ms cubic-bezier(0.1, 0.78, 0.14, 1) both;
+  animation: none;
 }
 
 .enemy-skill-zheng-horn-charge .enemy-cast-core {
@@ -5491,7 +5527,7 @@ p {
   height: 42px;
   background:
     radial-gradient(circle, rgba(255, 251, 235, 0.98), rgba(103, 232, 249, 0.82), rgba(14, 116, 144, 0.34), transparent 72%);
-  animation: zheng-horn-charge-core 520ms ease-out both;
+  animation: none;
 }
 
 .enemy-skill-zheng-horn-charge .enemy-cast-trail {
@@ -5502,6 +5538,18 @@ p {
   background:
     linear-gradient(90deg, transparent, rgba(14, 116, 144, 0.28), rgba(34, 211, 238, 0.76), rgba(254, 240, 138, 0.72), transparent),
     radial-gradient(ellipse at 70% 50%, rgba(103, 232, 249, 0.72), transparent 62%);
+  animation: none;
+}
+
+.enemy-skill-zheng-horn-charge[data-enemy-vfx-cue="zheng-horn-charge-impact"] .enemy-cast-ring {
+  animation: zheng-horn-charge-impact-ring 520ms cubic-bezier(0.1, 0.78, 0.14, 1) both;
+}
+
+.enemy-skill-zheng-horn-charge[data-enemy-vfx-cue="zheng-horn-charge-impact"] .enemy-cast-core {
+  animation: zheng-horn-charge-core 520ms ease-out both;
+}
+
+.enemy-skill-zheng-horn-charge[data-enemy-vfx-cue="zheng-horn-charge-impact"] .enemy-cast-trail {
   animation: zheng-horn-charge-trail 520ms ease-out both;
 }
 
@@ -5518,13 +5566,14 @@ p {
   background:
     linear-gradient(90deg, rgba(255, 247, 237, 0.92), rgba(252, 211, 77, 0.86), rgba(239, 68, 68, 0.58), transparent),
     radial-gradient(ellipse at 28% 50%, rgba(254, 240, 138, 0.62), transparent 58%);
-  animation: taotie-breath-flow 520ms ease-in-out infinite;
+  animation: none;
 }
 
 .enemy-skill-taotie-flame-breath .enemy-cast-core {
   width: 48px;
   height: 48px;
   background: radial-gradient(circle, rgba(255, 247, 237, 0.98), rgba(252, 211, 77, 0.76), rgba(185, 28, 28, 0.3), transparent 72%);
+  animation: none;
 }
 
 .enemy-skill-taotie-flame-breath .enemy-cast-ring {
@@ -5532,6 +5581,7 @@ p {
   height: 42px;
   border-color: rgba(252, 211, 77, 0.72);
   box-shadow: 0 0 32px rgba(248, 113, 113, 0.62);
+  animation: none;
 }
 
 .enemy-skill-taotie-flame-breath[data-enemy-vfx-cue="taotie-flame-breath-sustain"] .enemy-cast-core {
@@ -8261,6 +8311,18 @@ p {
   100% { opacity: 0.2; transform: translateX(20px) rotate(-8deg) scaleX(0.7); }
 }
 
+@keyframes ash-ember-spit-ring {
+  0% { opacity: 0; transform: translateX(-50%) scaleX(0.28) scaleY(0.68); filter: blur(1.2px); }
+  26% { opacity: 0.94; transform: translateX(-50%) scaleX(0.92) scaleY(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(-50%) scaleX(1.46) scaleY(1.18); filter: blur(2px); }
+}
+
+@keyframes ash-ember-spit-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.32); filter: brightness(1); }
+  28% { opacity: 1; transform: translate(-50%, -50%) scale(1.18); filter: brightness(1.72); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.38); filter: brightness(0.92); }
+}
+
 @keyframes ash-ember-spit-trail {
   0% { opacity: 0.18; transform: translateX(-24px) rotate(-8deg) scaleX(0.42); filter: blur(2px) brightness(0.9); }
   36% { opacity: 0.92; transform: translateX(6px) rotate(-7deg) scaleX(1.08); filter: blur(0.7px) brightness(1.38); }
@@ -8513,6 +8575,18 @@ p {
   0% { opacity: 0; transform: translateX(-50%) scaleX(0.28) scaleY(0.72); filter: blur(1px); }
   26% { opacity: 0.95; transform: translateX(-50%) scaleX(0.88) scaleY(1); filter: blur(0); }
   100% { opacity: 0; transform: translateX(-50%) scaleX(1.72) scaleY(1.28); filter: blur(2px); }
+}
+
+@keyframes zheng-shockwave-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.28); filter: blur(1.4px) brightness(1); }
+  30% { opacity: 1; transform: translate(-50%, -50%) scale(1.24); filter: blur(0) brightness(1.7); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.64); filter: blur(2px) brightness(0.9); }
+}
+
+@keyframes zheng-shockwave-trail {
+  0% { opacity: 0; transform: translateX(-58px) rotate(-2deg) scaleX(0.22); filter: blur(2.2px); }
+  28% { opacity: 0.92; transform: translateX(-8px) rotate(-1deg) scaleX(1); filter: blur(0.4px); }
+  100% { opacity: 0; transform: translateX(78px) rotate(3deg) scaleX(1.42); filter: blur(2.8px); }
 }
 
 @keyframes taotie-breath-flow {

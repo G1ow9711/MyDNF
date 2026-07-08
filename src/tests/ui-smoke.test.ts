@@ -750,6 +750,98 @@ describe("town app shell", () => {
     );
   });
 
+  it("resolves legacy monster skill VFX only from active cues", () => {
+    const enemySkillRoot = (
+      skillId: string,
+      cue: string,
+      extraAttributes: Record<string, string> = {}
+    ): CssElementSnapshot => ({
+      classList: ["enemy-skill-vfx", `enemy-skill-${skillId}`],
+      attributes: {
+        "data-enemy-skill-vfx": skillId,
+        "data-enemy-vfx-cue": cue,
+        ...extraAttributes
+      }
+    });
+    const enemySkillPart = (root: CssElementSnapshot, className: string): CssElementSnapshot => ({
+      classList: [className],
+      parent: root
+    });
+    const expectUncuedPartsIdle = (root: CssElementSnapshot) => {
+      expect(resolvedAnimationName(stylesCss, enemySkillPart(root, "enemy-cast-ring"))).toBe("none");
+      expect(resolvedAnimationName(stylesCss, enemySkillPart(root, "enemy-cast-core"))).toBe("none");
+      expect(resolvedAnimationName(stylesCss, enemySkillPart(root, "enemy-cast-trail"))).toBe("none");
+    };
+
+    const ashSpitUncued = enemySkillRoot("ash-ember-spit", "");
+    const ashSpitActive = enemySkillRoot("ash-ember-spit", "ash-ember-spit-impact");
+    const crawlerUncued = enemySkillRoot("ash-crawler-burst", "");
+    const crawlerActive = enemySkillRoot("ash-crawler-burst", "ash-crawler-burst-explode");
+    const shockwaveUncued = enemySkillRoot("zheng-shockwave", "");
+    const shockwaveActive = enemySkillRoot("zheng-shockwave", "zheng-shockwave-impact");
+    const hornUncued = enemySkillRoot("zheng-horn-charge", "");
+    const hornActive = enemySkillRoot("zheng-horn-charge", "zheng-horn-charge-impact");
+    const breathUncued = enemySkillRoot("taotie-flame-breath", "");
+    const breathActive = enemySkillRoot("taotie-flame-breath", "taotie-flame-breath-sustain", {
+      "data-enemy-attack-hit-index": "2"
+    });
+
+    expectUncuedPartsIdle(ashSpitUncued);
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(ashSpitActive, "enemy-cast-ring"))).toBe(
+      "ash-ember-spit-ring"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(ashSpitActive, "enemy-cast-core"))).toBe(
+      "ash-ember-spit-core"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(ashSpitActive, "enemy-cast-trail"))).toBe(
+      "ash-ember-spit-trail"
+    );
+
+    expectUncuedPartsIdle(crawlerUncued);
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(crawlerActive, "enemy-cast-ring"))).toBe(
+      "ash-crawler-burst-ring"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(crawlerActive, "enemy-cast-core"))).toBe(
+      "ash-crawler-burst-core"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(crawlerActive, "enemy-cast-trail"))).toBe(
+      "ash-crawler-burst-trail"
+    );
+
+    expectUncuedPartsIdle(shockwaveUncued);
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(shockwaveActive, "enemy-cast-ring"))).toBe(
+      "zheng-shockwave-expand"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(shockwaveActive, "enemy-cast-core"))).toBe(
+      "zheng-shockwave-core"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(shockwaveActive, "enemy-cast-trail"))).toBe(
+      "zheng-shockwave-trail"
+    );
+
+    expectUncuedPartsIdle(hornUncued);
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(hornActive, "enemy-cast-ring"))).toBe(
+      "zheng-horn-charge-impact-ring"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(hornActive, "enemy-cast-core"))).toBe(
+      "zheng-horn-charge-core"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(hornActive, "enemy-cast-trail"))).toBe(
+      "zheng-horn-charge-trail"
+    );
+
+    expectUncuedPartsIdle(breathUncued);
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(breathActive, "enemy-cast-ring"))).toBe(
+      "taotie-flame-breath-sustain-ring"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(breathActive, "enemy-cast-core"))).toBe(
+      "taotie-flame-breath-sustain-core"
+    );
+    expect(resolvedAnimationName(stylesCss, enemySkillPart(breathActive, "enemy-cast-trail"))).toBe(
+      "taotie-flame-breath-tick-two"
+    );
+  });
+
   it("limits taotie summon emerge animation to idle spawned monsters so attack motion can take over", () => {
     expect(stylesCss).toContain('.combat-enemy[data-enemy-spawn-source="taotie-ash-summon"][data-enemy-motion="idle"] .enemy-art');
     expect(stylesCss).not.toContain(

@@ -959,3 +959,13 @@
 - Combat note: `taotie-chain-cleave` now follows forge shackle in phase 2, pulls during windup, hits on two real frames, binds the player on drag, then lands a heavier smash with separate VFX and feedback cues.
 - UI note: the skill now renders as a line telegraph with `actor-enemy-skill-taotie-chain-cleave`, `taotie-chain-cleave-drag`, and `taotie-chain-cleave-smash`. Uncued active VFX explicitly stays `animation: none` so fake/default monster effects do not mask missing cue wiring.
 - Verification note: focused combat/app/UI tests passed for phase-two rotation, strict drag/smash timing, DOM hooks, feedback classes, and cue-specific CSS animation resolution.
+
+## DNF-Style Zheng Shockwave and Legacy Monster VFX Cue Gates Findings
+- Current priority follows the user's latest clarification: role and monster geometry can remain lightweight for now, but combat flow, strict hit frames, model-following action, hit feedback, player/enemy action changes, and skill/monster VFX remain strict acceptance gates.
+- Read-only combat audit selected `zheng-shockwave` as the next strict enemy-skill coverage gap. The implementation already used real windup/impact/cancel logic, but there was no dedicated regression for quake frame timing, lane recheck, feedback cue, and stagger cancellation.
+- Read-only UI audit found the higher-risk presentation issue: older monster skills still inherited generic `.enemy-cast-ring/core/trail` animations when the active VFX root had no exact cue. That could make missing cue wiring look visually acceptable.
+- RED note: cue-resolution smoke failed on `enemy-cast-pulse` for an uncued legacy monster skill. This proved the visual fallback was still masking absent skill cues.
+- Combat note: the new shockwave test uses a real bottom-lane windup and top-lane escape, so the MISS path stays inside the arena and proves live hit-frame lane sampling.
+- CSS note: legacy monster active VFX now defaults ring/core/trail to `animation: none`; `ash-ember-spit`, `ash-crawler-burst`, `zheng-shockwave`, `zheng-horn-charge`, and `taotie-flame-breath` only animate through exact active cue selectors.
+- VFX note: added dedicated ash spit ring/core and shockwave core/trail animations so old skills have visible active presentation without relying on generic enemy pulse/flicker/trail.
+- Queue note: apply this cue-gate rule to any future monster skill: an uncued active VFX root should stay visually idle, and every real hit/miss frame should provide explicit cue metadata.

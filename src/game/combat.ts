@@ -58,6 +58,8 @@ export type CombatHitPhase =
   | "feint-shot"
   | "mirror-arc"
   | "mirror-counter"
+  | "lotus-bind"
+  | "lotus-bloom"
   | "uppercut"
   | "chain-open"
   | "chain-cross"
@@ -103,6 +105,8 @@ export type CombatVfxCue =
   | "crow-feint-shot"
   | "mirror-arc-slash"
   | "mirror-counter-burst"
+  | "glass-lotus-bind"
+  | "glass-lotus-bloom"
   | "cinder-uppercut-rise"
   | "flowing-chain-open"
   | "flowing-chain-cross"
@@ -2331,6 +2335,83 @@ function applyMirrorArc(run: CombatRun, skill: ClassSkillDefinition, canceledFro
       hitPhase: "mirror-arc",
       vfxCue: "mirror-arc-slash",
       vfxWindowMs: 320
+    }
+  );
+}
+
+const glassLotusBindDelayMs = 180;
+const glassLotusBloomDelayMs = 320;
+
+function glassLotusCenter(run: CombatRun): CombatVector {
+  return {
+    x: clamp(run.player.x + 118 * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+}
+
+function glassLotusHitbox(
+  run: CombatRun,
+  skill: ClassSkillDefinition,
+  canceledFromCombo: boolean,
+  delayMs: number,
+  stage: "bind" | "bloom"
+): PlayerHitboxDefinition {
+  const bloom = stage === "bloom";
+
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: bloom ? 196 : 176,
+    laneRange: bloom ? 96 : 82,
+    targetCap: 3,
+    frontOnly: false,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * (bloom ? 0.92 : 0.34))),
+    hitstopMs: bloom ? 74 : 54,
+    knockback: bloom ? 24 : 0,
+    juggle: false,
+    inputToHitMs: delayMs,
+    canceledFromCombo,
+    pullCenter: bloom ? undefined : glassLotusCenter(run),
+    statusTags: bloom ? ["stagger"] : ["control"],
+    actionTags: bloom ? ["knockdown"] : ["pull"]
+  };
+}
+
+function applyGlassLotus(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const center = glassLotusCenter(run);
+  const endPosition = {
+    x: clamp(run.player.x + skill.animation.lungePx * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const castingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + glassLotusBloomDelayMs),
+    skill,
+    canceledFromCombo
+  );
+  const boundRun = schedulePlayerHitboxEffect(
+    castingRun,
+    glassLotusHitbox(run, skill, canceledFromCombo, glassLotusBindDelayMs, "bind"),
+    center,
+    run.player.facing,
+    {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-lotus-bind`,
+      hitPhase: "lotus-bind",
+      vfxCue: "glass-lotus-bind",
+      vfxWindowMs: 360
+    }
+  );
+
+  return schedulePlayerHitboxEffect(
+    boundRun,
+    glassLotusHitbox(run, skill, canceledFromCombo, glassLotusBloomDelayMs, "bloom"),
+    center,
+    run.player.facing,
+    {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-lotus-bloom`,
+      hitPhase: "lotus-bloom",
+      vfxCue: "glass-lotus-bloom",
+      vfxWindowMs: 460,
+      missOnEmpty: false
     }
   );
 }
@@ -5956,6 +6037,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "mirror-arc") {
     return finishSkillAction(applyMirrorArc(run, skill, canceledFromCombo));
+  }
+
+  if (skill.id === "glass-lotus") {
+    return finishSkillAction(applyGlassLotus(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "furnace-step") {

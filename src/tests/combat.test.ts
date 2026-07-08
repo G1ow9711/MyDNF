@@ -3014,6 +3014,94 @@ describe("combat actions and impact feel", () => {
     expect(countered.enemies[0].hp).toBeLessThan(activeRun.enemies[0].hp);
   });
 
+  it("casts glass-lotus as delayed bind and bloom frames with live area recheck", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 316, y: 340, hp: 220, maxHp: 220 },
+        { x: 396, y: 348, hp: 220, maxHp: 220 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "glass-lotus" });
+    const [bindAtMs, bloomAtMs] = scheduledSkillTimes(cast, "glass-lotus");
+    const beforeBind = stepToElapsed(cast, bindAtMs - 1);
+    const bound = stepToElapsed(cast, bindAtMs);
+    const bloomed = stepToElapsed(cast, bloomAtMs);
+    const bindHits = skillHitEvents(bound, "glass-lotus").filter((event) => event.hitPhase === "lotus-bind");
+    const bloomHits = skillHitEvents(bloomed, "glass-lotus").filter((event) => event.hitPhase === "lotus-bloom");
+
+    expect([bindAtMs, bloomAtMs]).toEqual([180, 320]);
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("glass-lotus");
+    expect(skillHitEvents(cast, "glass-lotus")).toHaveLength(0);
+    expect(cast.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(beforeBind.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
+    expect(bound.player.x).toBeGreaterThan(run.player.x);
+    expect(bindHits).toHaveLength(2);
+    expect(bindHits.every((event) => event.vfxCue === "glass-lotus-bind")).toBe(true);
+    expect(bindHits.every((event) => event.statusTags?.includes("control"))).toBe(true);
+    expect(bound.enemies[0].position.x).toBeGreaterThan(run.enemies[0].position.x);
+    expect(bound.enemies[1].position.x).toBeLessThan(run.enemies[1].position.x);
+    expect(bloomHits).toHaveLength(2);
+    expect(bloomHits.every((event) => event.vfxCue === "glass-lotus-bloom")).toBe(true);
+    expect(bloomHits.every((event) => event.actionTags?.includes("knockdown"))).toBe(true);
+    expect(bloomed.enemies.every((enemy) => enemy.downed)).toBe(true);
+  });
+
+  it("rechecks and cancels glass-lotus stages instead of locking cast-time targets", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
+    const escapeRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 316, y: 340, hp: 220, maxHp: 220 }]
+    );
+    const escapeCast = performAction(escapeRun, { type: "skill", skillId: "glass-lotus" });
+    const [bindAtMs, bloomAtMs] = scheduledSkillTimes(escapeCast, "glass-lotus");
+    const escapedBeforeBind: CombatRun = {
+      ...escapeCast,
+      enemies: escapeCast.enemies.map((enemy, index) =>
+        index === 0 ? { ...enemy, position: { ...enemy.position, x: 740 } } : enemy
+      )
+    };
+    const avoidedBind = stepToElapsed(escapedBeforeBind, bindAtMs);
+
+    expect(skillHitEvents(avoidedBind, "glass-lotus")).toHaveLength(0);
+    expect(skillMissEvents(avoidedBind, "glass-lotus")).toHaveLength(1);
+
+    const interruptedRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 310, y: 340, hp: 220, maxHp: 220 }]
+    );
+    const interruptedCast = performAction(interruptedRun, { type: "skill", skillId: "glass-lotus" });
+    const attackedCast: CombatRun = {
+      ...interruptedCast,
+      enemies: interruptedCast.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: interruptedCast.elapsedMs,
+              attackImpactAtMs: interruptedCast.elapsedMs + 120,
+              attackRecoverUntilMs: interruptedCast.elapsedMs + 320,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const interrupted = stepToElapsed(attackedCast, bloomAtMs);
+
+    expect(interrupted.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-ember-spit")).toBe(true);
+    expect(skillHitEvents(interrupted, "glass-lotus")).toHaveLength(0);
+    expect(skillMissEvents(interrupted, "glass-lotus")).toHaveLength(0);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "glass-lotus")).toHaveLength(0);
+  });
+
   it("turns trap and break tags into monster control and armor-break state", () => {
     const trapState = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
     const trapRun = withPlayerAndEnemies(

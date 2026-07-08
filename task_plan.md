@@ -87,6 +87,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 | PowerShell treated an unescaped regex pipe as a command while auditing `marking-bolt` | 1 | Re-ran later searches with safer quoting and avoided pipe-heavy ad-hoc regex in shell |
 | Focused `marking-bolt` RED initially failed on insufficient Ink resource | 1 | Updated the new fixtures to use an Ink class state with enough `heat`/resource for the skill cast |
 | Focused `marking-bolt` interruption test expected a hit from an out-of-range monster setup | 1 | Moved the interruption fixture to a close enemy after the cast so the monster hit genuinely cancels the pending mark |
+| Focused `glass-lotus` UI GREEN initially counted `data-vfx-cue` twice per hit | 1 | Scoped the new assertion to skill-impact burst nodes because generic hit sparks also expose the same cue for existing VFX consumers |
 
 ## Notes
 - Project root at start: `F:\My_DNF`.
@@ -160,6 +161,8 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current Ink marking-bolt progress: `marking-bolt` now uses a strict 180 ms delayed contract-mark frame, keeps cast-frame targets unmarked, rechecks live targets at impact, cancels pending marks on monster interruption, applies target-bound `contract-mark` VFX only on the real hit frame, and renders dedicated player/weapon/cast/impact animations. Character and monster geometry may stay lightweight for this prototype phase, but model-following action, hit-frame timing, hit feedback, and skill/monster VFX remain strict gates.
 - Current Ink crow-feint progress: `crow-feint` now has punishable startup, a delayed 90 ms evade/invulnerability window, backward model-following movement, a strict 190 ms dynamic `feint-shot` frame, live target recheck, delayed MISS, startup interruption cancellation, and dedicated `ink-feint` / `feint-shot` / `crow-feint` player, weapon, cast, and target-impact VFX.
 - Current Liuli counter progress: `mirror-arc` now has punishable startup, a delayed 90 ms parry window, active reflect through 770 ms, a strict 210 ms model-following mirror slash, startup interruption cancellation, class-specific `mirror-counter` feedback, and dedicated `liuli-mirror` / `mirror-parry` / `mirror-arc` / `mirror-counter-burst` VFX. Character and monster geometry may stay lightweight for this prototype phase, but smooth action flow, strict frames, and skill/monster VFX remain the hard gate.
+- Current Liuli control progress: `glass-lotus` now uses strict 180 ms bind and 320 ms bloom frames, model-following cast movement, live area recheck, delayed bind MISS, interruption cancellation, pull/control target reaction, bloom knockdown, and dedicated `liuli-lotus` / `lotus-bloom` / `glass-lotus` cast/bind/bloom VFX. Character and monster geometry may stay lightweight, but the action flow and VFX strictness remain the acceptance gate.
+- Current next-candidate note: read-only combat audit selected `mirrorflame-burst` as the next high-value Liuli advancement gap because it still falls through the generic skill path.
 - Implementation approved by user.
 - Current gate: implementation plan must be written before scaffolding/code.
 - GitHub push phrase to upload commits: `允许 push`.

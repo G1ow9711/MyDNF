@@ -2716,3 +2716,25 @@
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/mirror-arc-check.html` confirmed 90 ms delayed reflect start, 770 ms reflect end, 210 ms slash frame, player X movement 240 -> 262, startup interruption cancellation, active counter VFX, computed animations `player-liuli-mirror-parry`, `weapon-mirror-parry`, `mirror-arc-cast-core`, `mirror-arc-impact-core`, `mirror-counter-burst-core`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Build verification initially caught a strict TypeScript guard gap in the updated reflection UI test (`reflectModel.combatRun` was optional). Added the same active-run assertion pattern used elsewhere in the file.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 450 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 100 DNF-Style Glass Lotus Strict Bind Bloom
+- Continued from the user's latest clarification: character and monster geometry can stay simpler while full functionality is connected, but fight flow, strict action frames, model-following attacks, target action changes, skill VFX, and monster VFX remain hard gates.
+- Used parallel read-only agents:
+  - UI/CSS audit selected `glass-lotus` because existing RED tests already targeted its missing strict bind/bloom path and catalog metadata existed (`liuli-lotus`, `lotus-bloom`, `glass-lotus`).
+  - Combat audit selected `mirrorflame-burst` as the next high-value candidate after the current slice; it remains queued after `glass-lotus`.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `glass-lotus` to schedule 180 ms bind and 320 ms bloom frames, keep cast/before-bind HP unchanged, pull/control targets on bind, knock targets down on bloom, recheck live targets, emit delayed MISS, and cancel pending stages when monster damage interrupts the cast.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require `data-player-skill-move="glass-lotus"`, `lotus-bind` / `lotus-bloom` phases, `glass-lotus-bind` / `glass-lotus-bloom` target VFX, and dedicated player/weapon/cast/impact CSS animations.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t glass-lotus --reporter=basic` failed because `glass-lotus` had no scheduled effects.
+  - `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t glass-lotus --reporter=basic` failed because rendered `glass-lotus` still had no scheduled effects.
+- Implemented:
+  - Added `lotus-bind` / `lotus-bloom` hit phases and `glass-lotus-bind` / `glass-lotus-bloom` VFX cues.
+  - Added `applyGlassLotus()` with a 14 px model-following cast, fixed field center, 180 ms dynamic bind hitbox, 320 ms dynamic bloom hitbox, live area recheck, delayed MISS only on bind, pull/control behavior, knockdown bloom, and interruption-safe pending effect cancellation through the existing scheduled-effect guard.
+  - Added dedicated `liuli-lotus` player animation, `lotus-bloom` weapon animation, glass-lotus cast field, bind burst, and bloom burst CSS/keyframes.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t glass-lotus --reporter=basic`, 2 tests.
+  - Focused GREEN passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t glass-lotus --reporter=basic`, 2 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 372 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/glass-lotus-check.html` confirmed 180/320 ms timings, no cast/before-bind HP mutation, two bind hits, two bloom hits, inward pull to `[348,368]`, knockdown on both targets, escape delayed MISS, monster interruption cancellation, DOM hooks, computed animations `player-liuli-lotus-cast`, `weapon-lotus-bloom`, `glass-lotus-cast-core`, `glass-lotus-bind-core`, `glass-lotus-bloom-core`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 454 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

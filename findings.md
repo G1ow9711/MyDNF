@@ -687,3 +687,12 @@
 - Cancellation note: a monster hit before the 90 ms active window lands on the player and clears pending mirror slash effects, so the skill no longer creates ghost counter/slash damage after interruption.
 - Counter note: a monster hit during active frames is converted into a `mirror-counter` event on the same `mirror-arc` skill id with `mirror-counter-burst` VFX, preserving class-specific presentation instead of falling back to generic reflect.
 - Presentation note: browser computed-style validation confirmed the player, weapon, cast field, slash impact, and counter burst use dedicated `player-liuli-mirror-parry`, `weapon-mirror-parry`, `mirror-arc-cast-core`, `mirror-arc-impact-core`, and `mirror-counter-burst-core` animations.
+
+## DNF-Style Glass Lotus Strict Bind Bloom Findings
+- Current priority remains combat feel over heavier geometry: `glass-lotus` may use the existing lightweight Liuli model, but it must be a readable two-stage control/burst skill with real hit frames and dedicated VFX.
+- Parallel UI/CSS audit selected `glass-lotus` because tests were already RED and catalog metadata existed, while no combat script or CSS consumed `liuli-lotus`, `lotus-bloom`, and `glass-lotus`.
+- Combat note: `glass-lotus` now schedules a 180 ms dynamic bind frame and 320 ms dynamic bloom frame. Neither frame mutates targets at cast time; both sample the live area from a fixed lotus field center.
+- Target-action note: bind pulls enemies inward and applies `control`; bloom applies `stagger` plus forced knockdown. This gives monsters visible action-state changes without requiring heavier character models.
+- Cancellation note: monster damage before bloom clears both pending lotus stages through the same scheduled-effect interruption guard used by other strict skills, preventing ghost damage or stale VFX.
+- Presentation note: browser computed-style validation confirmed dedicated `player-liuli-lotus-cast`, `weapon-lotus-bloom`, `glass-lotus-cast-core`, `glass-lotus-bind-core`, and `glass-lotus-bloom-core` animations, with no fallback to generic player/weapon/impact animations.
+- Audit queue note: the combat read-only agent selected `mirrorflame-burst` as the next high-value Liuli advancement gap after `glass-lotus`; it still falls through the generic skill path.

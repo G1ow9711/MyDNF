@@ -1199,6 +1199,67 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes mirror-counter-burst-core");
   });
 
+  it("defines dedicated glass-lotus bind, bloom, cast, weapon, and impact animations", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 220,
+          maxHp: 220,
+          position: { x: player.x + 76 + index * 80, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "glass-lotus" }
+    );
+    const [bindAtMs, bloomAtMs] = scheduledSkillTimes(castRun, "glass-lotus");
+    const startupHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: castRun
+    });
+    const beforeBindHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, bindAtMs - 1)
+    });
+    const bindHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, bindAtMs)
+    });
+    const bloomHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, bloomAtMs)
+    });
+
+    expect(skillHitEvents(castRun, "glass-lotus")).toHaveLength(0);
+    expect(startupHtml).toContain('data-player-skill-move="glass-lotus"');
+    expect(beforeBindHtml).not.toContain('data-skill-impact-vfx="glass-lotus"');
+    expect(bindHtml).toContain('data-hit-phase="lotus-bind"');
+    expect(bindHtml).toContain('data-vfx-cue="glass-lotus-bind"');
+    expect(bindHtml).toContain('class="skill-impact-burst skill-impact-shape-glass-lotus"');
+    expect(bloomHtml).toContain('data-hit-phase="lotus-bloom"');
+    expect(bloomHtml).toContain('data-vfx-cue="glass-lotus-bloom"');
+    expect(stylesCss).toContain('[data-skill-animation-preset="liuli-lotus"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="lotus-bloom"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-glass-lotus");
+    expect(stylesCss).toContain(".skill-impact-shape-glass-lotus");
+    expect(stylesCss).toContain('[data-vfx-cue="glass-lotus-bind"]');
+    expect(stylesCss).toContain('[data-vfx-cue="glass-lotus-bloom"]');
+    expect(stylesCss).toContain("@keyframes player-liuli-lotus-cast");
+    expect(stylesCss).toContain("@keyframes weapon-lotus-bloom");
+    expect(stylesCss).toContain("@keyframes glass-lotus-cast-core");
+    expect(stylesCss).toContain("@keyframes glass-lotus-bind-core");
+    expect(stylesCss).toContain("@keyframes glass-lotus-bloom-core");
+  });
+
   it("renders liuli-rain as staggered glass-rain impact waves", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const state = {

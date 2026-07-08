@@ -70,6 +70,10 @@ function countOccurrences(text: string, pattern: string): number {
   return text.split(pattern).length - 1;
 }
 
+function countSkillImpactBursts(text: string, cue: string): number {
+  return text.match(new RegExp(`class="skill-impact-burst [^"]*"[^>]*data-vfx-cue="${cue}"`, "g"))?.length ?? 0;
+}
+
 function playerSkillVfxStyleFor(html: string, skillId: string): string {
   const match = html.match(new RegExp(`<div class="player-skill-vfx skill-vfx-${skillId}[^"]*"[^>]*style="([^"]*)"`));
 
@@ -2805,6 +2809,82 @@ describe("playable app integration actions", () => {
     expect(slashHtml).toContain('data-impact-vfx-shape="mirror-arc"');
     expect(slashHtml).toContain('class="skill-impact-burst skill-impact-shape-mirror-arc"');
     expect(countOccurrences(slashHtml, 'data-skill-impact-vfx="mirror-arc"')).toBe(1);
+  });
+
+  it("renders glass-lotus as delayed bind and bloom VFX instead of cast-frame damage", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 220,
+          maxHp: 220,
+          position: { x: player.x + 76 + index * 80, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "glass-lotus" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after glass-lotus");
+    }
+
+    const [bindAtMs, bloomAtMs] = scheduledSkillTimes(model.combatRun, "glass-lotus");
+    const castHtml = renderAppHtml(model);
+    const beforeBindHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, bindAtMs - 1)
+    });
+    const bindRun = stepToElapsed(model.combatRun, bindAtMs);
+    const bindHtml = renderAppHtml({
+      ...model,
+      combatRun: bindRun
+    });
+    const bloomRun = stepToElapsed(model.combatRun, bloomAtMs);
+    const bloomHtml = renderAppHtml({
+      ...model,
+      combatRun: bloomRun
+    });
+
+    expect(skillHitEvents(model.combatRun, "glass-lotus")).toHaveLength(0);
+    expect(skillHitEvents(bindRun, "glass-lotus").filter((event) => event.hitPhase === "lotus-bind")).toHaveLength(2);
+    expect(skillHitEvents(bloomRun, "glass-lotus").filter((event) => event.hitPhase === "lotus-bloom")).toHaveLength(2);
+    expect(castHtml).toContain('data-active-skill-id="glass-lotus"');
+    expect(castHtml).toContain('data-skill-animation-preset="liuli-lotus"');
+    expect(castHtml).toContain('data-skill-weapon-arc="lotus-bloom"');
+    expect(castHtml).toContain('data-skill-vfx-shape="glass-lotus"');
+    expect(castHtml).toContain('data-player-skill-move="glass-lotus"');
+    expect(beforeBindHtml).not.toContain('data-skill-impact-vfx="glass-lotus"');
+    expect(bindHtml).toContain('data-hit-phase="lotus-bind"');
+    expect(bindHtml).toContain('data-vfx-cue="glass-lotus-bind"');
+    expect(bindHtml).toContain('data-impact-vfx-shape="glass-lotus"');
+    expect(bindHtml).toContain('class="skill-impact-burst skill-impact-shape-glass-lotus"');
+    expect(countSkillImpactBursts(bindHtml, "glass-lotus-bind")).toBe(2);
+    expect(bloomHtml).toContain('data-hit-phase="lotus-bloom"');
+    expect(bloomHtml).toContain('data-vfx-cue="glass-lotus-bloom"');
+    expect(countSkillImpactBursts(bloomHtml, "glass-lotus-bloom")).toBe(2);
   });
 
   it("keeps ink-shot bolt VFX anchored to the cast origin after the player moves", () => {

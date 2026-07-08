@@ -2495,7 +2495,8 @@ function glassLotusHitbox(
     canceledFromCombo,
     pullCenter: bloom ? undefined : glassLotusCenter(run),
     statusTags: bloom ? ["stagger"] : ["control"],
-    actionTags: bloom ? ["knockdown"] : ["pull"]
+    actionTags: bloom ? ["knockdown"] : ["pull"],
+    requiresStatusSourceSkillId: bloom ? skill.id : undefined
   };
 }
 
@@ -2571,7 +2572,8 @@ function mirrorflameHitbox(
     inputToHitMs: delayMs,
     canceledFromCombo,
     statusTags: burst ? ["stagger"] : ["control"],
-    actionTags: burst ? ["knockdown"] : []
+    actionTags: burst ? ["knockdown"] : [],
+    requiresStatusSourceSkillId: burst ? skill.id : undefined
   };
 }
 
@@ -2779,7 +2781,8 @@ function swordPrismFieldHitbox(
     inputToHitMs: delayMs,
     canceledFromCombo,
     statusTags: ["stagger"],
-    actionTags: burst ? ["knockdown"] : []
+    actionTags: burst ? ["knockdown"] : [],
+    requiresStatusSourceSkillId: burst ? skill.id : undefined
   };
 }
 

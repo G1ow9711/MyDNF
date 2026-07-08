@@ -916,3 +916,11 @@
 - Class-switch note: selecting another base class now first syncs the outgoing class resource, then restores the incoming class resource pool. This preserves separate resources while the player is still allowed to swap base classes.
 - Validation note: save loading normalizes known class-resource values, clamps them to each class resource max, fills a missing active-class entry from heat, and rejects unknown class ids.
 - Browser note: the in-app browser execution context did not expose `localStorage`, so direct injected-save browser migration proof was not available there. Automated class/save/combat/app tests cover the migration and stale-alias behavior; browser smoke still confirmed the playable combat scene and enemy presence on the running dev server.
+
+## DNF-Style Stage-Linked Control Burst Findings
+- Current priority follows the user's latest clarification: model geometry can stay simple for now, but combat timing, action-state truth, target binding, and skill VFX cannot be fake.
+- Combat note: `glass-lotus`, `mirrorflame-burst`, and `sword-prism-field` already delayed their first stage to a real bind/lock frame, but their second stage still selected any live target in the area at bloom/burst time.
+- RED note: focused tests proved the bug by moving a second target into the skill area only after bind/lock; old behavior produced second-stage hit events on the late entrant.
+- Fix note: each second-stage hitbox now requires `requiresStatusSourceSkillId: skill.id`, so it can only select enemies that still carry same-skill control/stagger source from the real first stage.
+- VFX note: because impact bursts are rendered from hit events, late entrants no longer receive false bloom/burst impact VFX. Browser validation confirmed `sword-prism-field` created one burst VFX on the locked target while the late entrant stayed idle.
+- Queue note: read-only audit identified `iron-palm` as a future test-hardening candidate for explicit recheck/MISS/interruption coverage, and UI audit identified room-gate open/enter VFX as a later presentation pass.

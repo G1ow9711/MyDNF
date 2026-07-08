@@ -3313,6 +3313,40 @@ describe("combat actions and impact feel", () => {
     expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "glass-lotus")).toHaveLength(0);
   });
 
+  it("does not bloom glass-lotus on targets that enter after the bind frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 316, y: 340, hp: 220, maxHp: 220 },
+        { x: 720, y: 500, hp: 220, maxHp: 220 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "glass-lotus" });
+    const [bindAtMs, bloomAtMs] = scheduledSkillTimes(cast, "glass-lotus");
+    const bound = stepToElapsed(cast, bindAtMs);
+    const lateEntrantBeforeBloom: CombatRun = {
+      ...bound,
+      enemies: bound.enemies.map((enemy, index) =>
+        index === 1
+          ? {
+              ...enemy,
+              position: { x: 340, y: 344 }
+            }
+          : enemy
+      )
+    };
+    const bloomed = stepToElapsed(lateEntrantBeforeBloom, bloomAtMs);
+    const bloomHits = skillHitEvents(bloomed, "glass-lotus").filter((event) => event.hitPhase === "lotus-bloom");
+
+    expect(skillHitEvents(bound, "glass-lotus").filter((event) => event.hitPhase === "lotus-bind")).toHaveLength(1);
+    expect(bloomHits.map((event) => event.targetId)).toEqual([run.enemies[0].id]);
+    expect(bloomed.enemies[0].hp).toBeLessThan(bound.enemies[0].hp);
+    expect(bloomed.enemies[1].hp).toBe(bound.enemies[1].hp);
+  });
+
   it("casts mirrorflame-burst as delayed lock and burst frames with live area recheck", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100);
     const baseRun = createCombatRun(state, "cinder-kiln-alley");
@@ -3424,6 +3458,40 @@ describe("combat actions and impact feel", () => {
     expect(skillHitEvents(interrupted, "mirrorflame-burst")).toHaveLength(0);
     expect(skillMissEvents(interrupted, "mirrorflame-burst")).toHaveLength(0);
     expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "mirrorflame-burst")).toHaveLength(0);
+  });
+
+  it("does not burst mirrorflame-burst on targets that enter after the lock frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 330, y: 340, hp: 260, maxHp: 260 },
+        { x: 720, y: 500, hp: 260, maxHp: 260 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "mirrorflame-burst" });
+    const [lockAtMs, burstAtMs] = scheduledSkillTimes(cast, "mirrorflame-burst");
+    const locked = stepToElapsed(cast, lockAtMs);
+    const lateEntrantBeforeBurst: CombatRun = {
+      ...locked,
+      enemies: locked.enemies.map((enemy, index) =>
+        index === 1
+          ? {
+              ...enemy,
+              position: { x: 340, y: 344 }
+            }
+          : enemy
+      )
+    };
+    const bursted = stepToElapsed(lateEntrantBeforeBurst, burstAtMs);
+    const burstHits = skillHitEvents(bursted, "mirrorflame-burst").filter((event) => event.hitPhase === "mirrorflame-burst");
+
+    expect(skillHitEvents(locked, "mirrorflame-burst").filter((event) => event.hitPhase === "mirrorflame-lock")).toHaveLength(1);
+    expect(burstHits.map((event) => event.targetId)).toEqual([run.enemies[0].id]);
+    expect(bursted.enemies[0].hp).toBeLessThan(locked.enemies[0].hp);
+    expect(bursted.enemies[1].hp).toBe(locked.enemies[1].hp);
   });
 
   it("turns trap and break tags into monster control and armor-break state", () => {
@@ -5184,6 +5252,40 @@ describe("combat actions and impact feel", () => {
     expect(misses).toHaveLength(1);
     expect(misses[0].occurredAtMs).toBe(390);
     expect(skillHitEvents(afterBurst, "sword-prism-field")).toHaveLength(0);
+  });
+
+  it("does not burst sword-prism-field on targets that enter after the lock frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 390, y: 340, hp: 240, maxHp: 240 },
+        { x: 720, y: 500, hp: 240, maxHp: 240 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "sword-prism-field" });
+    const [lockAtMs, burstAtMs] = scheduledSkillTimes(cast, "sword-prism-field");
+    const locked = stepToElapsed(cast, lockAtMs);
+    const lateEntrantBeforeBurst: CombatRun = {
+      ...locked,
+      enemies: locked.enemies.map((enemy, index) =>
+        index === 1
+          ? {
+              ...enemy,
+              position: { x: 400, y: 344 }
+            }
+          : enemy
+      )
+    };
+    const burst = stepToElapsed(lateEntrantBeforeBurst, burstAtMs);
+    const burstHits = skillHitEvents(burst, "sword-prism-field").filter((event) => event.hitPhase === "prism-field-burst");
+
+    expect(skillHitEvents(locked, "sword-prism-field").filter((event) => event.hitPhase === "prism-field-lock")).toHaveLength(1);
+    expect(burstHits.map((event) => event.targetId)).toEqual([run.enemies[0].id]);
+    expect(burst.enemies[0].hp).toBeLessThan(locked.enemies[0].hp);
+    expect(burst.enemies[1].hp).toBe(locked.enemies[1].hp);
   });
 
   it("cancels sword-prism-field pending lock and burst when monster damage interrupts the cast", () => {

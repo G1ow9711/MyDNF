@@ -3236,3 +3236,24 @@
   - Focused GREEN passed for class/resource/save, app settlement, and combat stale-alias tests.
   - Browser smoke on `http://127.0.0.1:5178/` entered `灰窑巷`, found a combat scene, read `classId="ember-warden"`, `resourceId="heat"`, `resourceMax="100"`, and detected 2 enemy nodes. Direct localStorage injection was not available in the in-app browser execution context, so the class-resource migration itself is covered by automated tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 504 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 125 DNF-Style Stage-Linked Control Burst Strictness
+- Continued from the user's clarified priority: character and monster model geometry can remain lightweight during full-loop delivery, but combat action flow, strict hit frames, actor state changes, skill VFX, monster VFX, and target truthfulness remain strict acceptance gates.
+- Used two read-only agents:
+  - Combat audit suggested `iron-palm` needs future dedicated recheck/MISS/interruption tests even though it already uses dynamic scheduled hitboxes.
+  - UI/CSS audit suggested a later room-gate VFX pass because gates currently expose state and pulse only, without a dedicated open-rift/entering cue.
+- Local audit selected a higher-priority lock/bind bug: `glass-lotus`, `mirrorflame-burst`, and `sword-prism-field` had delayed bind/lock frames, but their later bloom/burst frames could still damage targets that entered only after the first stage.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies `glass-lotus` bloom ignores targets entering after bind.
+  - `src/tests/combat.test.ts` now verifies `mirrorflame-burst` ignores targets entering after lock.
+  - `src/tests/combat.test.ts` now verifies `sword-prism-field` burst ignores targets entering after lock.
+- RED evidence:
+  - Focused RED failed all 3 tests because each later stage produced 2 hit events, including the late entrant.
+- Implemented:
+  - Added `requiresStatusSourceSkillId: skill.id` to the later stage of `glass-lotus`, `mirrorflame-burst`, and `sword-prism-field`.
+  - This reuses the existing same-skill source tag written by control/stagger status on the bind/lock frame, so only targets hit by that stage remain valid for the bloom/burst frame.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "after the (bind|lock) frame|after the lock frame" --reporter=dot`, 3 tests.
+  - Full combat file passed: `npm test -- src/tests/combat.test.ts --reporter=dot`, 228 tests.
+  - Related combat/app/UI suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --reporter=dot`, 408 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/stage-linked-burst-check.html` confirmed `sword-prism-field` burst rendered exactly one impact VFX on the locked target, computed animation `sword-prism-field-burst-core`, locked target motion `knockdown`, and late entrant motion `idle`. Temporary page was deleted after validation.

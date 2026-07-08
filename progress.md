@@ -2910,3 +2910,21 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 393 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/liuli-rain-check.html` confirmed scheduled times `260/355/450`, cast hits `0`, cast HP unchanged, first rain hits `2`, final rain hits `6`, hit inputs `260/355/450`, `rain` phase, `glass-rain-fall` cue, active movement `liuli-rain`, computed animations `player-liuli-rain-cast`, `weapon-fan-arc`, `glass-rain-fall`, `glass-rain-target-core`, `glass-rain-target-ring`, `glass-rain-target-shatter`, and empty validation errors. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 475 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 109 DNF-Style Liuli Rain Dedicated VFX
+- Continued the same strict-combat goal by tightening `liuli-rain` presentation after its real hit-frame fix.
+- Selected this slice because `liuli-rain` still used the generic `fan` weapon animation and its `glass-rain` cast field had no dedicated core/wave animation names, even though the skill now has strict scheduled hits.
+- Added RED coverage:
+  - `src/tests/ui-smoke.test.ts` now requires cast-frame `data-weapon-skill-preset="liuli-rain"`, a skill-specific weapon selector, `.skill-vfx-liuli-rain.skill-vfx-shape-glass-rain` core/wave selectors, and `weapon-liuli-rain-fan`, `glass-rain-cast-core`, `glass-rain-cast-wave` keyframes.
+- RED evidence:
+  - `npx vitest run src/tests/ui-smoke.test.ts -t "liuli-rain" --reporter=basic` failed because the dedicated `liuli-rain` weapon selector/keyframe was missing.
+- Implemented:
+  - Added `weapon-liuli-rain-fan` to override the generic `fan` weapon arc only for `data-skill-animation-preset="liuli-rain"`.
+  - Added dedicated glass-rain cast-field `.skill-core` and `.skill-wave` styling plus `glass-rain-cast-core` and `glass-rain-cast-wave` keyframes.
+- Verification:
+  - Focused GREEN passed: `npx vitest run src/tests/ui-smoke.test.ts -t "liuli-rain" --reporter=basic`, 2 tests.
+  - Related UI/app/audio suite passed: `npx vitest run src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts src/tests/render-audio.test.ts --reporter=basic`, 188 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/liuli-rain-vfx-check.html` confirmed computed animations `player-liuli-rain-cast`, `weapon-liuli-rain-fan`, `glass-rain-cast-core`, `glass-rain-cast-wave`, `glass-rain-fall`, `glass-rain-target-core`, `glass-rain-target-ring`, `glass-rain-target-shatter`, and empty validation errors. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+- Agent audit:
+  - A read-only UI/CSS audit found no other catalog skill obviously using the generic catalog fallback path, but highlighted that `meteor-knuckle` still lacks a dedicated computed-style regression for its resolved player, weapon, fall, and impact animation names.
+  - Next strict visual-combat slice should add browser-style validation for `meteor-knuckle` actual animations before widening to more model detail.

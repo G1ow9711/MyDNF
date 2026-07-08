@@ -1552,6 +1552,11 @@ describe("town app shell", () => {
     const [, , finalRainAtMs] = scheduledSkillTimes(castRun, "liuli-rain");
     const finalRainRun = stepToElapsed(castRun, finalRainAtMs);
     const rainHits = skillHitEvents(finalRainRun, "liuli-rain");
+    const castHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: castRun
+    });
     const html = renderAppHtml({
       state,
       mode: "combat",
@@ -1559,10 +1564,27 @@ describe("town app shell", () => {
     });
 
     expect(rainHits).toHaveLength(6);
+    expect(castHtml).toContain('data-weapon-skill-preset="liuli-rain"');
+    expect(castHtml).toContain('data-player-skill-vfx="liuli-rain"');
     expect(countOccurrences(html, 'data-skill-impact-vfx="liuli-rain"')).toBe(6);
     expect(html).toContain('data-impact-vfx-shape="glass-rain"');
     expect(html).toContain('data-vfx-cue="glass-rain-fall"');
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-glass-rain"');
+  });
+
+  it("defines dedicated liuli-rain weapon, cast-field, and impact animations", () => {
+    expect(stylesCss).toContain('[data-skill-animation-preset="liuli-rain"][data-skill-weapon-arc="fan"] .combat-weapon');
+    expect(stylesCss).toContain(".skill-vfx-liuli-rain.skill-vfx-shape-glass-rain .skill-core");
+    expect(stylesCss).toContain(".skill-vfx-liuli-rain.skill-vfx-shape-glass-rain .skill-wave");
+    expect(stylesCss).toContain(".skill-impact-shape-glass-rain");
+    expect(stylesCss).toContain("@keyframes player-liuli-rain-cast");
+    expect(stylesCss).toContain("@keyframes weapon-liuli-rain-fan");
+    expect(stylesCss).toContain("@keyframes glass-rain-cast-core");
+    expect(stylesCss).toContain("@keyframes glass-rain-cast-wave");
+    expect(stylesCss).toContain("@keyframes glass-rain-fall");
+    expect(stylesCss).toContain("@keyframes glass-rain-target-core");
+    expect(stylesCss).toContain("@keyframes glass-rain-target-ring");
+    expect(stylesCss).toContain("@keyframes glass-rain-target-shatter");
   });
 
   it("renders night-mark-detonation target impact metadata for marked enemies", () => {

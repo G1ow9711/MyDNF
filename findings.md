@@ -771,3 +771,11 @@
 - Cancellation note: because the active skill window now carries `liuli-rain`, existing monster-hit interruption logic can clear pending rain waves before they resolve. The new regression covers interruption before the first rain.
 - Presentation note: browser validation confirmed no cast-frame hits, HP unchanged at cast, first rain emits 2 hits, final rain emits 6 hits, event input timings are 260/355/450, hit phase is `rain`, cue is `glass-rain-fall`, active movement is `liuli-rain`, and computed animations remain `player-liuli-rain-cast`, `weapon-fan-arc`, `glass-rain-fall`, plus glass-rain target core/ring/shatter.
 - Queue note: future Liuli polish can add a skill-specific weapon fan keyframe and optional delayed no-target miss behavior, but the core fake-delay damage bug is now fixed.
+
+## DNF-Style Liuli Rain Dedicated VFX Findings
+- Current priority remains visual readability over heavier model geometry: the skill can use the lightweight Liuli actor, but the weapon, cast field, and target bursts must not all feel generic.
+- Local audit found `liuli-rain` already had a dedicated player cast animation and target `glass-rain` bursts, but its weapon still used the generic `fan` animation and the cast field lacked dedicated core/wave keyframes.
+- CSS note: `liuli-rain` now overrides the generic fan arc with `weapon-liuli-rain-fan`, and `.skill-vfx-liuli-rain.skill-vfx-shape-glass-rain` now animates `.skill-core` and `.skill-wave` through `glass-rain-cast-core` and `glass-rain-cast-wave`.
+- Browser validation note: computed-style validation confirmed `player-liuli-rain-cast`, `weapon-liuli-rain-fan`, `glass-rain-cast-core`, `glass-rain-cast-wave`, `glass-rain-fall`, and the existing glass-rain target core/ring/shatter animations with an empty error list.
+- Parallel audit note: a read-only UI/CSS pass found no other catalog skill obviously falling back to generic catalog animation hooks, but it also found that several checks remain string-based rather than computed-style browser validation.
+- Queue note: next visual-combat work should target `meteor-knuckle` computed-style validation first because it is a high-visibility Ember ultimate and the current test coverage verifies hooks more than actual resolved animation names.

@@ -2049,6 +2049,10 @@ p {
   filter: drop-shadow(0 0 18px rgba(248, 113, 113, 0.58)) brightness(1.14);
 }
 
+.combat-enemy[data-enemy-motion="attack"][data-enemy-attack-skill-id] .enemy-art {
+  animation-duration: var(--enemy-attack-duration, 520ms);
+}
+
 .actor-model-controlled,
 .combat-enemy[data-enemy-motion="controlled"] .enemy-art {
   animation: monster-controlled-bind 680ms ease-out both;

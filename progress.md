@@ -3142,3 +3142,26 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 413 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/liuli-rain-live-check.html` confirmed times `[260,355,450]`, no pre-wave impact, two first-wave impacts, six cumulative static-target impacts, moved-out/moved-in target recheck, initially empty lane catching a pre-wave entrant, split-wave target change after the first hit, empty-lane MISS only at 260 ms, hitstop and skill shake on rain impact, and resolved animations `player-liuli-rain-cast`, `weapon-liuli-rain-fan`, `glass-rain-cast-core/wave`, `glass-rain-fall`, and `glass-rain-target-core/ring/shatter`. Temporary page was deleted after validation and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 495 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 121 DNF-Style Monster Skill Model Timing
+- Continued from the clarified priority: character/monster geometry can stay lightweight for now, but the attack model itself must move with the skill timing and feel.
+- Used two read-only agents:
+  - Combat audit selected `night-mark-detonation` as a future strictness candidate, but flagged that marked-target lock semantics must be preserved if the lock is delayed to the `mark-lock` frame.
+  - UI/CSS audit selected shield-open VFX for `anvil-guard` / `molten-wall` / `black-furnace-aegis` as a future candidate, warning not to implement shield-open as fake damage.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` now verifies that `zheng-horn-charge` and `ash-ember-spit` expose runtime `data-enemy-attack-stage`, `data-enemy-attack-duration-ms`, `data-enemy-attack-progress`, and skill-specific model lunge variables.
+  - `src/tests/ui-smoke.test.ts` now verifies attack animations consume `--enemy-attack-duration`.
+- RED evidence:
+  - `npx vitest run src/tests/app-integration.test.ts -t "skill-specific lunge" --reporter=basic` failed because enemy nodes still had the generic `--enemy-lunge-x: -28px` and no attack stage/duration/progress attributes.
+  - `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "skill-specific lunge|runtime attack timing" --reporter=basic` also failed because CSS did not consume `--enemy-attack-duration`.
+- Implemented:
+  - Added runtime enemy attack visual state in `src/ui/app.ts`, deriving stage, progress, and full attack duration from `attackStartedAtMs`, `attackImpactAtMs`, and `attackRecoverUntilMs`.
+  - Added skill-specific enemy lunge values: small ranged spit is shorter, rush/charge/devour/shackle are heavier, and boss/summon attacks no longer inherit the same generic 28 px lunge.
+  - Added DOM attributes `data-enemy-attack-stage`, `data-enemy-attack-duration-ms`, and `data-enemy-attack-progress`.
+  - Added CSS animation-duration binding with enough selector specificity to override skill-specific animation shorthands.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t "skill-specific lunge|runtime attack timing" --reporter=dot`, 2 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 415 tests.
+  - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/enemy-motion-live-check.html` initially caught a real CSS specificity miss: computed duration stayed at `0.72s` / `0.48s` even though inline variables were correct.
+  - After the selector fix, browser validation passed with `zheng-horn-charge` stage `windup`, lunge `-64px`, duration attr `780`, animation `monster-zheng-horn-charge`, computed duration `0.78s`; and `ash-ember-spit` lunge `-20px`, duration attr `520`, animation `monster-ember-spit`, computed duration `0.52s`. Browser warning/error logs were empty, the temporary page was deleted, and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (13 files / 497 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

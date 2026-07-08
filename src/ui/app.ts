@@ -530,10 +530,64 @@ function playerModelMotionStyle(run: CombatRun, animation?: SkillAnimationDefini
   return `--model-scale-x: ${facing}; --light-lunge-x: ${24 * facing}px; --heavy-lunge-x: ${34 * facing}px; --skill-lunge-x: ${skillLunge * facing}px; --hit-react-x: ${-18 * facing}px; --skill-duration: ${skillDuration}ms;`;
 }
 
-function enemyModelMotionStyle(run: CombatRun, enemy: CombatEnemy): string {
-  const directionToPlayer = enemy.position.x >= run.player.x ? -1 : 1;
+function enemyAttackLungePx(skillId: string | undefined): number {
+  switch (skillId) {
+    case "ash-ember-spit":
+      return 20;
+    case "ash-crawler-burst":
+      return 44;
+    case "zheng-shockwave":
+      return 24;
+    case "zheng-horn-charge":
+      return 64;
+    case "taotie-flame-breath":
+      return 18;
+    case "taotie-devour-pull":
+      return 42;
+    case "taotie-ash-summon":
+      return 14;
+    case "taotie-forge-shackle":
+      return 38;
+    default:
+      return 28;
+  }
+}
 
-  return `--model-scale-x: ${directionToPlayer}; --enemy-lunge-x: ${28 * directionToPlayer}px; --hit-react-x: ${18 * run.player.facing}px;`;
+function enemyAttackVisualState(enemy: CombatEnemy, elapsedMs: number): EnemyAttackVisualState {
+  if (
+    !enemy.attackSkillId ||
+    enemy.attackStartedAtMs === undefined ||
+    enemy.attackImpactAtMs === undefined ||
+    enemy.attackRecoverUntilMs === undefined ||
+    elapsedMs >= enemy.attackRecoverUntilMs
+  ) {
+    return {
+      stage: "none",
+      durationMs: 0,
+      progress: ""
+    };
+  }
+
+  const durationMs = Math.max(1, enemy.attackRecoverUntilMs - enemy.attackStartedAtMs);
+  const progress = Math.min(1, Math.max(0, (elapsedMs - enemy.attackStartedAtMs) / durationMs));
+  const stage = elapsedMs < enemy.attackImpactAtMs ? "windup" : enemy.attackHitResolved ? "recovery" : "active";
+
+  return {
+    stage,
+    durationMs,
+    progress: progress.toFixed(2)
+  };
+}
+
+function enemyModelMotionStyle(run: CombatRun, enemy: CombatEnemy, attackVisual: EnemyAttackVisualState): string {
+  const directionToPlayer = enemy.position.x >= run.player.x ? -1 : 1;
+  const lungePx = enemyAttackLungePx(enemy.attackSkillId) * directionToPlayer;
+  const attackVars =
+    attackVisual.durationMs > 0
+      ? ` --enemy-attack-duration: ${attackVisual.durationMs}ms; --enemy-attack-progress: ${attackVisual.progress};`
+      : "";
+
+  return `--model-scale-x: ${directionToPlayer}; --enemy-lunge-x: ${lungePx}px;${attackVars} --hit-react-x: ${18 * run.player.facing}px;`;
 }
 
 function enemyHpPercent(enemy: CombatEnemy): number {
@@ -566,6 +620,12 @@ interface EnemyHitSlideState {
   start?: CombatVector;
   end?: CombatVector;
   position: CombatVector;
+}
+
+interface EnemyAttackVisualState {
+  stage: "none" | "windup" | "active" | "recovery";
+  durationMs: number;
+  progress: string;
 }
 
 function eventAge(run: CombatRun, occurredAtMs: number): number {
@@ -1504,6 +1564,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const bossEnraged = enemy.kind === "boss" && (enemy.bossPhase ?? 1) >= 2;
       const motion = enemyMotion(enemy, hitTargetIds.has(enemy.id) ? enemy.id : undefined, run.elapsedMs);
       const enemySkillMotionClass = enemy.attackSkillId ? `actor-enemy-skill-${enemy.attackSkillId}` : "";
+      const attackVisual = enemyAttackVisualState(enemy, run.elapsedMs);
       const hitRecent = hitTargetIds.has(enemy.id);
       const controlState = enemyControlState(enemy, run.elapsedMs);
       const airborneState = enemyAirborneState(enemy);
@@ -1516,10 +1577,10 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const hitSlide = enemyHitSlideState(run, enemy, recentTargetHit);
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-hit-recent="${hitRecent ? "true" : "false"}" data-hit-action="${recentTargetHit?.action ?? ""}" data-hit-phase="${recentTargetHit?.hitPhase ?? ""}" data-hit-air-action="${hitAirAction}" data-enemy-hit-air-action="${hitAirAction}" data-hit-dash-action="${hitDashAction}" data-enemy-hit-dash-action="${hitDashAction}" data-enemy-hit-ground-light-step="${hitGroundLightStep}" data-hit-vfx-cue="${recentTargetHit?.vfxCue ?? ""}" data-enemy-hit-slide-active="${hitSlide.active ? "true" : "false"}" data-enemy-hit-slide-progress="${hitSlide.progress.toFixed(2)}" data-enemy-hit-slide-start-x="${hitSlide.start ? Math.round(hitSlide.start.x) : ""}" data-enemy-hit-slide-start-y="${hitSlide.start ? Math.round(hitSlide.start.y) : ""}" data-enemy-hit-slide-end-x="${hitSlide.end ? Math.round(hitSlide.end.x) : ""}" data-enemy-hit-slide-end-y="${hitSlide.end ? Math.round(hitSlide.end.y) : ""}" data-enemy-hit-slide-duration-ms="${enemyHitSlideDurationMs}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy, hitSlide.position)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-enemy-attack-stage="${attackVisual.stage}" data-enemy-attack-duration-ms="${attackVisual.durationMs || ""}" data-enemy-attack-progress="${attackVisual.progress}" data-hit-recent="${hitRecent ? "true" : "false"}" data-hit-action="${recentTargetHit?.action ?? ""}" data-hit-phase="${recentTargetHit?.hitPhase ?? ""}" data-hit-air-action="${hitAirAction}" data-enemy-hit-air-action="${hitAirAction}" data-hit-dash-action="${hitDashAction}" data-enemy-hit-dash-action="${hitDashAction}" data-enemy-hit-ground-light-step="${hitGroundLightStep}" data-hit-vfx-cue="${recentTargetHit?.vfxCue ?? ""}" data-enemy-hit-slide-active="${hitSlide.active ? "true" : "false"}" data-enemy-hit-slide-progress="${hitSlide.progress.toFixed(2)}" data-enemy-hit-slide-start-x="${hitSlide.start ? Math.round(hitSlide.start.x) : ""}" data-enemy-hit-slide-start-y="${hitSlide.start ? Math.round(hitSlide.start.y) : ""}" data-enemy-hit-slide-end-x="${hitSlide.end ? Math.round(hitSlide.end.x) : ""}" data-enemy-hit-slide-end-y="${hitSlide.end ? Math.round(hitSlide.end.y) : ""}" data-enemy-hit-slide-duration-ms="${enemyHitSlideDurationMs}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy, hitSlide.position)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
-            <img class="enemy-art actor-model actor-model-${motion}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
+            <img class="enemy-art actor-model actor-model-${motion}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy, attackVisual)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
           </div>
           <div class="enemy-health" aria-label="${enemy.displayName} HP ${enemy.hp}/${enemy.maxHp}">
             <span class="enemy-health-fill" style="--hp: ${hpPercent}%;"></span>

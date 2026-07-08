@@ -681,6 +681,10 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes ash-minion-summon-emerge");
   });
 
+  it("syncs monster attack animation duration to runtime attack timing", () => {
+    expect(stylesCss).toContain("animation-duration: var(--enemy-attack-duration, 520ms);");
+  });
+
   it("renders taotie boss phase and forge collapse arena hazard effects", () => {
     const state = createInitialState();
     const bossBaseRun = reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 2);

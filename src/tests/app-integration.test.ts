@@ -925,7 +925,7 @@ describe("playable app integration actions", () => {
     const windupHtml = renderAppHtml(model);
 
     expect(windupHtml).toMatch(
-      /class="enemy-art actor-model actor-model-attack"[^>]+style="[^"]*--enemy-lunge-x: -28px;/
+      /class="enemy-art actor-model actor-model-attack"[^>]+style="[^"]*--enemy-lunge-x: -20px;/
     );
 
     model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
@@ -935,6 +935,62 @@ describe("playable app integration actions", () => {
 
     expect(hitHtml).toMatch(
       /class="combat-player-art actor-model actor-model-hit"[^>]+style="[^"]*--hit-react-x: -18px;/
+    );
+  });
+
+  it("binds monster skill model motion to skill-specific lunge and timing windows", () => {
+    let chargeModel = createAppModel({ storage: new MemoryStorage() });
+
+    chargeModel = reduceAppAction(chargeModel, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!chargeModel.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    chargeModel = {
+      ...chargeModel,
+      combatRun: {
+        ...chargeModel.combatRun,
+        enemies: chargeModel.combatRun.enemies.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                kind: "elite",
+                attackProfileId: "zheng-horn-charge" as CombatEnemy["attackProfileId"],
+                position: {
+                  x: (chargeModel.combatRun?.player.x ?? enemy.position.x) + 310,
+                  y: chargeModel.combatRun?.player.y ?? enemy.position.y
+                },
+                nextAttackAtMs: 1
+              }
+            : enemy
+        )
+      }
+    };
+    chargeModel = reduceAppAction(chargeModel, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const chargeHtml = renderAppHtml(chargeModel);
+
+    expect(chargeHtml).toContain('data-enemy-attack-skill-id="zheng-horn-charge"');
+    expect(chargeHtml).toContain('data-enemy-attack-stage="windup"');
+    expect(chargeHtml).toContain('data-enemy-attack-duration-ms="780"');
+    expect(chargeHtml).toContain('data-enemy-attack-progress="0.00"');
+    expect(chargeHtml).toMatch(
+      /class="enemy-art actor-model actor-model-attack"[^>]+style="[^"]*--enemy-lunge-x: -64px;[^"]*--enemy-attack-duration: 780ms;[^"]*--enemy-attack-progress: 0.00;/
+    );
+
+    let spitModel = createAppModel({ storage: new MemoryStorage() });
+
+    spitModel = reduceAppAction(spitModel, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    spitModel = readyFirstEnemyAttack(spitModel);
+    spitModel = reduceAppAction(spitModel, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    const spitHtml = renderAppHtml(spitModel);
+
+    expect(spitHtml).toContain('data-enemy-attack-skill-id="ash-ember-spit"');
+    expect(spitHtml).toContain('data-enemy-attack-duration-ms="520"');
+    expect(spitHtml).toMatch(
+      /class="enemy-art actor-model actor-model-attack"[^>]+style="[^"]*--enemy-lunge-x: -20px;[^"]*--enemy-attack-duration: 520ms;/
     );
   });
 

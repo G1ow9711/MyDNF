@@ -932,3 +932,13 @@
 - Fix note: gate VFX is render-only. It does not change `enterGateIfReady`, `enterRoomGate`, combat movement, or room index state. Walking into the right-side gate still drives the actual transition.
 - CSS note: open gates now have separate animated core, rift column, and threshold glow layers. Locked gates keep a sealed/blocked state and do not leak the open-rift cue into the next room.
 - Browser validation note: live computed styles confirmed `pointer-events: none` on the gate, core animation `gate-pulse, room-gate-open-rift`, rift animation `room-gate-rift-column`, and threshold animation `room-gate-threshold`.
+
+## DNF-Style Player Skill Stage and Mountain Hammer Motion Findings
+- Current priority follows the user's clarification: model geometry can stay lightweight, but the action timeline itself must be visible and tied to real hit frames.
+- Player-stage note: before this pass, rendered player skill markup had skill id, preset, duration, and movement progress, but no unified `windup` / `active` / `recovery` phase. That made browser verification depend on one-off skill selectors instead of a stable action-stage contract.
+- RED note: focused tests failed because `spark-combo` HTML lacked `data-player-skill-stage="windup"`, and `mountain-crack-hammer` had no `activeSkillMovement` even though its catalog animation has `lungePx: 30`.
+- UI note: `playerSkillVisualState()` now derives stage, hit-frame time, active-frame ms, duration, and progress from the real latest skill action event. It does not create combat damage state or fake hit events.
+- Motion note: `mountain-crack-hammer` now moves the player model 30 px toward the hammer impact endpoint, and both stagger/impact hitboxes resolve from that endpoint. This keeps the model and hitbox aligned.
+- Superarmor note: mountain hammer intentionally keeps the existing heavy-hammer behavior where an earlier monster hit in the same large frame does not cancel queued hammer stages. This preserves prior tested combat priority while adding model-following movement.
+- Browser validation note: temporary live page confirmed `spark-combo` transitions from windup progress `99` to active progress `100`, and `mountain-crack-hammer` exposes move hook `mountain-crack-hammer`, end x `270`, move/stage progress `76`, player animation `player-iron-mountain-crack-cast`, and weapon animation `weapon-mountain-hammer`.
+- Queue note: UI audit found a future P0 candidate: enemy skill-specific class data is currently emitted as `data-enemy-skill-motion-class` instead of an actual class, so future tests should verify the real computed animation hook or promote the value to the element class list.

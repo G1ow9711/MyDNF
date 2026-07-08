@@ -6301,6 +6301,15 @@ describe("combat actions and impact feel", () => {
     const impactRun = stepToElapsed(staggerRun, impactAtMs);
     const hammerHits = skillHitEvents(impactRun, "mountain-crack-hammer");
 
+    expect(cast.player.activeSkillMovement).toMatchObject({
+      skillId: "mountain-crack-hammer",
+      startX: 240,
+      endX: 270,
+      endAtMs: impactAtMs
+    });
+    expect(beforeStagger.player.x).toBeGreaterThan(run.player.x);
+    expect(beforeStagger.player.x).toBeLessThan(270);
+    expect(impactRun.player.x).toBe(270);
     expect(hammerHits).toHaveLength(4);
     expect(hammerHits.map((event) => event.hitPhase)).toEqual([
       "hammer-stagger",

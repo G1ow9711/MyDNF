@@ -965,6 +965,10 @@ function interruptedActiveSkillId(before: CombatPlayer, after: CombatPlayer, fal
 
   const tookHit = after.hp < before.hp || after.hurtLockUntilMs > before.hurtLockUntilMs || after.defeated;
 
+  if (skillId === "mountain-crack-hammer") {
+    return undefined;
+  }
+
   return tookHit ? skillId : undefined;
 }
 
@@ -1853,6 +1857,10 @@ function skillMovementDistance(skill: ClassSkillDefinition): number {
 
   if (skill.id === "earth-furnace-breaker") {
     return 46;
+  }
+
+  if (skill.id === "mountain-crack-hammer") {
+    return 30;
   }
 
   if (skill.id === "furnace-step") {
@@ -3542,7 +3550,11 @@ function applyMountainCrackHammer(run: CombatRun, skill: ClassSkillDefinition, c
   const facing = run.player.facing;
   const staggerDelayMs = Math.max(0, skill.animation.hitFrameMs - 90);
   const impactDelayMs = skill.animation.hitFrameMs;
-  const castRun = appendSkillCastEvent(run, skill, canceledFromCombo);
+  const endPosition = {
+    x: clamp(run.player.x + skillMovementDistance(skill) * facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const castRun = appendSkillCastEvent(startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + impactDelayMs), skill, canceledFromCombo);
   const baseDamage = skillDamage(run, skill);
   const staggerHitbox: PlayerHitboxDefinition = {
     action: "skill",
@@ -3576,14 +3588,14 @@ function applyMountainCrackHammer(run: CombatRun, skill: ClassSkillDefinition, c
     actionTags: ["knockdown"],
     requiresStatusSourceSkillId: skill.id
   };
-  const staggeredRun = schedulePlayerHitboxEffect(castRun, staggerHitbox, run.player, facing, {
+  const staggeredRun = schedulePlayerHitboxEffect(castRun, staggerHitbox, endPosition, facing, {
     id: `hit-${run.elapsedMs}-skill-${skill.id}-hammer-stagger`,
     hitPhase: "hammer-stagger",
     vfxCue: "mountain-hammer-stagger",
     vfxWindowMs: 360
   });
 
-  return schedulePlayerHitboxEffect(staggeredRun, impactHitbox, run.player, facing, {
+  return schedulePlayerHitboxEffect(staggeredRun, impactHitbox, endPosition, facing, {
     id: `hit-${run.elapsedMs}-skill-${skill.id}-hammer-impact`,
     hitPhase: "hammer-impact",
     vfxCue: "mountain-crack-impact",

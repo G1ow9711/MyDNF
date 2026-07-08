@@ -3277,3 +3277,28 @@
   - Focused smoke GREEN passed: `npm test -- src/tests/ui-smoke.test.ts --testNamePattern "makes cleared combat rooms obvious" --reporter=dot`, 1 matched smoke test.
   - Related app/UI suite passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --reporter=dot`, 180 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/gate-vfx-check.html` confirmed open gate selector, target room `1`, `pointer-events: none`, core animation `gate-pulse, room-gate-open-rift`, rift animation `room-gate-rift-column`, and threshold animation `room-gate-threshold`. Temporary page was deleted after validation.
+
+## Task 127 DNF-Style Player Skill Stage and Mountain Hammer Motion
+- Continued from the user's clarified priority: character and monster geometry can remain lightweight during full-loop delivery, but action smoothness, model-following attacks, strict hit frames, skill VFX, and monster VFX remain hard acceptance gates.
+- Used two read-only agents:
+  - Combat audit selected `mountain-crack-hammer` because the catalog had a 30 px lunge but the combat implementation only appended a cast event with no active model movement.
+  - UI/CSS audit found the next P0 candidate: enemy skill-specific motion is emitted as `data-enemy-skill-motion-class` rather than a real class, so browser computed animation should be used to verify the actual CSS hook in a later pass.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` now require `spark-combo` to expose player skill stage DOM (`windup` before hit, `active` on hit), hit-frame timing, progress, and CSS selectors for `windup` / `active` / `recovery`.
+  - `src/tests/combat.test.ts` now requires `mountain-crack-hammer` to create `activeSkillMovement` from x 240 to x 270 through the 380 ms impact frame.
+  - `src/tests/app-integration.test.ts` now requires `mountain-crack-hammer` to expose `data-player-skill-move="mountain-crack-hammer"` and the movement endpoint in rendered combat UI.
+- RED evidence:
+  - Focused `spark-combo` RED failed because player HTML did not contain `data-player-skill-stage="windup"`.
+  - Focused `mountain-crack-hammer` RED failed because `cast.player.activeSkillMovement` was `undefined` and the UI movement hook was empty.
+- Implemented:
+  - Added `playerSkillVisualState()` in `src/ui/app.ts`, deriving `windup` / `active` / `recovery`, hit-frame timestamp, active frame, duration, and progress from real skill-cast/hit/miss events.
+  - Added player stage data attributes and `--player-skill-stage-progress` to the combat player root.
+  - Added CSS selectors for `windup`, `active`, and `recovery` player skill stages so the model has a stage-dependent presentation hook.
+  - Added `mountain-crack-hammer` to `skillMovementDistance()`, wrapped its cast in `startPlayerSkillMovement()`, and resolved both stagger and impact hitboxes from the hammer endpoint.
+  - Preserved the existing mountain-hammer superarmor behavior where an earlier monster hit in a large frame does not cancel the queued hammer stages.
+- Verification so far:
+  - Focused player-stage GREEN passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --testNamePattern "spark-combo" --reporter=dot`, 2 tests.
+  - Focused mountain-hammer GREEN passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts --testNamePattern "mountain-crack-hammer|mountain crack" --reporter=dot`, 5 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/player-skill-stage-check.html` confirmed `spark-combo` windup progress `99`, active progress `100`, animation `player-ember-spark-combo`, and `mountain-crack-hammer` movement hook, end x `270`, progress `76`, player animation `player-iron-mountain-crack-cast`, and weapon animation `weapon-mountain-hammer`. Temporary page was deleted after validation.
+  - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=dot`, 422 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), HTTP 200 from `http://127.0.0.1:5178/`, `npm test -- --reporter=dot` (13 files / 507 tests), and `npm run build`.

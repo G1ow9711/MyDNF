@@ -1616,6 +1616,22 @@ p {
   animation: player-skill-cast var(--skill-duration, 520ms) cubic-bezier(0.18, 0.84, 0.2, 1) both;
 }
 
+.combat-player[data-player-skill-stage="windup"] .combat-player-art {
+  filter: saturate(1.08) brightness(1.06);
+}
+
+.combat-player[data-player-skill-stage="active"] .combat-player-art {
+  filter: drop-shadow(0 0 18px rgba(252, 211, 77, 0.44)) saturate(1.18) brightness(1.16);
+}
+
+.combat-player[data-player-skill-stage="recovery"] .combat-player-art {
+  filter: saturate(0.98) brightness(0.98);
+}
+
+.combat-player[data-player-skill-stage="active"] .player-motion-trail {
+  opacity: 0.94;
+}
+
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="ember-combo"] .combat-player-art {
   animation: player-ember-spark-combo var(--skill-duration, 420ms) cubic-bezier(0.14, 0.86, 0.18, 1) both;
 }

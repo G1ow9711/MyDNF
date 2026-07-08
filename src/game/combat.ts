@@ -56,6 +56,8 @@ export type CombatHitPhase =
   | "furnace-roar"
   | "roll-shot"
   | "feint-shot"
+  | "mirror-arc"
+  | "mirror-counter"
   | "uppercut"
   | "chain-open"
   | "chain-cross"
@@ -99,6 +101,8 @@ export type CombatVfxCue =
   | "furnace-roar-impact"
   | "shadow-roll-shot"
   | "crow-feint-shot"
+  | "mirror-arc-slash"
+  | "mirror-counter-burst"
   | "cinder-uppercut-rise"
   | "flowing-chain-open"
   | "flowing-chain-cross"
@@ -216,6 +220,7 @@ export interface CombatPlayer {
   shieldReduction: number;
   evadeStartedAtMs: number;
   evadeUntilMs: number;
+  reflectStartedAtMs: number;
   reflectUntilMs: number;
   reflectSkillId?: string;
   bufferedAction?: CombatActionInput;
@@ -697,6 +702,10 @@ function playerInvulnerableActiveAt(player: CombatPlayer, elapsedMs: number): bo
   return player.invulnerableUntilMs > 0 && elapsedMs >= player.invulnerableStartedAtMs && elapsedMs < player.invulnerableUntilMs;
 }
 
+function playerReflectActiveAt(player: CombatPlayer, elapsedMs: number): boolean {
+  return player.reflectUntilMs > 0 && elapsedMs >= player.reflectStartedAtMs && elapsedMs < player.reflectUntilMs;
+}
+
 function setPlayerEvadeWindow(player: CombatPlayer, startAtMs: number, untilMs: number): CombatPlayer {
   if (untilMs <= player.evadeUntilMs) {
     return player;
@@ -718,6 +727,22 @@ function setPlayerInvulnerabilityWindow(player: CombatPlayer, startAtMs: number,
     ...player,
     invulnerableStartedAtMs: startAtMs,
     invulnerableUntilMs: untilMs
+  };
+}
+
+function setPlayerReflectWindow(player: CombatPlayer, skillId: string, startAtMs: number, untilMs: number): CombatPlayer {
+  if (untilMs <= player.reflectUntilMs) {
+    return {
+      ...player,
+      reflectSkillId: player.reflectSkillId ?? skillId
+    };
+  }
+
+  return {
+    ...player,
+    reflectStartedAtMs: startAtMs,
+    reflectUntilMs: untilMs,
+    reflectSkillId: skillId
   };
 }
 
@@ -1795,6 +1820,10 @@ function skillMovementDistance(skill: ClassSkillDefinition): number {
     return 104;
   }
 
+  if (skill.id === "mirror-arc") {
+    return 22;
+  }
+
   if (skill.id === "shadow-roll") {
     return -86;
   }
@@ -2247,6 +2276,61 @@ function applyGlassCut(run: CombatRun, skill: ClassSkillDefinition, canceledFrom
     hitPhase: "glass-cut",
     vfxCue: "glass-slash-cut",
     vfxWindowMs: 260
+    }
+  );
+}
+
+const mirrorArcReflectStartDelayMs = 90;
+const mirrorArcReflectDurationMs = 680;
+
+function mirrorArcHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  return {
+    action: "skill",
+    skillId: skill.id,
+    rangeX: 154,
+    laneRange: 54,
+    targetCap: 1,
+    frontOnly: true,
+    damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.82)),
+    hitstopMs: 62,
+    knockback: 28,
+    juggle: false,
+    inputToHitMs: skill.animation.hitFrameMs,
+    canceledFromCombo,
+    statusTags: ["reflect"]
+  };
+}
+
+function applyMirrorArc(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const endPosition = {
+    x: clamp(run.player.x + skillMovementDistance(skill) * run.player.facing, 0, run.arena.width),
+    y: run.player.y
+  };
+  const movingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    skill,
+    canceledFromCombo
+  );
+  const reflectingRun: CombatRun = {
+    ...movingRun,
+    player: setPlayerReflectWindow(
+      movingRun.player,
+      skill.id,
+      run.elapsedMs + mirrorArcReflectStartDelayMs,
+      run.elapsedMs + mirrorArcReflectStartDelayMs + mirrorArcReflectDurationMs
+    )
+  };
+
+  return schedulePlayerHitboxEffect(
+    reflectingRun,
+    mirrorArcHitbox(run, skill, canceledFromCombo),
+    endPosition,
+    run.player.facing,
+    {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-mirror-slash`,
+      hitPhase: "mirror-arc",
+      vfxCue: "mirror-arc-slash",
+      vfxWindowMs: 320
     }
   );
 }
@@ -3597,12 +3681,8 @@ function applyPlayerSkillStatus(player: CombatPlayer, run: CombatRun, statusTags
     );
   }
 
-  if (hasStatus(statusTags, "reflect")) {
-    next = {
-      ...next,
-      reflectUntilMs: Math.max(next.reflectUntilMs, run.elapsedMs + 1100),
-      reflectSkillId: skillId
-    };
+  if (hasStatus(statusTags, "reflect") && skillId !== "mirror-arc") {
+    next = setPlayerReflectWindow(next, skillId, run.elapsedMs, run.elapsedMs + 1100);
   }
 
   return next;
@@ -3763,6 +3843,7 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       shieldReduction: 0,
       evadeStartedAtMs: 0,
       evadeUntilMs: 0,
+      reflectStartedAtMs: 0,
       reflectUntilMs: 0,
       defeated: false,
       skillCooldowns: {},
@@ -4206,7 +4287,8 @@ function applyEnemyImpact(
       continue;
     }
 
-    if (hitTime < nextPlayer.reflectUntilMs) {
+    if (playerReflectActiveAt(nextPlayer, hitTime)) {
+      const reflectSkillId = nextPlayer.reflectSkillId ?? "mirror-reflect";
       const reflectDamage = Math.max(1, Math.round(hitDamage * 0.65));
       const armorDamage = Math.min(nextEnemy.armor, reflectDamage);
       const hpDamage = reflectDamage - armorDamage;
@@ -4217,9 +4299,9 @@ function applyEnemyImpact(
       };
       const reflectEvent: CombatHitEvent = {
         kind: "hit",
-        id: `hit-${hitTime}-mirror-reflect-${enemy.id}-${hitIndex}`,
+        id: `hit-${hitTime}-${reflectSkillId}-reflect-${enemy.id}-${hitIndex}`,
         action: "skill",
-        skillId: "mirror-reflect",
+        skillId: reflectSkillId,
         targetId: enemy.id,
         damage: reflectDamage,
         occurredAtMs: hitTime,
@@ -4227,6 +4309,9 @@ function applyEnemyImpact(
         hitstopMs: attack.hitstopMs,
         canceledFromCombo: false,
         statusTags: ["reflect"],
+        hitPhase: reflectSkillId === "mirror-arc" ? "mirror-counter" : undefined,
+        vfxCue: reflectSkillId === "mirror-arc" ? "mirror-counter-burst" : undefined,
+        vfxWindowMs: reflectSkillId === "mirror-arc" ? 360 : undefined,
         impactPosition: { x: nextEnemy.position.x, y: nextEnemy.position.y }
       };
 
@@ -5867,6 +5952,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (skill.id === "glass-cut") {
     return finishSkillAction(applyGlassCut(run, skill, canceledFromCombo));
+  }
+
+  if (skill.id === "mirror-arc") {
+    return finishSkillAction(applyMirrorArc(run, skill, canceledFromCombo));
   }
 
   if (skill.id === "furnace-step") {

@@ -1306,7 +1306,14 @@ describe("playable app integration actions", () => {
     reflectModel = placeAliveEnemiesInFront(reflectModel);
     reflectModel = reduceAppAction(reflectModel, { type: "combatAction", action: "skill", skillId: "mirror-arc" });
 
-    const reflectHtml = renderAppHtml(reflectModel);
+    if (!reflectModel.combatRun) {
+      throw new Error("Expected active combat run after mirror-arc");
+    }
+
+    const reflectHtml = renderAppHtml({
+      ...reflectModel,
+      combatRun: stepToElapsed(reflectModel.combatRun, 90)
+    });
 
     expect(reflectHtml).toContain('data-reflect-active="true"');
     expect(reflectHtml).toContain('data-player-motion="counter"');
@@ -2723,6 +2730,81 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('data-impact-vfx-shape="glass-slash"');
     expect(hitHtml).toContain('class="skill-impact-burst skill-impact-shape-glass-slash"');
     expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="glass-cut"')).toBe(1);
+  });
+
+  it("renders mirror-arc as a delayed parry window with mirror slash and counter VFX", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const player = {
+      ...model.combatRun.player,
+      x: 240,
+      y: 340,
+      facing: 1 as const,
+      actionLockUntilMs: 0,
+      hurtLockUntilMs: 0
+    };
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player,
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 220,
+          maxHp: 220,
+          position: { x: player.x + 86 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "mirror-arc" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after mirror-arc");
+    }
+
+    const [slashAtMs] = scheduledSkillTimes(model.combatRun, "mirror-arc");
+    const castHtml = renderAppHtml(model);
+    const activeRun = stepToElapsed(model.combatRun, 90);
+    const activeHtml = renderAppHtml({
+      ...model,
+      combatRun: activeRun
+    });
+    const beforeSlashHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, slashAtMs - 1)
+    });
+    const slashRun = stepToElapsed(model.combatRun, slashAtMs);
+    const slashHtml = renderAppHtml({
+      ...model,
+      combatRun: slashRun
+    });
+
+    expect(skillHitEvents(model.combatRun, "mirror-arc")).toHaveLength(0);
+    expect(castHtml).toContain('data-active-skill-id="mirror-arc"');
+    expect(castHtml).toContain('data-reflect-active="false"');
+    expect(castHtml).toContain('data-player-motion="skill"');
+    expect(castHtml).toContain('data-skill-animation-preset="liuli-mirror"');
+    expect(castHtml).toContain('data-skill-weapon-arc="mirror-parry"');
+    expect(castHtml).toContain('data-skill-vfx-shape="mirror-arc"');
+    expect(castHtml).toContain('data-player-skill-move="mirror-arc"');
+    expect(activeHtml).toContain('data-reflect-active="true"');
+    expect(activeHtml).toContain('data-player-motion="counter"');
+    expect(beforeSlashHtml).not.toContain('data-skill-impact-vfx="mirror-arc"');
+    expect(slashHtml).toContain('data-hit-phase="mirror-arc"');
+    expect(slashHtml).toContain('data-vfx-cue="mirror-arc-slash"');
+    expect(slashHtml).toContain('data-impact-vfx-shape="mirror-arc"');
+    expect(slashHtml).toContain('class="skill-impact-burst skill-impact-shape-mirror-arc"');
+    expect(countOccurrences(slashHtml, 'data-skill-impact-vfx="mirror-arc"')).toBe(1);
   });
 
   it("keeps ink-shot bolt VFX anchored to the cast origin after the player moves", () => {

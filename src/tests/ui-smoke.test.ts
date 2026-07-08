@@ -1141,6 +1141,64 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes glass-slash-impact-core");
   });
 
+  it("defines dedicated mirror-arc parry, slash, counter, and impact animations", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
+    const castRun = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 220,
+          maxHp: 220,
+          position: { x: player.x + 86 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "mirror-arc" }
+    );
+    const [slashAtMs] = scheduledSkillTimes(castRun, "mirror-arc");
+    const startupHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: castRun
+    });
+    const activeHtml = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: stepToElapsed(castRun, 90)
+    });
+    const hitRun = stepToElapsed(castRun, slashAtMs);
+    const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: hitRun
+    });
+
+    expect(skillHitEvents(castRun, "mirror-arc")).toHaveLength(0);
+    expect(skillHitEvents(hitRun, "mirror-arc")).toHaveLength(1);
+    expect(startupHtml).toContain('data-reflect-active="false"');
+    expect(startupHtml).toContain('data-player-skill-move="mirror-arc"');
+    expect(activeHtml).toContain('data-reflect-active="true"');
+    expect(activeHtml).toContain('data-player-motion="counter"');
+    expect(html).toContain('data-hit-phase="mirror-arc"');
+    expect(html).toContain('data-vfx-cue="mirror-arc-slash"');
+    expect(html).toContain('class="skill-impact-burst skill-impact-shape-mirror-arc"');
+    expect(stylesCss).toContain('[data-skill-animation-preset="liuli-mirror"]');
+    expect(stylesCss).toContain('[data-skill-weapon-arc="mirror-parry"]');
+    expect(stylesCss).toContain(".skill-vfx-shape-mirror-arc");
+    expect(stylesCss).toContain(".skill-impact-shape-mirror-arc");
+    expect(stylesCss).toContain('[data-vfx-cue="mirror-arc-slash"]');
+    expect(stylesCss).toContain('[data-vfx-cue="mirror-counter-burst"]');
+    expect(stylesCss).toContain("@keyframes player-liuli-mirror-parry");
+    expect(stylesCss).toContain("@keyframes weapon-mirror-parry");
+    expect(stylesCss).toContain("@keyframes mirror-arc-cast-core");
+    expect(stylesCss).toContain("@keyframes mirror-arc-impact-core");
+    expect(stylesCss).toContain("@keyframes mirror-counter-burst-core");
+  });
+
   it("renders liuli-rain as staggered glass-rain impact waves", () => {
     const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
     const state = {

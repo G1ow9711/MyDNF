@@ -804,7 +804,9 @@ function playerEvadeActive(run: CombatRun): boolean {
 }
 
 function playerReflectActive(run: CombatRun): boolean {
-  return run.elapsedMs < run.player.reflectUntilMs;
+  const player = run.player as CombatRun["player"] & { reflectStartedAtMs?: number };
+
+  return run.player.reflectUntilMs > 0 && run.elapsedMs >= (player.reflectStartedAtMs ?? 0) && run.elapsedMs < run.player.reflectUntilMs;
 }
 
 function playerBoundActive(run: CombatRun): boolean {
@@ -992,7 +994,7 @@ function playerMotion(run: CombatRun): string {
     return "dodge";
   }
 
-  if (action?.statusTags?.includes("reflect") || playerReflectActive(run)) {
+  if ((action?.statusTags?.includes("reflect") && action.skillId !== "mirror-arc") || playerReflectActive(run)) {
     return "counter";
   }
 

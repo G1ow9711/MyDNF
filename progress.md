@@ -2692,3 +2692,27 @@
   - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 364 tests.
   - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/crow-feint-check.html` confirmed 190 ms shot timing, no cast-frame hit, 90 ms active dodge, model movement x 360 -> 344 -> 324, one `feint-shot` hit, `crow-feint-shot` VFX cue, computed animations `player-ink-feint`, `weapon-feint-shot`, `crow-feint-cast-core`, `crow-feint-shot-core`, and empty warning/error console logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check`, `npm test` (13 files / 446 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 99 DNF-Style Mirror Arc Strict Counter
+- Continued from the user's latest clarification: character/monster modeling can stay simpler for now, but combat motion smoothness, action timing, skill VFX, monster VFX, and action state changes must remain strict.
+- Current audit:
+  - `mirror-arc` is a high-value Liuli gap because it is a class-defining parry/counter skill, but still uses the generic reflect/status path.
+  - Existing code opens `reflectUntilMs` immediately on cast and uses generic counter player/weapon visuals instead of dedicated `liuli-mirror` / `mirror-parry` / `mirror-arc` presentation.
+  - Read-only agent dispatch was attempted for combat/UI audit, but the automatic continuation caused `wait_agent` to return `not_found`; local source audit is the authority for this slice.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` requires `mirror-arc` to keep startup punishable, open reflect only at 90 ms, schedule a 210 ms mirror slash, recheck live targets, cancel pending slash on startup interruption, and emit `mirror-counter` / `mirror-counter-burst` when a monster hit lands during active frames.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` require delayed reflect DOM state, model-following `data-player-skill-move="mirror-arc"`, `liuli-mirror`, `mirror-parry`, target-bound slash/counter VFX, and dedicated CSS keyframes.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts -t mirror-arc --reporter=basic` failed because `mirror-arc` had no scheduled effects.
+  - `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t mirror-arc --reporter=basic` failed because rendered `mirror-arc` still had no scheduled effects.
+- Implemented:
+  - Added delayed reflect-window start tracking with `reflectStartedAtMs`, while preserving immediate reflect behavior for non-`mirror-arc` generic reflect skills.
+  - Added `applyMirrorArc()` with a 90 ms parry start, 680 ms active counter window, 22 px model-following movement, a strict 210 ms dynamic slash hitbox, live target recheck, delayed MISS support, and interruption-safe pending hit cancellation.
+  - Added `mirror-arc` / `mirror-counter` hit phases, `mirror-arc-slash` / `mirror-counter-burst` VFX cues, and dedicated `liuli-mirror`, `mirror-parry`, mirror cast, slash, and counter-burst CSS animations.
+- Verification so far:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts -t mirror-arc --reporter=basic`, 2 tests.
+  - Focused GREEN passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t mirror-arc --reporter=basic`, 2 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 368 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/mirror-arc-check.html` confirmed 90 ms delayed reflect start, 770 ms reflect end, 210 ms slash frame, player X movement 240 -> 262, startup interruption cancellation, active counter VFX, computed animations `player-liuli-mirror-parry`, `weapon-mirror-parry`, `mirror-arc-cast-core`, `mirror-arc-impact-core`, `mirror-counter-burst-core`, and empty warning/error logs. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Build verification initially caught a strict TypeScript guard gap in the updated reflection UI test (`reflectModel.combatRun` was optional). Added the same active-run assertion pattern used elsewhere in the file.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 450 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

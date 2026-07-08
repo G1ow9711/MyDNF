@@ -2894,13 +2894,124 @@ describe("combat actions and impact feel", () => {
     expect(countered.player.hp).toBe(run.player.hp);
     expect(countered.enemies[0].hp).toBeLessThan(enemyHpBeforeImpact);
     const reflectHit = countered.events.find(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mirror-reflect"
+      (event): event is CombatHitEvent =>
+        event.kind === "hit" && event.skillId === "mirror-arc" && event.hitPhase === "mirror-counter"
     );
     expect(reflectHit).toMatchObject({
       kind: "hit",
-      skillId: "mirror-reflect"
+      skillId: "mirror-arc",
+      hitPhase: "mirror-counter",
+      vfxCue: "mirror-counter-burst"
     });
     expect(reflectHit?.impactPosition).toEqual(countered.enemies[0].position);
+  });
+
+  it("delays mirror-arc parry and mirror slash to strict action frames", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 326, y: 340, hp: 220, maxHp: 220 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "mirror-arc" });
+    const [slashAtMs] = scheduledSkillTimes(cast, "mirror-arc");
+    const castPlayer = cast.player as CombatRun["player"] & { reflectStartedAtMs?: number };
+    const startup = stepToElapsed(cast, 89);
+    const active = stepToElapsed(cast, 90);
+    const beforeSlash = stepToElapsed(cast, slashAtMs - 1);
+    const slash = stepToElapsed(cast, slashAtMs);
+    const [slashHit] = skillHitEvents(slash, "mirror-arc");
+
+    expect(slashAtMs).toBe(210);
+    expect(cast.player.x).toBe(run.player.x);
+    expect(cast.player.activeSkillMovement?.skillId).toBe("mirror-arc");
+    expect(castPlayer.reflectStartedAtMs).toBe(90);
+    expect(cast.player.reflectUntilMs).toBeGreaterThan(700);
+    expect(skillHitEvents(cast, "mirror-arc")).toHaveLength(0);
+    expect(cast.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(startup.elapsedMs).toBeLessThan((startup.player as CombatRun["player"] & { reflectStartedAtMs?: number }).reflectStartedAtMs ?? 0);
+    expect(active.player.reflectUntilMs).toBeGreaterThan(active.elapsedMs);
+    expect(beforeSlash.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(slashHit).toMatchObject({
+      hitPhase: "mirror-arc",
+      vfxCue: "mirror-arc-slash",
+      vfxWindowMs: 320,
+      statusTags: ["reflect"]
+    });
+    expect(slash.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("uses mirror-arc active frames to counter hits and cancels if hit during startup", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
+    const startupRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 310, y: 340, hp: 220, maxHp: 220 }]
+    );
+    const startupCast = performAction(startupRun, { type: "skill", skillId: "mirror-arc" });
+    const [startupSlashAtMs] = scheduledSkillTimes(startupCast, "mirror-arc");
+    const startupHitRun: CombatRun = {
+      ...startupCast,
+      enemies: startupCast.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: startupCast.elapsedMs,
+              attackImpactAtMs: startupCast.elapsedMs + 70,
+              attackRecoverUntilMs: startupCast.elapsedMs + 260,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const interrupted = stepToElapsed(startupHitRun, startupSlashAtMs);
+    const startupPlayerHits = interrupted.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(startupPlayerHits).toHaveLength(1);
+    expect(skillHitEvents(interrupted, "mirror-arc")).toHaveLength(0);
+    expect(skillMissEvents(interrupted, "mirror-arc")).toHaveLength(0);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "mirror-arc")).toHaveLength(0);
+
+    const activeRun = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 310, y: 340, hp: 220, maxHp: 220 }]
+    );
+    const activeCast = performAction(activeRun, { type: "skill", skillId: "mirror-arc" });
+    const activeAttackRun: CombatRun = {
+      ...activeCast,
+      enemies: activeCast.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: activeCast.elapsedMs,
+              attackImpactAtMs: activeCast.elapsedMs + 110,
+              attackRecoverUntilMs: activeCast.elapsedMs + 300,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const countered = stepToElapsed(activeAttackRun, activeCast.elapsedMs + 110);
+    const [counterHit] = skillHitEvents(countered, "mirror-arc");
+
+    expect(countered.player.hp).toBe(activeRun.player.hp);
+    expect(countered.events.some((event) => event.kind === "player-hit")).toBe(false);
+    expect(counterHit).toMatchObject({
+      hitPhase: "mirror-counter",
+      vfxCue: "mirror-counter-burst",
+      statusTags: ["reflect"]
+    });
+    expect(countered.enemies[0].hp).toBeLessThan(activeRun.enemies[0].hp);
   });
 
   it("turns trap and break tags into monster control and armor-break state", () => {

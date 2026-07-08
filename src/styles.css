@@ -8017,3 +8017,188 @@ p {
   18% { opacity: 0.92; transform: scale(1.02); filter: blur(0); }
   100% { opacity: 0; transform: scale(1.12); filter: blur(2px); }
 }
+
+.combat-player[data-player-motion="skill"][data-skill-animation-preset="liuli-mirror"] .combat-player-art,
+.combat-player[data-player-motion="counter"][data-skill-animation-preset="liuli-mirror"] .combat-player-art {
+  animation: player-liuli-mirror-parry var(--skill-duration, 540ms) cubic-bezier(0.14, 0.84, 0.16, 1) both;
+  filter: drop-shadow(0 0 24px rgba(103, 232, 249, 0.68)) drop-shadow(0 0 16px rgba(167, 139, 250, 0.42)) brightness(1.2);
+}
+
+.combat-player[data-player-skill-move="mirror-arc"] .player-motion-trail {
+  opacity: 0.86;
+  filter: drop-shadow(0 0 22px rgba(103, 232, 249, 0.54)) drop-shadow(0 0 14px rgba(167, 139, 250, 0.36));
+}
+
+.combat-player[data-player-motion="skill"][data-skill-weapon-arc="mirror-parry"] .combat-weapon,
+.combat-player[data-player-motion="counter"][data-skill-weapon-arc="mirror-parry"] .combat-weapon {
+  animation: weapon-mirror-parry var(--skill-duration, 540ms) cubic-bezier(0.14, 0.84, 0.16, 1) both;
+}
+
+.skill-vfx-shape-mirror-arc {
+  width: 226px;
+  height: 136px;
+  margin-top: -28px;
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 24px rgba(103, 232, 249, 0.54)) drop-shadow(0 0 18px rgba(167, 139, 250, 0.34));
+}
+
+.skill-vfx-shape-mirror-arc .skill-core {
+  inset: 32% 18% 24%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 48%, rgba(248, 250, 252, 0.84), rgba(103, 232, 249, 0.56) 24%, rgba(167, 139, 250, 0.18) 42%, transparent 58%),
+    linear-gradient(90deg, transparent, rgba(103, 232, 249, 0.5), transparent);
+  filter: blur(0.3px) drop-shadow(0 0 18px rgba(103, 232, 249, 0.62));
+  animation: mirror-arc-cast-core var(--skill-duration, 540ms) ease-out both;
+}
+
+.skill-vfx-shape-mirror-arc .skill-wave {
+  inset: 18% 10% 12%;
+  border-color: rgba(191, 219, 254, 0.72);
+  border-radius: 50%;
+  box-shadow: 0 0 32px rgba(103, 232, 249, 0.42), inset 0 0 24px rgba(167, 139, 250, 0.24);
+  animation: mirror-arc-cast-ring var(--skill-duration, 540ms) ease-out both;
+}
+
+.skill-vfx-shape-mirror-arc .skill-sparks {
+  background:
+    radial-gradient(circle at 30% 32%, rgba(248, 250, 252, 0.92) 0 4px, transparent 5px),
+    radial-gradient(circle at 72% 38%, rgba(103, 232, 249, 0.86) 0 5px, transparent 6px),
+    linear-gradient(112deg, transparent 32%, rgba(167, 139, 250, 0.72) 33% 37%, transparent 38%),
+    linear-gradient(68deg, transparent 58%, rgba(248, 250, 252, 0.74) 59% 62%, transparent 63%);
+  animation: mirror-arc-cast-sparks var(--skill-duration, 540ms) ease-out both;
+}
+
+.skill-impact-shape-mirror-arc {
+  width: 172px;
+  height: 128px;
+  margin-top: -22px;
+  filter: drop-shadow(0 0 24px rgba(103, 232, 249, 0.62)) drop-shadow(0 0 16px rgba(167, 139, 250, 0.42));
+}
+
+.skill-impact-shape-mirror-arc .skill-impact-core {
+  width: 92px;
+  height: 34px;
+  border-radius: 999px 40% 999px 40%;
+  background:
+    linear-gradient(92deg, rgba(15, 23, 42, 0), rgba(248, 250, 252, 0.98), rgba(103, 232, 249, 0.82), rgba(167, 139, 250, 0.7), rgba(15, 23, 42, 0)),
+    radial-gradient(circle at 72% 50%, rgba(255, 255, 255, 0.95), transparent 42%);
+  animation: mirror-arc-impact-core 320ms cubic-bezier(0.12, 0.82, 0.16, 1) both;
+}
+
+.skill-impact-shape-mirror-arc .skill-impact-ring {
+  width: 132px;
+  height: 58px;
+  border-color: rgba(191, 219, 254, 0.76);
+  border-radius: 50%;
+  box-shadow: 0 0 28px rgba(103, 232, 249, 0.5), inset 0 0 20px rgba(167, 139, 250, 0.28);
+  animation: mirror-arc-impact-ring 420ms ease-out both;
+}
+
+.skill-impact-shape-mirror-arc .skill-impact-shards {
+  background:
+    linear-gradient(96deg, transparent 8%, rgba(248, 250, 252, 0.94) 9% 13%, transparent 14%),
+    linear-gradient(76deg, transparent 32%, rgba(103, 232, 249, 0.82) 33% 37%, transparent 38%),
+    linear-gradient(116deg, transparent 58%, rgba(167, 139, 250, 0.8) 59% 64%, transparent 65%),
+    radial-gradient(circle at 70% 38%, rgba(255, 255, 255, 0.94) 0 3px, transparent 4px);
+  animation: mirror-arc-impact-shards 480ms ease-out both;
+}
+
+.skill-impact-shape-mirror-arc[data-vfx-cue="mirror-arc-slash"] .skill-impact-core {
+  animation: mirror-arc-impact-core 320ms cubic-bezier(0.12, 0.82, 0.16, 1) both;
+}
+
+.skill-impact-shape-mirror-arc[data-vfx-cue="mirror-arc-slash"] .skill-impact-ring {
+  animation: mirror-arc-impact-ring 420ms ease-out both;
+}
+
+.skill-impact-shape-mirror-arc[data-vfx-cue="mirror-arc-slash"] .skill-impact-shards {
+  animation: mirror-arc-impact-shards 480ms ease-out both;
+}
+
+.skill-impact-shape-mirror-arc[data-vfx-cue="mirror-counter-burst"] .skill-impact-core {
+  width: 112px;
+  height: 46px;
+  animation: mirror-counter-burst-core 360ms cubic-bezier(0.1, 0.84, 0.14, 1) both;
+}
+
+.skill-impact-shape-mirror-arc[data-vfx-cue="mirror-counter-burst"] .skill-impact-ring {
+  width: 154px;
+  height: 78px;
+  animation: mirror-counter-burst-ring 460ms ease-out both;
+}
+
+.skill-impact-shape-mirror-arc[data-vfx-cue="mirror-counter-burst"] .skill-impact-shards {
+  animation: mirror-counter-burst-shards 520ms ease-out both;
+}
+
+@keyframes player-liuli-mirror-parry {
+  0% { transform: translateX(calc(var(--skill-lunge-x, 22px) * -0.28)) rotate(-2deg) scale(0.98) scaleX(var(--model-scale-x, 1)); filter: brightness(1.02); }
+  28% { transform: translateX(calc(var(--skill-lunge-x, 22px) * -0.12)) rotate(2deg) scale(1.03) scaleX(var(--model-scale-x, 1)); filter: brightness(1.34) saturate(1.12); }
+  48% { transform: translateX(calc(var(--skill-lunge-x, 22px) * 0.72)) rotate(5deg) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.72) saturate(1.24); }
+  72% { transform: translateX(calc(var(--skill-lunge-x, 22px) * 0.28)) rotate(-1deg) scale(1.04) scaleX(var(--model-scale-x, 1)); filter: brightness(1.24); }
+  100% { transform: translateX(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
+}
+
+@keyframes weapon-mirror-parry {
+  0% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 22px) * -0.36), -58%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * -42deg)) scale(calc(var(--weapon-scale, 1) * 0.94)); opacity: 0.86; }
+  30% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 22px) * -0.18), -76%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * -88deg)) scale(calc(var(--weapon-scale, 1) * 1.08)); opacity: 1; filter: brightness(1.36); }
+  48% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 22px) * 0.92), -54%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * 26deg)) scale(calc(var(--weapon-scale, 1) * 1.18)); filter: drop-shadow(0 0 36px rgba(103, 232, 249, 0.78)) brightness(1.62); }
+  74% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 22px) * 0.28), -48%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + var(--weapon-facing, 1) * 8deg)) scale(calc(var(--weapon-scale, 1) * 1.04)); filter: brightness(1.2); }
+  100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 0.9; }
+}
+
+@keyframes mirror-arc-cast-core {
+  0% { opacity: 0; transform: scale(0.62) rotate(-18deg); }
+  34% { opacity: 0.92; transform: scale(0.96) rotate(10deg); }
+  62% { opacity: 0.76; transform: scale(1.12) rotate(24deg); }
+  100% { opacity: 0; transform: scale(1.38) rotate(38deg); }
+}
+
+@keyframes mirror-arc-cast-ring {
+  0% { opacity: 0; transform: scale(0.62) rotate(-14deg); }
+  42% { opacity: 0.82; transform: scale(1) rotate(8deg); }
+  100% { opacity: 0; transform: scale(1.48) rotate(28deg); }
+}
+
+@keyframes mirror-arc-cast-sparks {
+  0% { opacity: 0; transform: scale(0.78); }
+  40% { opacity: 0.95; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.22) translateY(-8px); }
+}
+
+@keyframes mirror-arc-impact-core {
+  0% { opacity: 0; transform: translateX(-24px) scaleX(0.42); }
+  36% { opacity: 1; transform: translateX(0) scaleX(1.18); }
+  100% { opacity: 0; transform: translateX(28px) scaleX(0.78); }
+}
+
+@keyframes mirror-arc-impact-ring {
+  0% { opacity: 0; transform: scale(0.58); }
+  44% { opacity: 0.88; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.46); }
+}
+
+@keyframes mirror-arc-impact-shards {
+  0% { opacity: 0; transform: scale(0.72) rotate(-8deg); }
+  34% { opacity: 1; transform: scale(1) rotate(6deg); }
+  100% { opacity: 0; transform: scale(1.26) rotate(18deg); }
+}
+
+@keyframes mirror-counter-burst-core {
+  0% { opacity: 0; transform: scale(0.46) rotate(-24deg); }
+  28% { opacity: 1; transform: scale(1.18) rotate(14deg); filter: brightness(1.65); }
+  100% { opacity: 0; transform: scale(1.72) rotate(42deg); }
+}
+
+@keyframes mirror-counter-burst-ring {
+  0% { opacity: 0; transform: scale(0.48) rotate(-18deg); }
+  38% { opacity: 0.92; transform: scale(1.08) rotate(10deg); }
+  100% { opacity: 0; transform: scale(1.72) rotate(36deg); }
+}
+
+@keyframes mirror-counter-burst-shards {
+  0% { opacity: 0; transform: scale(0.72) rotate(-18deg); }
+  30% { opacity: 1; transform: scale(1.08) rotate(16deg); }
+  100% { opacity: 0; transform: scale(1.38) rotate(34deg) translateY(-8px); }
+}

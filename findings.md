@@ -762,3 +762,12 @@
 - Miss-feedback note: `taotie-flame-breath` now has a dedicated miss feedback selector and `taotie-breath-miss-feedback` animation, so escaped breath ticks read as a boss-specific whiff rather than a generic enemy miss.
 - Browser validation note: computed-style validation confirmed all three ticks used the sustain core/ring animations, the three trail animation names were distinct, telegraph zone/edge used dedicated animation names, miss feedback used `taotie-breath-miss-feedback`, and the temporary check page reported an empty error list.
 - Queue note: the next high-value strict combat follow-up remains `liuli-rain`, which still needs conversion from staged-looking direct hit application to real scheduled/dynamic rain frames.
+
+## DNF-Style Liuli Rain Strict Scheduled Waves Findings
+- Current priority follows the user's clarification: Liuli character geometry can stay lightweight, but the skill must have real action timing, model-following cast state, hit-frame damage, and target VFX.
+- Parallel combat audit confirmed `applyLiuliRain()` still called `applyHit()` inside the skill action reducer. That immediately mutated enemy HP/position/status while only stamping hit events with future `occurredAtMs`, making the old staggered rain a fake delay.
+- Parallel UI/CSS audit confirmed `src/ui/app.ts` already exposes the needed player, weapon, cast VFX, hit phase, and `glass-rain-fall` target VFX hooks. No app renderer change was needed for strict scheduling.
+- Combat note: `liuli-rain` now appends a cast event, opens an active `liuli-rain` skill movement window through the final rain frame, locks initial targets, and schedules fixed target hit effects at 260/355/450 ms instead of applying damage at cast.
+- Cancellation note: because the active skill window now carries `liuli-rain`, existing monster-hit interruption logic can clear pending rain waves before they resolve. The new regression covers interruption before the first rain.
+- Presentation note: browser validation confirmed no cast-frame hits, HP unchanged at cast, first rain emits 2 hits, final rain emits 6 hits, event input timings are 260/355/450, hit phase is `rain`, cue is `glass-rain-fall`, active movement is `liuli-rain`, and computed animations remain `player-liuli-rain-cast`, `weapon-fan-arc`, `glass-rain-fall`, plus glass-rain target core/ring/shatter.
+- Queue note: future Liuli polish can add a skill-specific weapon fan keyframe and optional delayed no-target miss behavior, but the core fake-delay damage bug is now fixed.

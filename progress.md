@@ -2890,3 +2890,23 @@
   - Related UI/app/audio suite passed: `npx vitest run src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 187 tests.
   - Browser computed-style validation on `http://127.0.0.1:5178/.codex-local/tmp/taotie-breath-check.html` confirmed all ticks use `taotie-flame-breath-sustain-core` and `taotie-flame-breath-sustain-ring`, trails are `taotie-flame-breath-tick-one/two/three`, telegraph zone/edge use `taotie-flame-breath-telegraph` / `taotie-flame-breath-telegraph-edge`, miss feedback uses `taotie-breath-miss-feedback`, and validation errors are empty. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 474 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.
+
+## Task 108 DNF-Style Liuli Rain Strict Scheduled Waves
+- Continued the active goal after the user clarified again that character models can stay simpler, but combat motion, hit timing, actor action changes, skill VFX, and monster VFX must stay strict.
+- Used two read-only agents:
+  - Combat audit confirmed `applyLiuliRain()` was still direct `applyHit()` with future event timestamps, causing cast-frame HP/status mutation.
+  - UI/CSS audit confirmed existing DOM hooks are enough for strict scheduling and recommended adding `data-player-skill-move="liuli-rain"` plus computed-style validation.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires `liuli-rain` to schedule 260/355/450 ms rain frames, keep cast and pre-first-rain HP unchanged, emit only 2 hits on the first rain, emit 6 hits by the final rain, preserve `rain` / `glass-rain-fall` metadata, and cancel pending waves on monster interruption.
+  - `src/tests/app-integration.test.ts` now expects no pre-rain impact sparks and requires `data-player-skill-move="liuli-rain"` during cast.
+  - `src/tests/ui-smoke.test.ts` now renders final rain output by stepping to the scheduled final frame instead of reading fake cast-frame hit events.
+- RED evidence:
+  - `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t liuli-rain --reporter=basic` failed with `Expected scheduled effects for liuli-rain`.
+- Implemented:
+  - Reworked `applyLiuliRain()` to append a skill-cast event, start a zero-distance active skill movement window through the final rain frame, select locked targets once, and schedule fixed target hit effects instead of applying damage immediately.
+  - Kept existing `rain` hit phase, `glass-rain-fall` cue, 300 ms target VFX windows, and three wave damage/knockback/status tuning.
+- Verification:
+  - Focused GREEN passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts -t liuli-rain --reporter=basic`, 3 tests.
+  - Related combat/app/UI/audio suite passed: `npx vitest run src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/render-audio.test.ts --reporter=basic`, 393 tests.
+  - Browser validation on `http://127.0.0.1:5178/.codex-local/tmp/liuli-rain-check.html` confirmed scheduled times `260/355/450`, cast hits `0`, cast HP unchanged, first rain hits `2`, final rain hits `6`, hit inputs `260/355/450`, `rain` phase, `glass-rain-fall` cue, active movement `liuli-rain`, computed animations `player-liuli-rain-cast`, `weapon-fan-arc`, `glass-rain-fall`, `glass-rain-target-core`, `glass-rain-target-ring`, `glass-rain-target-shatter`, and empty validation errors. Temporary page was deleted and the browser returned to `http://127.0.0.1:5178/`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test` (13 files / 475 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5178/`.

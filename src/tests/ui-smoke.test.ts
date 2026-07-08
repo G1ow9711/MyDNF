@@ -1549,14 +1549,13 @@ describe("town app shell", () => {
       },
       { type: "skill", skillId: "liuli-rain" }
     );
-    const rainHits = castRun.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "liuli-rain");
+    const [, , finalRainAtMs] = scheduledSkillTimes(castRun, "liuli-rain");
+    const finalRainRun = stepToElapsed(castRun, finalRainAtMs);
+    const rainHits = skillHitEvents(finalRainRun, "liuli-rain");
     const html = renderAppHtml({
       state,
       mode: "combat",
-      combatRun: {
-        ...castRun,
-        elapsedMs: Math.max(...rainHits.map((event) => event.occurredAtMs))
-      }
+      combatRun: finalRainRun
     });
 
     expect(rainHits).toHaveLength(6);

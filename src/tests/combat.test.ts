@@ -4690,20 +4690,82 @@ describe("combat actions and impact feel", () => {
       ]
     );
 
-    const rain = performAction(run, { type: "skill", skillId: "liuli-rain" });
-    const rainHits = rain.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "liuli-rain");
+    const cast = performAction(run, { type: "skill", skillId: "liuli-rain" });
+    const [firstRainAtMs, , finalRainAtMs] = scheduledSkillTimes(cast, "liuli-rain");
+    const beforeFirstRain = stepToElapsed(cast, firstRainAtMs - 1);
+    const firstRain = stepToElapsed(cast, firstRainAtMs);
+    const finalRain = stepToElapsed(cast, finalRainAtMs);
+    const rainHits = skillHitEvents(finalRain, "liuli-rain");
     const hitTimes = [...new Set(rainHits.map((event) => event.occurredAtMs))];
     const targetIds = [...new Set(rainHits.map((event) => event.targetId))];
 
+    expect(skillHitEvents(cast, "liuli-rain")).toHaveLength(0);
+    expect(cast.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(cast.enemies[1].hp).toBe(run.enemies[1].hp);
+    expect(beforeFirstRain.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(beforeFirstRain.enemies[1].hp).toBe(run.enemies[1].hp);
+    expect(skillHitEvents(firstRain, "liuli-rain")).toHaveLength(2);
     expect(rainHits).toHaveLength(6);
     expect(hitTimes).toHaveLength(3);
     expect(Math.max(...hitTimes) - Math.min(...hitTimes)).toBeGreaterThanOrEqual(180);
+    expect([...new Set(rainHits.map((event) => event.inputToHitMs))]).toEqual([260, 355, 450]);
     expect(targetIds).toHaveLength(2);
     expect(targetIds.every((targetId) => rainHits.filter((event) => event.targetId === targetId).length === 3)).toBe(true);
     expect(rainHits.every((event) => event.hitPhase === "rain")).toBe(true);
     expect(rainHits.every((event) => event.vfxCue === "glass-rain-fall")).toBe(true);
-    expect(rain.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
-    expect(rain.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+    expect(rainHits.every((event) => event.vfxWindowMs === 300)).toBe(true);
+    expect(firstRain.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(finalRain.enemies[0].hp).toBeLessThan(firstRain.enemies[0].hp);
+    expect(finalRain.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
+  it("cancels liuli-rain prism waves when monster damage interrupts before the first rain", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [
+        { x: 330, y: 340, hp: 220, maxHp: 220 },
+        { x: 390, y: 356, hp: 220, maxHp: 220 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "liuli-rain" });
+    const [, , finalRainAtMs] = scheduledSkillTimes(cast, "liuli-rain");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 180,
+            attackRecoverUntilMs: 420,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          },
+          cast.enemies[1]
+        ]
+      },
+      {},
+      finalRainAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 180
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(skillHitEvents(interrupted, "liuli-rain")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.enemies[1].hp).toBe(run.enemies[1].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "liuli-rain")).toHaveLength(0);
   });
 
   it("sword-prism-field locks targets before a delayed ultimate field burst", () => {

@@ -2574,7 +2574,21 @@ function applyMirrorflameBurst(run: CombatRun, skill: ClassSkillDefinition, canc
 }
 
 function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const finalRainDelayMs = skill.animation.hitFrameMs + 190;
   const scriptedRun = applySkillStartupMovement(run, skill);
+  const castingRun = appendSkillCastEvent(
+    startPlayerSkillMovement(
+      scriptedRun,
+      skill,
+      {
+        x: scriptedRun.player.x,
+        y: scriptedRun.player.y
+      },
+      run.elapsedMs + finalRainDelayMs
+    ),
+    skill,
+    canceledFromCombo
+  );
   const targetingHitbox: PlayerHitboxDefinition = {
     action: "skill",
     skillId: skill.id,
@@ -2589,10 +2603,10 @@ function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFro
     inputToHitMs: skill.animation.hitFrameMs,
     canceledFromCombo
   };
-  const targets = selectPlayerTargets(scriptedRun, targetingHitbox);
+  const targets = selectPlayerTargets(castingRun, targetingHitbox);
 
   if (targets.length === 0) {
-    return applyMiss(scriptedRun, targetingHitbox);
+    return applyMiss(castingRun, targetingHitbox);
   }
 
   const baseDamage = skillDamage(run, skill);
@@ -2628,7 +2642,7 @@ function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFro
 
   return waves.reduce((nextRun, wave, waveIndex) => {
     return targets.reduce((waveRun, target) => {
-      return applyHit(waveRun, {
+      return scheduleEnemyHitEffect(waveRun, {
         id: `hit-${run.elapsedMs}-skill-${skill.id}-rain-${waveIndex}-${target.id}`,
         targetId: target.id,
         damage: Math.max(1, Math.round(baseDamage * wave.damageMultiplier)),
@@ -2645,7 +2659,7 @@ function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFro
         vfxWindowMs: 300
       });
     }, nextRun);
-  }, scriptedRun);
+  }, castingRun);
 }
 
 function blackRainVolleyHitbox(

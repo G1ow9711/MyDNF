@@ -3507,40 +3507,35 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run");
     }
 
-    const rainHits = model.combatRun.events.filter(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "liuli-rain"
-    );
-
-    if (rainHits.length === 0) {
-      throw new Error("Expected liuli-rain hit events");
-    }
-
-    const firstWaveAtMs = Math.min(...rainHits.map((event) => event.occurredAtMs));
-    const finalWaveAtMs = Math.max(...rainHits.map((event) => event.occurredAtMs));
+    const [firstWaveAtMs, , finalWaveAtMs] = scheduledSkillTimes(model.combatRun, "liuli-rain");
     const preHitHtml = renderAppHtml(model);
+    const beforeWaveRun = stepToElapsed(model.combatRun, firstWaveAtMs - 1);
+    const beforeWaveHtml = renderAppHtml({
+      ...model,
+      combatRun: beforeWaveRun
+    });
+    const firstWaveRun = stepToElapsed(model.combatRun, firstWaveAtMs);
     const firstWaveHtml = renderAppHtml({
       ...model,
-      combatRun: {
-        ...model.combatRun,
-        elapsedMs: firstWaveAtMs
-      }
+      combatRun: firstWaveRun
     });
+    const finalWaveRun = stepToElapsed(model.combatRun, finalWaveAtMs);
     const finalWaveHtml = renderAppHtml({
       ...model,
-      combatRun: {
-        ...model.combatRun,
-        elapsedMs: finalWaveAtMs
-      }
+      combatRun: finalWaveRun
     });
+    const rainHits = skillHitEvents(finalWaveRun, "liuli-rain");
 
     expect(rainHits).toHaveLength(6);
     expect(preHitHtml).toContain('data-hitstop-active="false"');
     expect(preHitHtml).toContain('data-screen-shake="none"');
     expect(preHitHtml).toContain('data-player-trail="skill"');
     expect(preHitHtml).toContain('data-trail-skill-preset="liuli-rain"');
+    expect(preHitHtml).toContain('data-player-skill-move="liuli-rain"');
     expect(preHitHtml).toContain('data-player-skill-vfx="liuli-rain"');
     expect(preHitHtml).toContain("--skill-duration: 680ms;");
     expect(preHitHtml).not.toContain('data-impact-spark="true"');
+    expect(beforeWaveHtml).not.toContain('data-impact-spark="true"');
     expect(firstWaveHtml).toContain('data-hitstop-active="true"');
     expect(firstWaveHtml).toContain('data-screen-shake="skill"');
     expect(countOccurrences(firstWaveHtml, 'data-impact-spark="true"')).toBe(2);
@@ -4382,15 +4377,8 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run");
     }
 
-    const hitEvent = model.combatRun.events.find(
-      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === skill.id
-    );
-
-    if (!hitEvent) {
-      throw new Error("Expected liuli-rain hit event");
-    }
-
-    const actionStartedAtMs = hitEvent.occurredAtMs - hitEvent.inputToHitMs;
+    const [, , finalWaveAtMs] = scheduledSkillTimes(model.combatRun, skill.id);
+    const actionStartedAtMs = model.combatRun.elapsedMs;
     const duringHtml = renderAppHtml({
       ...model,
       combatRun: {
@@ -4402,7 +4390,7 @@ describe("playable app integration actions", () => {
       ...model,
       combatRun: {
         ...model.combatRun,
-        elapsedMs: Math.max(actionStartedAtMs + skill.animation.durationMs + 1, hitEvent.occurredAtMs + 521)
+        elapsedMs: Math.max(actionStartedAtMs + skill.animation.durationMs + 1, finalWaveAtMs + 521)
       }
     });
 

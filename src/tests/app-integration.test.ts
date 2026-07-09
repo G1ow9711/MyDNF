@@ -240,6 +240,32 @@ function placeAliveEnemiesInFront(model: ReturnType<typeof createAppModel>): Ret
   };
 }
 
+function leaveSingleWeakEnemyInFront(model: ReturnType<typeof createAppModel>): ReturnType<typeof createAppModel> {
+  const placed = placeAliveEnemiesInFront(model);
+
+  if (!placed.combatRun) {
+    throw new Error("Expected active combat run");
+  }
+
+  return {
+    ...placed,
+    combatRun: {
+      ...placed.combatRun,
+      enemies: placed.combatRun.enemies.map((enemy, index) => ({
+        ...enemy,
+        hp: index === 0 ? 1 : 0,
+        armor: 0,
+        nextAttackAtMs: 9999,
+        attackStartedAtMs: undefined,
+        attackImpactAtMs: undefined,
+        attackRecoverUntilMs: undefined,
+        attackSkillId: undefined,
+        attackHitResolved: undefined
+      }))
+    }
+  };
+}
+
 function defeatCurrentRoom(model: ReturnType<typeof createAppModel>): ReturnType<typeof createAppModel> {
   let next = model;
 
@@ -490,6 +516,70 @@ describe("playable app integration actions", () => {
     expect(model.combatRun?.roomIndex).toBe(0);
     expect(renderAppHtml(model)).toContain('data-room-gate-transition="entering"');
     expect(renderAppHtml(model)).toContain('data-room-transition-state="entering"');
+  });
+
+  it("keeps final-hit hitstop, buffered input, and held movement gate entry in one keyboard flow", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 80)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = leaveSingleWeakEnemyInFront(model);
+    const heavy = reduceAppAction(model, { type: "combatAction", action: "heavy" });
+    const heavyHtml = renderAppHtml(heavy);
+
+    expect(heavyHtml).toContain('data-player-motion="heavy"');
+    expect(heavyHtml).toContain('data-player-normal-attack-move="ground-heavy"');
+    expect(heavyHtml).toContain('class="combat-player-art actor-model actor-model-heavy"');
+
+    if (!heavy.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const [heavyHitAtMs] = scheduledGroundHeavyTimes(heavy.combatRun);
+    model = {
+      ...heavy,
+      combatRun: stepToElapsed(heavy.combatRun, heavyHitAtMs - 5)
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "light" });
+    let html = renderAppHtml(model);
+
+    expect(html).toContain('data-action-buffer-state="queued"');
+    expect(html).toContain('data-buffered-action="light"');
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, heavyHitAtMs)
+    };
+    html = renderAppHtml(model);
+
+    expect(model.combatRun?.enemies.every((enemy) => enemy.hp <= 0)).toBe(true);
+    expect(firstHitEvent(model).action).toBe("heavy");
+    expect(html).toContain('data-hitstop-active="true"');
+    expect(html).toContain('data-screen-shake="heavy"');
+    expect(html).toContain('data-impact-spark="true"');
+    expect(html).toContain('data-vfx-cue="ground-heavy-impact"');
+    expect(html).toContain('data-room-gate-state="open"');
+    expect(html).toContain('data-room-gate-transition="ready"');
+    expect(html).toContain('data-action-buffer-state="queued"');
+    expect(html).toContain('data-buffered-action="light"');
+
+    for (let attempt = 0; attempt < 60 && !renderAppHtml(model).includes('data-room-gate-transition="entering"'); attempt += 1) {
+      model = reduceAppAction(model, { type: "combatTick", moveX: 1, moveY: 0, dash: true });
+    }
+
+    html = renderAppHtml(model);
+
+    expect(html).toContain('data-room-gate-transition="entering"');
+    expect(html).toContain('data-room-transition-state="entering"');
+    expect(html).toContain('data-player-room-transition="entering"');
+    expect(html).toContain('data-action-buffer-state="empty"');
+    expect(model.combatRun?.player.bufferedAction).toBeUndefined();
   });
 
   it("maps PC movement keys to combat movement actions", () => {

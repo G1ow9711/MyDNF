@@ -1177,3 +1177,10 @@
 - Guardrail note: same-frame `ash-ember-spit` impact at the 150 ms shield-jab frame now has dedicated coverage proving enemy impact preempts `iron-palm`, no shield-jab hit/miss event is emitted, enemy HP is unchanged, and the queued shield-jab effect is cleared.
 - Guardrail note: startup interruption at 80 ms now has dedicated coverage proving `activeSkillMovement` is cleared, player X remains short of the uninterrupted jab endpoint, no shield-jab hit/miss event is emitted, enemy HP is unchanged, and no `iron-palm` scheduled hit effect remains.
 - Verification note: focused `iron-palm` coverage passed 4 tests, related interruption coverage passed 37 tests, and final verification passed `git diff --check`, 14-file Vitest suite with 557 tests, `npm run build`, and HTTP 200 on `http://127.0.0.1:5174/`.
+
+## DNF-Style Keyboard Flow and Monster VFX Matrix Findings
+- Current priority follows the user's latest clarification: player and monster geometry can stay simple while the full loop is completed, but keyboard feel, smooth model-following attacks, real hit frames, hitstop, hit feedback, player skill VFX, and monster skill VFX remain hard gates.
+- Read-only agent audit found existing combat events and DOM data hooks are strong, but monster skill presentation still benefits from an exhaustive matrix because fallback effects can hide future missing Shan Hai Jing-style monster VFX.
+- Keyboard coverage note: the new app integration test proves a real late pre-input during heavy attack stays queued through the final-hit hitstop, while heavy model motion, impact spark, heavy screen shake, room-gate opening, held movement entry, and stale buffer clearing all remain visible in the same flow.
+- Monster matrix note: `enemyAttackPresentationMatrix` is typed as `Record<EnemyAttackProfileId, ...>`, so adding a new monster attack profile forces a matching telegraph/VFX/cue/timing entry at compile time.
+- Verification note: focused and related app/UI tests passed, then full final verification passed `git diff --check`, 14-file Vitest suite with 559 tests, `npm run build`, and HTTP 200 on `http://127.0.0.1:5174/`.

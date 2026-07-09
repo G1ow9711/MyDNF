@@ -3918,3 +3918,20 @@
   - Focused `iron-palm` coverage passed: `npm test -- src/tests/combat.test.ts --testNamePattern "iron-palm" --reporter=basic`, 4 matched tests.
   - Related interruption coverage passed: `npm test -- src/tests/combat.test.ts --testNamePattern "iron-palm|spark-combo jab|same-frame monster impact|same-frame enemy interruption|interrupt" --reporter=basic`, 37 matched tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 557 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 156 DNF-Style Final-Hit Keyboard Flow and Monster VFX Matrix
+- Continued after the user's clarification: character and monster modeling can stay simpler for now, but combat motion, model-following attacks, hitstop, buffered input, skill effects, and monster skill effects remain strict acceptance gates.
+- Used one read-only agent to audit action/VFX risk. The audit found strong existing data hooks, but recommended broader monster attack presentation coverage so new Shan Hai Jing-style monster skills cannot silently fall back to generic VFX.
+- Added coverage:
+  - `src/tests/app-integration.test.ts` now has a combined keyboard-flow acceptance test for heavy final-hit windup, model-following `ground-heavy` motion, pre-input action buffer, last-hit hitstop, heavy impact VFX, open room gate, held tick movement into the gate, and stale buffer clearing.
+  - `src/tests/ui-smoke.test.ts` now defines `enemyAttackPresentationMatrix` as `Record<EnemyAttackProfileId, ...>`, forcing every monster attack profile to declare its telegraph shape, active cue, timing step, and CSS animation identity.
+  - The new matrix test verifies every monster attack profile renders a dedicated telegraph, active `data-enemy-skill-vfx`, active `data-enemy-vfx-cue`, runtime duration attributes, and non-empty cue-specific ring/core/trail CSS animations.
+- Evidence:
+  - Initial app acceptance failed because the test pressed the buffered light too early, outside the 180 ms buffer window; updated it to match real late pre-input timing.
+  - The next app assertion failed because heavy hits correctly expose `data-screen-shake="heavy"`, not generic `impact`; the test now asserts the heavy impact cue and spark metadata.
+  - Product code did not need changes in this task; this is regression hardening around the clarified combat priority.
+- Verification:
+  - Focused final-hit keyboard flow passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "final-hit hitstop" --reporter=basic`.
+  - Focused monster matrix passed: `npm test -- src/tests/ui-smoke.test.ts --testNamePattern "every monster attack profile" --reporter=basic`.
+  - Related app/UI suites passed: `npm test -- src/tests/ui-smoke.test.ts --testNamePattern "monster skill effects|every monster attack profile|monster VFX|legacy monster" --reporter=basic` (6 matched tests) and `npm test -- src/tests/app-integration.test.ts --testNamePattern "final-hit hitstop|room gate|held combat tick|action buffer|monster attack motion" --reporter=basic` (7 matched tests).
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 559 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

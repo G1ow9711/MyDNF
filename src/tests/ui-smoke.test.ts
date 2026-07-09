@@ -13,7 +13,8 @@ import {
   stepCombat,
   type CombatEnemy,
   type CombatHitEvent,
-  type CombatRun
+  type CombatRun,
+  type EnemyAttackProfileId
 } from "../game/combat";
 import { createAudioState, setVolume } from "../systems/audio";
 import { createInitialState, createOwnedGear } from "../game/state";
@@ -43,6 +44,99 @@ const publicWeaponAssetModules = import.meta.glob("../../public/assets/weapons/*
 }) as Record<string, string>;
 
 const stylesCss = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+type EnemyAttackPresentationSpec = {
+  roomIndex: 0 | 1 | 2;
+  patch?: Partial<CombatEnemy>;
+  telegraphShape: "cone" | "line" | "circle";
+  activeDtMs: number;
+  activeCue: string;
+  animationNamePart: string;
+  activeAttributes?: Record<string, string>;
+};
+
+const enemyAttackPresentationMatrix: Record<EnemyAttackProfileId, EnemyAttackPresentationSpec> = {
+  "ash-ember-spit": {
+    roomIndex: 0,
+    telegraphShape: "cone",
+    activeDtMs: 500,
+    activeCue: "ash-ember-spit-impact",
+    animationNamePart: "ash-ember-spit"
+  },
+  "ash-crawler-burst": {
+    roomIndex: 0,
+    patch: { attackProfileId: "ash-crawler-burst" },
+    telegraphShape: "circle",
+    activeDtMs: 500,
+    activeCue: "ash-crawler-burst-explode",
+    animationNamePart: "ash-crawler-burst"
+  },
+  "zheng-shockwave": {
+    roomIndex: 1,
+    telegraphShape: "circle",
+    activeDtMs: 500,
+    activeCue: "zheng-shockwave-impact",
+    animationNamePart: "zheng-shockwave"
+  },
+  "zheng-horn-charge": {
+    roomIndex: 1,
+    patch: { attackProfileId: "zheng-horn-charge" },
+    telegraphShape: "line",
+    activeDtMs: 520,
+    activeCue: "zheng-horn-charge-impact",
+    animationNamePart: "zheng-horn-charge"
+  },
+  "taotie-flame-breath": {
+    roomIndex: 2,
+    telegraphShape: "line",
+    activeDtMs: 500,
+    activeCue: "taotie-flame-breath-sustain",
+    animationNamePart: "taotie-flame-breath",
+    activeAttributes: { "data-enemy-attack-hit-index": "2" }
+  },
+  "taotie-devour-pull": {
+    roomIndex: 2,
+    patch: { attackProfileId: "taotie-devour-pull", attackPatternIds: ["taotie-devour-pull"], nextAttackPatternIndex: 0 },
+    telegraphShape: "circle",
+    activeDtMs: 520,
+    activeCue: "taotie-devour-bite",
+    animationNamePart: "taotie-devour"
+  },
+  "taotie-ash-summon": {
+    roomIndex: 2,
+    patch: { attackProfileId: "taotie-ash-summon", attackPatternIds: ["taotie-ash-summon"], nextAttackPatternIndex: 0 },
+    telegraphShape: "circle",
+    activeDtMs: 620,
+    activeCue: "taotie-ash-summon-rift",
+    animationNamePart: "taotie-ash-summon"
+  },
+  "taotie-forge-shackle": {
+    roomIndex: 2,
+    patch: {
+      bossPhase: 2,
+      attackProfileId: "taotie-forge-shackle",
+      attackPatternIds: ["taotie-forge-shackle"],
+      nextAttackPatternIndex: 0
+    },
+    telegraphShape: "circle",
+    activeDtMs: 520,
+    activeCue: "taotie-forge-shackle-bind",
+    animationNamePart: "taotie-forge-shackle"
+  },
+  "taotie-chain-cleave": {
+    roomIndex: 2,
+    patch: {
+      bossPhase: 2,
+      attackProfileId: "taotie-chain-cleave",
+      attackPatternIds: ["taotie-chain-cleave"],
+      nextAttackPatternIndex: 0
+    },
+    telegraphShape: "line",
+    activeDtMs: 520,
+    activeCue: "taotie-chain-cleave-drag",
+    animationNamePart: "taotie-chain-cleave"
+  }
+};
 
 type CssElementSnapshot = {
   classList: string[];
@@ -607,6 +701,72 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes taotie-chain-cleave-smash-core");
     expect(stylesCss).toContain("@keyframes taotie-forge-shackle-hit-feedback");
     expect(stylesCss).toContain("@keyframes taotie-chain-cleave-hit-feedback");
+  });
+
+  it("covers every monster attack profile with dedicated telegraph, active VFX, and CSS animation hooks", () => {
+    const state = createInitialState();
+    const baseRuns: Record<EnemyAttackPresentationSpec["roomIndex"], CombatRun> = {
+      0: createCombatRun(state, "cinder-kiln-alley"),
+      1: reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 1),
+      2: reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 2)
+    };
+    const enemySkillRoot = (
+      skillId: EnemyAttackProfileId,
+      cue: string,
+      extraAttributes: Record<string, string> = {}
+    ): CssElementSnapshot => ({
+      classList: ["enemy-skill-vfx", `enemy-skill-${skillId}`],
+      attributes: {
+        "data-enemy-skill-vfx": skillId,
+        "data-enemy-vfx-cue": cue,
+        ...extraAttributes
+      }
+    });
+    const enemySkillPart = (root: CssElementSnapshot, className: string): CssElementSnapshot => ({
+      classList: [className],
+      parent: root
+    });
+
+    for (const [skillId, spec] of Object.entries(enemyAttackPresentationMatrix) as Array<
+      [EnemyAttackProfileId, EnemyAttackPresentationSpec]
+    >) {
+      const windupRun = stepCombat(
+        withSingleReadyEnemy(baseRuns[spec.roomIndex], {
+          attackProfileId: skillId,
+          ...spec.patch
+        }),
+        {},
+        80
+      );
+      const activeRun = stepCombat(windupRun, {}, spec.activeDtMs);
+      const windupHtml = renderAppHtml({ state, mode: "combat", combatRun: windupRun });
+      const activeHtml = renderAppHtml({ state, mode: "combat", combatRun: activeRun });
+      const root = enemySkillRoot(skillId, spec.activeCue, spec.activeAttributes);
+
+      expect(windupHtml).toContain(`data-enemy-attack-skill-id="${skillId}"`);
+      expect(windupHtml).toContain(`data-enemy-telegraph="${skillId}"`);
+      expect(windupHtml).toContain(`data-telegraph-shape="${spec.telegraphShape}"`);
+      expect(windupHtml).toContain(`actor-enemy-skill-${skillId}`);
+      expect(windupHtml).not.toContain(`data-enemy-skill-vfx="${skillId}"`);
+
+      expect(activeHtml).toContain(`data-enemy-skill-vfx="${skillId}"`);
+      expect(activeHtml).toContain(`data-enemy-vfx-cue="${spec.activeCue}"`);
+      expect(activeHtml).toMatch(
+        new RegExp(
+          `class="enemy-skill-vfx enemy-skill-${skillId}"[^>]+data-enemy-attack-duration-ms="\\d+"[^>]+data-enemy-vfx-duration-ms="\\d+"`
+        )
+      );
+      if (skillId !== "taotie-flame-breath") {
+        expect(activeHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
+      }
+
+      for (const partClass of ["enemy-cast-ring", "enemy-cast-core", "enemy-cast-trail"]) {
+        const animationName = resolvedAnimationName(stylesCss, enemySkillPart(root, partClass));
+
+        expect(animationName).not.toBe("none");
+        expect(animationName).toContain(spec.animationNamePart);
+      }
+    }
   });
 
   it("resolves taotie forge shackle monster VFX from bind and slam cues", () => {

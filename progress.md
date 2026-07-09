@@ -3817,3 +3817,29 @@
   - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "cue-specific player hurt" --reporter=basic`, 1 matched test.
   - Related app/browser suite passed: `npm test -- src/tests/app-integration.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 2 files / 131 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 549 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 151 DNF-Style Strict Presentation: Iron Palm VFX, Taotie Shackle Motion, and Guard Windup
+- Continued toward the full DNF-style objective: models can stay lightweight, but hit-frame truth, skill VFX duration, monster model action changes, and defensive startup semantics must be strict.
+- Used three parallel read-only explorer agents:
+  - Iron-palm audit confirmed implementation uses dynamic target recheck and interruption cancellation paths, but still needs dedicated combat guardrail tests for moved-out, moved-in, and interrupted startup cases.
+  - UI/CSS audit selected `taotie-forge-shackle` because bind/slam cues existed in DOM/VFX/player hurt feedback while the boss model still used one generic animation.
+  - Iron guard audit found real shield state was delayed correctly, but the player and weapon showed `shield` motion during startup because `playerMotion()` consumed skill-cast `guard` / `shield` tags.
+- Added RED coverage:
+  - `src/tests/browser-computed-style.test.ts` now verifies `iron-palm` target impact core/ring/shards consume the 260 ms event VFX window.
+  - `src/tests/browser-computed-style.test.ts` now verifies `taotie-forge-shackle` bind and slam cues resolve to distinct boss model animations.
+  - `src/tests/app-integration.test.ts` now verifies `anvil-guard`, `molten-wall`, and `black-furnace-aegis` do not expose player/weapon `shield` motion before the real open frame.
+- RED evidence:
+  - Iron-palm browser RED failed because the core animation duration computed `0.28s` instead of `0.26s`.
+  - Forge-shackle browser RED failed because bind still computed `monster-taotie-forge-shackle`.
+  - Guard startup app RED failed because pre-open HTML still contained `data-player-motion="shield"`.
+- Implemented:
+  - `src/styles.css` now cue-gates `iron-shield-jab` target impacts through `var(--skill-duration)`.
+  - `src/styles.css` now adds `monster-taotie-forge-shackle-bind` and `monster-taotie-forge-shackle-slam` keyframes and cue-gated selectors.
+  - `src/ui/app.ts` now returns `shield` motion only when `playerShieldActive(run)` is true, so startup remains skill/brace presentation until the actual open frame.
+- Verification so far:
+  - Focused iron-palm browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "iron-palm target impact" --reporter=basic`, 1 matched test.
+  - Focused forge-shackle browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "taotie-forge-shackle bind and slam" --reporter=basic`, 1 matched test.
+  - Browser computed-style suite passed: `npm test -- src/tests/browser-computed-style.test.ts --reporter=dot`, 1 file / 22 tests.
+  - Focused guard startup GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "skill status motion classes|molten-wall as a delayed self shield|anvil-guard as a delayed shield raise|black-furnace-aegis as a delayed advancement shield" --reporter=basic`, 4 matched tests.
+  - Related app/browser suite passed: `npm test -- src/tests/app-integration.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 2 files / 133 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 551 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

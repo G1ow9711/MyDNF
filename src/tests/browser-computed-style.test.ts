@@ -113,6 +113,33 @@ describe("real browser computed style regressions", () => {
     expect(computed.smash.art.animationDuration).toBe("0.97s");
   }, 30000);
 
+  it("uses taotie-forge-shackle bind and slam boss model animations in the browser cascade", async () => {
+    const fixtures: EnemyModelMotionFixture[] = [
+      {
+        key: "bind",
+        motion: "attack",
+        skillId: "taotie-forge-shackle",
+        cue: "taotie-forge-shackle-bind",
+        durationMs: 1040
+      },
+      {
+        key: "slam",
+        motion: "attack",
+        skillId: "taotie-forge-shackle",
+        cue: "taotie-forge-shackle-slam",
+        durationMs: 1040
+      }
+    ];
+    const computed = await computeEnemyModelMotionStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.bind.art.animationName).toBe("monster-taotie-forge-shackle-bind");
+    expect(computed.slam.art.animationName).toBe("monster-taotie-forge-shackle-slam");
+    expect(computed.bind.art.animationName).not.toBe("monster-taotie-forge-shackle");
+    expect(computed.slam.art.animationName).not.toBe("monster-taotie-forge-shackle");
+    expect(computed.bind.art.animationDuration).toBe("1.04s");
+    expect(computed.slam.art.animationDuration).toBe("1.04s");
+  }, 30000);
+
   it("uses cue-specific player hurt animations for monster bind, drag, and slam hits", async () => {
     const fixtures: PlayerHurtMotionFixture[] = [
       { key: "forge-bind", feedbackCue: "player-hurt-forge-shackle" },
@@ -263,6 +290,20 @@ describe("real browser computed style regressions", () => {
     expect(phaseComputed.jab.player.animationDuration).toBe("0.26s");
     expect(phaseComputed.finish.weapon.animationDuration).toBe("0.32s");
     expect(impactComputed.finish.core.animationDuration).toBe("0.32s");
+  }, 30000);
+
+  it("uses iron-palm target impact VFX durations from the hit event window", async () => {
+    const fixtures: SkillImpactVfxFixture[] = [
+      { key: "shield-jab", shape: "iron-spark", phase: "shield-jab", cue: "iron-shield-jab", durationMs: 260 }
+    ];
+    const computed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed["shield-jab"].core.animationName).toBe("iron-shield-jab-impact-core");
+    expect(computed["shield-jab"].ring.animationName).toBe("iron-shield-jab-impact-ring");
+    expect(computed["shield-jab"].shards.animationName).toBe("iron-shield-jab-impact-shards");
+    expect(computed["shield-jab"].core.animationDuration).toBe("0.26s");
+    expect(computed["shield-jab"].ring.animationDuration).toBe("0.26s");
+    expect(computed["shield-jab"].shards.animationDuration).toBe("0.26s");
   }, 30000);
 
   it("uses earth-furnace-breaker crack and eruption root VFX animations in the browser cascade", async () => {

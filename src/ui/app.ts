@@ -1190,7 +1190,7 @@ function playerMotion(run: CombatRun): string {
     return "counter";
   }
 
-  if (action?.statusTags?.includes("shield") || action?.statusTags?.includes("guard") || playerShieldActive(run)) {
+  if (playerShieldActive(run)) {
     return "shield";
   }
 

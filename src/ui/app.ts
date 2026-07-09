@@ -953,8 +953,8 @@ function playerSkillVisualState(run: CombatRun): PlayerSkillVisualState {
     durationMs: String(durationMs),
     hitAtMs: String(actionStartAtMs + activeFrameMs),
     activeFrameMs: String(activeFrameMs),
-    hitPhase: action.kind === "hit" ? action.hitPhase ?? "" : "",
-    vfxCue: action.kind === "hit" ? action.vfxCue ?? "" : ""
+    hitPhase: action.kind === "hit" || action.kind === "miss" ? action.hitPhase ?? "" : "",
+    vfxCue: action.kind === "hit" || action.kind === "miss" ? action.vfxCue ?? "" : ""
   };
 }
 
@@ -1506,7 +1506,7 @@ function renderCombatVfx(run: CombatRun): string {
   const skillVfx =
     playerAction?.action === "skill"
       ? `
-        <div class="player-skill-vfx skill-vfx-${playerAction.skillId ?? "unknown"} skill-vfx-shape-${skillAnimation?.vfxShape ?? "generic"}" data-player-skill-vfx="${playerAction.skillId ?? "unknown"}" data-skill-vfx-shape="${skillAnimation?.vfxShape ?? ""}" data-vfx-anchor="${skillAnimation?.vfxAnchor ?? "front"}" data-weapon-arc="${skillAnimation?.weaponArc ?? ""}" data-vfx-action="skill" style="${playerSkillVfxStyle(run, skillAnimation, skillTarget, playerAction)}">
+        <div class="player-skill-vfx skill-vfx-${playerAction.skillId ?? "unknown"} skill-vfx-shape-${skillAnimation?.vfxShape ?? "generic"}" data-player-skill-vfx="${playerAction.skillId ?? "unknown"}" data-skill-vfx-shape="${skillAnimation?.vfxShape ?? ""}" data-vfx-anchor="${skillAnimation?.vfxAnchor ?? "front"}" data-weapon-arc="${skillAnimation?.weaponArc ?? ""}" data-hit-phase="${playerAction.kind === "hit" || playerAction.kind === "miss" ? playerAction.hitPhase ?? "" : ""}" data-vfx-cue="${playerAction.kind === "hit" || playerAction.kind === "miss" ? playerAction.vfxCue ?? "" : ""}" data-vfx-action="skill" style="${playerSkillVfxStyle(run, skillAnimation, skillTarget, playerAction)}">
           <span class="skill-core"></span>
           <span class="skill-wave"></span>
           <span class="skill-sparks"></span>

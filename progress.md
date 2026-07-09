@@ -3469,3 +3469,27 @@
   - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "does not erupt earth-furnace-breaker" --reporter=basic`, 1 matched test.
   - Related GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "earth-furnace-breaker" --reporter=basic`, 5 matched tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --reporter=dot` (417 tests), `npm test -- --reporter=dot` (14 files / 519 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 136 DNF-Style Flowing Chain Whiff Phase Motion
+- Continued after the user's clarification: character models can remain simpler for now, but combat action flow, actor-following movement, strict hit frames, skill effects, and monster effects must stay strict.
+- Used parallel read-only audits:
+  - Combat audit confirmed baseline scheduled MISS events dropped `hitPhase`, `vfxCue`, and `vfxWindowMs`.
+  - UI audit confirmed `playerSkillVisualState()` only consumed hit event phase/cue, so a whiff reached the active slash frame with empty player and weapon phase attrs.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires `flowing-light-chain` first-slash MISS to carry `chain-open`, `flowing-chain-open`, and the 260 ms VFX window.
+  - `src/tests/app-integration.test.ts` now requires a whiffed `flowing-light-chain` opening slash to animate the player model, weapon, and player skill VFX with open-stage attrs while not rendering target-bound impact bursts.
+- RED evidence:
+  - Focused combat RED failed because the MISS event only had timing/action data.
+  - Focused app RED failed because player/weapon phase attrs and player skill VFX cue attrs were absent on the whiff frame.
+- Implemented:
+  - `CombatMissEvent` and `CombatScheduledMissEffect` now carry optional `hitPhase`, `vfxCue`, and `vfxWindowMs`.
+  - Dynamic scheduled hitboxes pass phase/cue/window metadata into their delayed MISS event.
+  - `playerSkillVisualState()` now consumes phase/cue from both hit and miss action events.
+  - The player skill VFX root now exposes `data-hit-phase` and `data-vfx-cue`, so whiff VFX can bind to the real slash stage.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "delays flowing-light-chain MISS feedback" --reporter=basic`, 1 matched test.
+  - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "flowing-light-chain whiff" --reporter=basic`, 1 matched test.
+  - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --reporter=dot` (418 tests).
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 520 tests), and `npm run build`.
+  - HTTP check first failed because no dev server was running on `127.0.0.1:5174`; started Vite locally with project-local logs under `.codex-local/tmp`, then `Invoke-WebRequest http://127.0.0.1:5174/` returned HTTP 200.
+  - In-app browser verification loaded `http://127.0.0.1:5174/`, entered the dungeon through the visible `进图` button, and confirmed 2 live enemies, 6 DNF skill slots, quest tracker, combat scene, background art, and no console error logs.

@@ -332,6 +332,9 @@ export interface CombatMissEvent {
   canceledFromCombo: boolean;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
+  hitPhase?: CombatHitPhase;
+  vfxCue?: CombatVfxCue;
+  vfxWindowMs?: number;
   casterPosition?: CombatVector;
   casterFacing?: 1 | -1;
 }
@@ -570,6 +573,9 @@ export interface CombatScheduledMissEffect {
   canceledFromCombo: boolean;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
+  hitPhase?: CombatHitPhase;
+  vfxCue?: CombatVfxCue;
+  vfxWindowMs?: number;
   casterPosition?: CombatVector;
   casterFacing?: 1 | -1;
   resetComboStepOnMiss?: boolean;
@@ -4948,6 +4954,9 @@ function applyScheduledPlayerHitboxEffect(
       canceledFromCombo: hitbox.canceledFromCombo,
       statusTags: hitbox.statusTags,
       actionTags: hitbox.actionTags,
+      hitPhase: effect.hitPhase,
+      vfxCue: effect.vfxCue,
+      vfxWindowMs: effect.vfxWindowMs,
       casterPosition: effect.casterPosition,
       casterFacing: effect.casterFacing,
       resetComboStepOnMiss: effect.resetComboStepOnMiss
@@ -5172,6 +5181,9 @@ function applyScheduledMissEffect(run: CombatRun, effect: CombatScheduledMissEff
     canceledFromCombo: effect.canceledFromCombo,
     statusTags: effect.statusTags,
     actionTags: effect.actionTags,
+    hitPhase: effect.hitPhase,
+    vfxCue: effect.vfxCue,
+    vfxWindowMs: effect.vfxWindowMs,
     casterPosition: effect.casterPosition,
     casterFacing: effect.casterFacing
   };

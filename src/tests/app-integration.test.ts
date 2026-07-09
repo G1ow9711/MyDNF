@@ -3671,6 +3671,67 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(finishHtml, 'data-skill-impact-vfx="flowing-light-chain"')).toBe(6);
   });
 
+  it("renders flowing-light-chain whiff as the real opening slash on player and weapon", () => {
+    const advancedState = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),
+      "flowing-light-swordmaster"
+    );
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: advancedState
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run before flowing-light-chain whiff setup");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        enemies: model.combatRun.enemies.map((enemy, index) =>
+          enemy.hp > 0
+            ? {
+                ...enemy,
+                position: { x: 720 + index * 40, y: 430 },
+                nextAttackAtMs: 9999
+              }
+            : enemy
+        )
+      }
+    };
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "flowing-light-chain" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run after flowing-light-chain whiff");
+    }
+
+    const [openAtMs] = scheduledSkillTimes(model.combatRun, "flowing-light-chain");
+    const beforeOpenHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, openAtMs - 1)
+    });
+    const openHtml = renderAppHtml({
+      ...model,
+      combatRun: stepToElapsed(model.combatRun, openAtMs)
+    });
+
+    expect(beforeOpenHtml).not.toContain('data-player-skill-hit-phase="chain-open"');
+    expect(beforeOpenHtml).not.toContain('data-skill-impact-vfx="flowing-light-chain"');
+    expect(openHtml).toContain('data-player-skill-hit-phase="chain-open"');
+    expect(openHtml).toContain('data-player-skill-vfx-cue="flowing-chain-open"');
+    expect(openHtml).toContain("actor-skill-phase-chain-open");
+    expect(openHtml).toContain('data-weapon-hit-phase="chain-open"');
+    expect(openHtml).toContain('data-weapon-vfx-cue="flowing-chain-open"');
+    expect(openHtml).toContain('data-player-skill-vfx="flowing-light-chain"');
+    expect(openHtml).toContain('data-player-skill-vfx="flowing-light-chain" data-skill-vfx-shape="flowing-chain"');
+    expect(openHtml).toContain('data-hit-phase="chain-open" data-vfx-cue="flowing-chain-open" data-vfx-action="skill"');
+    expect(openHtml).not.toContain('data-skill-impact-vfx="flowing-light-chain"');
+  });
+
   it("renders per-target impact sparks, hitstop shake, and player motion trails for multi-target skills", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

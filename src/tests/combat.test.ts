@@ -5912,7 +5912,10 @@ describe("combat actions and impact feel", () => {
     expect(skillMissEvents(final, "flowing-light-chain")).toHaveLength(1);
     expect(skillMissEvents(final, "flowing-light-chain")[0]).toMatchObject({
       occurredAtMs: openAtMs,
-      inputToHitMs: openAtMs
+      inputToHitMs: openAtMs,
+      hitPhase: "chain-open",
+      vfxCue: "flowing-chain-open",
+      vfxWindowMs: 260
     });
   });
 

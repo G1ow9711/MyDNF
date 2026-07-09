@@ -1011,3 +1011,11 @@
 - RED note: the new focused test first failed because a second enemy moved into range after `earth-crack` still received `furnace-eruption` hit events.
 - Fix note: the eruption hitbox now requires `requiresStatusSourceSkillId: "earth-furnace-breaker"`, reusing the status source written by the real crack frame. Late entrants keep HP, armor state, knockdown state, and no eruption VFX.
 - Verification note: focused `earth-furnace-breaker` tests pass, including delayed quake recheck, eruption whiff, late-entrant rejection, and interruption cancellation.
+
+## DNF-Style Flowing Chain Whiff Phase Findings
+- Current priority follows the user's clarified scope: character model geometry can stay simpler while the full loop is connected, but combat flow, model-following action, strict hit frames, skill VFX, and monster VFX remain hard gates.
+- Read-only combat audit found the baseline scheduled MISS path dropped `hitPhase`, `vfxCue`, and `vfxWindowMs`, so a delayed whiff could happen on the correct frame but still lose the stage metadata needed by player and weapon animation.
+- Read-only UI audit found `playerSkillVisualState()` only consumed phase/cue from hit events; MISS events reached the active frame with empty player/weapon phase attrs. The player skill VFX root also lacked phase/cue attrs, making whiff VFX hard to bind to the real slash stage.
+- RED note: focused combat coverage failed because `flowing-light-chain` first-slash MISS had no `chain-open` / `flowing-chain-open` metadata. Focused app coverage failed because the whiff open frame lacked player/weapon phase hooks and VFX cue attrs.
+- Fix note: scheduled MISS effects now preserve stage/cue/window metadata from the dynamic scheduled hitbox. `playerSkillVisualState()` reads phase/cue from both hit and miss action events, and the player skill VFX root exposes `data-hit-phase` plus `data-vfx-cue`.
+- VFX note: target-bound `data-skill-impact-vfx` still only renders from real hit events. A whiff now animates the player, weapon, and skill VFX as the real opening slash without creating fake target impact bursts or damage numbers.

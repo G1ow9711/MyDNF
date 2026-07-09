@@ -3935,3 +3935,26 @@
   - Focused monster matrix passed: `npm test -- src/tests/ui-smoke.test.ts --testNamePattern "every monster attack profile" --reporter=basic`.
   - Related app/UI suites passed: `npm test -- src/tests/ui-smoke.test.ts --testNamePattern "monster skill effects|every monster attack profile|monster VFX|legacy monster" --reporter=basic` (6 matched tests) and `npm test -- src/tests/app-integration.test.ts --testNamePattern "final-hit hitstop|room gate|held combat tick|action buffer|monster attack motion" --reporter=basic` (7 matched tests).
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 559 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 157 Real-Browser Keyboard Control and Skill Motion Acceptance
+- Continued after the user's latest clarification: character and monster geometry can stay lightweight for the playable prototype, but keyboard combat feel, smooth actor motion, model-following attacks, real hit frames, hitstop, skill VFX, and monster VFX remain strict acceptance gates.
+- Used two parallel read-only agents:
+  - Browser-control audit found the existing real-browser helper could validate CSS fixtures but could not open the live app or dispatch real keyboard events.
+  - Action/VFX audit identified the biggest live-app gap as missing real-browser proof for `data-player-skill-move-progress` and non-generic player/weapon animations during a DNF hotkey skill.
+- Added coverage:
+  - `src/tests/support/real-browser-computed-style.ts` now exposes `runAppInRealBrowser()` with CDP-backed page navigation, expression polling, keydown, keyup, and press helpers.
+  - `src/tests/browser-keyboard-control.test.ts` now launches the live Vite app in Edge/Chrome, focuses the dungeon entry button, presses Enter, holds ArrowRight through combat ticks, waits for command-buffer expiry, presses `Z`, and verifies heavy windup, model-following `ground-heavy`, hitstop, heavy screen shake, and `ground-heavy-impact`.
+  - The same real-browser test presses DNF hotkey `A` for `spark-combo`, then verifies `data-active-skill-id`, `data-player-skill-move`, positive `data-player-skill-move-progress`, and dedicated player/weapon animation names instead of generic `player-skill-cast` / `weapon-skill-flare`.
+  - A separate live-browser acceptance case now presses Space on the focused dungeon button to cover both keyboard activation paths.
+- Implemented:
+  - `src/ui/app.ts` now lets a focused `[data-enter-dungeon]` button enter the dungeon with Enter or Space, so keyboard-only play can start from town.
+  - The live-browser helper avoids the fixture-only `document.write` path for app tests and keeps browser profiles under project-local `.codex-local/tmp/browser-app-control`.
+  - Code-review fixes make CDP pending requests reject on WebSocket close/error and bound `Browser.close` with a timeout so browser cleanup cannot hang the Vitest process.
+- Debug evidence:
+  - Initial live-app RED showed `#app` stayed empty until the helper used real page activation/navigation and avoided browser networking flags that blocked Vite module loading.
+  - The next RED showed `Enter` focus did not activate the dungeon button in the CDP path, so the app received explicit keyboard activation support for focused dungeon buttons.
+  - The next RED showed immediate `KeyZ` after ArrowRight matched the DNF `→Z` command buffer instead of heavy fallback; the final test waits for the 700 ms command buffer to expire before pressing `Z`.
+- Verification:
+  - Focused real-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (3 tests after review fixes).
+  - Full suite passed after review fixes: `npm test -- --reporter=dot` (15 files / 562 tests).
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

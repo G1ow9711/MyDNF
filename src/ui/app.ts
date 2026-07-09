@@ -2738,6 +2738,21 @@ export function mountApp(root: HTMLDivElement): () => void {
       if (model.mode !== "combat") {
         commandBuffer = [];
         heldCombatKeys.clear();
+
+        if (event.code === "Enter" || event.code === "Space") {
+          const activeElement = (event.target instanceof HTMLElement ? event.target : globalThis.document?.activeElement) as
+            | HTMLElement
+            | undefined;
+          const dungeonButton = activeElement?.closest?.("[data-enter-dungeon]") as HTMLElement | null | undefined;
+          const dungeonId = dungeonButton?.dataset.enterDungeon as DungeonId | undefined;
+
+          if (dungeonId) {
+            event.preventDefault();
+            dispatch({ type: "enterDungeon", dungeonId });
+            render();
+          }
+        }
+
         return;
       }
 

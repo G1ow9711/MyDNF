@@ -158,6 +158,36 @@ export type ComputedWeaponLayerStyles = Record<
   }
 >;
 
+export type RealBrowserKeyCode =
+  | "ArrowLeft"
+  | "ArrowRight"
+  | "ArrowUp"
+  | "ArrowDown"
+  | "Enter"
+  | "ShiftLeft"
+  | "ShiftRight"
+  | "KeyA"
+  | "KeyC"
+  | "KeyD"
+  | "KeyF"
+  | "KeyG"
+  | "KeyH"
+  | "KeyJ"
+  | "KeyK"
+  | "KeyS"
+  | "KeyU"
+  | "KeyX"
+  | "KeyZ"
+  | "Space";
+
+export type RealBrowserAppPage = {
+  evaluate<T>(expression: string): Promise<T>;
+  waitFor<T>(expression: string, predicate: (value: T) => boolean, timeoutMs?: number): Promise<T>;
+  keyDown(code: RealBrowserKeyCode): Promise<void>;
+  keyUp(code: RealBrowserKeyCode): Promise<void>;
+  pressKey(code: RealBrowserKeyCode): Promise<void>;
+};
+
 type CdpResponse<T> = {
   id?: number;
   result?: T;
@@ -177,6 +207,13 @@ class CdpClient {
   >();
 
   private constructor(private readonly socket: WebSocket) {
+    const rejectPending = (error: Error): void => {
+      for (const callback of this.pending.values()) {
+        callback.reject(error);
+      }
+      this.pending.clear();
+    };
+
     this.socket.addEventListener("message", (event) => {
       const message = JSON.parse(String(event.data)) as CdpResponse<unknown>;
       if (message.id === undefined) {
@@ -196,6 +233,8 @@ class CdpClient {
 
       callback.resolve(message.result);
     });
+    this.socket.addEventListener("close", () => rejectPending(new Error("Browser DevTools websocket closed")));
+    this.socket.addEventListener("error", () => rejectPending(new Error("Browser DevTools websocket failed")));
   }
 
   static async connect(url: string): Promise<CdpClient> {
@@ -224,6 +263,10 @@ class CdpClient {
   }
 
   async send<T>(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<T> {
+    if (this.socket.readyState !== WebSocket.OPEN) {
+      throw new Error("Browser DevTools websocket is not open");
+    }
+
     const id = this.nextId;
     this.nextId += 1;
 
@@ -245,6 +288,146 @@ class CdpClient {
 
   close(): void {
     this.socket.close();
+  }
+}
+
+async function closeBrowserClient(client: CdpClient, timeoutMs = 1500): Promise<void> {
+  await Promise.race([
+    client.send("Browser.close").catch(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs))
+  ]);
+  client.close();
+}
+
+export async function runAppInRealBrowser<T>(
+  url: string,
+  callback: (page: RealBrowserAppPage) => Promise<T>
+): Promise<T> {
+  const browserPath = findBrowserExecutable();
+  const profileRoot = join(process.cwd(), ".codex-local", "tmp", "browser-app-control");
+  await mkdir(profileRoot, { recursive: true });
+  const profileDir = await mkdtemp(join(profileRoot, "profile-"));
+  let browser: ChildProcessWithoutNullStreams | undefined;
+  let client: CdpClient | undefined;
+
+  try {
+    browser = spawn(
+      browserPath,
+      [
+        "--headless=new",
+        "--disable-gpu",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--autoplay-policy=no-user-gesture-required",
+        "--remote-debugging-port=0",
+        `--user-data-dir=${profileDir}`,
+        "about:blank"
+      ],
+      { stdio: "pipe", windowsHide: true }
+    );
+
+    const browserDebug = await waitForDevToolsEndpoint(profileDir);
+    client = await CdpClient.connect(`ws://127.0.0.1:${browserDebug.port}${browserDebug.path}`);
+    const target = await client.send<{ targetId: string }>("Target.createTarget", { url });
+    const session = await client.send<{ sessionId: string }>("Target.attachToTarget", {
+      targetId: target.targetId,
+      flatten: true
+    });
+
+    await client.send("Target.activateTarget", { targetId: target.targetId });
+    await client.send("Page.enable", {}, session.sessionId);
+    await client.send("Page.bringToFront", {}, session.sessionId);
+    await client.send("Runtime.enable", {}, session.sessionId);
+    await client.send("Page.navigate", { url }, session.sessionId);
+
+    const evaluate = async <R>(expression: string): Promise<R> => {
+      const evaluation = await client?.send<{
+        result: {
+          value: R;
+        };
+        exceptionDetails?: {
+          text?: string;
+          exception?: {
+            description?: string;
+          };
+        };
+      }>(
+        "Runtime.evaluate",
+        {
+          expression,
+          awaitPromise: true,
+          returnByValue: true
+        },
+        session.sessionId
+      );
+
+      if (!evaluation) {
+        throw new Error("Browser client closed before evaluation");
+      }
+
+      if (evaluation.exceptionDetails) {
+        throw new Error(evaluation.exceptionDetails.exception?.description ?? evaluation.exceptionDetails.text ?? "Browser evaluation failed");
+      }
+
+      return evaluation.result.value;
+    };
+
+    const dispatchKey = async (type: "keyDown" | "keyUp", code: RealBrowserKeyCode): Promise<void> => {
+      const key = keyInfoForCode(code);
+      const text = type === "keyDown" ? key.text : "";
+      await client?.send(
+        "Input.dispatchKeyEvent",
+        {
+          type: type === "keyDown" && (code === "Enter" || code === "Space") ? "keyDown" : type === "keyDown" ? "rawKeyDown" : "keyUp",
+          code,
+          key: key.key,
+          text,
+          unmodifiedText: text,
+          windowsVirtualKeyCode: key.windowsVirtualKeyCode,
+          nativeVirtualKeyCode: key.windowsVirtualKeyCode,
+          autoRepeat: false,
+          isKeypad: false
+        },
+        session.sessionId
+      );
+    };
+
+    const page: RealBrowserAppPage = {
+      evaluate,
+      waitFor: async <R>(expression: string, predicate: (value: R) => boolean, timeoutMs = 3000): Promise<R> => {
+        const startedAt = Date.now();
+        let latest: R | undefined;
+
+        while (Date.now() - startedAt <= timeoutMs) {
+          latest = await evaluate<R>(expression);
+          if (predicate(latest)) {
+            return latest;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+
+        throw new Error(`Timed out waiting for browser expression. Last value: ${JSON.stringify(latest)}`);
+      },
+      keyDown: (code) => dispatchKey("keyDown", code),
+      keyUp: (code) => dispatchKey("keyUp", code),
+      pressKey: async (code) => {
+        await dispatchKey("keyDown", code);
+        await dispatchKey("keyUp", code);
+      }
+    };
+
+    await page.waitFor<boolean>("document.readyState === 'complete' || document.readyState === 'interactive'", Boolean, 5000);
+
+    return await callback(page);
+  } finally {
+    if (client) {
+      await closeBrowserClient(client);
+    }
+    if (browser) {
+      await waitForProcessExit(browser, 2500);
+    }
+    await removeWithRetry(profileDir);
   }
 }
 
@@ -644,6 +827,33 @@ function buildFixtureHtml(css: string, bodyMarkup: string): string {
         ${bodyMarkup}
       </body>
     </html>`;
+}
+
+function keyInfoForCode(code: RealBrowserKeyCode): { key: string; text: string; windowsVirtualKeyCode: number } {
+  const keyMap: Record<RealBrowserKeyCode, { key: string; text: string; windowsVirtualKeyCode: number }> = {
+    ArrowLeft: { key: "ArrowLeft", text: "", windowsVirtualKeyCode: 37 },
+    ArrowRight: { key: "ArrowRight", text: "", windowsVirtualKeyCode: 39 },
+    ArrowUp: { key: "ArrowUp", text: "", windowsVirtualKeyCode: 38 },
+    ArrowDown: { key: "ArrowDown", text: "", windowsVirtualKeyCode: 40 },
+    Enter: { key: "Enter", text: "", windowsVirtualKeyCode: 13 },
+    ShiftLeft: { key: "Shift", text: "", windowsVirtualKeyCode: 16 },
+    ShiftRight: { key: "Shift", text: "", windowsVirtualKeyCode: 16 },
+    KeyA: { key: "a", text: "a", windowsVirtualKeyCode: 65 },
+    KeyC: { key: "c", text: "c", windowsVirtualKeyCode: 67 },
+    KeyD: { key: "d", text: "d", windowsVirtualKeyCode: 68 },
+    KeyF: { key: "f", text: "f", windowsVirtualKeyCode: 70 },
+    KeyG: { key: "g", text: "g", windowsVirtualKeyCode: 71 },
+    KeyH: { key: "h", text: "h", windowsVirtualKeyCode: 72 },
+    KeyJ: { key: "j", text: "j", windowsVirtualKeyCode: 74 },
+    KeyK: { key: "k", text: "k", windowsVirtualKeyCode: 75 },
+    KeyS: { key: "s", text: "s", windowsVirtualKeyCode: 83 },
+    KeyU: { key: "u", text: "u", windowsVirtualKeyCode: 85 },
+    KeyX: { key: "x", text: "x", windowsVirtualKeyCode: 88 },
+    KeyZ: { key: "z", text: "z", windowsVirtualKeyCode: 90 },
+    Space: { key: " ", text: " ", windowsVirtualKeyCode: 32 }
+  };
+
+  return keyMap[code];
 }
 
 function enemyVfxFixtureMarkup(fixture: EnemyVfxFixture): string {

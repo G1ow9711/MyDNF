@@ -1184,3 +1184,12 @@
 - Keyboard coverage note: the new app integration test proves a real late pre-input during heavy attack stays queued through the final-hit hitstop, while heavy model motion, impact spark, heavy screen shake, room-gate opening, held movement entry, and stale buffer clearing all remain visible in the same flow.
 - Monster matrix note: `enemyAttackPresentationMatrix` is typed as `Record<EnemyAttackProfileId, ...>`, so adding a new monster attack profile forces a matching telegraph/VFX/cue/timing entry at compile time.
 - Verification note: focused and related app/UI tests passed, then full final verification passed `git diff --check`, 14-file Vitest suite with 559 tests, `npm run build`, and HTTP 200 on `http://127.0.0.1:5174/`.
+
+## DNF-Style Real-Browser Keyboard Acceptance Findings
+- Current priority follows the user's latest clarification: character/monster geometry can remain lightweight for the prototype, but combat controls, actor motion, hitstop, skill VFX, and monster VFX must be strict and dynamic.
+- Parallel browser-control audit found the existing Edge/Chrome CDP helper only supported fixture CSS pages, not the live Vite app or real keyboard dispatch. The new helper opens the real app URL, polls live DOM state, and dispatches CDP keyboard events.
+- Parallel action/VFX audit found the strongest live-app gap was missing proof that DNF skill hotkeys drive `data-player-skill-move-progress` and non-generic player/weapon animations in a real browser.
+- RED note: focused Enter did not reliably activate the dungeon entry button through the CDP path, so `mountApp()` now supports Enter/Space on focused `[data-enter-dungeon]` buttons directly.
+- RED note: pressing `Z` immediately after ArrowRight correctly matched the DNF `→Z` command buffer rather than heavy fallback. The browser test now waits for the command buffer TTL before using `Z` as heavy, preserving command-input semantics.
+- Review note: code review found no Critical issues and identified CDP close-hang risk plus missing Space-entry coverage; both were fixed, and printable CDP key text is now sent for future input checks.
+- Verification note: the new live-browser suite proves keyboard-only dungeon entry via Enter and Space, continuous held movement, command-buffer-aware heavy attack, hitstop/impact VFX, and `A` hotkey `spark-combo` model-following motion with dedicated player and weapon animations. Full verification passed 15 Vitest files / 562 tests, `npm run build`, `git diff --check`, and HTTP 200 on `http://127.0.0.1:5174/`.

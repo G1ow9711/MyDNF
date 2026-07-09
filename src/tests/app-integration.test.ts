@@ -466,12 +466,18 @@ describe("playable app integration actions", () => {
 
     const clearedHtml = renderAppHtml(model);
 
+    expect(clearedHtml).toContain('data-dungeon-id="cinder-kiln-alley"');
+    expect(clearedHtml).toContain('data-room-index="0"');
+    expect(clearedHtml).toContain('data-room-count="3"');
+    expect(clearedHtml).toContain('data-live-enemy-count="0"');
+    expect(clearedHtml).toContain('data-defeated-enemy-count="2"');
     expect(clearedHtml).toContain('data-room-gate-state="open"');
     expect(clearedHtml).toContain('data-room-gate-vfx="open-rift"');
     expect(clearedHtml).toContain('data-room-gate-transition="ready"');
     expect(clearedHtml).toContain('class="room-gate-rift"');
     expect(clearedHtml).toContain('class="room-gate-threshold"');
     expect(clearedHtml).toContain('data-room-gate-target-room="1"');
+    expect(clearedHtml).toContain('data-gate-enter-ready="false"');
     expect(clearedHtml).not.toContain("settle-button");
 
     for (let attempt = 0; attempt < 20 && !renderAppHtml(model).includes('data-room-gate-transition="entering"'); attempt += 1) {
@@ -485,6 +491,9 @@ describe("playable app integration actions", () => {
     expect(enteringHtml).toContain('data-room-gate-transition="entering"');
     expect(enteringHtml).toContain('data-room-gate-vfx="enter-rift"');
     expect(enteringHtml).toContain('data-room-transition-state="entering"');
+    expect(enteringHtml).toContain('data-room-transition-from-room="0"');
+    expect(enteringHtml).toContain('data-room-transition-target-room="1"');
+    expect(enteringHtml).toContain('data-room-transition-gate-state="open"');
     expect(enteringHtml).toContain('data-player-room-transition="entering"');
 
     for (let tick = 0; tick < 12 && model.combatRun?.roomIndex === 0; tick += 1) {
@@ -498,6 +507,10 @@ describe("playable app integration actions", () => {
     const nextRoomHtml = renderAppHtml(model);
 
     expect(nextRoomHtml).toContain('data-room-gate-state="locked"');
+    expect(nextRoomHtml).toContain('data-room-index="1"');
+    expect(nextRoomHtml).toContain('data-live-enemy-count="3"');
+    expect(nextRoomHtml).toContain('data-defeated-enemy-count="0"');
+    expect(nextRoomHtml).toContain('data-gate-enter-ready="false"');
     expect(nextRoomHtml).not.toContain('data-room-gate-vfx="open-rift"');
   });
 

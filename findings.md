@@ -1218,3 +1218,11 @@
 - RED note: the first live combo-cancel test missed the window when it relied on 50 ms CDP polling, and an intermediate synthetic-key helper was rejected because it did not honestly represent real keyboard input.
 - Stability note: the final test uses browser-side timing after `KeyX` to sample the cancel window, then dispatches a real CDP `KeyA`, proving `data-skill-release-source="cancel"` without buffering a stale action.
 - Verification note: focused combo-cancel live-browser GREEN passed, then the full live-browser keyboard suite passed 7 tests; a prior full suite passed 15 files / 566 tests, and the final build plus HTTP 200 check passed.
+
+## DNF-Style Real-Browser Room Flow Findings
+- Current priority follows the user's newest clarification: character/monster models can stay lightweight while the full loop is completed, but action flow, model-following attacks, hit frames, skill VFX, monster VFX, and real keyboard room flow must be strict.
+- Parallel room-flow audits agreed that gate traversal was already implemented, but the live browser lacked enough stable state for a non-flaky full clear-room test. The useful minimal hooks are dungeon id, room index/count, live/defeated enemy counts, player position, gate readiness, transition source/target, and enemy hp/x/y.
+- Implementation note: `.combat-scene` now exposes room-flow state, `.room-gate` exposes room index/target/readiness/position, and `.combat-enemy` exposes hp/maxHp/x/y. These hooks do not alter combat logic; they make the live browser test steer by actual game state instead of fixed sleeps.
+- Browser acceptance note: the new live test enters `cinder-kiln-alley`, reads live enemy positions, uses real `ArrowLeft/ArrowRight`, `KeyA`, `KeyS`, and `KeyX` input to clear both room-0 monsters, verifies the opened gate, holds `ArrowRight` into the transition, then verifies room 1 spawns three live enemies.
+- Stability note: `KeyZ` is still avoided in the clear-room loop because `ArrowRight -> KeyZ` is a valid DNF command route for `spark-combo`; the room-flow test uses `KeyA/KeyS/KeyX` to avoid command-buffer ambiguity.
+- Verification note: focused room-flow GREEN passed, and the full live-browser keyboard suite passed 8 tests including the new clear-room-to-next-room regression.

@@ -1,6 +1,10 @@
 import { createServer, type ViteDevServer } from "vite";
 import { describe, expect, it } from "vitest";
-import { runAppInRealBrowser } from "./support/real-browser-computed-style";
+import {
+  runAppInRealBrowser,
+  type RealBrowserAppPage,
+  type RealBrowserKeyCode
+} from "./support/real-browser-computed-style";
 
 type BrowserCombatState = {
   objective: string;
@@ -105,6 +109,31 @@ type BrowserComboCancelState = {
   skillCancelToast: string;
 };
 
+type BrowserRoomFlowState = {
+  objective: string;
+  dungeonId: string;
+  roomIndex: string;
+  roomCount: string;
+  liveEnemyCount: string;
+  defeatedEnemyCount: string;
+  combatElapsedMs: string;
+  playerX: string;
+  playerY: string;
+  gateState: string;
+  gateTransition: string;
+  gateTargetRoom: string;
+  gateEnterReady: string;
+  transitionState: string;
+  transitionFromRoom: string;
+  transitionTargetRoom: string;
+  enemies: Array<{
+    id: string;
+    hp: number;
+    x: number;
+    y: number;
+  }>;
+};
+
 const readCombatStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
@@ -121,6 +150,39 @@ const readCombatStateExpression = `
     hitstopActive: scene?.getAttribute("data-hitstop-active") ?? "",
     screenShake: scene?.getAttribute("data-screen-shake") ?? "",
     impactCue: impact?.getAttribute("data-vfx-cue") ?? ""
+  };
+})()
+`;
+
+const readRoomFlowStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const gate = document.querySelector("[data-room-gate='true']");
+  const enemies = Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => ({
+    id: enemy.getAttribute("data-enemy-id") ?? "",
+    hp: Number(enemy.getAttribute("data-enemy-hp-current") || "0"),
+    x: Number(enemy.getAttribute("data-enemy-x") || "0"),
+    y: Number(enemy.getAttribute("data-enemy-y") || "0")
+  }));
+
+  return {
+    objective: scene?.getAttribute("data-combat-objective") ?? "",
+    dungeonId: scene?.getAttribute("data-dungeon-id") ?? "",
+    roomIndex: scene?.getAttribute("data-room-index") ?? "",
+    roomCount: scene?.getAttribute("data-room-count") ?? "",
+    liveEnemyCount: scene?.getAttribute("data-live-enemy-count") ?? "",
+    defeatedEnemyCount: scene?.getAttribute("data-defeated-enemy-count") ?? "",
+    combatElapsedMs: scene?.getAttribute("data-combat-elapsed-ms") ?? "",
+    playerX: scene?.getAttribute("data-player-x") ?? "",
+    playerY: scene?.getAttribute("data-player-y") ?? "",
+    gateState: gate?.getAttribute("data-room-gate-state") ?? "",
+    gateTransition: gate?.getAttribute("data-room-gate-transition") ?? "",
+    gateTargetRoom: gate?.getAttribute("data-room-gate-target-room") ?? "",
+    gateEnterReady: scene?.getAttribute("data-gate-enter-ready") ?? "",
+    transitionState: scene?.getAttribute("data-room-transition-state") ?? "",
+    transitionFromRoom: scene?.getAttribute("data-room-transition-from-room") ?? "",
+    transitionTargetRoom: scene?.getAttribute("data-room-transition-target-room") ?? "",
+    enemies
   };
 })()
 `;
@@ -584,18 +646,102 @@ describe("real browser keyboard control", () => {
     try {
       await runAppInRealBrowser(server.url, async (page) => {
         await enterDungeonWithKeyboard(page, "Space");
-        const combat = await page.waitFor<BrowserCombatState>(
-          readCombatStateExpression,
+        const combat = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
           (state) => state.objective === "active",
           5000
         );
 
         expect(combat.objective).toBe("active");
+        expect(combat.dungeonId).toBe("cinder-kiln-alley");
+        expect(combat.roomIndex).toBe("0");
+        expect(combat.roomCount).toBe("3");
+        expect(combat.liveEnemyCount).toBe("2");
+        expect(combat.defeatedEnemyCount).toBe("0");
+        expect(Number(combat.combatElapsedMs)).toBeGreaterThanOrEqual(0);
+        expect(Number(combat.playerX)).toBeGreaterThan(0);
+        expect(Number(combat.playerY)).toBeGreaterThan(0);
+        expect(combat.gateState).toBe("locked");
+        expect(combat.gateTransition).toBe("blocked");
+        expect(combat.gateTargetRoom).toBe("");
+        expect(combat.gateEnterReady).toBe("false");
+        expect(combat.transitionState).toBe("none");
+        expect(combat.transitionFromRoom).toBe("");
+        expect(combat.transitionTargetRoom).toBe("");
       });
     } finally {
       await server.close();
     }
   }, 60000);
+
+  it("clears the first room and walks into the next room with real keyboard input", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.roomIndex === "0" && state.liveEnemyCount === "2",
+          5000
+        );
+
+        for (let attempt = 0; attempt < 18; attempt += 1) {
+          const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
+          if (state.liveEnemyCount === "0") {
+            break;
+          }
+
+          await moveIntoLiveEnemyRange(page);
+          await page.pressKey("KeyA");
+          await waitInBrowser(page, 430);
+          await page.pressKey("KeyS");
+          await waitInBrowser(page, 560);
+          await page.pressKey("KeyX");
+          await waitInBrowser(page, 280);
+          await page.pressKey("KeyX");
+          await waitInBrowser(page, 320);
+        }
+
+        const cleared = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "cleared" && state.liveEnemyCount === "0" && state.gateState === "open",
+          5000
+        );
+
+        expect(cleared.defeatedEnemyCount).toBe("2");
+        expect(cleared.gateTargetRoom).toBe("1");
+        expect(cleared.transitionState).toBe("none");
+
+        await page.keyDown("ArrowRight");
+        try {
+          const entering = await page.waitFor<BrowserRoomFlowState>(
+            readRoomFlowStateExpression,
+            (state) => state.gateTransition === "entering" && state.transitionState === "entering",
+            5000
+          );
+
+          expect(entering.transitionFromRoom).toBe("0");
+          expect(entering.transitionTargetRoom).toBe("1");
+          expect(entering.gateEnterReady).toBe("false");
+        } finally {
+          await page.keyUp("ArrowRight");
+        }
+
+        const nextRoom = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.roomIndex === "1" && state.liveEnemyCount === "3",
+          4000
+        );
+
+        expect(nextRoom.gateState).toBe("locked");
+        expect(nextRoom.defeatedEnemyCount).toBe("0");
+        expect(nextRoom.gateTargetRoom).toBe("");
+      });
+    } finally {
+      await server.close();
+    }
+  }, 90000);
 
   it("shows natural monster windup, skill VFX, and model motion in the live browser", async () => {
     const server = await startViteServer();
@@ -671,11 +817,54 @@ describe("real browser keyboard control", () => {
   }, 60000);
 });
 
-async function enterDungeonWithKeyboard(page: {
-  evaluate<T>(expression: string): Promise<T>;
-  waitFor<T>(expression: string, predicate: (value: T) => boolean, timeoutMs?: number): Promise<T>;
-  pressKey(code: "Enter" | "Space"): Promise<void>;
-}, activationKey: "Enter" | "Space" = "Enter"): Promise<void> {
+async function moveIntoLiveEnemyRange(page: RealBrowserAppPage): Promise<void> {
+  const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
+  const playerX = Number(state.playerX);
+  const liveEnemies = state.enemies.filter((enemy) => enemy.hp > 0);
+  const target = liveEnemies.sort((left, right) => Math.abs(left.x - playerX) - Math.abs(right.x - playerX))[0];
+
+  if (!target) {
+    return;
+  }
+
+  const directionKey: RealBrowserKeyCode = target.x >= playerX ? "ArrowRight" : "ArrowLeft";
+  const targetDistance = Math.abs(target.x - playerX);
+
+  if (targetDistance > 108) {
+    await page.keyDown(directionKey);
+    try {
+      await page.waitFor<BrowserRoomFlowState>(
+        readRoomFlowStateExpression,
+        (nextState) => {
+          const nextPlayerX = Number(nextState.playerX);
+          const nextTarget = nextState.enemies.find((enemy) => enemy.id === target.id);
+          return (
+            nextState.liveEnemyCount === "0" ||
+            !nextTarget ||
+            nextTarget.hp <= 0 ||
+            Math.abs(nextTarget.x - nextPlayerX) <= 92
+          );
+        },
+        2200
+      );
+    } finally {
+      await page.keyUp(directionKey);
+    }
+  } else {
+    await page.keyDown(directionKey);
+    await waitInBrowser(page, 55);
+    await page.keyUp(directionKey);
+  }
+}
+
+async function waitInBrowser(page: RealBrowserAppPage, ms: number): Promise<void> {
+  await page.evaluate<void>(`new Promise((resolve) => setTimeout(resolve, ${ms}))`);
+}
+
+async function enterDungeonWithKeyboard(
+  page: Pick<RealBrowserAppPage, "evaluate" | "waitFor" | "pressKey">,
+  activationKey: "Enter" | "Space" = "Enter"
+): Promise<void> {
   await page.waitFor<{ ready: boolean; focused: boolean; href: string; body: string; scripts: string[] }>(
     `(() => {
       const button = document.querySelector('[data-enter-dungeon="cinder-kiln-alley"]');

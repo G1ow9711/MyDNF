@@ -4012,3 +4012,22 @@
   - Focused combo-cancel test passed: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "cancels a confirmed light hit" --reporter=basic`.
   - Full live-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (7 tests).
   - Fresh final checks passed: `npm test -- --reporter=basic` (15 files / 566 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 161 Real-Browser Clear-Room Room-Flow Acceptance
+- Continued after the user's clarification: character and monster models can stay simpler for this phase, but combat motion smoothness, model-following attacks, strict hit timing, skill VFX, monster VFX, and real keyboard room progression remain strict gates.
+- Used two read-only agents:
+  - Room-flow hook audit confirmed the live app needed stable dungeon/room/gate/enemy state hooks before a full keyboard clear-room regression would be reliable.
+  - Keyboard-flow audit confirmed the gate transition is stable once the room is cleared, but warned that clearing by fixed sleeps would be flaky without enemy hp/x/y state.
+- Added support:
+  - `src/ui/app.ts` now exposes `data-dungeon-id`, `data-room-index`, `data-room-count`, `data-live-enemy-count`, `data-defeated-enemy-count`, `data-player-x/y`, `data-gate-enter-ready`, and room transition source/target/gate state on `.combat-scene`.
+  - `.room-gate` now exposes room index, target room, enter readiness, and x/y position.
+  - `.combat-enemy` now exposes x/y, current HP, and max HP so browser tests can steer toward live enemies instead of hardcoded timing.
+  - `src/tests/browser-keyboard-control.test.ts` now includes a full live-browser keyboard test that enters the dungeon, clears room 0 with `KeyA`/`KeyS`/`KeyX`, verifies gate open, walks through the transition with `ArrowRight`, and verifies room 1 has three live enemies.
+  - `src/tests/ui-smoke.test.ts` and `src/tests/app-integration.test.ts` now assert the same room-flow hooks in static render and app integration coverage.
+  - `AGENTS.md` now explicitly says core room flow must prefer real keyboard browser acceptance, with DOM/reducer tests as support only.
+- Verification:
+  - Focused hook/room tests passed: `npm test -- src/tests/ui-smoke.test.ts src/tests/app-integration.test.ts src/tests/browser-keyboard-control.test.ts --testNamePattern "cleared combat rooms|opens a visible room gate|enters the dungeon with Space" --reporter=basic` (3 matched tests).
+  - Focused room-flow browser test passed: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "clears the first room" --reporter=basic`.
+  - Full live-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (8 tests).
+  - `git diff --check` passed with CRLF warnings only.
+  - Fresh final checks passed: `npm test -- --reporter=basic` (15 files / 567 tests), `npm run build`, `git diff --check` (CRLF warnings only), and HTTP 200 from `http://127.0.0.1:5174/`.

@@ -3396,7 +3396,7 @@ p {
     radial-gradient(circle at 48% 44%, rgba(248, 250, 252, 0.96), rgba(167, 139, 250, 0.9) 22%, rgba(79, 70, 229, 0.72) 48%, rgba(15, 23, 42, 0) 74%),
     conic-gradient(from 38deg, rgba(226, 232, 240, 0.8), rgba(76, 29, 149, 0.2), rgba(129, 140, 248, 0.72), rgba(15, 23, 42, 0.08), rgba(226, 232, 240, 0.8));
   filter: blur(0.3px) drop-shadow(0 0 18px rgba(167, 139, 250, 0.88));
-  animation: night-mark-burst-core 540ms cubic-bezier(0.16, 0.86, 0.18, 1) both;
+  animation: night-mark-burst-core var(--skill-duration, 520ms) cubic-bezier(0.16, 0.86, 0.18, 1) both;
 }
 
 .skill-impact-shape-night-detonation .skill-impact-ring {
@@ -3405,7 +3405,7 @@ p {
   border-color: rgba(196, 181, 253, 0.86);
   border-style: dashed;
   box-shadow: 0 0 28px rgba(139, 92, 246, 0.62), inset 0 0 22px rgba(15, 23, 42, 0.62);
-  animation: night-mark-burst-ring 610ms ease-out both;
+  animation: night-mark-burst-ring var(--skill-duration, 520ms) ease-out both;
 }
 
 .skill-impact-shape-night-detonation .skill-impact-shards {
@@ -3417,7 +3417,7 @@ p {
     linear-gradient(104deg, transparent 75%, rgba(15, 23, 42, 0.9) 76% 80%, transparent 81%),
     radial-gradient(circle at 27% 68%, rgba(221, 214, 254, 0.94) 0 4px, transparent 5px),
     radial-gradient(circle at 72% 34%, rgba(129, 140, 248, 0.9) 0 3px, transparent 4px);
-  animation: night-mark-burst-shards 620ms ease-out both;
+  animation: night-mark-burst-shards var(--skill-duration, 520ms) ease-out both;
 }
 
 .skill-impact-shape-night-detonation[data-vfx-cue="night-mark-lock"] {
@@ -3432,14 +3432,14 @@ p {
   background:
     radial-gradient(circle, rgba(248, 250, 252, 0.94), rgba(129, 140, 248, 0.76) 34%, rgba(15, 23, 42, 0) 70%),
     conic-gradient(from 0deg, transparent, rgba(196, 181, 253, 0.84), transparent 32%, rgba(139, 92, 246, 0.58), transparent 68%);
-  animation: night-mark-lock-core 360ms ease-out both;
+  animation: night-mark-lock-core var(--skill-duration, 360ms) ease-out both;
 }
 
 .skill-impact-shape-night-detonation[data-vfx-cue="night-mark-lock"] .skill-impact-ring {
   width: 98px;
   height: 42px;
   border-color: rgba(167, 139, 250, 0.72);
-  animation: night-mark-lock-ring 390ms ease-out both;
+  animation: night-mark-lock-ring var(--skill-duration, 360ms) ease-out both;
 }
 
 .skill-impact-shape-night-detonation[data-vfx-cue="night-mark-lock"] .skill-impact-shards {
@@ -3448,7 +3448,19 @@ p {
     linear-gradient(112deg, transparent 49%, rgba(129, 140, 248, 0.74) 50% 53%, transparent 54%),
     radial-gradient(circle at 38% 68%, rgba(196, 181, 253, 0.88) 0 3px, transparent 4px),
     radial-gradient(circle at 67% 36%, rgba(248, 250, 252, 0.82) 0 2px, transparent 3px);
-  animation: night-mark-lock-shards 410ms ease-out both;
+  animation: night-mark-lock-shards var(--skill-duration, 360ms) ease-out both;
+}
+
+.skill-impact-shape-night-detonation[data-vfx-cue="night-mark-burst"] .skill-impact-core {
+  animation: night-mark-burst-core var(--skill-duration, 520ms) cubic-bezier(0.16, 0.86, 0.18, 1) both;
+}
+
+.skill-impact-shape-night-detonation[data-vfx-cue="night-mark-burst"] .skill-impact-ring {
+  animation: night-mark-burst-ring var(--skill-duration, 520ms) ease-out both;
+}
+
+.skill-impact-shape-night-detonation[data-vfx-cue="night-mark-burst"] .skill-impact-shards {
+  animation: night-mark-burst-shards var(--skill-duration, 520ms) ease-out both;
 }
 
 .skill-impact-shape-mechanism-net {

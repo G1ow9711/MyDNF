@@ -3759,3 +3759,24 @@
   - Related app/combat suite passed: `npm test -- src/tests/app-integration.test.ts src/tests/combat.test.ts --reporter=dot`, 2 files / 351 tests.
   - Build passed: `npm run build`.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 545 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 148 DNF-Style Night-Mark Target VFX and Hotkey Skill Buffer
+- Continued toward the full DNF-style objective after the user's clarification: character/monster modeling can stay simpler for now, but keyboard combat feel, smooth action flow, strict hit frames, hit feedback, skill VFX, and monster VFX remain hard gates.
+- Used three parallel read-only agents:
+  - Night-mark VFX audit confirmed the target impact browser gap after the local RED/GREEN was added: lock/burst cues now have real browser coverage and CSS support.
+  - Iron-palm audit found implementation likely already supports live target recheck and interruption cancellation through the shared dynamic hitbox path, but lacks dedicated guardrail tests.
+  - Control audit found a higher-priority keyboard feel gap: DNF hotkey skills could not enter the action buffer when cooldown would recover before unlock, unlike command-input skills.
+- Added RED coverage:
+  - `src/tests/browser-computed-style.test.ts` now verifies `night-mark-detonation` lock/burst target impact core/ring/shards animation names and event runtime durations in a real browser.
+  - `src/tests/app-integration.test.ts` now verifies `KeyF` can create a buffered `anvil-crash` action when cooldown recovers before the current action unlocks.
+- RED evidence:
+  - Night-mark browser RED failed because lock ring duration computed `0.39s` instead of `0.36s`.
+  - Hotkey RED failed because `combatActionForKeyCode(..., "KeyF", ..., allowBuffered=true)` returned `undefined` despite enough resource and cooldown recovery before unlock.
+- Implemented:
+  - `src/styles.css` now cue-gates `night-mark-lock` and `night-mark-burst` target impact subparts through `var(--skill-duration)`.
+  - `src/ui/app.ts` now lets hotkey skills use the same buffered-cooldown allowance as command-input skills, and mounted keydown passes that allowance for real keyboard input.
+- Verification so far:
+  - Focused night-mark GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "night-mark-detonation lock and burst target" --reporter=basic`, 1 matched test.
+  - Focused hotkey GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "DNF hotkey skills to enter the action buffer" --reporter=basic`, 1 matched test.
+  - Related app/browser suite passed: `npm test -- src/tests/app-integration.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 2 files / 129 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 547 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

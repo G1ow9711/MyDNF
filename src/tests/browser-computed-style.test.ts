@@ -420,6 +420,27 @@ describe("real browser computed style regressions", () => {
     expect(computed.burst.shards.animationDuration).toBe("0.56s");
   }, 30000);
 
+  it("uses night-mark-detonation lock and burst target impact VFX durations in the browser cascade", async () => {
+    const fixtures: SkillImpactVfxFixture[] = [
+      { key: "lock", shape: "night-detonation", phase: "mark-lock", cue: "night-mark-lock", durationMs: 360 },
+      { key: "burst", shape: "night-detonation", phase: "mark-burst", cue: "night-mark-burst", durationMs: 520 }
+    ];
+    const computed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.lock.core.animationName).toBe("night-mark-lock-core");
+    expect(computed.lock.ring.animationName).toBe("night-mark-lock-ring");
+    expect(computed.lock.shards.animationName).toBe("night-mark-lock-shards");
+    expect(computed.burst.core.animationName).toBe("night-mark-burst-core");
+    expect(computed.burst.ring.animationName).toBe("night-mark-burst-ring");
+    expect(computed.burst.shards.animationName).toBe("night-mark-burst-shards");
+    expect(computed.lock.core.animationDuration).toBe("0.36s");
+    expect(computed.lock.ring.animationDuration).toBe("0.36s");
+    expect(computed.lock.shards.animationDuration).toBe("0.36s");
+    expect(computed.burst.core.animationDuration).toBe("0.52s");
+    expect(computed.burst.ring.animationDuration).toBe("0.52s");
+    expect(computed.burst.shards.animationDuration).toBe("0.52s");
+  }, 30000);
+
   it("uses staged Ink snare and mechanism net root VFX animations in the browser cascade", async () => {
     const fixtures: PlayerSkillPhaseFixture[] = [
       {

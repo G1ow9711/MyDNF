@@ -1115,3 +1115,13 @@
 - Fix note: mounted app state now tracks held Arrow and Shift keys, converts them into `combatTick` movement/dash input every tick, removes keys on keyup, and clears held keys on cleanup or mode exit.
 - Gate note: `combatTick` now accepts optional movement input, still blocks dead/failed combat, but allows held movement after room clear and calls `enterGateIfReady` so open-room traversal works without fake combat actions.
 - Queue note: next strict-combat candidates from parallel audits are `night-mark-detonation` target VFX duration/cue hardening and a focused `iron-palm` live-target/interruption guardrail.
+
+## DNF-Style Night-Mark Target VFX and Hotkey Buffer Findings
+- Current priority follows the user's latest clarification: character and monster models can stay lightweight while the playable loop is completed, but keyboard combat feel, strict hit frames, actor feedback, skill VFX, and monster VFX remain hard gates.
+- VFX audit found `night-mark-detonation` already emitted staged lock/burst target impact events with `vfxCue` and `vfxWindowMs`, but target CSS still used fixed subpart timings: lock ring/shards resolved 390/410 ms and burst core/ring/shards resolved 540/610/620 ms instead of the event windows.
+- RED note: real-browser computed-style coverage first failed because `night-mark-lock` ring duration computed `0.39s` while the lock event window was `0.36s`.
+- Fix note: night-mark target lock and burst impact core/ring/shards now cue-gate through `data-vfx-cue` and use `var(--skill-duration)` with 360 ms / 520 ms fallbacks, matching the real combat event windows.
+- Control audit found DNF hotkey skills were less responsive than command-input skills: `combatActionForCommandSequence(..., allowBuffered=true)` allowed a skill to queue if cooldown would recover before unlock, but `combatActionForKeyCode()` rejected any cooling skill immediately.
+- Hotkey RED note: focused app coverage first failed because `KeyF` returned `undefined` in a 120 ms action lock where `anvil-crash` cooldown would recover in 110 ms, so the keyboard hotkey could not queue.
+- Hotkey fix note: `combatActionForKeyCode()` now accepts the same buffered-cooldown allowance, and mounted keydown passes it for real keyboard input. This keeps unaffordable or too-long cooldown skills blocked while allowing DNF-style early keypress buffering.
+- Queue note: `iron-palm` dynamic target recheck/interruption remains a good regression-coverage candidate, but the implementation appears to already use the shared dynamic hitbox and interruption cancel paths.

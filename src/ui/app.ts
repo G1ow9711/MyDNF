@@ -290,7 +290,8 @@ export function combatActionForKeyCode(
   code: string,
   resourceValue?: number,
   dash = false,
-  run?: CombatRun
+  run?: CombatRun,
+  allowBuffered = false
 ): AppAction | undefined {
   const movementByCode: Record<string, Pick<Extract<AppAction, { type: "combatMove" }>, "moveX" | "moveY">> = {
     ArrowLeft: { moveX: -1, moveY: 0 },
@@ -339,10 +340,12 @@ export function combatActionForKeyCode(
     return undefined;
   }
 
-  if (
-    (resourceValue !== undefined && resourceValue < skill.resourceCost) ||
-    (run !== undefined && skillCooldownRemaining(run, skill.id) > 0)
-  ) {
+  const cooldownRemaining = run !== undefined ? skillCooldownRemaining(run, skill.id) : 0;
+  const remainingLockMs = run !== undefined ? run.player.actionLockUntilMs - run.elapsedMs : 0;
+  const canBufferUntilReady =
+    allowBuffered && run !== undefined && remainingLockMs > 0 && remainingLockMs <= actionBufferWindowMs && cooldownRemaining <= remainingLockMs;
+
+  if ((resourceValue !== undefined && resourceValue < skill.resourceCost) || (cooldownRemaining > 0 && !canBufferUntilReady)) {
     return undefined;
   }
 
@@ -2777,7 +2780,8 @@ export function mountApp(root: HTMLDivElement): () => void {
         event.code,
         model.combatRun?.player.resource.current,
         event.shiftKey,
-        model.combatRun
+        model.combatRun,
+        true
       );
 
       if (!action) {

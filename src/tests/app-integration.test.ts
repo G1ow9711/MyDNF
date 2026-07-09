@@ -1366,6 +1366,58 @@ describe("playable app integration actions", () => {
     });
   });
 
+  it("allows DNF hotkey skills to enter the action buffer when cooldown recovers before unlock", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 80)
+    });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const lockedRun: CombatRun = {
+      ...model.combatRun,
+      elapsedMs: 100,
+      player: {
+        ...model.combatRun.player,
+        actionLockUntilMs: 220,
+        skillCooldowns: {
+          ...model.combatRun.player.skillCooldowns,
+          "anvil-crash": 210
+        }
+      }
+    };
+    const lockedModel = { ...model, combatRun: lockedRun };
+    const hotkeyAction = combatActionForKeyCode(lockedModel.state, "KeyF", 80, false, lockedModel.combatRun, true);
+
+    expect(combatActionForKeyCode(lockedModel.state, "KeyF", 80, false, lockedModel.combatRun)).toBeUndefined();
+    expect(hotkeyAction).toEqual({
+      type: "combatAction",
+      action: "skill",
+      skillId: "anvil-crash"
+    });
+
+    if (!hotkeyAction) {
+      throw new Error("Expected buffered hotkey action");
+    }
+
+    const queued = reduceAppAction(lockedModel, hotkeyAction);
+    const queuedPlayer = queued.combatRun?.player as NonNullable<typeof queued.combatRun>["player"] & {
+      bufferedAction?: { type: string; skillId?: string };
+      bufferedActionExecuteAtMs?: number;
+    };
+    const queuedHtml = renderAppHtml(queued);
+
+    expect(queuedPlayer.bufferedAction).toEqual({ type: "skill", skillId: "anvil-crash" });
+    expect(queuedPlayer.bufferedActionExecuteAtMs).toBe(lockedRun.player.actionLockUntilMs);
+    expect(queuedHtml).toContain('data-action-buffer-state="queued"');
+    expect(queuedHtml).toContain('data-buffered-action="skill"');
+    expect(queuedHtml).toContain('data-buffered-skill-id="anvil-crash"');
+  });
+
   it("renders manual release metadata for command-cast generic class skills", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

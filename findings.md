@@ -1052,3 +1052,12 @@
 - RED note: focused combat coverage failed because black-rain hits all reported `hitPhase: "rain"` and empty casts produced 3 MISS events. Focused app coverage failed because first-wave HTML lacked `black-rain-open`. Real-browser coverage failed because black-rain target impacts and overdrive root VFX still computed generic/cast animation names.
 - Fix note: `black-rain-volley` now uses explicit stage metadata for `black-rain-open`, `black-rain-fall`, and `black-rain-burst`, carries 300/360/440 ms VFX windows, and allows empty MISS only on the first wave.
 - CSS note: black-rain target impact core/ring/shards now consume wave cues in a real browser, and overdrive root player skill VFX consumes pulse/release cues instead of staying on the cast animation.
+
+## DNF-Style Sword Prism, Mirrorflame, and Meteor Findings
+- Current priority follows the user's clarified scope: character and monster geometry can stay lighter while the full loop is completed, but combat motion, strict hit frames, actor state changes, skill VFX, and monster skill VFX remain hard gates.
+- Read-only combat audit found `meteor-knuckle` fall and impact had real 420/640 ms hit frames, but impact still reselected any live target in range instead of requiring the target to have been hit by this cast's fall stage.
+- Read-only UI/CSS audit found `mirrorflame-burst` root VFX already received `mirrorflame-lock` and `mirrorflame-burst` cues, but browser CSS still resolved the generic `mirrorflame-cast-*` animations.
+- Local VFX audit found `sword-prism-field` root and lock-impact VFX carried phase cue metadata, but the browser cascade still needed cue-gated root lock/burst keyframes and separate lock target-impact keyframes.
+- RED note: focused combat coverage first failed because a late entrant received `meteor-knuckle` impact. Real-browser coverage failed because `sword-prism-field` and `mirrorflame-burst` root VFX computed cast/generic animation names.
+- Fix note: `meteor-knuckle` impact now requires `requiresStatusSourceSkillId: "meteor-knuckle"`, reusing the status source written only by the real fall frame. Late entrants keep HP, armor state, knockdown state, and no impact hit event.
+- CSS note: `sword-prism-field` root lock/burst, sword-prism target lock, and `mirrorflame-burst` root lock/burst now consume `data-vfx-cue` in a real browser, so player skill VFX follows the actual staged action instead of only the whole-skill cast.

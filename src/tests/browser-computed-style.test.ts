@@ -179,6 +179,92 @@ describe("real browser computed style regressions", () => {
     expect(computed.release.skillVfx.core.animationName).not.toBe("overdrive-core-cast-core");
   }, 30000);
 
+  it("uses sword-prism-field lock and burst root plus target VFX animations in the browser cascade", async () => {
+    const phaseFixtures: PlayerSkillPhaseFixture[] = [
+      {
+        key: "lock",
+        skillId: "sword-prism-field",
+        preset: "liuli-prism-field",
+        weaponArc: "prism-field",
+        vfxShape: "sword-prism-field",
+        phase: "prism-field-lock",
+        cue: "sword-prism-field-lock",
+        durationMs: 860
+      },
+      {
+        key: "burst",
+        skillId: "sword-prism-field",
+        preset: "liuli-prism-field",
+        weaponArc: "prism-field",
+        vfxShape: "sword-prism-field",
+        phase: "prism-field-burst",
+        cue: "sword-prism-field-burst",
+        durationMs: 860
+      }
+    ];
+    const impactFixtures: SkillImpactVfxFixture[] = [
+      { key: "lock", shape: "sword-prism-field", phase: "prism-field-lock", cue: "sword-prism-field-lock", durationMs: 520 },
+      { key: "burst", shape: "sword-prism-field", phase: "prism-field-burst", cue: "sword-prism-field-burst", durationMs: 640 }
+    ];
+
+    const phaseComputed = await computePlayerSkillPhaseStylesInRealBrowser(stylesCss, phaseFixtures);
+    const impactComputed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, impactFixtures);
+
+    expect(phaseComputed.lock.skillVfx.core.animationName).toBe("sword-prism-field-root-lock-core");
+    expect(phaseComputed.lock.skillVfx.wave.animationName).toBe("sword-prism-field-root-lock-ring");
+    expect(phaseComputed.lock.skillVfx.sparks.animationName).toBe("sword-prism-field-root-lock-sparks");
+    expect(phaseComputed.burst.skillVfx.core.animationName).toBe("sword-prism-field-root-burst-core");
+    expect(phaseComputed.burst.skillVfx.wave.animationName).toBe("sword-prism-field-root-burst-ring");
+    expect(phaseComputed.burst.skillVfx.sparks.animationName).toBe("sword-prism-field-root-burst-sparks");
+    expect(phaseComputed.lock.skillVfx.core.animationName).not.toBe("sword-prism-field-cast-core");
+    expect(phaseComputed.burst.skillVfx.core.animationName).not.toBe("sword-prism-field-cast-core");
+
+    expect(impactComputed.lock.core.animationName).toBe("sword-prism-field-lock-core");
+    expect(impactComputed.lock.ring.animationName).toBe("sword-prism-field-lock-ring");
+    expect(impactComputed.lock.shards.animationName).toBe("sword-prism-field-lock-shards");
+    expect(impactComputed.burst.core.animationName).toBe("sword-prism-field-burst-core");
+    expect(impactComputed.burst.ring.animationName).toBe("sword-prism-field-burst-ring");
+    expect(impactComputed.burst.shards.animationName).toBe("sword-prism-field-burst-shards");
+    expect(impactComputed.lock.core.animationName).not.toBe("sword-prism-field-burst-core");
+    expect(impactComputed.lock.core.animationDuration).toBe("0.52s");
+    expect(impactComputed.burst.core.animationDuration).toBe("0.64s");
+  }, 30000);
+
+  it("uses mirrorflame-burst lock and burst root VFX animations in the browser cascade", async () => {
+    const fixtures: PlayerSkillPhaseFixture[] = [
+      {
+        key: "lock",
+        skillId: "mirrorflame-burst",
+        preset: "liuli-mirrorflame",
+        weaponArc: "mirrorflame-fan",
+        vfxShape: "mirrorflame-burst",
+        phase: "mirrorflame-lock",
+        cue: "mirrorflame-lock",
+        durationMs: 820
+      },
+      {
+        key: "burst",
+        skillId: "mirrorflame-burst",
+        preset: "liuli-mirrorflame",
+        weaponArc: "mirrorflame-fan",
+        vfxShape: "mirrorflame-burst",
+        phase: "mirrorflame-burst",
+        cue: "mirrorflame-burst",
+        durationMs: 820
+      }
+    ];
+    const computed = await computePlayerSkillPhaseStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.lock.skillVfx.core.animationName).toBe("mirrorflame-root-lock-core");
+    expect(computed.lock.skillVfx.wave.animationName).toBe("mirrorflame-root-lock-ring");
+    expect(computed.lock.skillVfx.sparks.animationName).toBe("mirrorflame-root-lock-sparks");
+    expect(computed.burst.skillVfx.core.animationName).toBe("mirrorflame-root-burst-core");
+    expect(computed.burst.skillVfx.wave.animationName).toBe("mirrorflame-root-burst-ring");
+    expect(computed.burst.skillVfx.sparks.animationName).toBe("mirrorflame-root-burst-sparks");
+    expect(computed.lock.skillVfx.core.animationName).not.toBe("mirrorflame-cast-core");
+    expect(computed.burst.skillVfx.core.animationName).not.toBe("mirrorflame-cast-core");
+  }, 30000);
+
   it("uses distinct glass-rain impact animations for each Liuli rain wave", async () => {
     const fixtures: SkillImpactVfxFixture[] = [
       { key: "open", shape: "glass-rain", phase: "rain-open", cue: "glass-rain-open", durationMs: 300 },

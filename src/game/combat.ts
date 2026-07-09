@@ -2450,6 +2450,7 @@ function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, cancele
       juggle: stage.juggle,
       inputToHitMs: stage.delayMs,
       canceledFromCombo,
+      requiresStatusSourceSkillId: stage.phase === "impact" ? skill.id : undefined,
       statusTags: stage.statusTags,
       actionTags: stage.actionTags
     };

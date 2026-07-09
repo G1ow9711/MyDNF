@@ -7041,6 +7041,47 @@ describe("combat actions and impact feel", () => {
     expect(skillMissEvents(movedInBeforeFall, "meteor-knuckle")).toHaveLength(0);
   });
 
+  it("does not impact meteor-knuckle targets that enter after the fall frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 330, y: 340, hp: 260, maxHp: 260, armor: 40 },
+        { x: 720, y: 430, hp: 260, maxHp: 260, armor: 40 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "meteor-knuckle" });
+    const [fallAtMs, impactAtMs] = scheduledSkillTimes(cast, "meteor-knuckle");
+    const fall = stepToElapsed(cast, fallAtMs);
+    const lateHpBeforeImpact = fall.enemies[1].hp;
+    const lateEntrantBeforeImpact: CombatRun = {
+      ...fall,
+      enemies: fall.enemies.map((enemy, index) =>
+        index === 1
+          ? {
+              ...enemy,
+              position: { x: 360, y: 348 }
+            }
+          : enemy
+      )
+    };
+    const impact = stepToElapsed(lateEntrantBeforeImpact, impactAtMs);
+    const fallHits = skillHitEvents(fall, "meteor-knuckle").filter((event) => event.hitPhase === "fall");
+    const impactHits = skillHitEvents(impact, "meteor-knuckle").filter((event) => event.hitPhase === "impact");
+
+    expect([fallAtMs, impactAtMs]).toEqual([420, 640]);
+    expect(fallHits.map((event) => event.targetId)).toEqual([run.enemies[0].id]);
+    expect(fall.enemies[0].statusSourceSkillId).toBe("meteor-knuckle");
+    expect(fall.enemies[1].statusSourceSkillId).toBeUndefined();
+    expect(impactHits.map((event) => event.targetId)).toEqual([run.enemies[0].id]);
+    expect(impact.enemies[0].hp).toBeLessThan(fall.enemies[0].hp);
+    expect(impact.enemies[1].hp).toBe(lateHpBeforeImpact);
+    expect(impact.enemies[1].armorBrokenUntilMs).toBeUndefined();
+    expect(impact.enemies[1].downed).toBe(false);
+    expect(skillMissEvents(impact, "meteor-knuckle")).toHaveLength(0);
+  });
+
   it("cancels meteor-knuckle staged impacts when monster damage interrupts before the fall", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),

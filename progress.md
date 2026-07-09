@@ -3586,3 +3586,27 @@
   - Browser cleanup hardening: the real-browser computed-style helper now retries profile deletion longer on Windows, because a related-suite run hit `EBUSY` while removing Edge/Chrome Cookies after all assertions passed.
   - Related suite passed after cleanup hardening: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 427 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 526 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 141 DNF-Style Sword Prism, Mirrorflame, and Meteor Stage Fidelity
+- Continued after the user's clarification: character and monster modeling can stay simpler while the full loop is completed, but combat motion flow, model-following action, strict hit frames, actor state changes, skill VFX, and monster skill VFX remain strict.
+- Used prior parallel read-only audit findings:
+  - Combat audit found `meteor-knuckle` impact could still damage and knock down enemies that entered after the fall frame.
+  - UI/CSS audit found `mirrorflame-burst` root VFX had lock/burst DOM cues but still used generic cast animations in a real browser cascade.
+  - Local VFX audit found `sword-prism-field` root lock/burst and target lock VFX needed browser-resolved cue gating.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires `meteor-knuckle` impact to ignore a target that only enters before the 640 ms impact frame and was not hit by the 420 ms fall frame.
+  - `src/tests/browser-computed-style.test.ts` now verifies `sword-prism-field` root lock/burst VFX, sword-prism target lock/burst VFX, and `mirrorflame-burst` root lock/burst VFX in a real browser cascade.
+- RED evidence:
+  - Combat RED failed because the late entrant received a `meteor-knuckle` impact hit event.
+  - Browser RED failed because `sword-prism-field` root VFX computed `sword-prism-field-cast-core` and `mirrorflame-burst` root VFX computed `mirrorflame-cast-core`.
+- Implemented:
+  - `src/game/combat.ts` now makes the `meteor-knuckle` impact hitbox require the same cast's fall-stage status source before it can damage, armor break, knock down, or create target-bound impact VFX.
+  - `src/styles.css` now gates `sword-prism-field` root lock/burst and lock target impact animations by cue, with dedicated root and lock keyframes.
+  - `src/styles.css` now gates `mirrorflame-burst` root lock/burst animations by cue, with dedicated root keyframes.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "does not impact meteor-knuckle targets" --reporter=basic`, 1 matched test.
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "meteor-knuckle" --reporter=basic`, 4 matched tests.
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "sword-prism-field lock" --reporter=basic`, 1 matched test.
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "mirrorflame-burst lock" --reporter=basic`, 1 matched test.
+  - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 430 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 529 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

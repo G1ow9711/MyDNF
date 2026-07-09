@@ -5,6 +5,7 @@ import {
   type RealBrowserAppPage,
   type RealBrowserKeyCode
 } from "./support/real-browser-computed-style";
+import { SAVE_KEY } from "../systems/save";
 
 type BrowserCombatState = {
   objective: string;
@@ -134,6 +135,20 @@ type BrowserRoomFlowState = {
   }>;
 };
 
+type BrowserSavedState = {
+  appMode: string;
+  saveKey: string;
+  playerGold: number;
+  playerIronDust: number;
+  playerArcShard: number;
+  inventoryCount: number;
+  rawSaveExists: boolean;
+  savedGold: number;
+  savedIronDust: number;
+  savedArcShard: number;
+  savedInventoryCount: number;
+};
+
 const readCombatStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
@@ -183,6 +198,27 @@ const readRoomFlowStateExpression = `
     transitionFromRoom: scene?.getAttribute("data-room-transition-from-room") ?? "",
     transitionTargetRoom: scene?.getAttribute("data-room-transition-target-room") ?? "",
     enemies
+  };
+})()
+`;
+
+const readSavedStateExpression = `
+(() => {
+  const shell = document.querySelector(".app-shell");
+  const rawSave = localStorage.getItem(${JSON.stringify(SAVE_KEY)});
+  const parsed = rawSave ? JSON.parse(rawSave) : null;
+  return {
+    appMode: shell?.getAttribute("data-app-mode") ?? "",
+    saveKey: shell?.getAttribute("data-save-key") ?? "",
+    playerGold: Number(shell?.getAttribute("data-player-gold") || "0"),
+    playerIronDust: Number(shell?.getAttribute("data-player-iron-dust") || "0"),
+    playerArcShard: Number(shell?.getAttribute("data-player-arc-shard") || "0"),
+    inventoryCount: Number(shell?.getAttribute("data-inventory-count") || "0"),
+    rawSaveExists: Boolean(rawSave),
+    savedGold: Number(parsed?.player?.currencies?.gold ?? 0),
+    savedIronDust: Number(parsed?.player?.currencies?.ironDust ?? 0),
+    savedArcShard: Number(parsed?.player?.currencies?.arcShard ?? 0),
+    savedInventoryCount: Number(parsed?.player?.inventory?.length ?? 0)
   };
 })()
 `;
@@ -743,6 +779,65 @@ describe("real browser keyboard control", () => {
     }
   }, 90000);
 
+  it("auto-saves combat rewards and restores them after a real browser reload", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.roomIndex === "0" && state.liveEnemyCount === "2",
+          5000
+        );
+
+        await clearCurrentRoomWithKeyboard(page);
+        await walkThroughOpenGate(page);
+        const nextRoom = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.roomIndex === "1",
+          4000
+        );
+
+        expect(nextRoom.liveEnemyCount).toBe("3");
+
+        const savedBeforeReload = await page.waitFor<BrowserSavedState>(
+          readSavedStateExpression,
+          (state) =>
+            state.appMode === "combat" &&
+            state.saveKey === SAVE_KEY &&
+            state.rawSaveExists &&
+            state.playerGold > 0 &&
+            state.playerGold === state.savedGold &&
+            state.inventoryCount === state.savedInventoryCount,
+          1500
+        );
+
+        expect(savedBeforeReload.savedIronDust).toBeGreaterThan(0);
+        expect(savedBeforeReload.savedArcShard).toBe(savedBeforeReload.playerArcShard);
+        expect(savedBeforeReload.savedInventoryCount).toBeGreaterThan(0);
+
+        await page.evaluate<void>("location.reload()");
+
+        const restored = await page.waitFor<BrowserSavedState>(
+          readSavedStateExpression,
+          (state) =>
+            state.appMode === "town" &&
+            state.saveKey === SAVE_KEY &&
+            state.rawSaveExists &&
+            state.playerGold === savedBeforeReload.savedGold &&
+            state.inventoryCount === savedBeforeReload.savedInventoryCount,
+          15000
+        );
+
+        expect(restored.playerIronDust).toBe(savedBeforeReload.savedIronDust);
+        expect(restored.playerArcShard).toBe(savedBeforeReload.savedArcShard);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 90000);
+
   it("shows natural monster windup, skill VFX, and model motion in the live browser", async () => {
     const server = await startViteServer();
 
@@ -816,6 +911,50 @@ describe("real browser keyboard control", () => {
     }
   }, 60000);
 });
+
+async function clearCurrentRoomWithKeyboard(page: RealBrowserAppPage): Promise<BrowserRoomFlowState> {
+  for (let attempt = 0; attempt < 18; attempt += 1) {
+    const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
+    if (state.liveEnemyCount === "0") {
+      break;
+    }
+
+    await moveIntoLiveEnemyRange(page);
+    await page.pressKey("KeyA");
+    await waitInBrowser(page, 430);
+    await page.pressKey("KeyS");
+    await waitInBrowser(page, 560);
+    await page.pressKey("KeyX");
+    await waitInBrowser(page, 280);
+    await page.pressKey("KeyX");
+    await waitInBrowser(page, 320);
+  }
+
+  return page.waitFor<BrowserRoomFlowState>(
+    readRoomFlowStateExpression,
+    (state) => state.objective === "cleared" && state.liveEnemyCount === "0" && state.gateState !== "locked",
+    5000
+  );
+}
+
+async function walkThroughOpenGate(page: RealBrowserAppPage): Promise<BrowserRoomFlowState> {
+  await page.keyDown("ArrowRight");
+  try {
+    await page.waitFor<BrowserRoomFlowState>(
+      readRoomFlowStateExpression,
+      (state) => state.gateTransition === "entering" && state.transitionState === "entering",
+      5000
+    );
+  } finally {
+    await page.keyUp("ArrowRight");
+  }
+
+  return page.waitFor<BrowserRoomFlowState>(
+    readRoomFlowStateExpression,
+    (state) => state.transitionState === "none" && state.objective === "active",
+    4000
+  );
+}
 
 async function moveIntoLiveEnemyRange(page: RealBrowserAppPage): Promise<void> {
   const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);

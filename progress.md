@@ -4031,3 +4031,20 @@
   - Full live-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (8 tests).
   - `git diff --check` passed with CRLF warnings only.
   - Fresh final checks passed: `npm test -- --reporter=basic` (15 files / 567 tests), `npm run build`, `git diff --check` (CRLF warnings only), and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 162 Real-Browser Save Reload and Boss Completion Gate Acceptance
+- Continued toward the full DNF-style offline loop. Current priority remains strict combat flow and real local play proof while character/monster geometry stays lightweight for the prototype phase.
+- Used two read-only agents:
+  - Full-dungeon audit found true browser room-flow only reached room 1, while app integration did not explicitly assert elite-room gate, boss room, completion gate, and return-to-town states.
+  - Save audit found reducer-level save/load and validation coverage, but no real browser `localStorage` reload proof for combat rewards.
+- RED/GREEN coverage:
+  - Added a real-browser save reload test in `src/tests/browser-keyboard-control.test.ts`. RED failed because `localStorage` already contained reward data, but `.app-shell` exposed no stable mode/save/currency/inventory hooks.
+  - `src/ui/app.ts` now exposes app mode, save key, currency totals, and inventory count on `.app-shell`; the browser test now clears room 0 with real keyboard input, enters room 1, verifies `localStorage`, reloads the page, and verifies the loaded town state matches saved rewards.
+  - Added an app integration test for elite room -> boss room -> boss clear -> completion gate -> town. RED failed on missing `data-enemy-kind="boss"`.
+  - `src/ui/app.ts` now exposes `data-enemy-kind` on combat enemies and `data-town-scene="true"` on the town scene so boss-room and return-to-town assertions are stable.
+- Verification:
+  - Focused save reload test passed: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "auto-saves combat rewards" --reporter=basic`.
+  - Focused boss completion test passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "walks from elite room" --reporter=basic`.
+  - Combined focus passed: `npm test -- src/tests/browser-keyboard-control.test.ts src/tests/app-integration.test.ts --testNamePattern "auto-saves combat rewards|walks from elite room" --reporter=basic` (2 matched tests).
+  - Full live-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (9 tests).
+  - Fresh final checks passed: `npm test -- --reporter=basic` (15 files / 569 tests), `npm run build`, `git diff --check` (CRLF warnings only), and HTTP 200 from `http://127.0.0.1:5174/`.

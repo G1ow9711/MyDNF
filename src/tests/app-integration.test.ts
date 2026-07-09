@@ -514,6 +514,70 @@ describe("playable app integration actions", () => {
     expect(nextRoomHtml).not.toContain('data-room-gate-vfx="open-rift"');
   });
 
+  it("walks from elite room into boss room, clears the boss, and returns to town through the completion gate", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+    const goldBefore = model.state.player.currencies.gold;
+    const inventoryBefore = model.state.player.inventory.length;
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = settleClearedRoom(model);
+    expect(model.combatRun?.roomIndex).toBe(1);
+
+    model = defeatCurrentRoom(model);
+    const eliteClearedHtml = renderAppHtml(model);
+
+    expect(eliteClearedHtml).toContain('data-room-index="1"');
+    expect(eliteClearedHtml).toContain('data-combat-objective="cleared"');
+    expect(eliteClearedHtml).toContain('data-room-gate-state="boss"');
+    expect(eliteClearedHtml).toContain('data-room-gate-vfx="boss-rift"');
+    expect(eliteClearedHtml).toContain('data-room-gate-target-room="2"');
+
+    for (let attempt = 0; attempt < 20 && !renderAppHtml(model).includes('data-room-gate-transition="entering"'); attempt += 1) {
+      model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: true });
+    }
+    const enteringBossHtml = renderAppHtml(model);
+
+    expect(model.combatRun?.roomIndex).toBe(1);
+    expect(enteringBossHtml).toContain('data-room-gate-transition="entering"');
+    expect(enteringBossHtml).toContain('data-room-transition-state="entering"');
+    expect(enteringBossHtml).toContain('data-room-transition-from-room="1"');
+    expect(enteringBossHtml).toContain('data-room-transition-target-room="2"');
+    expect(enteringBossHtml).toContain('data-room-transition-gate-state="boss"');
+
+    for (let tick = 0; tick < 12 && model.combatRun?.roomIndex === 1; tick += 1) {
+      model = reduceAppAction(model, { type: "combatTick" });
+    }
+
+    expect(model.combatRun?.roomIndex).toBe(2);
+    const bossRoomHtml = renderAppHtml(model);
+
+    expect(bossRoomHtml).toContain('data-room-index="2"');
+    expect(bossRoomHtml).toContain('data-live-enemy-count="1"');
+    expect(bossRoomHtml).toContain('data-enemy-kind="boss"');
+
+    model = defeatCurrentRoom(model);
+    const bossClearedHtml = renderAppHtml(model);
+
+    expect(bossClearedHtml).toContain('data-combat-objective="cleared"');
+    expect(bossClearedHtml).toContain('data-room-gate-state="complete"');
+    expect(bossClearedHtml).toContain('data-room-gate-vfx="exit-rift"');
+    expect(bossClearedHtml).toContain('data-room-gate-target-room=""');
+
+    model = walkThroughOpenGate(model);
+
+    expect(model.mode).toBe("town");
+    expect(model.combatRun).toBeUndefined();
+    expect(model.state.player.currencies.gold).toBeGreaterThan(goldBefore);
+    expect(model.state.player.inventory.length).toBeGreaterThan(inventoryBefore);
+    expect(model.state.player.quests["prologue-ember-warden"]).toBe("ready");
+    expect(model.message).toContain("通关");
+
+    const townHtml = renderAppHtml(model);
+
+    expect(townHtml).toContain('data-app-mode="town"');
+    expect(townHtml).toContain('data-town-scene="true"');
+  });
+
   it("uses held combat tick movement to enter an open room gate", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

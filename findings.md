@@ -1226,3 +1226,11 @@
 - Browser acceptance note: the new live test enters `cinder-kiln-alley`, reads live enemy positions, uses real `ArrowLeft/ArrowRight`, `KeyA`, `KeyS`, and `KeyX` input to clear both room-0 monsters, verifies the opened gate, holds `ArrowRight` into the transition, then verifies room 1 spawns three live enemies.
 - Stability note: `KeyZ` is still avoided in the clear-room loop because `ArrowRight -> KeyZ` is a valid DNF command route for `spark-combo`; the room-flow test uses `KeyA/KeyS/KeyX` to avoid command-buffer ambiguity.
 - Verification note: focused room-flow GREEN passed, and the full live-browser keyboard suite passed 8 tests including the new clear-room-to-next-room regression.
+
+## DNF-Style Save and Full-Dungeon Loop Findings
+- Current priority: models can remain lightweight, but the playable offline loop must prove actual reward persistence and dungeon progression instead of only isolated reducer behavior.
+- Save audit found strong `save.ts` validation and app reducer save/load coverage, but no real browser `localStorage` reload proof. The new browser test clears room 0 with real keyboard input, enters room 1, verifies combat rewards in `localStorage`, reloads the page, and verifies the loaded town state matches the saved currency and inventory count.
+- Hook note: `.app-shell` now exposes `data-app-mode`, `data-save-key`, currency totals, and inventory count. This is non-logic state exposure for browser validation; `localStorage` remains the authoritative save source.
+- Dungeon-loop audit found app coverage for full clear existed only as repeated helper calls. The new app-level test explicitly checks elite-room clear -> boss-rift gate -> entering transition -> boss room -> boss clear -> completion gate -> town return with rewards and `prologue-ember-warden` ready.
+- Hook note: `.combat-enemy` now exposes `data-enemy-kind`, and `.town-scene` exposes `data-town-scene`, making boss-room and return-to-town assertions stable without parsing CSS classes or UI copy.
+- Remaining gap: real keyboard full boss clear is still intentionally not added yet because boss HP, armor, phase change, summons, and hazards make a fully natural browser clear likely flaky. A later controlled browser boss path should come after stronger combat steering helpers.

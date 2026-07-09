@@ -4314,13 +4314,27 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
     return advanceRoomTransitionFrame(run, dtMs);
   }
 
-  if (hitstopRemainingMs(run) > 0) {
-    return advanceHitstopFrame(run, input, dtMs);
-  }
-
   const elapsedMs = run.elapsedMs + dtMs;
   const buffer = run.player.bufferedAction;
   const bufferExecuteAtMs = run.player.bufferedActionExecuteAtMs;
+  const terminalBufferExpired =
+    buffer !== undefined &&
+    bufferExecuteAtMs !== undefined &&
+    elapsedMs >= bufferExecuteAtMs &&
+    (roomIsCleared(run) || run.completed || run.failed || run.player.defeated);
+
+  if (hitstopRemainingMs(run) > 0) {
+    const hitstopBase: CombatRun = terminalBufferExpired
+      ? {
+          ...run,
+          player: clearBufferedAction(run.player)
+        }
+      : run;
+    const hitstopRun = advanceHitstopFrame(hitstopBase, input, dtMs);
+
+    return run.completed || run.failed ? clearPendingCombatEffectsIfFailed(hitstopRun) : hitstopRun;
+  }
+
   const shouldReleaseBuffer =
     buffer !== undefined &&
     bufferExecuteAtMs !== undefined &&
@@ -4328,6 +4342,7 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
     elapsedMs >= bufferExecuteAtMs &&
     run.player.hurtLockUntilMs <= bufferExecuteAtMs &&
     run.player.boundUntilMs <= bufferExecuteAtMs &&
+    !roomIsCleared(run) &&
     !run.completed &&
     !run.failed &&
     !run.player.defeated;

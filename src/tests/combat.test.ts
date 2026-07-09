@@ -9866,6 +9866,31 @@ describe("room completion", () => {
     expect(moved.player.x).toBeGreaterThan(cleared.player.x);
   });
 
+  it("does not release buffered combat actions after the last enemy is defeated", () => {
+    const run = createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley");
+    const cleared = defeatAll({
+      ...run,
+      elapsedMs: 100,
+      player: {
+        ...run.player,
+        bufferedAction: { type: "skill", skillId: "anvil-crash" },
+        bufferedActionQueuedAtMs: 80,
+        bufferedActionExecuteAtMs: 120,
+        actionLockUntilMs: 120
+      }
+    });
+    const advanced = stepCombat(cleared, {}, 40);
+
+    expect(roomGateForRun(advanced).state).toBe("open");
+    expect(advanced.events.filter((event) => event.kind === "skill-cast" && event.skillId === "anvil-crash")).toHaveLength(0);
+    expect(advanced.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "anvil-crash")).toHaveLength(0);
+    expect(advanced.scheduledMissEffects.filter((effect) => effect.skillId === "anvil-crash")).toHaveLength(0);
+    expect(advanced.player.resource.current).toBe(cleared.player.resource.current);
+    expect(skillCooldownRemaining(advanced, "anvil-crash")).toBe(0);
+    expect(advanced.player.bufferedAction).toBeUndefined();
+    expect(advanced.player.bufferedActionExecuteAtMs).toBeUndefined();
+  });
+
   it("opens a room gate after clear and requires walking to it before entering the next room", () => {
     const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
     const defeated = defeatAll(run);

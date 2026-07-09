@@ -3865,3 +3865,27 @@
   - Focused Iron roar/quake GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "Iron roar and quake target impact" --reporter=basic`, 1 matched test.
   - Browser computed-style suite passed: `npm test -- src/tests/browser-computed-style.test.ts --reporter=dot`, 1 file / 24 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 553 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 153 DNF-Style Cleared-Room Buffer and Glass-Lotus Target VFX Timing
+- Continued after the user's clarification: character and monster models can stay simpler while the loop is completed, but combat flow, keyboard response, strict hit frames, hitstop, actor feedback, skill VFX, and monster VFX remain strict.
+- Used three parallel read-only agents:
+  - Iron-palm audit recommended same-frame monster interruption and pre-jab interruption guardrails as the most useful future `iron-palm` tests.
+  - UI/CSS audit identified `glass-lotus` target impact durations and `sword-prism-field` player/weapon phase motion as the strongest VFX/action-presentation gaps.
+  - Keyboard audit identified final-hit hitstop with queued actions as the highest-risk action-buffer path.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now verifies a queued skill does not release or remain buffered after the last enemy is defeated while the room gate opens.
+  - `src/tests/browser-computed-style.test.ts` now verifies `glass-lotus` bind and bloom target impact core/ring/shards all consume the real event windows.
+- RED evidence:
+  - Cleared-room buffer RED failed because `player.bufferedAction` still contained `anvil-crash` after the room was clear and hitstop advanced past the queued release frame.
+  - Glass-lotus browser RED failed because bind ring duration computed `0.43s` instead of `0.36s`.
+- Implemented:
+  - `src/game/combat.ts` now clears expired terminal/cleared-room buffered actions before the hitstop branch and blocks buffer release when `roomIsCleared(run)` is true.
+  - `src/styles.css` now applies `var(--skill-duration)` to `glass-lotus` bind and bloom target impact core/ring/shards.
+- Verification so far:
+  - Focused cleared-room buffer GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "does not release buffered combat actions" --reporter=basic`, 1 matched test.
+  - Focused glass-lotus browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "glass-lotus bind and bloom target impact" --reporter=basic`, 1 matched test.
+  - Related combat GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "blocks combat actions after room clear|does not release buffered combat actions|opens a room gate|releases a buffered|clears a buffered action|releases buffered actions and delays later arena hazards" --reporter=basic`, 6 matched tests.
+  - Browser computed-style suite passed: `npm test -- src/tests/browser-computed-style.test.ts --reporter=dot`, 1 file / 25 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 555 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+- Commit-prep note:
+  - Initial combined `git add ... && git commit ...` failed because this PowerShell does not accept `&&`; reran staging and commit as separate commands.

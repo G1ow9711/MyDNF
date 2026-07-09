@@ -525,6 +525,27 @@ describe("real browser computed style regressions", () => {
     expect(computed.burst.shards.animationDuration).toBe("0.56s");
   }, 30000);
 
+  it("uses glass-lotus bind and bloom target impact VFX durations in the browser cascade", async () => {
+    const fixtures: SkillImpactVfxFixture[] = [
+      { key: "bind", shape: "glass-lotus", phase: "lotus-bind", cue: "glass-lotus-bind", durationMs: 360 },
+      { key: "bloom", shape: "glass-lotus", phase: "lotus-bloom", cue: "glass-lotus-bloom", durationMs: 460 }
+    ];
+    const computed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.bind.core.animationName).toBe("glass-lotus-bind-core");
+    expect(computed.bind.ring.animationName).toBe("glass-lotus-bind-ring");
+    expect(computed.bind.shards.animationName).toBe("glass-lotus-bind-shards");
+    expect(computed.bloom.core.animationName).toBe("glass-lotus-bloom-core");
+    expect(computed.bloom.ring.animationName).toBe("glass-lotus-bloom-ring");
+    expect(computed.bloom.shards.animationName).toBe("glass-lotus-bloom-shards");
+    expect(computed.bind.core.animationDuration).toBe("0.36s");
+    expect(computed.bind.ring.animationDuration).toBe("0.36s");
+    expect(computed.bind.shards.animationDuration).toBe("0.36s");
+    expect(computed.bloom.core.animationDuration).toBe("0.46s");
+    expect(computed.bloom.ring.animationDuration).toBe("0.46s");
+    expect(computed.bloom.shards.animationDuration).toBe("0.46s");
+  }, 30000);
+
   it("uses night-mark-detonation lock and burst target impact VFX durations in the browser cascade", async () => {
     const fixtures: SkillImpactVfxFixture[] = [
       { key: "lock", shape: "night-detonation", phase: "mark-lock", cue: "night-mark-lock", durationMs: 360 },

@@ -10776,7 +10776,7 @@ p {
   background:
     radial-gradient(circle at 50% 48%, rgba(248, 250, 252, 0.96), rgba(103, 232, 249, 0.78) 28%, rgba(244, 114, 182, 0.42) 62%, transparent 78%),
     conic-gradient(from 28deg, rgba(191, 219, 254, 0.78), rgba(244, 114, 182, 0.22), rgba(103, 232, 249, 0.7), rgba(191, 219, 254, 0.78));
-  animation: glass-lotus-bind-core 360ms cubic-bezier(0.12, 0.84, 0.16, 1) both;
+  animation: glass-lotus-bind-core var(--skill-duration, 360ms) cubic-bezier(0.12, 0.84, 0.16, 1) both;
 }
 
 .skill-impact-shape-glass-lotus .skill-impact-ring {
@@ -10785,7 +10785,7 @@ p {
   border-color: rgba(191, 219, 254, 0.8);
   border-radius: 50%;
   box-shadow: 0 0 28px rgba(103, 232, 249, 0.52), inset 0 0 22px rgba(244, 114, 182, 0.22);
-  animation: glass-lotus-bind-ring 430ms ease-out both;
+  animation: glass-lotus-bind-ring var(--skill-duration, 360ms) ease-out both;
 }
 
 .skill-impact-shape-glass-lotus .skill-impact-shards {
@@ -10795,7 +10795,7 @@ p {
     linear-gradient(82deg, transparent 60%, rgba(244, 114, 182, 0.72) 61% 66%, transparent 67%),
     radial-gradient(circle at 30% 68%, rgba(191, 219, 254, 0.88) 0 4px, transparent 5px),
     radial-gradient(circle at 72% 34%, rgba(103, 232, 249, 0.82) 0 3px, transparent 4px);
-  animation: glass-lotus-bind-shards 480ms ease-out both;
+  animation: glass-lotus-bind-shards var(--skill-duration, 360ms) ease-out both;
 }
 
 .skill-impact-shape-glass-lotus[data-vfx-cue="glass-lotus-bind"] {
@@ -10804,15 +10804,15 @@ p {
 }
 
 .skill-impact-shape-glass-lotus[data-vfx-cue="glass-lotus-bind"] .skill-impact-core {
-  animation: glass-lotus-bind-core 360ms cubic-bezier(0.12, 0.84, 0.16, 1) both;
+  animation: glass-lotus-bind-core var(--skill-duration, 360ms) cubic-bezier(0.12, 0.84, 0.16, 1) both;
 }
 
 .skill-impact-shape-glass-lotus[data-vfx-cue="glass-lotus-bind"] .skill-impact-ring {
-  animation: glass-lotus-bind-ring 430ms ease-out both;
+  animation: glass-lotus-bind-ring var(--skill-duration, 360ms) ease-out both;
 }
 
 .skill-impact-shape-glass-lotus[data-vfx-cue="glass-lotus-bind"] .skill-impact-shards {
-  animation: glass-lotus-bind-shards 480ms ease-out both;
+  animation: glass-lotus-bind-shards var(--skill-duration, 360ms) ease-out both;
 }
 
 .skill-impact-shape-glass-lotus[data-vfx-cue="glass-lotus-bloom"] {
@@ -10824,17 +10824,17 @@ p {
 .skill-impact-shape-glass-lotus[data-vfx-cue="glass-lotus-bloom"] .skill-impact-core {
   width: 112px;
   height: 88px;
-  animation: glass-lotus-bloom-core 460ms cubic-bezier(0.1, 0.86, 0.14, 1) both;
+  animation: glass-lotus-bloom-core var(--skill-duration, 460ms) cubic-bezier(0.1, 0.86, 0.14, 1) both;
 }
 
 .skill-impact-shape-glass-lotus[data-vfx-cue="glass-lotus-bloom"] .skill-impact-ring {
   width: 172px;
   height: 96px;
-  animation: glass-lotus-bloom-ring 540ms ease-out both;
+  animation: glass-lotus-bloom-ring var(--skill-duration, 460ms) ease-out both;
 }
 
 .skill-impact-shape-glass-lotus[data-vfx-cue="glass-lotus-bloom"] .skill-impact-shards {
-  animation: glass-lotus-bloom-shards 620ms ease-out both;
+  animation: glass-lotus-bloom-shards var(--skill-duration, 460ms) ease-out both;
 }
 
 @keyframes player-liuli-lotus-cast {

@@ -1800,6 +1800,70 @@ describe("combat actions and impact feel", () => {
     expect(impacted.enemies[0].attackResolvedHits).toBe(1);
   });
 
+  it("delays monster impacts when player hitstop starts inside a large frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 324, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "light" });
+    const [hitAtMs] = scheduledGroundLightTimes(cast);
+    const enemyImpactAtMs = hitAtMs + 5;
+    const armedRun: CombatRun = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: {
+                x: cast.player.x + 84,
+                y: cast.player.y
+              },
+              attackStartedAtMs: 0,
+              attackImpactAtMs: enemyImpactAtMs,
+              attackRecoverUntilMs: 320,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              attackConnectedHitIndexes: [],
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+
+    const crossed = stepCombat(armedRun, {}, enemyImpactAtMs - armedRun.elapsedMs);
+    const lightHit = crossed.events.find(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.action === "light" && event.occurredAtMs === hitAtMs
+    );
+
+    expect(lightHit).toBeDefined();
+    if (!lightHit) {
+      return;
+    }
+    expect(crossed.elapsedMs).toBe(enemyImpactAtMs);
+    expect(crossed.player.hitstopUntilMs).toBe(hitAtMs + lightHit.hitstopMs);
+    expect(crossed.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-ember-spit")).toBe(false);
+    expect(crossed.enemies[0].attackResolvedHits).toBe(0);
+    expect(crossed.enemies[0].attackImpactAtMs).toBe(enemyImpactAtMs + (crossed.elapsedMs - hitAtMs));
+
+    const expectedImpactAtMs = enemyImpactAtMs + lightHit.hitstopMs;
+    const released = stepCombat(crossed, {}, crossed.player.hitstopUntilMs - crossed.elapsedMs);
+    expect(released.enemies[0].attackImpactAtMs).toBe(expectedImpactAtMs);
+    const beforeImpact = stepCombat(released, {}, expectedImpactAtMs - released.elapsedMs - 1);
+    expect(beforeImpact.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-ember-spit")).toBe(false);
+
+    const impacted = stepCombat(beforeImpact, {}, 1);
+    const playerHit = impacted.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(playerHit).toMatchObject({
+      occurredAtMs: expectedImpactAtMs,
+      skillId: "ash-ember-spit"
+    });
+  });
+
   it("uses equipped attack stats and cooldown stats in combat formulas", () => {
     const plainRun = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       nextAttackAtMs: 9999
@@ -4619,7 +4683,7 @@ describe("combat actions and impact feel", () => {
     expect(movedInBeforeSnap.enemies[0].controlledUntilMs).toBeUndefined();
   });
 
-  it("lets same-frame monster impacts interrupt ink-snare before bind or snap resolves", () => {
+  it("lets same-frame monster impacts interrupt ink-snare startup and delays snap impacts after bind hitstop", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90), "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
@@ -4688,16 +4752,33 @@ describe("combat actions and impact feel", () => {
       snapAtMs
     );
 
-    expect(snapInterrupted.events).toEqual(
+    const snapHits = skillHitEvents(snapInterrupted, "ink-snare");
+    const bindHit = snapHits.find((event) => event.hitPhase === "trap-bind");
+    const snapHit = snapHits.find((event) => event.hitPhase === "trap-snap");
+
+    expect(snapInterrupted.events.some((event) => event.kind === "player-hit" && event.occurredAtMs === snapAtMs)).toBe(false);
+    expect(snapHit).toMatchObject({
+      occurredAtMs: snapAtMs,
+      vfxCue: "ink-snare-snap"
+    });
+    expect(bindHit).toBeDefined();
+    expect(snapInterrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "ink-snare")).toHaveLength(0);
+
+    if (!bindHit || !snapHit) {
+      return;
+    }
+
+    const delayedInterruptAtMs = snapAtMs + bindHit.hitstopMs + snapHit.hitstopMs;
+    const afterDelayedImpact = stepCombat(snapInterrupted, {}, delayedInterruptAtMs - snapInterrupted.elapsedMs);
+
+    expect(afterDelayedImpact.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           kind: "player-hit",
-          occurredAtMs: snapAtMs
+          occurredAtMs: delayedInterruptAtMs
         })
       ])
     );
-    expect(skillHitEvents(snapInterrupted, "ink-snare").filter((event) => event.hitPhase === "trap-snap")).toHaveLength(0);
-    expect(snapInterrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "ink-snare")).toHaveLength(0);
   });
 
   it("cancels ink-snare bind and snap when monster damage interrupts the cast", () => {
@@ -6260,7 +6341,7 @@ describe("combat actions and impact feel", () => {
     expect(afterQueuedImpactWindow.enemies.map((enemy) => enemy.hp)).toEqual(interrupted.enemies.map((enemy) => enemy.hp));
   });
 
-  it("releases buffered actions before later arena hazards in the same large frame", () => {
+  it("releases buffered actions and delays later arena hazards after hitstop in the same large frame", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(createInitialState(), "cinder-kiln-alley"),
       {
@@ -6300,22 +6381,41 @@ describe("combat actions and impact feel", () => {
       193
     );
 
-    expect(advanced.failed).toBe(true);
+    const bufferedLightHit = advanced.events.find(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.action === "light" && event.occurredAtMs === 155
+    );
+
+    expect(advanced.failed).toBe(false);
     expect(advanced.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           kind: "hit",
           action: "light",
           occurredAtMs: 155
-        }),
-        expect.objectContaining({
-          kind: "player-hit",
-          skillId: "taotie-forge-collapse",
-          occurredAtMs: 165
         })
       ])
     );
+    expect(advanced.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-forge-collapse")).toBe(false);
     expect(advanced.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+
+    expect(bufferedLightHit).toBeDefined();
+    if (!bufferedLightHit) {
+      return;
+    }
+
+    const delayedHazardAtMs = 165 + bufferedLightHit.hitstopMs;
+    const afterDelayedHazard = stepCombat(advanced, {}, delayedHazardAtMs - advanced.elapsedMs);
+
+    expect(afterDelayedHazard.failed).toBe(true);
+    expect(afterDelayedHazard.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "taotie-forge-collapse",
+          occurredAtMs: delayedHazardAtMs
+        })
+      ])
+    );
   });
 
   it("mechanism-shadow-net binds enemies on delayed net frames before snapping them inward", () => {
@@ -7678,8 +7778,23 @@ describe("enemy attacks and player defeat", () => {
         }
       ]
     };
+    const finishActiveAttack = (activeRun: CombatRun): CombatRun => {
+      let nextRun = activeRun;
+
+      for (let index = 0; index < 8; index += 1) {
+        const enemy = nextRun.enemies[0];
+
+        if (!enemy.attackSkillId || enemy.attackRecoverUntilMs === undefined) {
+          return nextRun;
+        }
+
+        nextRun = stepCombat(nextRun, {}, Math.max(1, enemy.attackRecoverUntilMs - nextRun.elapsedMs + 1));
+      }
+
+      return nextRun;
+    };
     const firstWindup = stepCombat(run, {}, 80);
-    const afterRecovery = stepCombat(firstWindup, {}, 1141);
+    const afterRecovery = finishActiveAttack(firstWindup);
     const readySecond = {
       ...afterRecovery,
       enemies: [
@@ -7690,7 +7805,7 @@ describe("enemy attacks and player defeat", () => {
       ]
     };
     const secondWindup = stepCombat(readySecond, {}, 1);
-    const afterSecondRecovery = stepCombat(secondWindup, {}, 1380);
+    const afterSecondRecovery = finishActiveAttack(secondWindup);
     const readyThird = {
       ...afterSecondRecovery,
       enemies: [
@@ -9155,10 +9270,29 @@ describe("enemy attacks and player defeat", () => {
     });
     const telegraph = stepCombat(run, {}, 80);
     const firstPulse = stepCombat(telegraph, {}, 430);
-    const secondPulse = stepCombat(firstPulse, {}, 180);
-    const thirdPulse = stepCombat(secondPulse, {}, 240);
-    const secondPulseAtMs = 500 + (firstPulse.player.hitstopUntilMs - firstPulse.elapsedMs) + 180;
-    const thirdPulseAtMs = secondPulseAtMs + 180;
+    const firstPlayerHit = firstPulse.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-flame-breath"
+    );
+
+    expect(firstPlayerHit).toBeDefined();
+    if (!firstPlayerHit) {
+      return;
+    }
+
+    const secondPulseAtMs = 500 + firstPlayerHit.hitstopMs + 180;
+    const secondPulse = stepCombat(firstPulse, {}, secondPulseAtMs - firstPulse.elapsedMs);
+    const secondPlayerHit = secondPulse.events.find(
+      (event): event is CombatPlayerHitEvent =>
+        event.kind === "player-hit" && event.skillId === "taotie-flame-breath" && event.occurredAtMs === secondPulseAtMs
+    );
+
+    expect(secondPlayerHit).toBeDefined();
+    if (!secondPlayerHit) {
+      return;
+    }
+
+    const thirdPulseAtMs = secondPulseAtMs + secondPlayerHit.hitstopMs + 180;
+    const thirdPulse = stepCombat(secondPulse, {}, thirdPulseAtMs - secondPulse.elapsedMs);
     const attackPulses = thirdPulse.events.filter(
       (event): event is CombatEnemyAttackEvent =>
         event.kind === "enemy-attack" && event.skillId === "taotie-flame-breath" && event.phase === "active"

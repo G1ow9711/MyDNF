@@ -130,6 +130,31 @@ describe("real browser computed style regressions", () => {
     expect(computed.finish.skillVfx.core.animationDuration).toBe("0.76s");
   }, 30000);
 
+  it("uses staged flowing-light-chain target impact animations in the browser cascade", async () => {
+    const fixtures: SkillImpactVfxFixture[] = [
+      { key: "open", shape: "flowing-chain", phase: "chain-open", cue: "flowing-chain-open", durationMs: 300 },
+      { key: "cross", shape: "flowing-chain", phase: "chain-cross", cue: "flowing-chain-cross", durationMs: 340 },
+      { key: "finish", shape: "flowing-chain", phase: "chain-finish", cue: "flowing-chain-finish", durationMs: 420 }
+    ];
+    const computed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.open.core.animationName).toBe("flowing-chain-open-impact-core");
+    expect(computed.open.ring.animationName).toBe("flowing-chain-open-impact-ring");
+    expect(computed.open.shards.animationName).toBe("flowing-chain-open-impact-shards");
+    expect(computed.cross.core.animationName).toBe("flowing-chain-cross-impact-core");
+    expect(computed.cross.ring.animationName).toBe("flowing-chain-cross-impact-ring");
+    expect(computed.cross.shards.animationName).toBe("flowing-chain-cross-impact-shards");
+    expect(computed.finish.core.animationName).toBe("flowing-chain-finish-impact-core");
+    expect(computed.finish.ring.animationName).toBe("flowing-chain-finish-impact-ring");
+    expect(computed.finish.shards.animationName).toBe("flowing-chain-finish-impact-shards");
+    expect(computed.open.core.animationName).not.toBe("flowing-chain-impact-core");
+    expect(computed.cross.core.animationName).not.toBe("flowing-chain-impact-core");
+    expect(computed.finish.core.animationName).not.toBe("flowing-chain-impact-core");
+    expect(computed.open.core.animationDuration).toBe("0.3s");
+    expect(computed.cross.core.animationDuration).toBe("0.34s");
+    expect(computed.finish.core.animationDuration).toBe("0.42s");
+  }, 30000);
+
   it("uses staged spark-combo player, weapon, root VFX, and impact VFX animations in the browser cascade", async () => {
     const phaseFixtures: PlayerSkillPhaseFixture[] = [
       {

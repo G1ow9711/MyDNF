@@ -3683,3 +3683,27 @@
   - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "Ink snare and mechanism net root" --reporter=basic`, 1 matched test.
   - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 438 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 537 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 145 DNF-Style Flowing Chain Target VFX and Mid-Frame Hitstop
+- Continued after the user's clarification: character/monster modeling can stay lightweight while the full loop is being connected, but combat motion flow, strict hit frames, hit feedback, hitstop, skill VFX, and monster skill VFX are strict gates.
+- Used two parallel read-only agents:
+  - UI/CSS audit found `flowing-light-chain` target impact DOM had stage cues, but target core/ring/shards still used the generic flowing-chain impact animations.
+  - Combat audit found large `stepCombat()` frames still allowed later due monster impacts to resolve when player hitstop began earlier inside the same frame.
+- Added RED coverage:
+  - `src/tests/browser-computed-style.test.ts` now verifies real browser target impact animations for `flowing-chain-open`, `flowing-chain-cross`, and `flowing-chain-finish`, including runtime 300/340/420 ms windows.
+  - `src/tests/combat.test.ts` now requires an enemy impact scheduled 5 ms after a player light hit to be delayed by hitstop, not resolved in the same large frame.
+  - Existing combat expectations now cover the stricter freeze contract: player scheduled hits stay on catalog timelines, while monster impacts, boss multi-hit pulses, and arena hazards shift by consumed hitstop.
+- RED evidence:
+  - Browser RED failed because the open-stage target core computed `flowing-chain-impact-core` instead of a stage-specific animation.
+  - Combat RED failed because `ash-ember-spit` produced a `player-hit` in the same large frame after the player's light hit started hitstop.
+- Implemented:
+  - `src/styles.css` now cue-gates `flowing-light-chain` target impact core/ring/shards for open/cross/finish phases with distinct keyframes and runtime `--skill-duration`.
+  - `src/game/combat.ts` now tracks hitstop that starts mid-frame, shifts active monster timers plus arena hazards for consumed and end-of-queue freeze time, restores future shifted hazards, and keeps player scheduled skill hit/miss frames on catalog timelines.
+  - `src/tests/combat.test.ts` now updates old same-frame interruption and hazard expectations to match the stricter hitstop contract.
+- Verification so far:
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "flowing-light-chain" --reporter=basic`, 2 matched tests.
+  - Focused combat GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "freezes combat timers|delays monster impacts when player hitstop starts" --reporter=basic`, 2 matched tests.
+  - Focused combat regression GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "taotie flame breath a sustained|delays monster impacts|arena hazards after hitstop|ink-snare startup" --reporter=basic`, 4 matched tests.
+  - Combat suite passed: `npm test -- src/tests/combat.test.ts --reporter=dot`, 241 tests.
+  - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 440 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 539 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

@@ -1088,3 +1088,11 @@
 - Parallel UI/CSS audit found `ink-snare` and `mechanism-shadow-net` already emitted bind/snap cue metadata, but their root player skill VFX still computed the generic cast keyframes in a real browser.
 - CSS note: `ink-snare` and `mechanism-shadow-net` root core/wave/sparks now consume bind/snap `data-vfx-cue` values and runtime skill durations, so trap bind and snap phases are visually distinct without changing damage timing.
 - Queue note: remaining high-value strict-combat candidates are flowing-light-chain target impact browser VFX, target-impact duration hardening, and broader same-frame/mid-frame hitstop priority inside large `stepCombat()` frames.
+
+## DNF-Style Flowing Chain Target VFX and Mid-Frame Hitstop Findings
+- Current priority follows the user's latest clarification: character and monster models can stay simpler for this prototype phase, but combat action flow, model-following motion, strict hit frames, hitstop, hit feedback, skill VFX, and monster skill VFX remain strict acceptance gates.
+- Read-only UI/CSS audit found `flowing-light-chain` already emitted target `data-vfx-cue` values, but target impact core/ring/shards still resolved the generic `flowing-chain-impact-*` keyframes instead of stage-specific open/cross/finish bursts.
+- Read-only combat audit found the hitstop freeze branch handled frames that started inside hitstop, but if hitstop began mid-frame, later monster impacts and arena hazards already present in the due queue could still resolve before the freeze was consumed.
+- RED note: real-browser target-impact coverage first failed because `flowing-chain-open` computed `flowing-chain-impact-core`. Combat RED first failed because an `ash-ember-spit` impact scheduled 5 ms after a player light hit still produced a same-frame `player-hit`.
+- Fix note: `flowing-light-chain` target impacts now cue-gate open/cross/finish core/ring/shards animations and use the runtime event windows. Mid-frame hitstop now shifts active monster timers and due/pending arena hazards for both consumed and remaining freeze time.
+- Compatibility note: player scheduled skill hit/miss frames are not shifted by hitstop in this pass, so multi-stage player skills still complete on catalog timelines. Monster attacks, boss multi-hit pulses, and arena hazards are delayed by player/enemy hitstop, so they cannot land during the freeze.

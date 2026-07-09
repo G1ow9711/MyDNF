@@ -5507,6 +5507,45 @@ function uncanceledMovementSample(
   return undefined;
 }
 
+function shiftItemForHitstop(
+  item: ScheduledCombatEffectItem,
+  hitstopStartedAtMs: number,
+  freezeElapsedMs: number
+): ScheduledCombatEffectItem {
+  if (freezeElapsedMs <= 0 || item.occurredAtMs <= hitstopStartedAtMs || (item.kind !== "enemy-impact" && item.kind !== "arena-hazard")) {
+    return item;
+  }
+
+  const occurredAtMs = item.occurredAtMs + freezeElapsedMs;
+
+  if (item.kind === "arena-hazard") {
+    return {
+      ...item,
+      hazard: {
+        ...item.hazard,
+        impactAtMs: shiftFutureTime(item.hazard.impactAtMs, hitstopStartedAtMs, freezeElapsedMs)
+      },
+      occurredAtMs
+    };
+  }
+
+  return {
+    ...item,
+    occurredAtMs
+  };
+}
+
+function restoreFutureScheduledItem(run: CombatRun, item: ScheduledCombatEffectItem): CombatRun {
+  if (item.kind !== "arena-hazard") {
+    return run;
+  }
+
+  return {
+    ...run,
+    scheduledArenaHazards: [...run.scheduledArenaHazards, item.hazard]
+  };
+}
+
 function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovementSample): CombatRun {
   const dueEnemyEffects = (run.scheduledEnemyHitEffects ?? []).filter((effect) => effect.applyAtMs <= run.elapsedMs);
   const pendingEnemyEffects = (run.scheduledEnemyHitEffects ?? []).filter((effect) => effect.applyAtMs > run.elapsedMs);
@@ -5537,10 +5576,33 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
     scheduledArenaHazards: pendingArenaHazards
   };
   const canceledSkillIds = new Set<string>();
+  let hitstopStartedAtMs: number | undefined;
+  let hitstopShiftedThroughMs: number | undefined;
 
-  for (const item of queue) {
+  for (let itemIndex = 0; itemIndex < queue.length; itemIndex += 1) {
+    let item = queue[itemIndex];
+
     if (nextRun.failed || nextRun.player.defeated) {
       return clearPendingCombatEffectsIfFailed(nextRun);
+    }
+
+    if (hitstopStartedAtMs !== undefined && item.occurredAtMs > hitstopStartedAtMs) {
+      const hitstopUntilMs = nextRun.player.hitstopUntilMs;
+      const shiftFromMs = hitstopShiftedThroughMs ?? hitstopStartedAtMs;
+      const shiftToMs = Math.min(run.elapsedMs, hitstopUntilMs);
+      const freezeDeltaMs = Math.max(0, shiftToMs - shiftFromMs);
+
+      if (freezeDeltaMs > 0) {
+        nextRun = shiftCombatTimersForHitstop(nextRun, shiftFromMs, freezeDeltaMs);
+        hitstopShiftedThroughMs = shiftToMs;
+      }
+
+      item = shiftItemForHitstop(item, hitstopStartedAtMs, Math.max(0, (hitstopShiftedThroughMs ?? hitstopStartedAtMs) - hitstopStartedAtMs));
+
+      if (item.occurredAtMs > run.elapsedMs) {
+        nextRun = restoreFutureScheduledItem(nextRun, item);
+        continue;
+      }
     }
 
     if (item.kind === "enemy-hit") {
@@ -5549,6 +5611,7 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
       }
 
       const beforePlayer = nextRun.player;
+      const beforeHitstopUntilMs = nextRun.player.hitstopUntilMs;
       const itemMovement = uncanceledMovementSample(movement, canceledSkillIds);
       const activeMovementSkillId = skillMovementIdAt(itemMovement, item.occurredAtMs);
       nextRun = applyScheduledEnemyHitEffect(nextRun, item.effect, activeMovementSkillId);
@@ -5557,6 +5620,16 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
       if (interruptedSkillId) {
         canceledSkillIds.add(interruptedSkillId);
         nextRun = cancelScheduledEnemyHitEffectsForSkill(nextRun, interruptedSkillId);
+      }
+
+      if (nextRun.player.hitstopUntilMs > item.occurredAtMs && nextRun.player.hitstopUntilMs > beforeHitstopUntilMs) {
+        if (beforeHitstopUntilMs <= item.occurredAtMs) {
+          hitstopStartedAtMs = item.occurredAtMs;
+          hitstopShiftedThroughMs = item.occurredAtMs;
+        } else {
+          hitstopStartedAtMs = hitstopStartedAtMs ?? item.occurredAtMs;
+          hitstopShiftedThroughMs = hitstopShiftedThroughMs ?? hitstopStartedAtMs;
+        }
       }
 
       continue;
@@ -5573,6 +5646,7 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
 
     if (item.kind === "enemy-impact") {
       const beforePlayer = nextRun.player;
+      const beforeHitstopUntilMs = nextRun.player.hitstopUntilMs;
       const itemMovement = uncanceledMovementSample(movement, canceledSkillIds);
       const activeMovementSkillId = skillMovementIdAt(itemMovement, item.occurredAtMs);
       nextRun = applyQueuedEnemyImpact(nextRun, item.enemyId, item.occurredAtMs, itemMovement);
@@ -5583,10 +5657,21 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
         nextRun = cancelScheduledEnemyHitEffectsForSkill(nextRun, interruptedSkillId);
       }
 
+      if (nextRun.player.hitstopUntilMs > item.occurredAtMs && nextRun.player.hitstopUntilMs > beforeHitstopUntilMs) {
+        if (beforeHitstopUntilMs <= item.occurredAtMs) {
+          hitstopStartedAtMs = item.occurredAtMs;
+          hitstopShiftedThroughMs = item.occurredAtMs;
+        } else {
+          hitstopStartedAtMs = hitstopStartedAtMs ?? item.occurredAtMs;
+          hitstopShiftedThroughMs = hitstopShiftedThroughMs ?? hitstopStartedAtMs;
+        }
+      }
+
       continue;
     }
 
     const beforePlayer = nextRun.player;
+    const beforeHitstopUntilMs = nextRun.player.hitstopUntilMs;
     const itemMovement = uncanceledMovementSample(movement, canceledSkillIds);
     nextRun = applyScheduledArenaHazard(nextRun, item.hazard, itemMovement);
     const interruptedSkillId = interruptedActiveSkillId(beforePlayer, nextRun.player, skillMovementIdAt(itemMovement, item.occurredAtMs));
@@ -5594,6 +5679,26 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
     if (interruptedSkillId) {
       canceledSkillIds.add(interruptedSkillId);
       nextRun = cancelScheduledEnemyHitEffectsForSkill(nextRun, interruptedSkillId);
+    }
+
+    if (nextRun.player.hitstopUntilMs > item.occurredAtMs && nextRun.player.hitstopUntilMs > beforeHitstopUntilMs) {
+      if (beforeHitstopUntilMs <= item.occurredAtMs) {
+        hitstopStartedAtMs = item.occurredAtMs;
+        hitstopShiftedThroughMs = item.occurredAtMs;
+      } else {
+        hitstopStartedAtMs = hitstopStartedAtMs ?? item.occurredAtMs;
+        hitstopShiftedThroughMs = hitstopShiftedThroughMs ?? hitstopStartedAtMs;
+      }
+    }
+  }
+
+  if (hitstopStartedAtMs !== undefined) {
+    const shiftFromMs = hitstopShiftedThroughMs ?? hitstopStartedAtMs;
+    const shiftToMs = Math.min(run.elapsedMs, nextRun.player.hitstopUntilMs);
+    const freezeDeltaMs = Math.max(0, shiftToMs - shiftFromMs);
+
+    if (freezeDeltaMs > 0) {
+      return shiftCombatTimersForHitstop(nextRun, shiftFromMs, freezeDeltaMs);
     }
   }
 

@@ -144,6 +144,41 @@ describe("real browser computed style regressions", () => {
     expect(computed.eruption.skillVfx.sparks.animationName).toBe("earth-furnace-eruption-shards");
   }, 30000);
 
+  it("uses furnace-heart-overdrive pulse and release root VFX animations in the browser cascade", async () => {
+    const fixtures: PlayerSkillPhaseFixture[] = [
+      {
+        key: "pulse",
+        skillId: "furnace-heart-overdrive",
+        preset: "ember-overdrive",
+        weaponArc: "core-overdrive",
+        vfxShape: "overdrive-core",
+        phase: "overdrive-pulse",
+        cue: "overdrive-core-pulse",
+        durationMs: 820
+      },
+      {
+        key: "release",
+        skillId: "furnace-heart-overdrive",
+        preset: "ember-overdrive",
+        weaponArc: "core-overdrive",
+        vfxShape: "overdrive-core",
+        phase: "overdrive-release",
+        cue: "overdrive-core-release",
+        durationMs: 820
+      }
+    ];
+    const computed = await computePlayerSkillPhaseStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.pulse.skillVfx.core.animationName).toBe("overdrive-core-pulse-core");
+    expect(computed.pulse.skillVfx.wave.animationName).toBe("overdrive-core-pulse-ring");
+    expect(computed.pulse.skillVfx.sparks.animationName).toBe("overdrive-core-pulse-shards");
+    expect(computed.release.skillVfx.core.animationName).toBe("overdrive-core-release-core");
+    expect(computed.release.skillVfx.wave.animationName).toBe("overdrive-core-release-ring");
+    expect(computed.release.skillVfx.sparks.animationName).toBe("overdrive-core-release-shards");
+    expect(computed.pulse.skillVfx.core.animationName).not.toBe("overdrive-core-cast-core");
+    expect(computed.release.skillVfx.core.animationName).not.toBe("overdrive-core-cast-core");
+  }, 30000);
+
   it("uses distinct glass-rain impact animations for each Liuli rain wave", async () => {
     const fixtures: SkillImpactVfxFixture[] = [
       { key: "open", shape: "glass-rain", phase: "rain-open", cue: "glass-rain-open", durationMs: 300 },
@@ -164,5 +199,27 @@ describe("real browser computed style regressions", () => {
     expect(computed.open.core.animationDuration).toBe("0.3s");
     expect(computed.fall.core.animationDuration).toBe("0.34s");
     expect(computed.shatter.core.animationDuration).toBe("0.42s");
+  }, 30000);
+
+  it("uses distinct black-rain-volley impact animations for each rain wave", async () => {
+    const fixtures: SkillImpactVfxFixture[] = [
+      { key: "open", shape: "black-rain", phase: "black-rain-open", cue: "black-rain-open", durationMs: 300 },
+      { key: "fall", shape: "black-rain", phase: "black-rain-fall", cue: "black-rain-fall", durationMs: 360 },
+      { key: "burst", shape: "black-rain", phase: "black-rain-burst", cue: "black-rain-burst", durationMs: 440 }
+    ];
+    const computed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.open.core.animationName).toBe("black-rain-open-core");
+    expect(computed.open.ring.animationName).toBe("black-rain-open-ring");
+    expect(computed.open.shards.animationName).toBe("black-rain-open-shards");
+    expect(computed.fall.core.animationName).toBe("black-rain-fall-core");
+    expect(computed.fall.ring.animationName).toBe("black-rain-fall-ring");
+    expect(computed.fall.shards.animationName).toBe("black-rain-fall-shards");
+    expect(computed.burst.core.animationName).toBe("black-rain-burst-core");
+    expect(computed.burst.ring.animationName).toBe("black-rain-burst-ring");
+    expect(computed.burst.shards.animationName).toBe("black-rain-burst-shards");
+    expect(computed.open.core.animationDuration).toBe("0.3s");
+    expect(computed.fall.core.animationDuration).toBe("0.36s");
+    expect(computed.burst.core.animationDuration).toBe("0.44s");
   }, 30000);
 });

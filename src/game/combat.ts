@@ -38,6 +38,9 @@ export type CombatHitPhase =
   | "rain-open"
   | "rain-fall"
   | "rain-shatter"
+  | "black-rain-open"
+  | "black-rain-fall"
+  | "black-rain-burst"
   | "pierce"
   | "mark-lock"
   | "detonate"
@@ -88,7 +91,9 @@ export type CombatVfxCue =
   | "glass-rain-open"
   | "glass-rain-fall"
   | "glass-rain-shatter"
+  | "black-rain-open"
   | "black-rain-fall"
+  | "black-rain-burst"
   | "prism-pierce"
   | "night-mark-lock"
   | "night-mark-burst"
@@ -2858,6 +2863,27 @@ function blackRainVolleyHitbox(
   };
 }
 
+const blackRainVolleyStages = [
+  {
+    phase: "black-rain-open" as const,
+    cue: "black-rain-open" as const,
+    delayOffsetMs: 0,
+    vfxWindowMs: 300
+  },
+  {
+    phase: "black-rain-fall" as const,
+    cue: "black-rain-fall" as const,
+    delayOffsetMs: 110,
+    vfxWindowMs: 360
+  },
+  {
+    phase: "black-rain-burst" as const,
+    cue: "black-rain-burst" as const,
+    delayOffsetMs: 220,
+    vfxWindowMs: 440
+  }
+];
+
 function applyBlackRainVolley(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const castingRun = appendSkillCastEvent(
     startPlayerSkillMovement(
@@ -2872,9 +2898,10 @@ function applyBlackRainVolley(run: CombatRun, skill: ClassSkillDefinition, cance
     skill,
     canceledFromCombo
   );
-  const rainDelays = [skill.animation.hitFrameMs, skill.animation.hitFrameMs + 110, skill.animation.hitFrameMs + 220];
 
-  return rainDelays.reduce((nextRun, delayMs, rainIndex) => {
+  return blackRainVolleyStages.reduce((nextRun, stage, rainIndex) => {
+    const delayMs = skill.animation.hitFrameMs + stage.delayOffsetMs;
+
     return schedulePlayerHitboxEffect(
       nextRun,
       blackRainVolleyHitbox(run, skill, canceledFromCombo, delayMs),
@@ -2885,9 +2912,10 @@ function applyBlackRainVolley(run: CombatRun, skill: ClassSkillDefinition, cance
       run.player.facing,
       {
         id: `hit-${run.elapsedMs}-skill-${skill.id}-rain-${rainIndex}`,
-        hitPhase: "rain",
-        vfxCue: "black-rain-fall",
-        vfxWindowMs: 300
+        hitPhase: stage.phase,
+        vfxCue: stage.cue,
+        vfxWindowMs: stage.vfxWindowMs,
+        missOnEmpty: rainIndex === 0
       }
     );
   }, castingRun);

@@ -441,13 +441,13 @@ async function waitForProcessExit(process: ChildProcessWithoutNullStreams, timeo
 async function removeWithRetry(path: string): Promise<void> {
   let lastError: unknown;
 
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < 24; attempt += 1) {
     try {
       await rm(path, { recursive: true, force: true });
       return;
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 100 + attempt * 50));
     }
   }
 

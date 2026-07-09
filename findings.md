@@ -1043,3 +1043,12 @@
 - RED note: focused combat coverage failed with two MISS events after an empty crack. Real-browser computed-style coverage failed because the crack root VFX core still computed `forge-quake-cast-core`.
 - Fix note: delayed hitboxes that require `requiresStatusSourceSkillId` now suppress empty MISS feedback unless at least one live enemy still carries that same source status through the delayed frame. This preserves eruption MISS when a cracked target escapes, while preventing fake eruption MISS after no crack target was ever hit.
 - CSS note: `.skill-vfx-shape-forge-quake` now consumes `data-vfx-cue="earth-furnace-crack"` and `data-vfx-cue="earth-furnace-eruption"` for core/wave/sparks, reusing dedicated earth-furnace keyframes verified by a real browser.
+
+## DNF-Style Black Rain and Overdrive VFX Findings
+- Current priority follows the user's clarified scope: character geometry can stay simple for this phase, but hit-frame truth, whiff truth, model-following action, skill VFX, and monster VFX remain strict gates.
+- Local audit found `black-rain-volley` already used three delayed 340/450/560 ms hit frames, but every wave shared `rain` / `black-rain-fall` metadata and the target impact CSS resolved to one `black-rain-target-*` animation set.
+- Parallel combat audit found empty `black-rain-volley` casts produced three MISS events because all three scheduled waves used default empty-miss behavior. This created fake fall/burst whiff feedback after the real opening whiff.
+- Parallel UI/CSS audit found `furnace-heart-overdrive` already emitted `overdrive-core-pulse` / `overdrive-core-release` root cues, but `.skill-vfx-shape-overdrive-core` still computed the cast-only `overdrive-core-cast-*` animations.
+- RED note: focused combat coverage failed because black-rain hits all reported `hitPhase: "rain"` and empty casts produced 3 MISS events. Focused app coverage failed because first-wave HTML lacked `black-rain-open`. Real-browser coverage failed because black-rain target impacts and overdrive root VFX still computed generic/cast animation names.
+- Fix note: `black-rain-volley` now uses explicit stage metadata for `black-rain-open`, `black-rain-fall`, and `black-rain-burst`, carries 300/360/440 ms VFX windows, and allows empty MISS only on the first wave.
+- CSS note: black-rain target impact core/ring/shards now consume wave cues in a real browser, and overdrive root player skill VFX consumes pulse/release cues instead of staying on the cast animation.

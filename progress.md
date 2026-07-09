@@ -3560,3 +3560,29 @@
   - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "earth-furnace-breaker crack" --reporter=basic`, 1 matched test.
   - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 424 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 523 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 140 DNF-Style Black Rain and Overdrive Phase VFX
+- Continued after the user's clarification: character and monster modeling can stay simpler while the full loop is completed, but action flow, strict hit frames, truthful whiff feedback, skill VFX, and monster skill VFX remain strict.
+- Used two parallel read-only agents:
+  - Combat audit found `black-rain-volley` empty casts could emit three MISS events across the three rain waves.
+  - UI/CSS audit found `furnace-heart-overdrive` root VFX had pulse/release DOM cues but still used cast-only browser animations.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires `black-rain-volley` hits to expose `black-rain-open` / `black-rain-fall` / `black-rain-burst` phases, matching cues, and 300/360/440 ms windows.
+  - `src/tests/combat.test.ts` also requires a full whiff to emit only one opening black-rain MISS.
+  - `src/tests/app-integration.test.ts` now requires black-rain wave HTML to expose stage-specific cue metadata and two target bursts per cue.
+  - `src/tests/browser-computed-style.test.ts` now verifies black-rain target impacts and overdrive root pulse/release animations in a real browser cascade.
+- RED evidence:
+  - Combat RED failed because all black-rain hits reported `hitPhase: "rain"`, and a whiff produced 3 MISS events.
+  - App RED failed because first-wave black-rain HTML lacked `data-hit-phase="black-rain-open"`.
+  - Browser RED failed because black-rain target impact still computed `black-rain-target-core` and overdrive root still computed `overdrive-core-cast-core`.
+- Implemented:
+  - `src/game/combat.ts` now gives the three black-rain waves distinct phases/cues/windows and sets `missOnEmpty` only on the opening wave.
+  - `src/styles.css` now gates black-rain target impact core/ring/shards by cue with nine wave-specific keyframes.
+  - `src/styles.css` now gates overdrive root `.skill-core` / `.skill-wave` / `.skill-sparks` on `overdrive-core-pulse` and `overdrive-core-release`.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "black-rain-volley|volley skills emit" --reporter=basic`, 4 matched tests.
+  - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "skill-specific impact bursts|furnace-heart-overdrive" --reporter=basic`, 3 matched tests.
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "furnace-heart-overdrive pulse|black-rain-volley impact" --reporter=basic`, 2 matched tests.
+  - Browser cleanup hardening: the real-browser computed-style helper now retries profile deletion longer on Windows, because a related-suite run hit `EBUSY` while removing Edge/Chrome Cookies after all assertions passed.
+  - Related suite passed after cleanup hardening: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 427 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 526 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

@@ -3838,11 +3838,17 @@ describe("playable app integration actions", () => {
     expect(castHtml).toContain('data-skill-vfx-shape="black-rain"');
     expect(castHtml).toContain('data-player-skill-vfx="black-rain-volley"');
     expect(beforeWaveHtml).not.toContain('data-skill-impact-vfx="black-rain-volley"');
+    expect(firstWaveHtml).toContain('data-hit-phase="black-rain-open"');
+    expect(firstWaveHtml).toContain('data-vfx-cue="black-rain-open"');
     expect(countOccurrences(firstWaveHtml, 'data-skill-impact-vfx="black-rain-volley"')).toBe(2);
     expect(countOccurrences(finalWaveHtml, 'data-skill-impact-vfx="black-rain-volley"')).toBe(6);
     expect(finalWaveHtml).toContain('data-impact-vfx-shape="black-rain"');
     expect(finalWaveHtml).toContain('data-vfx-cue="black-rain-fall"');
-    expect(finalWaveHtml).toContain('data-hit-phase="rain"');
+    expect(finalWaveHtml).toContain('data-hit-phase="black-rain-burst"');
+    expect(finalWaveHtml).toContain('data-vfx-cue="black-rain-burst"');
+    expect(countSkillImpactBursts(finalWaveHtml, "black-rain-open")).toBe(2);
+    expect(countSkillImpactBursts(finalWaveHtml, "black-rain-fall")).toBe(2);
+    expect(countSkillImpactBursts(finalWaveHtml, "black-rain-burst")).toBe(2);
     expect(finalWaveHtml).toContain('class="skill-impact-burst skill-impact-shape-black-rain"');
     expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[0]}"`);
     expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[1]}"`);

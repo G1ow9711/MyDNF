@@ -3064,6 +3064,42 @@ p {
   animation: black-rain-target-burst 620ms ease-out both;
 }
 
+.skill-impact-shape-black-rain[data-vfx-cue="black-rain-open"] .skill-impact-core {
+  animation: black-rain-open-core var(--skill-duration, 300ms) cubic-bezier(0.12, 0.82, 0.16, 1) both;
+}
+
+.skill-impact-shape-black-rain[data-vfx-cue="black-rain-open"] .skill-impact-ring {
+  animation: black-rain-open-ring var(--skill-duration, 300ms) ease-out both;
+}
+
+.skill-impact-shape-black-rain[data-vfx-cue="black-rain-open"] .skill-impact-shards {
+  animation: black-rain-open-shards var(--skill-duration, 300ms) ease-out both;
+}
+
+.skill-impact-shape-black-rain[data-vfx-cue="black-rain-fall"] .skill-impact-core {
+  animation: black-rain-fall-core var(--skill-duration, 360ms) cubic-bezier(0.12, 0.82, 0.16, 1) both;
+}
+
+.skill-impact-shape-black-rain[data-vfx-cue="black-rain-fall"] .skill-impact-ring {
+  animation: black-rain-fall-ring var(--skill-duration, 360ms) ease-out both;
+}
+
+.skill-impact-shape-black-rain[data-vfx-cue="black-rain-fall"] .skill-impact-shards {
+  animation: black-rain-fall-shards var(--skill-duration, 360ms) ease-out both;
+}
+
+.skill-impact-shape-black-rain[data-vfx-cue="black-rain-burst"] .skill-impact-core {
+  animation: black-rain-burst-core var(--skill-duration, 440ms) cubic-bezier(0.1, 0.84, 0.16, 1) both;
+}
+
+.skill-impact-shape-black-rain[data-vfx-cue="black-rain-burst"] .skill-impact-ring {
+  animation: black-rain-burst-ring var(--skill-duration, 440ms) ease-out both;
+}
+
+.skill-impact-shape-black-rain[data-vfx-cue="black-rain-burst"] .skill-impact-shards {
+  animation: black-rain-burst-shards var(--skill-duration, 440ms) ease-out both;
+}
+
 .skill-impact-shape-ink-snare {
   width: 168px;
   height: 126px;
@@ -4427,6 +4463,30 @@ p {
     radial-gradient(circle at 22% 66%, rgba(254, 240, 138, 0.92) 0 5px, transparent 6px),
     radial-gradient(circle at 78% 34%, rgba(255, 247, 237, 0.88) 0 4px, transparent 5px);
   animation: overdrive-core-cast-sparks var(--skill-duration, 820ms) ease-out both;
+}
+
+.skill-vfx-shape-overdrive-core[data-vfx-cue="overdrive-core-pulse"] .skill-core {
+  animation: overdrive-core-pulse-core var(--skill-duration, 820ms) ease-out both;
+}
+
+.skill-vfx-shape-overdrive-core[data-vfx-cue="overdrive-core-pulse"] .skill-wave {
+  animation: overdrive-core-pulse-ring var(--skill-duration, 820ms) ease-out both;
+}
+
+.skill-vfx-shape-overdrive-core[data-vfx-cue="overdrive-core-pulse"] .skill-sparks {
+  animation: overdrive-core-pulse-shards var(--skill-duration, 820ms) ease-out both;
+}
+
+.skill-vfx-shape-overdrive-core[data-vfx-cue="overdrive-core-release"] .skill-core {
+  animation: overdrive-core-release-core var(--skill-duration, 820ms) cubic-bezier(0.12, 0.86, 0.16, 1) both;
+}
+
+.skill-vfx-shape-overdrive-core[data-vfx-cue="overdrive-core-release"] .skill-wave {
+  animation: overdrive-core-release-ring var(--skill-duration, 820ms) ease-out both;
+}
+
+.skill-vfx-shape-overdrive-core[data-vfx-cue="overdrive-core-release"] .skill-sparks {
+  animation: overdrive-core-release-shards var(--skill-duration, 820ms) ease-out both;
 }
 
 .skill-vfx-shape-heat-bloom {
@@ -7382,6 +7442,62 @@ p {
   0% { opacity: 0; transform: translateY(-20px) skewX(-10deg) scale(0.72); }
   24% { opacity: 1; transform: translateY(-6px) skewX(-8deg) scale(1); }
   100% { opacity: 0; transform: translateY(28px) skewX(-4deg) scale(1.16); }
+}
+
+@keyframes black-rain-open-core {
+  0% { opacity: 0; transform: translate(-50%, -72%) scaleX(0.26) scaleY(0.16); filter: blur(2px) brightness(0.82); }
+  34% { opacity: 1; transform: translate(-50%, -56%) scaleX(0.72) scaleY(0.52); filter: blur(0.2px) brightness(1.48); }
+  100% { opacity: 0; transform: translate(-50%, -46%) scaleX(1.05) scaleY(0.36); filter: blur(1px) brightness(0.9); }
+}
+
+@keyframes black-rain-open-ring {
+  0% { opacity: 0; transform: translate(-50%, -64%) scaleX(0.16) scaleY(0.24); }
+  42% { opacity: 0.86; transform: translate(-50%, -54%) scaleX(0.7) scaleY(0.56); }
+  100% { opacity: 0; transform: translate(-50%, -48%) scaleX(1.22) scaleY(0.7); }
+}
+
+@keyframes black-rain-open-shards {
+  0% { opacity: 0; transform: translateY(-22px) skewX(-14deg) scale(0.56); }
+  32% { opacity: 1; transform: translateY(-8px) skewX(-10deg) scale(0.88); }
+  100% { opacity: 0; transform: translateY(10px) skewX(-6deg) scale(1.02); }
+}
+
+@keyframes black-rain-fall-core {
+  0% { opacity: 0; transform: translate(-50%, -84%) scaleX(0.3) scaleY(0.18); filter: blur(2px) brightness(0.82); }
+  22% { opacity: 1; transform: translate(-50%, -50%) scaleX(0.9) scaleY(1.08); filter: blur(0) brightness(1.58); }
+  62% { opacity: 0.92; transform: translate(-50%, -34%) scaleX(1.05) scaleY(0.72); filter: blur(0.4px) brightness(1.18); }
+  100% { opacity: 0; transform: translate(-50%, -18%) scaleX(1.24) scaleY(0.32); filter: blur(2px) brightness(0.84); }
+}
+
+@keyframes black-rain-fall-ring {
+  0% { opacity: 0; transform: translate(-50%, -68%) scaleX(0.22) scaleY(0.38); }
+  30% { opacity: 0.94; transform: translate(-50%, -48%) scaleX(0.92) scaleY(0.78); }
+  100% { opacity: 0; transform: translate(-50%, -34%) scaleX(1.56) scaleY(1.02); }
+}
+
+@keyframes black-rain-fall-shards {
+  0% { opacity: 0; transform: translateY(-26px) skewX(-12deg) scale(0.66); }
+  24% { opacity: 1; transform: translateY(-6px) skewX(-9deg) scale(1); }
+  100% { opacity: 0; transform: translateY(26px) skewX(-4deg) scale(1.12); }
+}
+
+@keyframes black-rain-burst-core {
+  0% { opacity: 0; transform: translate(-50%, -64%) scaleX(0.44) scaleY(0.28); filter: blur(1.4px) brightness(0.88); }
+  28% { opacity: 1; transform: translate(-50%, -42%) scaleX(1.08) scaleY(0.9); filter: blur(0) brightness(1.7); }
+  68% { opacity: 0.82; transform: translate(-50%, -30%) scaleX(1.32) scaleY(0.54); filter: blur(0.5px) brightness(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -22%) scaleX(1.72) scaleY(0.3); filter: blur(2px) brightness(0.82); }
+}
+
+@keyframes black-rain-burst-ring {
+  0% { opacity: 0; transform: translate(-50%, -56%) scaleX(0.38) scaleY(0.52); }
+  34% { opacity: 0.96; transform: translate(-50%, -42%) scaleX(1.18) scaleY(0.92); }
+  100% { opacity: 0; transform: translate(-50%, -30%) scaleX(2.05) scaleY(1.22); }
+}
+
+@keyframes black-rain-burst-shards {
+  0% { opacity: 0; transform: translateY(-14px) skewX(-12deg) scale(0.72); }
+  22% { opacity: 1; transform: translateY(0) skewX(-8deg) scale(1.05); }
+  100% { opacity: 0; transform: translateY(34px) skewX(3deg) scale(1.26); }
 }
 
 @keyframes ink-snare-cast-core {

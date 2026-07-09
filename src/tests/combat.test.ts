@@ -4879,12 +4879,59 @@ describe("combat actions and impact feel", () => {
     expect(hitTimes.length).toBeGreaterThan(1);
     expect(Math.max(...hitTimes) - Math.min(...hitTimes)).toBeGreaterThanOrEqual(180);
     expect([...new Set(volleyHits.map((event) => event.inputToHitMs))]).toEqual([340, 450, 560]);
-    expect(volleyHits.every((event) => event.hitPhase === "rain")).toBe(true);
-    expect(volleyHits.every((event) => event.vfxCue === "black-rain-fall")).toBe(true);
-    expect(volleyHits.every((event) => event.vfxWindowMs === 300)).toBe(true);
+    expect(volleyHits.map((event) => event.hitPhase)).toEqual([
+      "black-rain-open",
+      "black-rain-open",
+      "black-rain-fall",
+      "black-rain-fall",
+      "black-rain-burst",
+      "black-rain-burst"
+    ]);
+    expect(volleyHits.map((event) => event.vfxCue)).toEqual([
+      "black-rain-open",
+      "black-rain-open",
+      "black-rain-fall",
+      "black-rain-fall",
+      "black-rain-burst",
+      "black-rain-burst"
+    ]);
+    expect(volleyHits.map((event) => event.vfxWindowMs)).toEqual([300, 300, 360, 360, 440, 440]);
     expect(firstRain.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
     expect(finalRain.enemies[0].hp).toBeLessThan(firstRain.enemies[0].hp);
     expect(finalRain.enemies[1].hp).toBeLessThan(run.enemies[1].hp);
+  });
+
+  it("emits only the opening black-rain-volley MISS when all rain waves whiff", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "ink-shadow-ranger"), 90);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [
+        { x: 720, y: 430, hp: 220, maxHp: 220 },
+        { x: 760, y: 430, hp: 220, maxHp: 220 }
+      ]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "black-rain-volley" });
+    const [firstRainAtMs, , finalRainAtMs] = scheduledSkillTimes(cast, "black-rain-volley");
+    const beforeFirstRain = stepToElapsed(cast, firstRainAtMs - 1);
+    const firstRain = stepToElapsed(cast, firstRainAtMs);
+    const finalRain = stepToElapsed(cast, finalRainAtMs);
+    const misses = skillMissEvents(finalRain, "black-rain-volley");
+
+    expect(skillHitEvents(cast, "black-rain-volley")).toHaveLength(0);
+    expect(skillMissEvents(cast, "black-rain-volley")).toHaveLength(0);
+    expect(skillMissEvents(beforeFirstRain, "black-rain-volley")).toHaveLength(0);
+    expect(skillMissEvents(firstRain, "black-rain-volley")).toHaveLength(1);
+    expect(skillHitEvents(finalRain, "black-rain-volley")).toHaveLength(0);
+    expect(misses).toHaveLength(1);
+    expect(misses[0]).toMatchObject({
+      occurredAtMs: firstRainAtMs,
+      inputToHitMs: firstRainAtMs,
+      hitPhase: "black-rain-open",
+      vfxCue: "black-rain-open",
+      vfxWindowMs: 300
+    });
   });
 
   it("cancels black-rain-volley rain waves when monster damage interrupts the cast", () => {

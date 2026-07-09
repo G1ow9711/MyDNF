@@ -3779,13 +3779,19 @@ describe("playable app integration actions", () => {
     expect(firstWaveHtml).toContain('data-screen-shake="skill"');
     expect(countOccurrences(firstWaveHtml, 'data-impact-spark="true"')).toBe(2);
     expect(countOccurrences(firstWaveHtml, 'data-skill-impact-vfx="liuli-rain"')).toBe(2);
+    expect(firstWaveHtml).toContain('data-hit-phase="rain-open"');
+    expect(firstWaveHtml).toContain('data-vfx-cue="glass-rain-open"');
+    expect(countSkillImpactBursts(firstWaveHtml, "glass-rain-open")).toBe(2);
     expect(finalWaveHtml).toContain('data-impact-vfx-shape="glass-rain"');
-    expect(finalWaveHtml).toContain('data-vfx-cue="glass-rain-fall"');
-    expect(finalWaveHtml).toContain('data-hit-phase="rain"');
+    expect(finalWaveHtml).toContain('data-vfx-cue="glass-rain-shatter"');
+    expect(finalWaveHtml).toContain('data-hit-phase="rain-shatter"');
     expect(finalWaveHtml).toContain('class="skill-impact-burst skill-impact-shape-glass-rain"');
     expect(countOccurrences(finalWaveHtml, 'data-impact-spark="true"')).toBe(6);
     expect(countOccurrences(finalWaveHtml, 'data-damage-number="true"')).toBe(6);
     expect(countOccurrences(finalWaveHtml, 'data-skill-impact-vfx="liuli-rain"')).toBe(6);
+    expect(countSkillImpactBursts(finalWaveHtml, "glass-rain-open")).toBe(2);
+    expect(countSkillImpactBursts(finalWaveHtml, "glass-rain-fall")).toBe(2);
+    expect(countSkillImpactBursts(finalWaveHtml, "glass-rain-shatter")).toBe(2);
   });
 
   it("renders skill-specific impact bursts on every target hit of a multi-hit skill", () => {

@@ -3535,6 +3535,42 @@ p {
   animation: glass-rain-target-shatter 640ms ease-out both;
 }
 
+.skill-impact-shape-glass-rain[data-vfx-cue="glass-rain-open"] .skill-impact-core {
+  animation: glass-rain-open-core var(--skill-duration, 300ms) cubic-bezier(0.16, 0.86, 0.22, 1) both;
+}
+
+.skill-impact-shape-glass-rain[data-vfx-cue="glass-rain-open"] .skill-impact-ring {
+  animation: glass-rain-open-ring var(--skill-duration, 300ms) ease-out both;
+}
+
+.skill-impact-shape-glass-rain[data-vfx-cue="glass-rain-open"] .skill-impact-shards {
+  animation: glass-rain-open-shards var(--skill-duration, 300ms) ease-out both;
+}
+
+.skill-impact-shape-glass-rain[data-vfx-cue="glass-rain-fall"] .skill-impact-core {
+  animation: glass-rain-fall-core var(--skill-duration, 340ms) cubic-bezier(0.16, 0.86, 0.22, 1) both;
+}
+
+.skill-impact-shape-glass-rain[data-vfx-cue="glass-rain-fall"] .skill-impact-ring {
+  animation: glass-rain-fall-ring var(--skill-duration, 340ms) ease-out both;
+}
+
+.skill-impact-shape-glass-rain[data-vfx-cue="glass-rain-fall"] .skill-impact-shards {
+  animation: glass-rain-fall-shards var(--skill-duration, 340ms) ease-out both;
+}
+
+.skill-impact-shape-glass-rain[data-vfx-cue="glass-rain-shatter"] .skill-impact-core {
+  animation: glass-rain-shatter-core var(--skill-duration, 420ms) cubic-bezier(0.16, 0.86, 0.22, 1) both;
+}
+
+.skill-impact-shape-glass-rain[data-vfx-cue="glass-rain-shatter"] .skill-impact-ring {
+  animation: glass-rain-shatter-ring var(--skill-duration, 420ms) ease-out both;
+}
+
+.skill-impact-shape-glass-rain[data-vfx-cue="glass-rain-shatter"] .skill-impact-shards {
+  animation: glass-rain-shatter-shards var(--skill-duration, 420ms) ease-out both;
+}
+
 .skill-impact-shape-prism-afterimage {
   width: 164px;
   height: 118px;
@@ -7577,6 +7613,62 @@ p {
   0% { opacity: 0; transform: translateY(-24px) skewX(-8deg) scale(0.62); }
   24% { opacity: 1; transform: translateY(-4px) skewX(-6deg) scale(1); }
   100% { opacity: 0; transform: translateY(34px) skewX(-3deg) scale(1.2); }
+}
+
+@keyframes glass-rain-open-core {
+  0% { opacity: 0; transform: translate(-50%, -132%) skewX(-10deg) scale(0.36); }
+  34% { opacity: 1; transform: translate(-50%, -84%) skewX(-8deg) scale(0.82); }
+  100% { opacity: 0; transform: translate(-50%, -18%) skewX(-5deg) scale(1.04); }
+}
+
+@keyframes glass-rain-open-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-10deg) scaleX(0.18) scaleY(0.46); }
+  42% { opacity: 0.86; transform: translate(-50%, -50%) rotate(-8deg) scaleX(0.82) scaleY(0.78); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(-8deg) scaleX(1.18) scaleY(0.98); }
+}
+
+@keyframes glass-rain-open-shards {
+  0% { opacity: 0; transform: translateY(-28px) skewX(-10deg) scale(0.46); }
+  30% { opacity: 1; transform: translateY(-10px) skewX(-8deg) scale(0.88); }
+  100% { opacity: 0; transform: translateY(10px) skewX(-5deg) scale(1.04); }
+}
+
+@keyframes glass-rain-fall-core {
+  0% { opacity: 0; transform: translate(-50%, -118%) skewX(-8deg) scale(0.52); }
+  24% { opacity: 1; transform: translate(-50%, -62%) skewX(-7deg) scale(0.92); }
+  100% { opacity: 0; transform: translate(-50%, 24%) skewX(-4deg) scale(1.16); }
+}
+
+@keyframes glass-rain-fall-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-8deg) scaleX(0.28) scaleY(0.56); }
+  30% { opacity: 0.9; transform: translate(-50%, -50%) rotate(-8deg) scaleX(0.96) scaleY(0.86); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(-7deg) scaleX(1.38) scaleY(1.08); }
+}
+
+@keyframes glass-rain-fall-shards {
+  0% { opacity: 0; transform: translateY(-22px) skewX(-8deg) scale(0.58); }
+  24% { opacity: 1; transform: translateY(-3px) skewX(-6deg) scale(1); }
+  100% { opacity: 0; transform: translateY(30px) skewX(-3deg) scale(1.18); }
+}
+
+@keyframes glass-rain-shatter-core {
+  0% { opacity: 0; transform: translate(-50%, -108%) skewX(-6deg) scale(0.6); filter: brightness(1); }
+  18% { opacity: 1; transform: translate(-50%, -44%) skewX(-5deg) scale(1.08); filter: brightness(1.7); }
+  58% { opacity: 0.88; transform: translate(-50%, 10%) skewX(-2deg) scale(1.28); filter: brightness(1.35); }
+  100% { opacity: 0; transform: translate(-50%, 48%) skewX(2deg) scale(1.44); filter: brightness(1); }
+}
+
+@keyframes glass-rain-shatter-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-8deg) scaleX(0.36) scaleY(0.6); }
+  24% { opacity: 1; transform: translate(-50%, -50%) rotate(-6deg) scaleX(1.08) scaleY(0.94); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(2deg) scaleX(1.68) scaleY(1.24); }
+}
+
+@keyframes glass-rain-shatter-shards {
+  0% { opacity: 0; transform: translateY(-16px) skewX(-6deg) scale(0.68); }
+  20% { opacity: 1; transform: translateY(0) skewX(-4deg) scale(1.06); }
+  66% { opacity: 0.78; transform: translateY(24px) translateX(10px) skewX(0) scale(1.26); }
+  100% { opacity: 0; transform: translateY(48px) translateX(24px) skewX(5deg) scale(1.44); }
 }
 
 @keyframes prism-pierce-core {

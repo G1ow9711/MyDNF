@@ -5018,9 +5018,23 @@ describe("combat actions and impact feel", () => {
     expect([...new Set(rainHits.map((event) => event.inputToHitMs))]).toEqual([260, 355, 450]);
     expect(targetIds).toHaveLength(2);
     expect(targetIds.every((targetId) => rainHits.filter((event) => event.targetId === targetId).length === 3)).toBe(true);
-    expect(rainHits.every((event) => event.hitPhase === "rain")).toBe(true);
-    expect(rainHits.every((event) => event.vfxCue === "glass-rain-fall")).toBe(true);
-    expect(rainHits.every((event) => event.vfxWindowMs === 300)).toBe(true);
+    expect(rainHits.map((event) => event.hitPhase)).toEqual([
+      "rain-open",
+      "rain-open",
+      "rain-fall",
+      "rain-fall",
+      "rain-shatter",
+      "rain-shatter"
+    ]);
+    expect(rainHits.map((event) => event.vfxCue)).toEqual([
+      "glass-rain-open",
+      "glass-rain-open",
+      "glass-rain-fall",
+      "glass-rain-fall",
+      "glass-rain-shatter",
+      "glass-rain-shatter"
+    ]);
+    expect(rainHits.map((event) => event.vfxWindowMs)).toEqual([300, 300, 340, 340, 420, 420]);
     expect(firstRain.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
     expect(finalRain.enemies[0].hp).toBeLessThan(firstRain.enemies[0].hp);
     expect(finalRain.enemies[1].hp).toBeLessThan(run.enemies[1].hp);

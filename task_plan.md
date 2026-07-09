@@ -207,3 +207,5 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - GitHub push phrase to upload commits: `允许 push`.
 - Active implementation branch/worktree: `feature/vertical-slice` at `.worktrees/vertical-slice`.
 - Completion audit found the class/advancement system existed in data and reducers, but needed a visible player-facing panel before final handoff.
+- Current Liuli rain wave VFX progress: `liuli-rain` now keeps its strict 260/355/450 ms live-recheck waves, but each wave emits distinct `rain-open` / `rain-fall` / `rain-shatter` phases, distinct glass-rain cues, 300/340/420 ms VFX windows, and real-browser-verified target impact core/ring/shards animations.
+- Current next-candidate notes: parallel audits selected `earth-furnace-breaker` duplicate MISS after an empty crack and forge-quake root VFX not consuming `earth-furnace-crack` / `earth-furnace-eruption` cues.

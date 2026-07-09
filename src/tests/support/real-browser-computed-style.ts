@@ -40,6 +40,14 @@ export type PlayerSkillPhaseFixture = {
   durationMs?: number;
 };
 
+export type SkillImpactVfxFixture = {
+  key: string;
+  shape: string;
+  phase?: string;
+  cue?: string;
+  durationMs?: number;
+};
+
 export type ComputedRoomGateStyles = Record<
   string,
   {
@@ -59,6 +67,15 @@ export type ComputedPlayerSkillPhaseStyles = Record<
       wave: ComputedVfxPartStyle;
       sparks: ComputedVfxPartStyle;
     };
+  }
+>;
+
+export type ComputedSkillImpactVfxStyles = Record<
+  string,
+  {
+    core: ComputedVfxPartStyle;
+    ring: ComputedVfxPartStyle;
+    shards: ComputedVfxPartStyle;
   }
 >;
 
@@ -250,6 +267,38 @@ export async function computePlayerSkillPhaseStylesInRealBrowser(
               })
             )
           };
+        }
+        return result;
+      })()
+    `
+  );
+}
+
+export async function computeSkillImpactVfxStylesInRealBrowser(
+  css: string,
+  fixtures: SkillImpactVfxFixture[]
+): Promise<ComputedSkillImpactVfxStyles> {
+  return computeStylesInRealBrowser(
+    css,
+    fixtures.map((fixture) => skillImpactVfxFixtureMarkup(fixture)).join("\n"),
+    `
+      (() => {
+        const parts = [
+          ["core", ".skill-impact-core"],
+          ["ring", ".skill-impact-ring"],
+          ["shards", ".skill-impact-shards"]
+        ];
+        const result = {};
+        for (const root of document.querySelectorAll("[data-skill-impact-fixture]")) {
+          result[root.getAttribute("data-skill-impact-fixture")] = Object.fromEntries(
+            parts.map(([name, selector]) => {
+              const style = getComputedStyle(root.querySelector(selector));
+              return [name, {
+                animationName: style.animationName,
+                animationDuration: style.animationDuration
+              }];
+            })
+          );
         }
         return result;
       })()
@@ -482,6 +531,25 @@ function playerSkillPhaseFixtureMarkup(fixture: PlayerSkillPhaseFixture): string
       <i class="skill-wave"></i>
       <i class="skill-sparks"></i>
     </span>
+  </div>`;
+}
+
+function skillImpactVfxFixtureMarkup(fixture: SkillImpactVfxFixture): string {
+  const durationMs = fixture.durationMs ?? 680;
+  const phase = fixture.phase ?? "";
+  const cue = fixture.cue ?? "";
+
+  return `<div
+    data-skill-impact-fixture="${escapeAttribute(fixture.key)}"
+    class="skill-impact-burst skill-impact-shape-${escapeAttribute(fixture.shape)}"
+    data-impact-vfx-shape="${escapeAttribute(fixture.shape)}"
+    data-hit-phase="${escapeAttribute(phase)}"
+    data-vfx-cue="${escapeAttribute(cue)}"
+    style="--skill-duration: ${durationMs}ms;"
+  >
+    <span class="skill-impact-core"></span>
+    <span class="skill-impact-ring"></span>
+    <span class="skill-impact-shards"></span>
   </div>`;
 }
 

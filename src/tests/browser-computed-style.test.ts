@@ -4,9 +4,11 @@ import {
   computeEnemyVfxStylesInRealBrowser,
   computePlayerSkillPhaseStylesInRealBrowser,
   computeRoomGateStylesInRealBrowser,
+  computeSkillImpactVfxStylesInRealBrowser,
   type EnemyVfxFixture,
   type PlayerSkillPhaseFixture,
-  type RoomGateFixture
+  type RoomGateFixture,
+  type SkillImpactVfxFixture
 } from "./support/real-browser-computed-style";
 
 const stylesCss = readFileSync("src/styles.css", "utf8");
@@ -107,5 +109,27 @@ describe("real browser computed style regressions", () => {
     expect(computed.finish.player.animationDuration).toBe("0.76s");
     expect(computed.finish.weapon.animationDuration).toBe("0.76s");
     expect(computed.finish.skillVfx.core.animationDuration).toBe("0.76s");
+  }, 30000);
+
+  it("uses distinct glass-rain impact animations for each Liuli rain wave", async () => {
+    const fixtures: SkillImpactVfxFixture[] = [
+      { key: "open", shape: "glass-rain", phase: "rain-open", cue: "glass-rain-open", durationMs: 300 },
+      { key: "fall", shape: "glass-rain", phase: "rain-fall", cue: "glass-rain-fall", durationMs: 340 },
+      { key: "shatter", shape: "glass-rain", phase: "rain-shatter", cue: "glass-rain-shatter", durationMs: 420 }
+    ];
+    const computed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.open.core.animationName).toBe("glass-rain-open-core");
+    expect(computed.open.ring.animationName).toBe("glass-rain-open-ring");
+    expect(computed.open.shards.animationName).toBe("glass-rain-open-shards");
+    expect(computed.fall.core.animationName).toBe("glass-rain-fall-core");
+    expect(computed.fall.ring.animationName).toBe("glass-rain-fall-ring");
+    expect(computed.fall.shards.animationName).toBe("glass-rain-fall-shards");
+    expect(computed.shatter.core.animationName).toBe("glass-rain-shatter-core");
+    expect(computed.shatter.ring.animationName).toBe("glass-rain-shatter-ring");
+    expect(computed.shatter.shards.animationName).toBe("glass-rain-shatter-shards");
+    expect(computed.open.core.animationDuration).toBe("0.3s");
+    expect(computed.fall.core.animationDuration).toBe("0.34s");
+    expect(computed.shatter.core.animationDuration).toBe("0.42s");
   }, 30000);
 });

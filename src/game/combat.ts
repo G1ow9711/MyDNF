@@ -35,6 +35,9 @@ export type CombatHitPhase =
   | "fall"
   | "impact"
   | "rain"
+  | "rain-open"
+  | "rain-fall"
+  | "rain-shatter"
   | "pierce"
   | "mark-lock"
   | "detonate"
@@ -82,7 +85,9 @@ export type CombatVfxCue =
   | "air-heavy-impact"
   | "meteor-fall"
   | "meteor-impact"
+  | "glass-rain-open"
   | "glass-rain-fall"
+  | "glass-rain-shatter"
   | "black-rain-fall"
   | "prism-pierce"
   | "night-mark-lock"
@@ -2768,27 +2773,39 @@ function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFro
     hitstopMs: number;
     knockback: number;
     statusTags: CombatSkillStatusTag[];
+    hitPhase: CombatHitPhase;
+    vfxCue: CombatVfxCue;
+    vfxWindowMs: number;
   }> = [
     {
       delayMs: skill.animation.hitFrameMs,
       damageMultiplier: 0.38,
       hitstopMs: 54,
       knockback: 8,
-      statusTags: []
+      statusTags: [],
+      hitPhase: "rain-open",
+      vfxCue: "glass-rain-open",
+      vfxWindowMs: 300
     },
     {
       delayMs: skill.animation.hitFrameMs + 95,
       damageMultiplier: 0.42,
       hitstopMs: 58,
       knockback: 12,
-      statusTags: []
+      statusTags: [],
+      hitPhase: "rain-fall",
+      vfxCue: "glass-rain-fall",
+      vfxWindowMs: 340
     },
     {
       delayMs: skill.animation.hitFrameMs + 190,
       damageMultiplier: 0.48,
       hitstopMs: 68,
       knockback: 20,
-      statusTags: ["stagger"]
+      statusTags: ["stagger"],
+      hitPhase: "rain-shatter",
+      vfxCue: "glass-rain-shatter",
+      vfxWindowMs: 420
     }
   ];
 
@@ -2811,9 +2828,9 @@ function applyLiuliRain(run: CombatRun, skill: ClassSkillDefinition, canceledFro
 
     return schedulePlayerHitboxEffect(nextRun, hitbox, origin, scriptedRun.player.facing, {
       id: `hit-${run.elapsedMs}-skill-${skill.id}-rain-${waveIndex}`,
-      hitPhase: "rain",
-      vfxCue: "glass-rain-fall",
-      vfxWindowMs: 300,
+      hitPhase: wave.hitPhase,
+      vfxCue: wave.vfxCue,
+      vfxWindowMs: wave.vfxWindowMs,
       missOnEmpty: waveIndex === 0
     });
   }, castingRun);

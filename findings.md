@@ -1028,3 +1028,11 @@
 - Fix note: grounded heavy scheduled hitboxes now carry `ground-heavy-launch`, `ground-heavy-impact`, and a 320 ms VFX window, and the existing delayed hit/MISS pipeline propagates that metadata to real frame feedback.
 - CSS note: `flowing-light-chain` root VFX now gates core/wave/sparks on `flowing-chain-open`, `flowing-chain-cross`, and `flowing-chain-finish`, giving each real slash stage distinct browser-resolved animations.
 - Test-support note: integration, UI, and render-audio helpers now identify grounded heavy by `ground-heavy-` effect id instead of relying on the old absence of `hitPhase`.
+
+## DNF-Style Liuli Rain Wave Phase Findings
+- Current priority follows the user's clarified scope: character and monster geometry can stay simpler while the full loop is completed, but combat action flow, strict hit frames, target feedback, skill VFX, and monster VFX remain strict.
+- Local audit found `liuli-rain` already had three delayed live-recheck waves at 260/355/450 ms, but every wave shared the same `rain` / `glass-rain-fall` metadata and the target impact CSS used one generic `glass-rain-target-*` animation set.
+- RED note: focused combat coverage failed because all six hit events reported `hitPhase: "rain"`. Focused app coverage failed because the first wave HTML lacked `rain-open` / `glass-rain-open`. Real-browser computed-style coverage failed because `glass-rain-open` still resolved to `glass-rain-target-core`.
+- Fix note: the three waves now emit `rain-open` / `rain-fall` / `rain-shatter` phases, `glass-rain-open` / `glass-rain-fall` / `glass-rain-shatter` cues, and 300/340/420 ms VFX windows.
+- CSS note: glass-rain target impacts now consume `data-vfx-cue` and resolve core/ring/shards to stage-specific open/fall/shatter animation names in a real browser.
+- Parallel audit queue: combat agent found `earth-furnace-breaker` can emit duplicate MISS after an empty crack; UI agent found its player root forge-quake VFX receives phase attrs but CSS still ignores `earth-furnace-crack` / `earth-furnace-eruption` cues. These are good next strict-combat candidates.

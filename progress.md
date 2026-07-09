@@ -3514,3 +3514,28 @@
   - Focused GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "flowing-light-chain phase animations" --reporter=basic`, 1 matched test.
   - Related suite passed after helper updates: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 421 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 520 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 138 DNF-Style Liuli Rain Wave Phase VFX
+- Continued after the user's clarification: character and monster models can stay simpler for now, but combat action flow, model-following attacks, strict hit frames, hit feedback, skill VFX, and monster skill VFX remain strict.
+- Used two parallel read-only agents:
+  - Combat audit found a later `earth-furnace-breaker` duplicate-MISS risk after an empty crack.
+  - UI/CSS audit found `earth-furnace-breaker` root forge-quake VFX still ignores crack/eruption cues.
+  - Both are recorded as next candidates; this pass proceeded with the local high-value Liuli rain wave VFX gap already under RED.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires the three `liuli-rain` waves to emit separate `rain-open`, `rain-fall`, and `rain-shatter` phases, separate glass-rain cues, and 300/340/420 ms windows.
+  - `src/tests/app-integration.test.ts` now requires the first and final wave HTML to expose different phase/cue metadata and exactly two target impact bursts per cue by the final wave.
+  - `src/tests/browser-computed-style.test.ts` plus support helper now verify real browser computed styles for glass-rain open/fall/shatter target impact core/ring/shards.
+- RED evidence:
+  - Combat RED failed because all six hits still reported `hitPhase: "rain"`.
+  - App RED failed because first-wave HTML lacked `data-hit-phase="rain-open"`.
+  - Browser RED failed because `glass-rain-open` still computed `glass-rain-target-core`.
+- Implemented:
+  - `src/game/combat.ts` now gives Liuli rain wave 0/1/2 distinct phases, VFX cues, and VFX windows while preserving live target recheck and interrupt cancellation behavior.
+  - `src/styles.css` now gates glass-rain impact core/ring/shards by `data-vfx-cue` and defines nine stage-specific target impact keyframes.
+  - `src/tests/support/real-browser-computed-style.ts` now includes reusable skill-impact computed-style fixtures for target-bound player skill VFX.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "liuli-rain falls" --reporter=basic`, 1 matched test.
+  - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "per-target impact sparks" --reporter=basic`, 1 matched test.
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "glass-rain impact" --reporter=basic`, 1 matched test.
+  - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 422 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 521 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

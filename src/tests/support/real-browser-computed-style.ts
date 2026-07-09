@@ -60,6 +60,11 @@ export type PlayerSkillPhaseFixture = {
   durationMs?: number;
 };
 
+export type PlayerHurtMotionFixture = {
+  key: string;
+  feedbackCue: string;
+};
+
 export type SkillImpactVfxFixture = {
   key: string;
   shape: string;
@@ -99,6 +104,13 @@ export type ComputedPlayerSkillPhaseStyles = Record<
       wave: ComputedVfxPartStyle;
       sparks: ComputedVfxPartStyle;
     };
+  }
+>;
+
+export type ComputedPlayerHurtMotionStyles = Record<
+  string,
+  {
+    art: ComputedVfxPartStyle;
   }
 >;
 
@@ -280,6 +292,31 @@ export async function computeEnemyModelMotionStylesInRealBrowser(
         for (const root of document.querySelectorAll("[data-enemy-model-fixture]")) {
           const style = getComputedStyle(root.querySelector(".enemy-art"));
           result[root.getAttribute("data-enemy-model-fixture")] = {
+            art: {
+              animationName: style.animationName,
+              animationDuration: style.animationDuration
+            }
+          };
+        }
+        return result;
+      })()
+    `
+  );
+}
+
+export async function computePlayerHurtMotionStylesInRealBrowser(
+  css: string,
+  fixtures: PlayerHurtMotionFixture[]
+): Promise<ComputedPlayerHurtMotionStyles> {
+  return computeStylesInRealBrowser(
+    css,
+    fixtures.map((fixture) => playerHurtMotionFixtureMarkup(fixture)).join("\n"),
+    `
+      (() => {
+        const result = {};
+        for (const root of document.querySelectorAll("[data-player-hurt-fixture]")) {
+          const style = getComputedStyle(root.querySelector(".combat-player-art"));
+          result[root.getAttribute("data-player-hurt-fixture")] = {
             art: {
               animationName: style.animationName,
               animationDuration: style.animationDuration
@@ -661,6 +698,18 @@ function enemyModelMotionFixtureMarkup(fixture: EnemyModelMotionFixture): string
     style="--enemy-attack-duration: ${durationMs}ms; --model-scale-x: -1;"
   >
     <span class="enemy-art actor-model actor-model-${escapeAttribute(fixture.motion)}${skillClass}"></span>
+  </div>`;
+}
+
+function playerHurtMotionFixtureMarkup(fixture: PlayerHurtMotionFixture): string {
+  return `<div
+    data-player-hurt-fixture="${escapeAttribute(fixture.key)}"
+    class="combat-actor combat-player"
+    data-player-motion="hit"
+    data-player-hurt-feedback-cue="${escapeAttribute(fixture.feedbackCue)}"
+    style="--model-scale-x: 1;"
+  >
+    <span class="combat-player-art actor-model actor-model-hit"></span>
   </div>`;
 }
 

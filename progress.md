@@ -3797,3 +3797,23 @@
   - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "clears held mounted movement" --reporter=basic`, 1 matched test.
   - App integration suite passed: `npm test -- src/tests/app-integration.test.ts --reporter=dot`, 1 file / 111 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 548 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 150 DNF-Style Player Hurt Cue Animation
+- Continued after the user's clarification: character/monster modeling can remain lightweight while the full loop is completed, but combat action smoothness, actor action changes, strict hit frames, hit feedback, skill VFX, and monster VFX remain strict acceptance gates.
+- Used a read-only UI/browser audit agent:
+  - It confirmed the reusable real-browser computed-style helper path and identified that `.combat-player` root did not consume monster `feedbackCue` values, while `.combat-feedback` already did.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` now requires Taotie forge slam and chain smash to expose `data-player-hurt-feedback-cue` on the player actor.
+  - `src/tests/browser-computed-style.test.ts` now verifies forge bind, forge slam, chain drag, and chain smash compute distinct player hurt animation names in a real browser instead of generic `player-hurt-react`.
+- RED evidence:
+  - Focused app RED failed because the player actor lacked `data-player-hurt-feedback-cue`.
+  - Focused browser RED failed because `player-hurt-forge-shackle` computed `player-hurt-react`.
+- Implemented:
+  - `src/ui/app.ts` now maps the active recent `player-hit` event `feedbackCue` onto the player actor root as `data-player-hurt-feedback-cue`.
+  - `src/styles.css` now cue-gates forge shackle, forge slam, chain drag, and chain smash to distinct player model keyframes, durations, and hit filters.
+  - `src/tests/support/real-browser-computed-style.ts` now includes a reusable player hurt motion fixture.
+- Verification so far:
+  - Focused app GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "taotie forge shackle|taotie chain cleave" --reporter=basic`, 2 matched tests.
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "cue-specific player hurt" --reporter=basic`, 1 matched test.
+  - Related app/browser suite passed: `npm test -- src/tests/app-integration.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 2 files / 131 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 549 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

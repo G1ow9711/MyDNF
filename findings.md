@@ -1132,3 +1132,10 @@
 - RED note: focused mounted app coverage first failed because no `blur` listener was registered, proving Alt-Tab/browser focus loss could leave ArrowRight held forever.
 - Fix note: mounted combat now clears held movement/dash keys on global `blur` and removes that listener during cleanup. After blur, the next tick no longer changes player X.
 - Queue note: next high-value UI strict-frame candidates are `anvil-guard` showing shield motion before the real guard-open frame, and monster multi-hit `feedbackCue` values not yet driving cue-specific player actor hurt animations.
+
+## DNF-Style Player Hurt Cue Animation Findings
+- Current priority follows the user's latest clarification: character and monster geometry can stay lightweight for the full-loop prototype, but combat action smoothness, strict hit frames, model reaction changes, hit feedback, skill VFX, and monster VFX remain hard gates.
+- Read-only UI audit confirmed monster multi-hit `feedbackCue` values reached `.combat-feedback`, but `.combat-player` and `.combat-player-art` only saw generic `data-player-motion="hit"`, so forge slam and chain smash made the player model use the same generic hurt animation.
+- RED note: focused app coverage failed because Taotie forge slam and chain smash HTML lacked `data-player-hurt-feedback-cue`. Real-browser computed-style coverage failed because `player-hurt-forge-shackle` still resolved to generic `player-hurt-react`.
+- Fix note: `renderCombatActors()` now maps the active recent `player-hit` event feedback cue onto the player actor root, and CSS cue-gates forge shackle, forge slam, chain drag, and chain smash to distinct player model keyframes and durations.
+- Verification note: focused app and real-browser GREEN passed, and the related app/browser suite passed 131 tests. This keeps models simple while making visible player body reaction depend on the actual monster skill stage.

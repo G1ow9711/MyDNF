@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   computeEnemyModelMotionStylesInRealBrowser,
   computeEnemyVfxStylesInRealBrowser,
+  computePlayerHurtMotionStylesInRealBrowser,
   computePlayerSkillPhaseStylesInRealBrowser,
   computeRoomGateStylesInRealBrowser,
   computeSkillImpactVfxStylesInRealBrowser,
   computeWeaponLayerStylesInRealBrowser,
   type EnemyModelMotionFixture,
   type EnemyVfxFixture,
+  type PlayerHurtMotionFixture,
   type PlayerSkillPhaseFixture,
   type RoomGateFixture,
   type SkillImpactVfxFixture,
@@ -109,6 +111,24 @@ describe("real browser computed style regressions", () => {
     expect(computed.smash.art.animationName).not.toBe("monster-taotie-chain-cleave");
     expect(computed.drag.art.animationDuration).toBe("0.97s");
     expect(computed.smash.art.animationDuration).toBe("0.97s");
+  }, 30000);
+
+  it("uses cue-specific player hurt animations for monster bind, drag, and slam hits", async () => {
+    const fixtures: PlayerHurtMotionFixture[] = [
+      { key: "forge-bind", feedbackCue: "player-hurt-forge-shackle" },
+      { key: "forge-slam", feedbackCue: "player-hurt-forge-slam" },
+      { key: "chain-drag", feedbackCue: "player-hurt-chain-drag" },
+      { key: "chain-smash", feedbackCue: "player-hurt-chain-smash" }
+    ];
+    const computed = await computePlayerHurtMotionStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed["forge-bind"].art.animationName).toBe("player-hurt-forge-shackle");
+    expect(computed["forge-slam"].art.animationName).toBe("player-hurt-forge-slam");
+    expect(computed["chain-drag"].art.animationName).toBe("player-hurt-chain-drag");
+    expect(computed["chain-smash"].art.animationName).toBe("player-hurt-chain-smash");
+    expect(computed["forge-bind"].art.animationName).not.toBe("player-hurt-react");
+    expect(computed["forge-slam"].art.animationDuration).toBe("0.52s");
+    expect(computed["chain-smash"].art.animationDuration).toBe("0.56s");
   }, 30000);
 
   it("uses dedicated enter-rift animations for room gate transition", async () => {

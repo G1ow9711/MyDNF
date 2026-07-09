@@ -5427,6 +5427,7 @@ describe("playable app integration actions", () => {
     expect(slamHtml).toContain('data-enemy-skill-vfx="taotie-forge-shackle"');
     expect(slamHtml).toContain('data-enemy-vfx-cue="taotie-forge-shackle-slam"');
     expect(slamHtml).toContain('data-player-feedback-cue="player-hurt-forge-slam"');
+    expect(slamHtml).toContain('data-player-hurt-feedback-cue="player-hurt-forge-slam"');
     expect(slamHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
   });
 
@@ -5520,6 +5521,7 @@ describe("playable app integration actions", () => {
     expect(smashHtml).toContain('data-enemy-vfx-cue="taotie-chain-cleave-smash"');
     expect(smashHtml).toContain('data-enemy-model-vfx-cue="taotie-chain-cleave-smash"');
     expect(smashHtml).toContain('data-player-feedback-cue="player-hurt-chain-smash"');
+    expect(smashHtml).toContain('data-player-hurt-feedback-cue="player-hurt-chain-smash"');
     expect(smashHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
   });
 

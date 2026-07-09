@@ -1036,3 +1036,10 @@
 - Fix note: the three waves now emit `rain-open` / `rain-fall` / `rain-shatter` phases, `glass-rain-open` / `glass-rain-fall` / `glass-rain-shatter` cues, and 300/340/420 ms VFX windows.
 - CSS note: glass-rain target impacts now consume `data-vfx-cue` and resolve core/ring/shards to stage-specific open/fall/shatter animation names in a real browser.
 - Parallel audit queue: combat agent found `earth-furnace-breaker` can emit duplicate MISS after an empty crack; UI agent found its player root forge-quake VFX receives phase attrs but CSS still ignores `earth-furnace-crack` / `earth-furnace-eruption` cues. These are good next strict-combat candidates.
+
+## DNF-Style Earth Furnace Breaker Miss and Root VFX Findings
+- Current priority follows the user's clarified scope: geometry can stay simpler while the full loop is completed, but strict hit frames, truthful whiff feedback, model-following action, and phase-bound skill VFX remain hard gates.
+- Parallel audit follow-up found two `earth-furnace-breaker` issues: an empty 260 ms crack could create a second fake 410 ms eruption MISS, and the player root forge-quake VFX received `earth-furnace-crack` / `earth-furnace-eruption` attrs but CSS still resolved generic `forge-quake-cast-*` animations.
+- RED note: focused combat coverage failed with two MISS events after an empty crack. Real-browser computed-style coverage failed because the crack root VFX core still computed `forge-quake-cast-core`.
+- Fix note: delayed hitboxes that require `requiresStatusSourceSkillId` now suppress empty MISS feedback unless at least one live enemy still carries that same source status through the delayed frame. This preserves eruption MISS when a cracked target escapes, while preventing fake eruption MISS after no crack target was ever hit.
+- CSS note: `.skill-vfx-shape-forge-quake` now consumes `data-vfx-cue="earth-furnace-crack"` and `data-vfx-cue="earth-furnace-eruption"` for core/wave/sparks, reusing dedicated earth-furnace keyframes verified by a real browser.

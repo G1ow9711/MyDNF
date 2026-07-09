@@ -6793,6 +6793,31 @@ describe("combat actions and impact feel", () => {
     });
   });
 
+  it("does not emit a duplicate earth-furnace-breaker miss on the eruption frame after an empty crack", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100);
+    const cast = performAction(
+      withPlayerAndEnemies(
+        createCombatRun(state, "cinder-kiln-alley"),
+        { x: 240, y: 340, facing: 1 },
+        [{ x: 720, y: 430, hp: 320, maxHp: 320, armor: 42 }]
+      ),
+      { type: "skill", skillId: "earth-furnace-breaker" }
+    );
+    const [crackAtMs, eruptionAtMs] = scheduledSkillTimes(cast, "earth-furnace-breaker");
+    const afterEruption = stepToElapsed(cast, eruptionAtMs);
+    const misses = skillMissEvents(afterEruption, "earth-furnace-breaker");
+
+    expect([crackAtMs, eruptionAtMs]).toEqual([260, 410]);
+    expect(skillHitEvents(afterEruption, "earth-furnace-breaker")).toHaveLength(0);
+    expect(misses).toHaveLength(1);
+    expect(misses[0]).toMatchObject({
+      hitPhase: "earth-crack",
+      vfxCue: "earth-furnace-crack",
+      occurredAtMs: crackAtMs
+    });
+    expect(afterEruption.enemies[0].hp).toBe(cast.enemies[0].hp);
+  });
+
   it("does not erupt earth-furnace-breaker on targets that enter after the crack frame", () => {
     const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100);
     const run = withPlayerAndEnemies(

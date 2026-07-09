@@ -35,6 +35,10 @@ export type RoomGateFixture = {
 
 export type PlayerSkillPhaseFixture = {
   key: string;
+  skillId?: string;
+  preset?: string;
+  weaponArc?: string;
+  vfxShape?: string;
   phase?: string;
   cue?: string;
   durationMs?: number;
@@ -504,6 +508,10 @@ function roomGateFixtureMarkup(fixture: RoomGateFixture): string {
 
 function playerSkillPhaseFixtureMarkup(fixture: PlayerSkillPhaseFixture): string {
   const durationMs = fixture.durationMs ?? 760;
+  const skillId = fixture.skillId ?? "flowing-light-chain";
+  const preset = fixture.preset ?? "liuli-light-chain";
+  const weaponArc = fixture.weaponArc ?? "chain-cut";
+  const vfxShape = fixture.vfxShape ?? "flowing-chain";
   const phase = fixture.phase ?? "";
   const cue = fixture.cue ?? "";
 
@@ -511,8 +519,8 @@ function playerSkillPhaseFixtureMarkup(fixture: PlayerSkillPhaseFixture): string
     data-player-phase-fixture="${escapeAttribute(fixture.key)}"
     class="combat-player"
     data-player-motion="skill"
-    data-skill-animation-preset="liuli-light-chain"
-    data-skill-weapon-arc="chain-cut"
+    data-skill-animation-preset="${escapeAttribute(preset)}"
+    data-skill-weapon-arc="${escapeAttribute(weaponArc)}"
     data-player-skill-hit-phase="${escapeAttribute(phase)}"
     data-player-skill-vfx-cue="${escapeAttribute(cue)}"
     style="--skill-duration: ${durationMs}ms;"
@@ -520,9 +528,9 @@ function playerSkillPhaseFixtureMarkup(fixture: PlayerSkillPhaseFixture): string
     <span class="combat-player-art"></span>
     <span class="combat-weapon" data-weapon-hit-phase="${escapeAttribute(phase)}" data-weapon-vfx-cue="${escapeAttribute(cue)}"></span>
     <span
-      class="player-skill-vfx skill-vfx-flowing-light-chain skill-vfx-shape-flowing-chain"
-      data-player-skill-vfx="flowing-light-chain"
-      data-skill-vfx-shape="flowing-chain"
+      class="player-skill-vfx skill-vfx-${escapeAttribute(skillId)} skill-vfx-shape-${escapeAttribute(vfxShape)}"
+      data-player-skill-vfx="${escapeAttribute(skillId)}"
+      data-skill-vfx-shape="${escapeAttribute(vfxShape)}"
       data-hit-phase="${escapeAttribute(phase)}"
       data-vfx-cue="${escapeAttribute(cue)}"
       data-vfx-action="skill"

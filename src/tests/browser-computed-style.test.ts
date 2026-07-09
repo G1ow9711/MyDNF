@@ -111,6 +111,39 @@ describe("real browser computed style regressions", () => {
     expect(computed.finish.skillVfx.core.animationDuration).toBe("0.76s");
   }, 30000);
 
+  it("uses earth-furnace-breaker crack and eruption root VFX animations in the browser cascade", async () => {
+    const fixtures: PlayerSkillPhaseFixture[] = [
+      {
+        key: "crack",
+        skillId: "earth-furnace-breaker",
+        preset: "iron-breaker",
+        weaponArc: "furnace-breaker",
+        vfxShape: "forge-quake",
+        phase: "earth-crack",
+        cue: "earth-furnace-crack",
+        durationMs: 880
+      },
+      {
+        key: "eruption",
+        skillId: "earth-furnace-breaker",
+        preset: "iron-breaker",
+        weaponArc: "furnace-breaker",
+        vfxShape: "forge-quake",
+        phase: "furnace-eruption",
+        cue: "earth-furnace-eruption",
+        durationMs: 880
+      }
+    ];
+    const computed = await computePlayerSkillPhaseStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.crack.skillVfx.core.animationName).toBe("earth-furnace-crack-core");
+    expect(computed.crack.skillVfx.wave.animationName).toBe("earth-furnace-crack-ring");
+    expect(computed.crack.skillVfx.sparks.animationName).toBe("earth-furnace-crack-shards");
+    expect(computed.eruption.skillVfx.core.animationName).toBe("earth-furnace-eruption-core");
+    expect(computed.eruption.skillVfx.wave.animationName).toBe("earth-furnace-eruption-ring");
+    expect(computed.eruption.skillVfx.sparks.animationName).toBe("earth-furnace-eruption-shards");
+  }, 30000);
+
   it("uses distinct glass-rain impact animations for each Liuli rain wave", async () => {
     const fixtures: SkillImpactVfxFixture[] = [
       { key: "open", shape: "glass-rain", phase: "rain-open", cue: "glass-rain-open", durationMs: 300 },

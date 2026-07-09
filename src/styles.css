@@ -5228,6 +5228,30 @@ p {
   animation: forge-quake-cast-sparks var(--skill-duration, 880ms) ease-out both;
 }
 
+.skill-vfx-shape-forge-quake[data-vfx-cue="earth-furnace-crack"] .skill-core {
+  animation: earth-furnace-crack-core var(--skill-duration, 880ms) ease-out both;
+}
+
+.skill-vfx-shape-forge-quake[data-vfx-cue="earth-furnace-crack"] .skill-wave {
+  animation: earth-furnace-crack-ring var(--skill-duration, 880ms) ease-out both;
+}
+
+.skill-vfx-shape-forge-quake[data-vfx-cue="earth-furnace-crack"] .skill-sparks {
+  animation: earth-furnace-crack-shards var(--skill-duration, 880ms) ease-out both;
+}
+
+.skill-vfx-shape-forge-quake[data-vfx-cue="earth-furnace-eruption"] .skill-core {
+  animation: earth-furnace-eruption-core var(--skill-duration, 880ms) cubic-bezier(0.13, 0.86, 0.18, 1) both;
+}
+
+.skill-vfx-shape-forge-quake[data-vfx-cue="earth-furnace-eruption"] .skill-wave {
+  animation: earth-furnace-eruption-ring var(--skill-duration, 880ms) ease-out both;
+}
+
+.skill-vfx-shape-forge-quake[data-vfx-cue="earth-furnace-eruption"] .skill-sparks {
+  animation: earth-furnace-eruption-shards var(--skill-duration, 880ms) ease-out both;
+}
+
 .enemy-skill-vfx {
   width: 128px;
   height: 96px;

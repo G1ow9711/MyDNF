@@ -3539,3 +3539,24 @@
   - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "glass-rain impact" --reporter=basic`, 1 matched test.
   - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 422 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 521 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 139 DNF-Style Earth Furnace Breaker Miss and Root VFX
+- Continued after the user's clarification: character and monster models can stay simpler for now, but combat action flow, model-following attacks, strict hit frames, truthful hit/whiff feedback, skill VFX, and monster skill VFX remain strict.
+- Followed up on the prior parallel audit findings:
+  - Combat gap: if `earth-crack` hit nobody, `furnace-eruption` still emitted a second MISS at 410 ms.
+  - UI/CSS gap: `earth-furnace-breaker` root forge-quake VFX carried crack/eruption cues in DOM, but browser CSS still resolved generic forge-quake cast animations.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires an empty `earth-furnace-breaker` crack to produce only one MISS at the crack frame, not another eruption-frame MISS.
+  - `src/tests/browser-computed-style.test.ts` now verifies real browser root VFX animations for `earth-furnace-crack` and `earth-furnace-eruption`.
+  - `src/tests/support/real-browser-computed-style.ts` now lets player-skill phase fixtures specify skill id, preset, weapon arc, and VFX shape instead of hardcoding flowing-light-chain.
+- RED evidence:
+  - Combat RED failed with 2 MISS events after empty crack.
+  - Browser RED failed because crack root VFX still computed `forge-quake-cast-core`.
+- Implemented:
+  - `src/game/combat.ts` now suppresses MISS for delayed status-source-gated hitboxes when no live target still carries the required source status; the existing cracked-target escape test still passes, preserving real eruption MISS after a real crack connection.
+  - `src/styles.css` now gates forge-quake root core/wave/sparks on `earth-furnace-crack` and `earth-furnace-eruption` cues.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "duplicate earth-furnace-breaker miss" --reporter=basic`, 1 matched test.
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "earth-furnace-breaker crack" --reporter=basic`, 1 matched test.
+  - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 424 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 523 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

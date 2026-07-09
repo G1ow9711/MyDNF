@@ -4964,6 +4964,18 @@ function applyScheduledPlayerHitboxEffect(
       return sampledRun;
     }
 
+    if (
+      hitbox.requiresStatusSourceSkillId &&
+      !sampledRun.enemies.some(
+        (enemy) =>
+          enemy.hp > 0 &&
+          enemy.statusSourceSkillId === hitbox.requiresStatusSourceSkillId &&
+          (enemy.controlledUntilMs ?? 0) > effect.applyAtMs
+      )
+    ) {
+      return sampledRun;
+    }
+
     return applyScheduledMissEffect(sampledRun, {
       id: `miss-${effect.id}`,
       applyAtMs: effect.applyAtMs,

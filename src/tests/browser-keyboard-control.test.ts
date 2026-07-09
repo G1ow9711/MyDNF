@@ -21,6 +21,26 @@ type BrowserSkillState = {
   weaponAnimation: string;
 };
 
+type BrowserEnemyAttackState = {
+  objective: string;
+  enemies: Array<{
+    id: string;
+    stage: string;
+    skill: string;
+    animationName: string;
+  }>;
+  telegraph: string;
+  telegraphShape: string;
+  vfx: string;
+  vfxPhase: string;
+  vfxCue: string;
+  vfxRingAnimation: string;
+  vfxCoreAnimation: string;
+  vfxTrailAnimation: string;
+  playerHurtCue: string;
+  playerAnimation: string;
+};
+
 const readCombatStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
@@ -53,6 +73,39 @@ const readSkillStateExpression = `
     skillStage: player?.getAttribute("data-player-skill-stage") ?? "",
     playerAnimation: art ? getComputedStyle(art).animationName : "",
     weaponAnimation: weapon ? getComputedStyle(weapon).animationName : ""
+  };
+})()
+`;
+
+const readEnemyAttackStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const enemies = Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => {
+    const art = enemy.querySelector(".enemy-art");
+    return {
+      id: enemy.getAttribute("data-enemy-id") ?? "",
+      stage: enemy.getAttribute("data-enemy-attack-stage") ?? "",
+      skill: enemy.getAttribute("data-enemy-attack-skill-id") ?? "",
+      animationName: art ? getComputedStyle(art).animationName : ""
+    };
+  });
+  const telegraph = document.querySelector("[data-enemy-telegraph]");
+  const vfx = document.querySelector("[data-enemy-skill-vfx]");
+  const player = document.querySelector(".combat-player");
+  const playerArt = document.querySelector(".combat-player-art");
+  return {
+    objective: scene?.getAttribute("data-combat-objective") ?? "",
+    enemies,
+    telegraph: telegraph?.getAttribute("data-enemy-telegraph") ?? "",
+    telegraphShape: telegraph?.getAttribute("data-telegraph-shape") ?? "",
+    vfx: vfx?.getAttribute("data-enemy-skill-vfx") ?? "",
+    vfxPhase: vfx?.getAttribute("data-enemy-attack-phase") ?? "",
+    vfxCue: vfx?.getAttribute("data-enemy-vfx-cue") ?? "",
+    vfxRingAnimation: vfx ? getComputedStyle(vfx.querySelector(".enemy-cast-ring")).animationName : "",
+    vfxCoreAnimation: vfx ? getComputedStyle(vfx.querySelector(".enemy-cast-core")).animationName : "",
+    vfxTrailAnimation: vfx ? getComputedStyle(vfx.querySelector(".enemy-cast-trail")).animationName : "",
+    playerHurtCue: player?.getAttribute("data-player-hurt-feedback-cue") ?? "",
+    playerAnimation: playerArt ? getComputedStyle(playerArt).animationName : ""
   };
 })()
 `;
@@ -159,6 +212,79 @@ describe("real browser keyboard control", () => {
         );
 
         expect(combat.objective).toBe("active");
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
+  it("shows natural monster windup, skill VFX, and model motion in the live browser", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<BrowserCombatState>(readCombatStateExpression, (state) => state.objective === "active", 5000);
+
+        const windup = await page.waitFor<BrowserEnemyAttackState>(
+          readEnemyAttackStateExpression,
+          (state) =>
+            state.vfx === "" &&
+            state.enemies.some(
+              (enemy) => enemy.stage === "windup" && enemy.skill !== "" && enemy.skill === state.telegraph
+            ),
+          2500
+        );
+        const windupEnemy = windup.enemies.find(
+          (enemy) => enemy.stage === "windup" && enemy.skill !== "" && enemy.skill === windup.telegraph
+        );
+
+        expect(windup.objective).toBe("active");
+        expect(windup.telegraph).toBe(windupEnemy?.skill);
+        expect(windup.telegraphShape).not.toBe("");
+        expect(windup.vfx).toBe("");
+        expect(windupEnemy?.animationName).not.toBe("none");
+        expect(windupEnemy?.animationName).not.toBe("monster-idle-breathe");
+
+        const activeVfx = await page.waitFor<BrowserEnemyAttackState>(
+          readEnemyAttackStateExpression,
+          (state) =>
+            state.vfx !== "" &&
+            state.vfxCue !== "" &&
+            (state.vfxRingAnimation !== "none" || state.vfxCoreAnimation !== "none" || state.vfxTrailAnimation !== "none"),
+          3000
+        );
+
+        expect(["ash-ember-spit", "ash-crawler-burst"]).toContain(activeVfx.vfx);
+        expect(["active", "miss"]).toContain(activeVfx.vfxPhase);
+        expect(activeVfx.vfxCue).toMatch(/ash-(ember-spit-impact|crawler-burst-explode)/);
+        expect([activeVfx.vfxRingAnimation, activeVfx.vfxCoreAnimation, activeVfx.vfxTrailAnimation]).not.toEqual([
+          "none",
+          "none",
+          "none"
+        ]);
+
+        await page.keyDown("ArrowRight");
+        await page.waitFor<BrowserCombatState>(
+          readCombatStateExpression,
+          (state) => state.playerX >= 34,
+          1800
+        );
+        await page.keyUp("ArrowRight");
+
+        const playerHit = await page.waitFor<BrowserEnemyAttackState>(
+          readEnemyAttackStateExpression,
+          (state) =>
+            state.vfxPhase === "active" &&
+            state.playerHurtCue !== "" &&
+            state.playerAnimation !== "" &&
+            state.playerAnimation !== "none" &&
+            state.playerAnimation !== "player-hurt-react",
+          3500
+        );
+
+        expect(["player-hurt-light", "player-hurt-heavy"]).toContain(playerHit.playerHurtCue);
+        expect(playerHit.playerAnimation).toBe(playerHit.playerHurtCue);
       });
     } finally {
       await server.close();

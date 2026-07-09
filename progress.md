@@ -3958,3 +3958,21 @@
   - Focused real-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (3 tests after review fixes).
   - Full suite passed after review fixes: `npm test -- --reporter=dot` (15 files / 562 tests).
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 158 Real-Browser Monster Attack Motion and Full Hurt-Cue Presentation
+- Continued toward the user's clarified priority: monster models can stay lightweight, but monsters must visibly enter windup/attack states, show skill telegraphs/VFX, and make the player react differently to different monster hits.
+- Used two read-only agents:
+  - Live-browser monster audit found `cinder-kiln-alley` room 0 naturally triggers trash attacks around 700 ms / 920 ms and exposes stable DOM hooks for enemy stage, telegraph, active VFX, cue metadata, and computed model animation.
+  - Combat-priority audit ranked real-browser monster natural attack/VFX acceptance as the highest next item.
+- Added RED/GREEN coverage:
+  - `src/tests/browser-computed-style.test.ts` now requires every `CombatPlayerFeedbackCue` used by monster attacks to resolve to a cue-specific player hurt animation instead of the generic `player-hurt-react`.
+  - RED failed because `player-hurt-light` still computed `player-hurt-react`.
+  - `src/styles.css` now adds distinct player model animations for `player-hurt-light`, `player-hurt-heavy`, `player-hurt-boss-breath`, `player-hurt-devoured`, and `player-hurt-forge-collapse`, complementing the existing forge/chain cue animations.
+  - `src/tests/browser-keyboard-control.test.ts` now adds a live-browser acceptance case that enters the dungeon, waits for natural monster windup with telegraph, verifies the enemy model leaves idle motion, then waits for active/miss monster skill VFX with cue-specific ring/core/trail animation.
+  - Code-review fixes scope the windup assertion to a matching telegraph before any active VFX is present, add duration coverage for forge-bind and chain-drag hurt cues, and move the player into range through real keyboard input so a later natural monster attack proves live player hit motion and cue-specific animation.
+- Verification:
+  - Focused RED/GREEN check passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "cue-specific player hurt" --reporter=basic`.
+  - Focused live-browser monster check passed: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "natural monster" --reporter=basic`.
+  - Full live-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (4 tests).
+  - Full suite passed: `npm test -- --reporter=dot` (15 files / 563 tests).
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

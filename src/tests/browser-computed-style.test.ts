@@ -140,8 +140,13 @@ describe("real browser computed style regressions", () => {
     expect(computed.slam.art.animationDuration).toBe("1.04s");
   }, 30000);
 
-  it("uses cue-specific player hurt animations for monster bind, drag, and slam hits", async () => {
+  it("uses cue-specific player hurt animations for every monster feedback cue", async () => {
     const fixtures: PlayerHurtMotionFixture[] = [
+      { key: "light", feedbackCue: "player-hurt-light" },
+      { key: "heavy", feedbackCue: "player-hurt-heavy" },
+      { key: "boss-breath", feedbackCue: "player-hurt-boss-breath" },
+      { key: "devoured", feedbackCue: "player-hurt-devoured" },
+      { key: "forge-collapse", feedbackCue: "player-hurt-forge-collapse" },
       { key: "forge-bind", feedbackCue: "player-hurt-forge-shackle" },
       { key: "forge-slam", feedbackCue: "player-hurt-forge-slam" },
       { key: "chain-drag", feedbackCue: "player-hurt-chain-drag" },
@@ -149,12 +154,26 @@ describe("real browser computed style regressions", () => {
     ];
     const computed = await computePlayerHurtMotionStylesInRealBrowser(stylesCss, fixtures);
 
+    expect(computed.light.art.animationName).toBe("player-hurt-light");
+    expect(computed.heavy.art.animationName).toBe("player-hurt-heavy");
+    expect(computed["boss-breath"].art.animationName).toBe("player-hurt-boss-breath");
+    expect(computed.devoured.art.animationName).toBe("player-hurt-devoured");
+    expect(computed["forge-collapse"].art.animationName).toBe("player-hurt-forge-collapse");
     expect(computed["forge-bind"].art.animationName).toBe("player-hurt-forge-shackle");
     expect(computed["forge-slam"].art.animationName).toBe("player-hurt-forge-slam");
     expect(computed["chain-drag"].art.animationName).toBe("player-hurt-chain-drag");
     expect(computed["chain-smash"].art.animationName).toBe("player-hurt-chain-smash");
-    expect(computed["forge-bind"].art.animationName).not.toBe("player-hurt-react");
+    for (const cue of Object.values(computed)) {
+      expect(cue.art.animationName).not.toBe("player-hurt-react");
+    }
+    expect(computed.light.art.animationDuration).toBe("0.38s");
+    expect(computed.heavy.art.animationDuration).toBe("0.48s");
+    expect(computed["boss-breath"].art.animationDuration).toBe("0.58s");
+    expect(computed.devoured.art.animationDuration).toBe("0.62s");
+    expect(computed["forge-collapse"].art.animationDuration).toBe("0.6s");
+    expect(computed["forge-bind"].art.animationDuration).toBe("0.46s");
     expect(computed["forge-slam"].art.animationDuration).toBe("0.52s");
+    expect(computed["chain-drag"].art.animationDuration).toBe("0.5s");
     expect(computed["chain-smash"].art.animationDuration).toBe("0.56s");
   }, 30000);
 

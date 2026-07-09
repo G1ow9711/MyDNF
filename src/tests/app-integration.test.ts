@@ -706,6 +706,111 @@ describe("playable app integration actions", () => {
     }
   });
 
+  it("clears held mounted movement on window blur so missed keyup cannot keep walking", () => {
+    const previousLocalStorage = globalThis.localStorage;
+    const previousAddEventListener = globalThis.addEventListener;
+    const previousRemoveEventListener = globalThis.removeEventListener;
+    const previousSetInterval = globalThis.setInterval;
+    const previousClearInterval = globalThis.clearInterval;
+    const storage = new MemoryStorage();
+    const listeners = new Map<string, EventListener>();
+    let clickHandler: ((event: Event) => void) | undefined;
+    let tickHandler: (() => void) | undefined;
+    let clearedTickId: number | undefined;
+    const root = {
+      innerHTML: "",
+      addEventListener(type: string, handler: EventListener): void {
+        if (type === "click") {
+          clickHandler = handler as (event: Event) => void;
+        }
+      }
+    } as unknown as HTMLDivElement;
+
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: storage
+    });
+    Object.defineProperty(globalThis, "addEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => listeners.set(type, handler)
+    });
+    Object.defineProperty(globalThis, "removeEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => {
+        if (listeners.get(type) === handler) {
+          listeners.delete(type);
+        }
+      }
+    });
+    Object.defineProperty(globalThis, "setInterval", {
+      configurable: true,
+      value: (handler: () => void) => {
+        tickHandler = handler;
+        return 89;
+      }
+    });
+    Object.defineProperty(globalThis, "clearInterval", {
+      configurable: true,
+      value: (id: number) => {
+        clearedTickId = id;
+      }
+    });
+
+    try {
+      const cleanup = mountApp(root);
+      const enterButton = {
+        dataset: { enterDungeon: "cinder-kiln-alley" },
+        closest: () => enterButton
+      };
+      const keydown = listeners.get("keydown") as ((event: KeyboardEvent) => void) | undefined;
+      const blur = listeners.get("blur") as ((event: Event) => void) | undefined;
+
+      clickHandler?.({ target: enterButton } as unknown as Event);
+      keydown?.({
+        code: "ArrowRight",
+        repeat: false,
+        shiftKey: false,
+        preventDefault: () => undefined
+      } as KeyboardEvent);
+      tickHandler?.();
+
+      const beforeBlurTickX = mountedPlayerActorX(root.innerHTML);
+
+      expect(listeners.has("blur")).toBe(true);
+      blur?.({} as Event);
+      tickHandler?.();
+
+      const afterBlurTickX = mountedPlayerActorX(root.innerHTML);
+
+      expect(afterBlurTickX).toBe(beforeBlurTickX);
+
+      cleanup();
+      expect(listeners.has("blur")).toBe(false);
+      expect(clearedTickId).toBe(89);
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: previousLocalStorage
+      });
+      Object.defineProperty(globalThis, "addEventListener", {
+        configurable: true,
+        value: previousAddEventListener
+      });
+      Object.defineProperty(globalThis, "removeEventListener", {
+        configurable: true,
+        value: previousRemoveEventListener
+      });
+      Object.defineProperty(globalThis, "setInterval", {
+        configurable: true,
+        value: previousSetInterval
+      });
+      Object.defineProperty(globalThis, "clearInterval", {
+        configurable: true,
+        value: previousClearInterval
+      });
+    }
+  });
+
   it("renders the active objective tracker while inside a dungeon", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

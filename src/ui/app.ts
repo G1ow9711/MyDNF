@@ -2797,15 +2797,20 @@ export function mountApp(root: HTMLDivElement): () => void {
         heldCombatKeys.delete(event.code);
       }
     };
+    const clearHeldCombatKeys = () => {
+      heldCombatKeys.clear();
+    };
 
     globalThis.addEventListener?.("keydown", keydownHandler);
     globalThis.addEventListener?.("keyup", keyupHandler);
+    globalThis.addEventListener?.("blur", clearHeldCombatKeys);
 
     render();
 
     return () => {
       globalThis.removeEventListener?.("keydown", keydownHandler);
       globalThis.removeEventListener?.("keyup", keyupHandler);
+      globalThis.removeEventListener?.("blur", clearHeldCombatKeys);
       heldCombatKeys.clear();
       clearCombatTick();
     };

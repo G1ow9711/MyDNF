@@ -3780,3 +3780,20 @@
   - Focused hotkey GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "DNF hotkey skills to enter the action buffer" --reporter=basic`, 1 matched test.
   - Related app/browser suite passed: `npm test -- src/tests/app-integration.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 2 files / 129 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 547 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 149 DNF-Style Mounted Blur Movement Hardening
+- Continued toward self-PC control acceptance after the user's clarification: model geometry can stay lightweight, but real keyboard control feel, smooth motion, strict frames, hit feedback, skill VFX, and monster VFX remain hard gates.
+- Used three parallel read-only agents:
+  - Mounted-control audit found a higher-priority keyboard issue: if browser focus is lost before `keyup`, held movement stays active and can keep walking into gates.
+  - Monster feedback audit found multi-hit monster `feedbackCue` values reach combat/UI feedback nodes but do not yet drive cue-specific player actor hurt animations.
+  - Iron audit found combat math for Iron defensive skills is mostly strict, but UI can still show guard/shield presentation before the real delayed guard-open frame.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` now mounts the app, holds ArrowRight, simulates `blur`, advances the combat tick, and requires player X to stop moving.
+- RED evidence:
+  - Focused mounted RED failed because `listeners.has("blur")` was false; no blur cleanup existed.
+- Implemented:
+  - `src/ui/app.ts` now registers a global `blur` handler that clears `heldCombatKeys`, and cleanup removes that listener.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "clears held mounted movement" --reporter=basic`, 1 matched test.
+  - App integration suite passed: `npm test -- src/tests/app-integration.test.ts --reporter=dot`, 1 file / 111 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 548 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

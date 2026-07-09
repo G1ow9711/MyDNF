@@ -1125,3 +1125,10 @@
 - Hotkey RED note: focused app coverage first failed because `KeyF` returned `undefined` in a 120 ms action lock where `anvil-crash` cooldown would recover in 110 ms, so the keyboard hotkey could not queue.
 - Hotkey fix note: `combatActionForKeyCode()` now accepts the same buffered-cooldown allowance, and mounted keydown passes it for real keyboard input. This keeps unaffordable or too-long cooldown skills blocked while allowing DNF-style early keypress buffering.
 - Queue note: `iron-palm` dynamic target recheck/interruption remains a good regression-coverage candidate, but the implementation appears to already use the shared dynamic hitbox and interruption cancel paths.
+
+## DNF-Style Mounted Blur and Held Movement Findings
+- Current priority follows the user's latest clarification: models can stay lighter, but real keyboard control, smooth motion, strict combat frames, skill VFX, and monster VFX remain hard gates.
+- Mounted-control audit found held movement survived a missed `keyup`: `heldCombatKeys` was cleared only on explicit keyup or cleanup, while the 48 ms combat tick kept converting held keys into movement input.
+- RED note: focused mounted app coverage first failed because no `blur` listener was registered, proving Alt-Tab/browser focus loss could leave ArrowRight held forever.
+- Fix note: mounted combat now clears held movement/dash keys on global `blur` and removes that listener during cleanup. After blur, the next tick no longer changes player X.
+- Queue note: next high-value UI strict-frame candidates are `anvil-guard` showing shield motion before the real guard-open frame, and monster multi-hit `feedbackCue` values not yet driving cue-specific player actor hurt animations.

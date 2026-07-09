@@ -81,7 +81,7 @@ const combatTickMs = 48;
 export type AppAction =
   | { type: "setMode"; mode: AppMode }
   | { type: "enterDungeon"; dungeonId: DungeonId }
-  | { type: "combatTick" }
+  | { type: "combatTick"; moveX?: number; moveY?: number; dash?: boolean }
   | { type: "combatMove"; moveX: number; moveY: number; dash: boolean }
   | { type: "combatAction"; action: "light" | "heavy" | "jump" | "backstep" | "finish" }
   | { type: "combatAction"; action: "skill"; skillId: string; inputMethod?: CombatSkillInputMethod }
@@ -2163,16 +2163,28 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       }
 
       const roomCleared = model.combatRun.enemies.length === 0 || model.combatRun.enemies.every((enemy) => enemy.hp <= 0);
+      const tickInput = {
+        moveX: action.moveX ?? 0,
+        moveY: action.moveY ?? 0,
+        dash: action.dash ?? false
+      };
+      const hasTickMovement = tickInput.moveX !== 0 || tickInput.moveY !== 0;
 
-      if ((roomCleared && !model.combatRun.roomTransition) || model.combatRun.failed || model.combatRun.player.defeated) {
+      if ((roomCleared && !model.combatRun.roomTransition && !hasTickMovement) || model.combatRun.failed || model.combatRun.player.defeated) {
         return model;
       }
 
-      const combatRun = stepCombat(model.combatRun, {}, combatTickMs);
+      const combatRun = stepCombat(model.combatRun, hasTickMovement ? tickInput : {}, combatTickMs);
       const completedTransition = applyFinishedRoomIfResolved(model, model.combatRun, combatRun);
 
       if (completedTransition) {
         return completedTransition;
+      }
+
+      const gateTransition = hasTickMovement ? enterGateIfReady({ ...model, combatRun }, combatRun) : undefined;
+
+      if (gateTransition) {
+        return gateTransition;
       }
 
       return {
@@ -2521,6 +2533,7 @@ function shouldAutoSave(model: AppModel, action: AppAction, previousState: GameS
 export function mountApp(root: HTMLDivElement): () => void {
   let model = createAppModel();
   const audioProcessor = createAudioCommandProcessor(createBrowserAudioSink());
+  const heldCombatKeys = new Set<string>();
 
   function render(): void {
     root.innerHTML = renderAppHtml(model);
@@ -2542,12 +2555,25 @@ export function mountApp(root: HTMLDivElement): () => void {
     model = { ...model, audio: audioProcessor.sync(model.audio) };
   }
 
+  function heldCombatTickAction(): Extract<AppAction, { type: "combatTick" }> {
+    const moveX = (heldCombatKeys.has("ArrowRight") ? 1 : 0) + (heldCombatKeys.has("ArrowLeft") ? -1 : 0);
+    const moveY = (heldCombatKeys.has("ArrowDown") ? 1 : 0) + (heldCombatKeys.has("ArrowUp") ? -1 : 0);
+    const dash = heldCombatKeys.has("ShiftLeft") || heldCombatKeys.has("ShiftRight");
+
+    return {
+      type: "combatTick",
+      moveX: Math.max(-1, Math.min(1, moveX)),
+      moveY: Math.max(-1, Math.min(1, moveY)),
+      dash
+    };
+  }
+
   const combatTickTimer = globalThis.setInterval?.(() => {
     if (model.mode !== "combat" || !model.combatRun) {
       return;
     }
 
-    dispatch({ type: "combatTick" });
+    dispatch(heldCombatTickAction());
     render();
   }, combatTickMs);
 
@@ -2683,6 +2709,7 @@ export function mountApp(root: HTMLDivElement): () => void {
     });
 
     const commandDirectionCodes = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
+    const heldMovementCodes = new Set([...commandDirectionCodes, "ShiftLeft", "ShiftRight"]);
     const commandTerminalCodes = new Set(["KeyZ", "Space"]);
     const commandBufferTtlMs = 700;
     const commandBufferMaxTokens = 5;
@@ -2705,7 +2732,12 @@ export function mountApp(root: HTMLDivElement): () => void {
     const keydownHandler = (event: KeyboardEvent) => {
       if (model.mode !== "combat") {
         commandBuffer = [];
+        heldCombatKeys.clear();
         return;
+      }
+
+      if (heldMovementCodes.has(event.code)) {
+        heldCombatKeys.add(event.code);
       }
 
       const isRepeat = event.repeat;
@@ -2756,13 +2788,21 @@ export function mountApp(root: HTMLDivElement): () => void {
       dispatch(action);
       render();
     };
+    const keyupHandler = (event: KeyboardEvent) => {
+      if (heldMovementCodes.has(event.code)) {
+        heldCombatKeys.delete(event.code);
+      }
+    };
 
     globalThis.addEventListener?.("keydown", keydownHandler);
+    globalThis.addEventListener?.("keyup", keyupHandler);
 
     render();
 
     return () => {
       globalThis.removeEventListener?.("keydown", keydownHandler);
+      globalThis.removeEventListener?.("keyup", keyupHandler);
+      heldCombatKeys.clear();
       clearCombatTick();
     };
   }

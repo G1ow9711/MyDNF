@@ -3737,3 +3737,25 @@
   - Focused app GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "taotie chain cleave" --reporter=basic`, 1 matched test.
   - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 4 files / 444 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 543 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 147 DNF-Style Held Movement and Cleared-Room Gate Control
+- Continued after the user's clarification: character and monster modeling can stay lightweight for now, but combat input feel, smooth movement, actor action changes, strict hit frames, hit feedback, skill VFX, and monster skill VFX remain hard gates.
+- Used three parallel read-only agents:
+  - Combat/control audit found mounted keyboard movement was keydown-only because auto `combatTick` sent empty input and had no held-key or keyup state.
+  - UI/CSS audit queued `night-mark-detonation` target VFX duration/cue hardening as a next high-value visual candidate.
+  - Combat-script audit queued an `iron-palm` live-target/interruption guardrail as a next strict-frame candidate.
+- Added RED coverage:
+  - `src/tests/app-integration.test.ts` now mounts the app, holds ArrowRight, advances captured combat ticks, and requires player actor X to keep increasing until keyup.
+  - `src/tests/app-integration.test.ts` now requires held tick movement after room clear to move into an opened gate and expose `data-room-transition-state="entering"`.
+- RED evidence:
+  - Held-movement RED failed because first tick X equaled keydown X.
+  - Gate RED failed because a cleared room stayed `data-room-gate-transition="ready"` when `combatTick` carried movement input.
+- Implemented:
+  - `src/ui/app.ts` now tracks held Arrow/Shift keys, dispatches tick movement every 48 ms, removes keys on keyup, and clears held state on cleanup or mode exit.
+  - `src/ui/app.ts` now lets `combatTick` accept movement/dash input, applies that movement through `stepCombat`, and calls `enterGateIfReady` for held movement after room clear.
+- Verification so far:
+  - Focused RED/GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "mounts held arrow movement|held combat tick movement" --reporter=basic`, 2 matched tests.
+  - App integration suite passed: `npm test -- src/tests/app-integration.test.ts --reporter=dot`, 109 tests.
+  - Related app/combat suite passed: `npm test -- src/tests/app-integration.test.ts src/tests/combat.test.ts --reporter=dot`, 2 files / 351 tests.
+  - Build passed: `npm run build`.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 545 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

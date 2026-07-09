@@ -1106,3 +1106,12 @@
 - Fix note: defensive shield-open status effects now sort before same-frame monster impacts, while normal offensive same-frame interruption behavior still resolves after enemy impacts.
 - Parallel boss-motion audit found `taotie-chain-cleave` drag/smash VFX existed, but the boss bitmap only had one whole-skill model animation. The new `data-enemy-model-vfx-cue` bridge maps recent non-windup enemy attack events to actor roots, and CSS gives drag and smash separate browser-resolved boss model keyframes.
 - Project-process note: `AGENTS.md` was rewritten as readable UTF-8 Chinese with explicit multi-agent, Chinese commit-message, lightweight-model, and strict-combat/VFX rules for future continuation.
+
+## DNF-Style Held Movement and Gate Entry Findings
+- Current priority follows the user's latest clarification: character and monster geometry can stay simpler while the full gameplay loop is connected, but keyboard control feel, smooth combat motion, real hit frames, hit feedback, skill VFX, and monster skill VFX remain strict gates.
+- Parallel control audit found mounted combat movement was still keydown-only: the auto 48 ms `combatTick` dispatched empty input, there was no held-key state, and there was no keyup path to stop continuous movement.
+- RED note: mounted integration coverage first failed because the player X value after the first held tick equaled the keydown X value, proving movement did not continue while ArrowRight stayed held.
+- Room-flow RED note: `combatTick` returned early after a room was cleared, so held movement could not walk into the opened gate. The gate stayed `data-room-gate-transition="ready"` instead of entering the 480 ms room transition.
+- Fix note: mounted app state now tracks held Arrow and Shift keys, converts them into `combatTick` movement/dash input every tick, removes keys on keyup, and clears held keys on cleanup or mode exit.
+- Gate note: `combatTick` now accepts optional movement input, still blocks dead/failed combat, but allows held movement after room clear and calls `enterGateIfReady` so open-room traversal works without fake combat actions.
+- Queue note: next strict-combat candidates from parallel audits are `night-mark-detonation` target VFX duration/cue hardening and a focused `iron-palm` live-target/interruption guardrail.

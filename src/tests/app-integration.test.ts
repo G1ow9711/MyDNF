@@ -98,6 +98,17 @@ function playerSkillVfxStyleFor(html: string, skillId: string): string {
   return match?.[1] ?? "";
 }
 
+function mountedPlayerActorX(html: string): number {
+  const playerStyle = html.match(/<div class="combat-actor combat-player"[^>]*style="([^"]*)"/)?.[1] ?? "";
+  const actorX = playerStyle.match(/--actor-x: ([0-9.]+)%/)?.[1];
+
+  if (!actorX) {
+    throw new Error("Expected mounted combat player actor x style");
+  }
+
+  return Number(actorX);
+}
+
 function skillHitEvents(run: CombatRun, skillId: string): CombatHitEvent[] {
   return run.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.skillId === skillId);
 }
@@ -464,6 +475,23 @@ describe("playable app integration actions", () => {
     expect(nextRoomHtml).not.toContain('data-room-gate-vfx="open-rift"');
   });
 
+  it("uses held combat tick movement to enter an open room gate", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = defeatCurrentRoom(model);
+
+    expect(renderAppHtml(model)).toContain('data-room-gate-transition="ready"');
+
+    for (let attempt = 0; attempt < 30 && !renderAppHtml(model).includes('data-room-gate-transition="entering"'); attempt += 1) {
+      model = reduceAppAction(model, { type: "combatTick", moveX: 1, moveY: 0, dash: true });
+    }
+
+    expect(model.combatRun?.roomIndex).toBe(0);
+    expect(renderAppHtml(model)).toContain('data-room-gate-transition="entering"');
+    expect(renderAppHtml(model)).toContain('data-room-transition-state="entering"');
+  });
+
   it("maps PC movement keys to combat movement actions", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 
@@ -555,6 +583,125 @@ describe("playable app integration actions", () => {
       Object.defineProperty(globalThis, "removeEventListener", {
         configurable: true,
         value: previousRemoveEventListener
+      });
+    }
+  });
+
+  it("mounts held arrow movement across combat ticks and stops on keyup", () => {
+    const previousLocalStorage = globalThis.localStorage;
+    const previousAddEventListener = globalThis.addEventListener;
+    const previousRemoveEventListener = globalThis.removeEventListener;
+    const previousSetInterval = globalThis.setInterval;
+    const previousClearInterval = globalThis.clearInterval;
+    const storage = new MemoryStorage();
+    const listeners = new Map<string, EventListener>();
+    let clickHandler: ((event: Event) => void) | undefined;
+    let tickHandler: (() => void) | undefined;
+    let clearedTickId: number | undefined;
+    const root = {
+      innerHTML: "",
+      addEventListener(type: string, handler: EventListener): void {
+        if (type === "click") {
+          clickHandler = handler as (event: Event) => void;
+        }
+      }
+    } as unknown as HTMLDivElement;
+
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: storage
+    });
+    Object.defineProperty(globalThis, "addEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => listeners.set(type, handler)
+    });
+    Object.defineProperty(globalThis, "removeEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => {
+        if (listeners.get(type) === handler) {
+          listeners.delete(type);
+        }
+      }
+    });
+    Object.defineProperty(globalThis, "setInterval", {
+      configurable: true,
+      value: (handler: () => void) => {
+        tickHandler = handler;
+        return 88;
+      }
+    });
+    Object.defineProperty(globalThis, "clearInterval", {
+      configurable: true,
+      value: (id: number) => {
+        clearedTickId = id;
+      }
+    });
+
+    try {
+      const cleanup = mountApp(root);
+      const enterButton = {
+        dataset: { enterDungeon: "cinder-kiln-alley" },
+        closest: () => enterButton
+      };
+      const keydown = listeners.get("keydown") as ((event: KeyboardEvent) => void) | undefined;
+      const keyup = listeners.get("keyup") as ((event: KeyboardEvent) => void) | undefined;
+
+      clickHandler?.({ target: enterButton } as unknown as Event);
+
+      const startX = mountedPlayerActorX(root.innerHTML);
+
+      keydown?.({
+        code: "ArrowRight",
+        repeat: false,
+        shiftKey: false,
+        preventDefault: () => undefined
+      } as KeyboardEvent);
+
+      const keydownX = mountedPlayerActorX(root.innerHTML);
+
+      tickHandler?.();
+      const firstTickX = mountedPlayerActorX(root.innerHTML);
+      tickHandler?.();
+      const secondTickX = mountedPlayerActorX(root.innerHTML);
+
+      keyup?.({
+        code: "ArrowRight",
+        preventDefault: () => undefined
+      } as KeyboardEvent);
+
+      tickHandler?.();
+      const stoppedX = mountedPlayerActorX(root.innerHTML);
+
+      expect(keydownX).toBeGreaterThan(startX);
+      expect(firstTickX).toBeGreaterThan(keydownX);
+      expect(secondTickX).toBeGreaterThan(firstTickX);
+      expect(stoppedX).toBe(secondTickX);
+      expect(root.innerHTML).not.toContain('data-command-release-source="manual"');
+
+      cleanup();
+      expect(listeners.has("keydown")).toBe(false);
+      expect(listeners.has("keyup")).toBe(false);
+      expect(clearedTickId).toBe(88);
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: previousLocalStorage
+      });
+      Object.defineProperty(globalThis, "addEventListener", {
+        configurable: true,
+        value: previousAddEventListener
+      });
+      Object.defineProperty(globalThis, "removeEventListener", {
+        configurable: true,
+        value: previousRemoveEventListener
+      });
+      Object.defineProperty(globalThis, "setInterval", {
+        configurable: true,
+        value: previousSetInterval
+      });
+      Object.defineProperty(globalThis, "clearInterval", {
+        configurable: true,
+        value: previousClearInterval
       });
     }
   });

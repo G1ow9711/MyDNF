@@ -5458,9 +5458,17 @@ type ScheduledCombatEffectItem =
   | { kind: "enemy-impact"; enemyId: string; occurredAtMs: number }
   | { kind: "arena-hazard"; hazard: CombatScheduledArenaHazard; occurredAtMs: number };
 
+function isDefensivePlayerStatusEffect(effect: CombatScheduledEnemyHitEffect): boolean {
+  return effect.targetId === undefined && effect.damage === 0 && effect.playerShieldWindowMs !== undefined;
+}
+
 function scheduledCombatEffectPriority(item: ScheduledCombatEffectItem): number {
   if (item.kind === "arena-hazard") {
     return 0;
+  }
+
+  if (item.kind === "enemy-hit" && isDefensivePlayerStatusEffect(item.effect)) {
+    return 0.5;
   }
 
   if (item.kind === "enemy-impact") {

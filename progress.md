@@ -3707,3 +3707,33 @@
   - Combat suite passed: `npm test -- src/tests/combat.test.ts --reporter=dot`, 241 tests.
   - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 440 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 539 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 146 DNF-Style Target VFX Durations, Guard Same-Frame Priority, and Taotie Chain Motion
+- Continued after the user's clarification: character and monster geometry can stay simpler for now, but combat animation flow, strict hit frames, model-following attacks, hit feedback, skill VFX, and monster skill VFX remain hard gates.
+- Used three parallel read-only agents:
+  - Target-impact VFX audit found `meteor-knuckle` and `mirrorflame-burst` target impact subparts still used generic or fixed-duration browser CSS despite event-level cues/windows.
+  - Guard-priority audit found targetless defensive shield-open effects resolved after same-frame monster impacts, so `anvil-guard` could fail on its exact open frame.
+  - Boss-motion audit found `taotie-chain-cleave` drag/smash events had skill VFX cues, but the boss model still exposed one whole-skill attack animation.
+- Added RED coverage:
+  - `src/tests/browser-computed-style.test.ts` now verifies `meteor-knuckle` target fall/impact core/ring/shards animation names and 420/640 ms windows in a real browser.
+  - `src/tests/browser-computed-style.test.ts` now verifies `mirrorflame-burst` target lock/burst core/ring/shards animation names and 420/560 ms windows in a real browser.
+  - `src/tests/combat.test.ts` now requires `anvil-guard` shield-open to resolve before a same-frame `ash-ember-spit` impact and mitigate that hit.
+  - `src/tests/app-integration.test.ts` and `src/tests/browser-computed-style.test.ts` now require `taotie-chain-cleave` drag/smash model cues and distinct boss model animations.
+- RED evidence:
+  - Meteor browser RED failed because fall ring still computed generic `meteor-ground-crack`.
+  - Mirrorflame browser RED failed because lock ring duration computed `0.48s` instead of the event window `0.42s`.
+  - Guard RED failed because the same-frame shield-open status event was absent before the monster hit.
+  - Chain-cleave app/browser RED failed because HTML lacked `data-enemy-model-vfx-cue` and browser CSS computed `monster-taotie-chain-cleave` instead of drag/smash keyframes.
+- Implemented:
+  - `src/styles.css` now cue-gates meteor fall/impact target core/ring/shards and mirrorflame lock/burst target core/ring/shards through `var(--skill-duration)`.
+  - `src/game/combat.ts` now gives targetless defensive shield status effects priority before same-frame monster impacts while preserving existing offensive interruption ordering.
+  - `src/ui/app.ts` now maps recent non-windup enemy attack events into `data-enemy-model-vfx-cue` on enemy actor roots.
+  - `src/styles.css` now adds distinct `monster-taotie-chain-cleave-drag` and `monster-taotie-chain-cleave-smash` model animations.
+  - `src/tests/support/real-browser-computed-style.ts` now supports enemy model cue fixtures.
+  - `AGENTS.md` was rewritten as readable UTF-8 Chinese and preserves the project rule to use parallel agents when safe, keep Chinese git messages, and treat combat motion/VFX as strict acceptance gates while models stay lightweight in this phase.
+- Verification:
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "meteor-knuckle target impact|mirrorflame-burst lock and burst target|taotie-chain-cleave drag and smash boss model" --reporter=basic`, 3 matched tests.
+  - Focused combat GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "opens anvil-guard before same-frame|same-frame monster impact interrupt spark-combo|same-frame monster impact interrupt glass-cut|same-frame monster impacts interrupt ink-snare|delays anvil-guard mitigation|emits non-damage shield-open|cancels anvil-guard opening" --reporter=basic`, 7 matched tests.
+  - Focused app GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "taotie chain cleave" --reporter=basic`, 1 matched test.
+  - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 4 files / 444 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 543 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

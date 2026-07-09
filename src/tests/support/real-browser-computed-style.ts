@@ -17,6 +17,7 @@ export type EnemyModelMotionFixture = {
   motion: string;
   skillId?: string;
   bossPhaseSkillId?: string;
+  cue?: string;
   durationMs?: number;
 };
 
@@ -656,6 +657,7 @@ function enemyModelMotionFixtureMarkup(fixture: EnemyModelMotionFixture): string
     data-enemy-motion="${escapeAttribute(fixture.motion)}"
     data-enemy-attack-skill-id="${escapeAttribute(fixture.skillId ?? "")}"
     data-boss-phase-skill-id="${escapeAttribute(fixture.bossPhaseSkillId ?? "")}"
+    data-enemy-model-vfx-cue="${escapeAttribute(fixture.cue ?? "")}"
     style="--enemy-attack-duration: ${durationMs}ms; --model-scale-x: -1;"
   >
     <span class="enemy-art actor-model actor-model-${escapeAttribute(fixture.motion)}${skillClass}"></span>

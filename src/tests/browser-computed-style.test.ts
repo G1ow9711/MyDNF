@@ -84,6 +84,33 @@ describe("real browser computed style regressions", () => {
     expect(computed["taotie-forge-collapse"].art.animationDuration).toBe("1.18s");
   }, 30000);
 
+  it("uses taotie-chain-cleave drag and smash boss model animations in the browser cascade", async () => {
+    const fixtures: EnemyModelMotionFixture[] = [
+      {
+        key: "drag",
+        motion: "attack",
+        skillId: "taotie-chain-cleave",
+        cue: "taotie-chain-cleave-drag",
+        durationMs: 970
+      },
+      {
+        key: "smash",
+        motion: "attack",
+        skillId: "taotie-chain-cleave",
+        cue: "taotie-chain-cleave-smash",
+        durationMs: 970
+      }
+    ];
+    const computed = await computeEnemyModelMotionStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.drag.art.animationName).toBe("monster-taotie-chain-cleave-drag");
+    expect(computed.smash.art.animationName).toBe("monster-taotie-chain-cleave-smash");
+    expect(computed.drag.art.animationName).not.toBe("monster-taotie-chain-cleave");
+    expect(computed.smash.art.animationName).not.toBe("monster-taotie-chain-cleave");
+    expect(computed.drag.art.animationDuration).toBe("0.97s");
+    expect(computed.smash.art.animationDuration).toBe("0.97s");
+  }, 30000);
+
   it("uses dedicated enter-rift animations for room gate transition", async () => {
     const fixtures: RoomGateFixture[] = [
       { key: "open-ready", vfx: "open-rift", transition: "ready", durationMs: 480 },
@@ -372,6 +399,27 @@ describe("real browser computed style regressions", () => {
     expect(computed.burst.skillVfx.core.animationName).not.toBe("mirrorflame-cast-core");
   }, 30000);
 
+  it("uses mirrorflame-burst lock and burst target impact VFX durations in the browser cascade", async () => {
+    const fixtures: SkillImpactVfxFixture[] = [
+      { key: "lock", shape: "mirrorflame-burst", phase: "mirrorflame-lock", cue: "mirrorflame-lock", durationMs: 420 },
+      { key: "burst", shape: "mirrorflame-burst", phase: "mirrorflame-burst", cue: "mirrorflame-burst", durationMs: 560 }
+    ];
+    const computed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.lock.core.animationName).toBe("mirrorflame-lock-core");
+    expect(computed.lock.ring.animationName).toBe("mirrorflame-lock-ring");
+    expect(computed.lock.shards.animationName).toBe("mirrorflame-lock-shards");
+    expect(computed.burst.core.animationName).toBe("mirrorflame-burst-core");
+    expect(computed.burst.ring.animationName).toBe("mirrorflame-burst-ring");
+    expect(computed.burst.shards.animationName).toBe("mirrorflame-burst-shards");
+    expect(computed.lock.core.animationDuration).toBe("0.42s");
+    expect(computed.lock.ring.animationDuration).toBe("0.42s");
+    expect(computed.lock.shards.animationDuration).toBe("0.42s");
+    expect(computed.burst.core.animationDuration).toBe("0.56s");
+    expect(computed.burst.ring.animationDuration).toBe("0.56s");
+    expect(computed.burst.shards.animationDuration).toBe("0.56s");
+  }, 30000);
+
   it("uses staged Ink snare and mechanism net root VFX animations in the browser cascade", async () => {
     const fixtures: PlayerSkillPhaseFixture[] = [
       {
@@ -499,6 +547,27 @@ describe("real browser computed style regressions", () => {
     expect(computed.eruption.core.animationDuration).toBe("0.52s");
     expect(computed.eruption.ring.animationDuration).toBe("0.52s");
     expect(computed.eruption.shards.animationDuration).toBe("0.52s");
+  }, 30000);
+
+  it("uses staged meteor-knuckle target impact animations in the browser cascade", async () => {
+    const fixtures: SkillImpactVfxFixture[] = [
+      { key: "fall", shape: "meteor-impact", phase: "fall", cue: "meteor-fall", durationMs: 420 },
+      { key: "impact", shape: "meteor-impact", phase: "impact", cue: "meteor-impact", durationMs: 640 }
+    ];
+    const computed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.fall.core.animationName).toBe("meteor-fall-core");
+    expect(computed.fall.ring.animationName).toBe("meteor-fall-ring");
+    expect(computed.fall.shards.animationName).toBe("meteor-fall-shards");
+    expect(computed.impact.core.animationName).toBe("meteor-impact-core");
+    expect(computed.impact.ring.animationName).toBe("meteor-impact-ring");
+    expect(computed.impact.shards.animationName).toBe("meteor-impact-shards");
+    expect(computed.fall.core.animationDuration).toBe("0.42s");
+    expect(computed.fall.ring.animationDuration).toBe("0.42s");
+    expect(computed.fall.shards.animationDuration).toBe("0.42s");
+    expect(computed.impact.core.animationDuration).toBe("0.64s");
+    expect(computed.impact.ring.animationDuration).toBe("0.64s");
+    expect(computed.impact.shards.animationDuration).toBe("0.64s");
   }, 30000);
 
   it("uses class and tier specific weapon silhouettes in the browser cascade", async () => {

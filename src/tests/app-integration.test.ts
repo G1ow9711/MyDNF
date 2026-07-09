@@ -5195,6 +5195,7 @@ describe("playable app integration actions", () => {
     expect(dragHtml).toContain('data-player-bound-active="true"');
     expect(dragHtml).toContain('data-enemy-skill-vfx="taotie-chain-cleave"');
     expect(dragHtml).toContain('data-enemy-vfx-cue="taotie-chain-cleave-drag"');
+    expect(dragHtml).toContain('data-enemy-model-vfx-cue="taotie-chain-cleave-drag"');
     expect(dragHtml).toContain('data-feedback-skill-id="taotie-chain-cleave"');
     expect(dragHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-chain-cleave"');
 
@@ -5213,6 +5214,7 @@ describe("playable app integration actions", () => {
 
     expect(smashHtml).toContain('data-enemy-skill-vfx="taotie-chain-cleave"');
     expect(smashHtml).toContain('data-enemy-vfx-cue="taotie-chain-cleave-smash"');
+    expect(smashHtml).toContain('data-enemy-model-vfx-cue="taotie-chain-cleave-smash"');
     expect(smashHtml).toContain('data-player-feedback-cue="player-hurt-chain-smash"');
     expect(smashHtml).not.toContain('data-enemy-skill-vfx="taotie-flame-breath"');
   });

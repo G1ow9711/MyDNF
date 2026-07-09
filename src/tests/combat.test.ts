@@ -7514,6 +7514,50 @@ describe("combat actions and impact feel", () => {
     expect(afterGuardHit.player.shieldUntilMs).toBeLessThanOrEqual(afterGuardHit.elapsedMs);
   });
 
+  it("opens anvil-guard before same-frame monster impacts so mitigation applies on the guard frame", () => {
+    const state = withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 40);
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 310, y: 340, hp: 180, maxHp: 180, armor: 0 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "anvil-guard" });
+    const [guardAtMs] = scheduledSkillTimes(cast, "anvil-guard");
+    const sameFrameRun: CombatRun = {
+      ...cast,
+      enemies: cast.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: guardAtMs,
+              attackRecoverUntilMs: guardAtMs + 520,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const resolved = stepToElapsed(sameFrameRun, guardAtMs);
+    const playerHits = resolved.events.filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(playerStatusEvents(resolved, "anvil-guard")).toMatchObject([
+      { kind: "player-status", occurredAtMs: guardAtMs, vfxCue: "anvil-guard-open" }
+    ]);
+    expect(playerHits).toHaveLength(1);
+    expect(playerHits[0]).toMatchObject({
+      skillId: "ash-ember-spit",
+      occurredAtMs: guardAtMs
+    });
+    expect(playerHits[0].damage).toBeLessThan(20);
+    expect(skillHitEvents(resolved, "anvil-guard")).toHaveLength(0);
+  });
+
   it("emits non-damage shield-open VFX events on real guard frames", () => {
     const state = advanceClass(
       readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "iron-forge-guardian"), 100)),

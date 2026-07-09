@@ -5,10 +5,12 @@ import {
   computePlayerSkillPhaseStylesInRealBrowser,
   computeRoomGateStylesInRealBrowser,
   computeSkillImpactVfxStylesInRealBrowser,
+  computeWeaponLayerStylesInRealBrowser,
   type EnemyVfxFixture,
   type PlayerSkillPhaseFixture,
   type RoomGateFixture,
-  type SkillImpactVfxFixture
+  type SkillImpactVfxFixture,
+  type WeaponLayerFixture
 } from "./support/real-browser-computed-style";
 
 const stylesCss = readFileSync("src/styles.css", "utf8");
@@ -307,5 +309,134 @@ describe("real browser computed style regressions", () => {
     expect(computed.open.core.animationDuration).toBe("0.3s");
     expect(computed.fall.core.animationDuration).toBe("0.36s");
     expect(computed.burst.core.animationDuration).toBe("0.44s");
+  }, 30000);
+
+  it("uses distinct heat-bloom draw and eruption impact animations in the browser cascade", async () => {
+    const fixtures: SkillImpactVfxFixture[] = [
+      { key: "draw", shape: "heat-bloom", phase: "heat-draw", cue: "heat-bloom-draw", durationMs: 340 },
+      { key: "eruption", shape: "heat-bloom", phase: "heat-eruption", cue: "heat-bloom-eruption", durationMs: 520 }
+    ];
+    const computed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.draw.core.animationName).toBe("heat-bloom-draw-core");
+    expect(computed.draw.ring.animationName).toBe("heat-bloom-draw-ring");
+    expect(computed.draw.shards.animationName).toBe("heat-bloom-draw-shards");
+    expect(computed.eruption.core.animationName).toBe("heat-bloom-eruption-core");
+    expect(computed.eruption.ring.animationName).toBe("heat-bloom-eruption-ring");
+    expect(computed.eruption.shards.animationName).toBe("heat-bloom-eruption-shards");
+    expect(computed.draw.core.animationName).not.toBe("heat-bloom-eruption-core");
+    expect(computed.draw.core.animationDuration).toBe("0.34s");
+    expect(computed.draw.ring.animationDuration).toBe("0.34s");
+    expect(computed.draw.shards.animationDuration).toBe("0.34s");
+    expect(computed.eruption.core.animationDuration).toBe("0.52s");
+    expect(computed.eruption.ring.animationDuration).toBe("0.52s");
+    expect(computed.eruption.shards.animationDuration).toBe("0.52s");
+  }, 30000);
+
+  it("uses class and tier specific weapon silhouettes in the browser cascade", async () => {
+    const fixtures: WeaponLayerFixture[] = [
+      {
+        key: "ember-novice",
+        classId: "ember-warden",
+        type: "furnace-gauntlet",
+        tier: "novice",
+        rarity: "common",
+        silhouette: "gauntlet-claw",
+        primary: "#7c2d12",
+        secondary: "#1f2937",
+        glow: "#fb923c"
+      },
+      {
+        key: "ember-mythic",
+        classId: "ember-warden",
+        type: "furnace-gauntlet",
+        tier: "mythic",
+        rarity: "mythic",
+        silhouette: "gauntlet-meteor",
+        primary: "#7f1d1d",
+        secondary: "#fbbf24",
+        glow: "#fff7ed"
+      },
+      {
+        key: "liuli-novice",
+        classId: "liuli-blademage",
+        type: "liuli-blade",
+        tier: "novice",
+        rarity: "common",
+        silhouette: "glass-saber",
+        primary: "#0891b2",
+        secondary: "#334155",
+        glow: "#67e8f9"
+      },
+      {
+        key: "liuli-mythic",
+        classId: "liuli-blademage",
+        type: "liuli-blade",
+        tier: "mythic",
+        rarity: "mythic",
+        silhouette: "heaven-mirror-sword",
+        primary: "#22d3ee",
+        secondary: "#f0abfc",
+        glow: "#ffffff"
+      },
+      {
+        key: "ink-novice",
+        classId: "ink-shadow-ranger",
+        type: "mechanism-crossbow",
+        tier: "novice",
+        rarity: "common",
+        silhouette: "compact-crossbow",
+        primary: "#111827",
+        secondary: "#4c1d95",
+        glow: "#a78bfa"
+      },
+      {
+        key: "ink-mythic",
+        classId: "ink-shadow-ranger",
+        type: "mechanism-crossbow",
+        tier: "mythic",
+        rarity: "mythic",
+        silhouette: "void-rain-crossbow",
+        primary: "#030712",
+        secondary: "#a855f7",
+        glow: "#faf5ff"
+      },
+      {
+        key: "iron-novice",
+        classId: "iron-forge-guardian",
+        type: "forge-shield",
+        tier: "novice",
+        rarity: "common",
+        silhouette: "round-shield",
+        primary: "#44403c",
+        secondary: "#1c1917",
+        glow: "#fb923c"
+      },
+      {
+        key: "iron-mythic",
+        classId: "iron-forge-guardian",
+        type: "forge-shield",
+        tier: "mythic",
+        rarity: "mythic",
+        silhouette: "mountain-forge-shield",
+        primary: "#1c1917",
+        secondary: "#f97316",
+        glow: "#fff7ed"
+      }
+    ];
+    const computed = await computeWeaponLayerStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed["ember-novice"].layer.width).toBe("82px");
+    expect(computed["liuli-novice"].layer.width).toBe("70px");
+    expect(computed["ink-novice"].layer.width).toBe("78px");
+    expect(computed["iron-novice"].layer.width).toBe("82px");
+
+    expect(computed["ember-mythic"].after.width).not.toBe(computed["ember-novice"].after.width);
+    expect(computed["ember-mythic"].after.boxShadow).not.toBe(computed["ember-novice"].after.boxShadow);
+    expect(computed["liuli-mythic"].before.clipPath).not.toBe(computed["liuli-novice"].before.clipPath);
+    expect(computed["ink-mythic"].after.borderTopWidth).not.toBe(computed["ink-novice"].after.borderTopWidth);
+    expect(computed["iron-mythic"].before.borderRadius).not.toBe(computed["iron-novice"].before.borderRadius);
+    expect(computed["liuli-mythic"].shape.backgroundImage).not.toBe("none");
+    expect(computed["ember-mythic"].layer.filter).toContain("drop-shadow");
   }, 30000);
 });

@@ -52,6 +52,18 @@ export type SkillImpactVfxFixture = {
   durationMs?: number;
 };
 
+export type WeaponLayerFixture = {
+  key: string;
+  classId: string;
+  type: string;
+  tier: string;
+  rarity: string;
+  silhouette: string;
+  primary?: string;
+  secondary?: string;
+  glow?: string;
+};
+
 export type ComputedRoomGateStyles = Record<
   string,
   {
@@ -80,6 +92,40 @@ export type ComputedSkillImpactVfxStyles = Record<
     core: ComputedVfxPartStyle;
     ring: ComputedVfxPartStyle;
     shards: ComputedVfxPartStyle;
+  }
+>;
+
+export type ComputedWeaponLayerStyles = Record<
+  string,
+  {
+    layer: {
+      width: string;
+      height: string;
+      filter: string;
+    };
+    shape: {
+      width: string;
+      height: string;
+      backgroundImage: string;
+    };
+    before: {
+      width: string;
+      height: string;
+      borderRadius: string;
+      clipPath: string;
+      transform: string;
+      boxShadow: string;
+      backgroundImage: string;
+    };
+    after: {
+      width: string;
+      height: string;
+      borderRadius: string;
+      borderTopWidth: string;
+      transform: string;
+      boxShadow: string;
+      backgroundImage: string;
+    };
   }
 >;
 
@@ -303,6 +349,60 @@ export async function computeSkillImpactVfxStylesInRealBrowser(
               }];
             })
           );
+        }
+        return result;
+      })()
+    `
+  );
+}
+
+export async function computeWeaponLayerStylesInRealBrowser(
+  css: string,
+  fixtures: WeaponLayerFixture[]
+): Promise<ComputedWeaponLayerStyles> {
+  return computeStylesInRealBrowser(
+    css,
+    fixtures.map((fixture) => weaponLayerFixtureMarkup(fixture)).join("\n"),
+    `
+      (() => {
+        const result = {};
+        for (const root of document.querySelectorAll("[data-weapon-fixture]")) {
+          const layer = root.querySelector(".weapon-layer");
+          const shape = root.querySelector(".weapon-shape");
+          const layerStyle = getComputedStyle(layer);
+          const shapeStyle = getComputedStyle(shape);
+          const beforeStyle = getComputedStyle(shape, "::before");
+          const afterStyle = getComputedStyle(shape, "::after");
+          result[root.getAttribute("data-weapon-fixture")] = {
+            layer: {
+              width: layerStyle.width,
+              height: layerStyle.height,
+              filter: layerStyle.filter
+            },
+            shape: {
+              width: shapeStyle.width,
+              height: shapeStyle.height,
+              backgroundImage: shapeStyle.backgroundImage
+            },
+            before: {
+              width: beforeStyle.width,
+              height: beforeStyle.height,
+              borderRadius: beforeStyle.borderRadius,
+              clipPath: beforeStyle.clipPath,
+              transform: beforeStyle.transform,
+              boxShadow: beforeStyle.boxShadow,
+              backgroundImage: beforeStyle.backgroundImage
+            },
+            after: {
+              width: afterStyle.width,
+              height: afterStyle.height,
+              borderRadius: afterStyle.borderRadius,
+              borderTopWidth: afterStyle.borderTopWidth,
+              transform: afterStyle.transform,
+              boxShadow: afterStyle.boxShadow,
+              backgroundImage: afterStyle.backgroundImage
+            }
+          };
         }
         return result;
       })()
@@ -558,6 +658,26 @@ function skillImpactVfxFixtureMarkup(fixture: SkillImpactVfxFixture): string {
     <span class="skill-impact-core"></span>
     <span class="skill-impact-ring"></span>
     <span class="skill-impact-shards"></span>
+    </div>`;
+}
+
+function weaponLayerFixtureMarkup(fixture: WeaponLayerFixture): string {
+  const primary = fixture.primary ?? "#334155";
+  const secondary = fixture.secondary ?? "#93c5fd";
+  const glow = fixture.glow ?? "#93c5fd";
+
+  return `<div data-weapon-fixture="${escapeAttribute(fixture.key)}">
+    <span
+      class="weapon-layer weapon-layer-${escapeAttribute(fixture.rarity)}"
+      data-weapon-appearance-id="weapon-${escapeAttribute(fixture.classId)}-${escapeAttribute(fixture.tier)}"
+      data-weapon-class-id="${escapeAttribute(fixture.classId)}"
+      data-weapon-type="${escapeAttribute(fixture.type)}"
+      data-weapon-tier="${escapeAttribute(fixture.tier)}"
+      data-weapon-rarity="${escapeAttribute(fixture.rarity)}"
+      style="--weapon-primary: ${escapeAttribute(primary)}; --weapon-secondary: ${escapeAttribute(secondary)}; --weapon-glow: ${escapeAttribute(glow)};"
+    >
+      <span class="weapon-shape weapon-shape-${escapeAttribute(fixture.silhouette)}"></span>
+    </span>
   </div>`;
 }
 

@@ -1450,6 +1450,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       damageMultipliers: [0.55, 1.45],
       knockbackByHit: [0, 74],
       boundMsByHit: [360, 0],
+      requiresPreviousHitByHit: [false, true],
       jumpEvade: true
     };
   }

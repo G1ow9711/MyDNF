@@ -3610,3 +3610,29 @@
   - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "mirrorflame-burst lock" --reporter=basic`, 1 matched test.
   - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 430 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 529 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 142 DNF-Style Weapon Silhouettes, Heat Bloom VFX, and Taotie Shackle Link
+- Continued toward the full DNF-style objective: build systems can stay playable-first, but class/level weapon identity, strict skill VFX windows, monster chain-hit truth, and browser verification remain required.
+- Used two parallel read-only agents:
+  - Combat audit found `taotie-forge-shackle` slam did not require bind to connect first.
+  - UI/CSS audit found `heat-bloom` target impact DOM had draw/eruption cues, but eruption lacked explicit cue-gated browser CSS and draw subparts did not all use the real runtime window.
+- Added RED coverage:
+  - `src/tests/browser-computed-style.test.ts` now verifies real browser weapon layer geometry for four class weapon types and mythic silhouette differences.
+  - `src/tests/browser-computed-style.test.ts` now verifies `heat-bloom` draw/eruption target impact core/ring/shards names and runtime durations.
+  - `src/tests/combat.test.ts` now requires `taotie-forge-shackle` slam to MISS after bind was dodged, even if the player re-enters before slam.
+- RED evidence:
+  - Weapon browser RED failed because `gauntlet-meteor` after-width matched `gauntlet-claw`.
+  - Heat-bloom browser RED failed because draw ring computed `0.38s` instead of the real `0.34s` window.
+  - Forge-shackle combat RED failed because slam became `active` after bind missed.
+- Implemented:
+  - `src/styles.css` now gives mythic gauntlet, sword, crossbow, and shield silhouettes distinct pseudo-element geometry.
+  - `src/styles.css` now cue-gates `heat-bloom-draw` and `heat-bloom-eruption` impact animations through `var(--skill-duration)`.
+  - `src/game/combat.ts` now sets `requiresPreviousHitByHit: [false, true]` for `taotie-forge-shackle`.
+  - `src/tests/support/real-browser-computed-style.ts` now includes reusable weapon-layer computed-style fixtures.
+- Verification so far:
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "weapon silhouettes" --reporter=basic`, 1 matched test.
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "heat-bloom draw" --reporter=basic`, 1 matched test.
+  - Focused combat GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "does not let taotie forge shackle slam" --reporter=basic`, 1 matched test.
+  - Focused combat GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "taotie forge shackle|taotie chain cleave" --reporter=basic`, 7 matched tests.
+  - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 433 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 532 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

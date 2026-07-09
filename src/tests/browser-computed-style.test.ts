@@ -306,6 +306,50 @@ describe("real browser computed style regressions", () => {
     expect(computed["shield-jab"].shards.animationDuration).toBe("0.26s");
   }, 30000);
 
+  it("uses defensive shield-open status VFX durations from the open-frame event window", async () => {
+    const fixtures: SkillImpactVfxFixture[] = [
+      { key: "anvil", shape: "guard-rune", cue: "anvil-guard-open", durationMs: 520, status: true },
+      { key: "wall", shape: "molten-wall", cue: "molten-wall-open", durationMs: 520, status: true },
+      { key: "aegis", shape: "black-aegis", cue: "black-aegis-open", durationMs: 520, status: true }
+    ];
+    const computed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.anvil.core.animationName).toBe("guard-rune-open-core");
+    expect(computed.anvil.ring.animationName).toBe("guard-rune-open-ring");
+    expect(computed.anvil.shards.animationName).toBe("guard-rune-open-shards");
+    expect(computed.wall.core.animationName).toBe("molten-wall-open-core");
+    expect(computed.wall.ring.animationName).toBe("molten-wall-open-ring");
+    expect(computed.wall.shards.animationName).toBe("molten-wall-open-shards");
+    expect(computed.aegis.core.animationName).toBe("black-aegis-open-core");
+    expect(computed.aegis.ring.animationName).toBe("black-aegis-open-ring");
+    expect(computed.aegis.shards.animationName).toBe("black-aegis-open-shards");
+
+    for (const style of Object.values(computed).flatMap((parts) => Object.values(parts))) {
+      expect(style.animationDuration).toBe("0.52s");
+    }
+  }, 30000);
+
+  it("uses Iron roar and quake target impact VFX durations from their hit event windows", async () => {
+    const fixtures: SkillImpactVfxFixture[] = [
+      { key: "roar", shape: "furnace-roar", phase: "furnace-roar", cue: "furnace-roar-impact", durationMs: 380 },
+      { key: "quake", shape: "shield-quake", phase: "shield-quake", cue: "shield-quake-impact", durationMs: 360 }
+    ];
+    const computed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.roar.core.animationName).toBe("furnace-roar-impact-core");
+    expect(computed.roar.ring.animationName).toBe("furnace-roar-impact-ring");
+    expect(computed.roar.shards.animationName).toBe("furnace-roar-impact-shards");
+    expect(computed.roar.core.animationDuration).toBe("0.38s");
+    expect(computed.roar.ring.animationDuration).toBe("0.38s");
+    expect(computed.roar.shards.animationDuration).toBe("0.38s");
+    expect(computed.quake.core.animationName).toBe("shield-quake-impact-core");
+    expect(computed.quake.ring.animationName).toBe("shield-quake-impact-ring");
+    expect(computed.quake.shards.animationName).toBe("shield-quake-impact-shards");
+    expect(computed.quake.core.animationDuration).toBe("0.36s");
+    expect(computed.quake.ring.animationDuration).toBe("0.36s");
+    expect(computed.quake.shards.animationDuration).toBe("0.36s");
+  }, 30000);
+
   it("uses earth-furnace-breaker crack and eruption root VFX animations in the browser cascade", async () => {
     const fixtures: PlayerSkillPhaseFixture[] = [
       {

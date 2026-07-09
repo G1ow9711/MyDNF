@@ -2984,6 +2984,18 @@ p {
   animation: furnace-roar-impact-shards 460ms ease-out both;
 }
 
+.skill-impact-shape-furnace-roar[data-vfx-cue="furnace-roar-impact"] .skill-impact-core {
+  animation-duration: var(--skill-duration, 380ms);
+}
+
+.skill-impact-shape-furnace-roar[data-vfx-cue="furnace-roar-impact"] .skill-impact-ring {
+  animation-duration: var(--skill-duration, 380ms);
+}
+
+.skill-impact-shape-furnace-roar[data-vfx-cue="furnace-roar-impact"] .skill-impact-shards {
+  animation-duration: var(--skill-duration, 380ms);
+}
+
 .skill-impact-shape-shield-quake {
   width: 210px;
   height: 132px;
@@ -3021,6 +3033,18 @@ p {
     radial-gradient(circle at 26% 66%, rgba(250, 204, 21, 0.95) 0 5px, transparent 6px),
     radial-gradient(circle at 72% 38%, rgba(226, 232, 240, 0.86) 0 4px, transparent 5px);
   animation: shield-quake-impact-shards 440ms ease-out both;
+}
+
+.skill-impact-shape-shield-quake[data-vfx-cue="shield-quake-impact"] .skill-impact-core {
+  animation-duration: var(--skill-duration, 360ms);
+}
+
+.skill-impact-shape-shield-quake[data-vfx-cue="shield-quake-impact"] .skill-impact-ring {
+  animation-duration: var(--skill-duration, 360ms);
+}
+
+.skill-impact-shape-shield-quake[data-vfx-cue="shield-quake-impact"] .skill-impact-shards {
+  animation-duration: var(--skill-duration, 360ms);
 }
 
 .skill-impact-shape-flame-column {
@@ -3219,38 +3243,47 @@ p {
 
 .player-status-vfx[data-vfx-cue="anvil-guard-open"] .skill-impact-core {
   animation-name: guard-rune-open-core;
+  animation-duration: var(--skill-duration, 520ms);
 }
 
 .player-status-vfx[data-vfx-cue="anvil-guard-open"] .skill-impact-ring {
   animation-name: guard-rune-open-ring;
+  animation-duration: var(--skill-duration, 520ms);
 }
 
 .player-status-vfx[data-vfx-cue="anvil-guard-open"] .skill-impact-shards {
   animation-name: guard-rune-open-shards;
+  animation-duration: var(--skill-duration, 520ms);
 }
 
 .player-status-vfx[data-vfx-cue="molten-wall-open"] .skill-impact-core {
   animation-name: molten-wall-open-core;
+  animation-duration: var(--skill-duration, 520ms);
 }
 
 .player-status-vfx[data-vfx-cue="molten-wall-open"] .skill-impact-ring {
   animation-name: molten-wall-open-ring;
+  animation-duration: var(--skill-duration, 520ms);
 }
 
 .player-status-vfx[data-vfx-cue="molten-wall-open"] .skill-impact-shards {
   animation-name: molten-wall-open-shards;
+  animation-duration: var(--skill-duration, 520ms);
 }
 
 .player-status-vfx[data-vfx-cue="black-aegis-open"] .skill-impact-core {
   animation-name: black-aegis-open-core;
+  animation-duration: var(--skill-duration, 520ms);
 }
 
 .player-status-vfx[data-vfx-cue="black-aegis-open"] .skill-impact-ring {
   animation-name: black-aegis-open-ring;
+  animation-duration: var(--skill-duration, 520ms);
 }
 
 .player-status-vfx[data-vfx-cue="black-aegis-open"] .skill-impact-shards {
   animation-name: black-aegis-open-shards;
+  animation-duration: var(--skill-duration, 520ms);
 }
 
 .skill-impact-shape-black-rain .skill-impact-core {

@@ -3843,3 +3843,25 @@
   - Focused guard startup GREEN passed: `npm test -- src/tests/app-integration.test.ts --testNamePattern "skill status motion classes|molten-wall as a delayed self shield|anvil-guard as a delayed shield raise|black-furnace-aegis as a delayed advancement shield" --reporter=basic`, 4 matched tests.
   - Related app/browser suite passed: `npm test -- src/tests/app-integration.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 2 files / 133 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 551 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 152 DNF-Style Iron Shield and Quake VFX Timing
+- Continued toward the full DNF-style objective: character and monster geometry can stay lightweight for this phase, but skill VFX timing must follow real combat event windows.
+- Used three parallel read-only explorer agents:
+  - Iron-palm audit confirmed implementation uses shared dynamic target recheck and interruption cancellation, but still needs dedicated moved-out/moved-in/interrupted guardrail tests.
+  - UI/CSS audit identified real browser-cascade timing gaps for Iron status-open VFX and Iron target impact VFX.
+  - Keyboard-control audit queued a future combined acceptance test for final-hit hitstop, buffered actions, cleared-room action lock, and held gate entry.
+- Added RED coverage:
+  - `src/tests/support/real-browser-computed-style.ts` now supports `player-status-vfx` fixtures so status bursts can be verified in the same browser helper as target impact bursts.
+  - `src/tests/browser-computed-style.test.ts` now verifies `anvil-guard-open`, `molten-wall-open`, and `black-aegis-open` status VFX all use the 520 ms open-frame event window.
+  - `src/tests/browser-computed-style.test.ts` now verifies `furnace-roar-impact` and `shield-quake-impact` target impact core/ring/shards use the 380 ms / 360 ms hit-event windows.
+- RED evidence:
+  - Shield-open browser RED failed because status core duration computed `0.42s` instead of `0.52s`.
+  - Iron roar/quake browser RED failed because furnace-roar core duration computed `0.34s` instead of `0.38s`.
+- Implemented:
+  - `src/styles.css` now applies `var(--skill-duration)` to all cue-gated shield-open status impact subparts.
+  - `src/styles.css` now applies `var(--skill-duration)` to `furnace-roar-impact` and `shield-quake-impact` target impact subparts.
+- Verification so far:
+  - Focused shield-open GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "defensive shield-open status VFX" --reporter=basic`, 1 matched test.
+  - Focused Iron roar/quake GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "Iron roar and quake target impact" --reporter=basic`, 1 matched test.
+  - Browser computed-style suite passed: `npm test -- src/tests/browser-computed-style.test.ts --reporter=dot`, 1 file / 24 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 553 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

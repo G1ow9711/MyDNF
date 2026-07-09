@@ -1148,3 +1148,10 @@
 - RED note: real-browser `iron-palm` coverage failed with core duration `0.28s` instead of `0.26s`. Real-browser forge-shackle coverage failed because bind computed `monster-taotie-forge-shackle`. App RED failed for all three Iron defensive skills because pre-open HTML still contained `data-player-motion="shield"`.
 - Fix note: `iron-spark[data-vfx-cue="iron-shield-jab"]` now uses `var(--skill-duration)` for core/ring/shards; forge-shackle bind/slam model cues now resolve to distinct boss keyframes; `playerMotion()` now returns `shield` only when `playerShieldActive(run)` is true.
 - Verification note: focused GREEN passed for iron-palm browser VFX, forge-shackle browser model motion, and Iron defensive app startup/open behavior. Related app/browser suite passed 133 tests.
+
+## DNF-Style Iron Shield and Quake VFX Window Findings
+- Current priority follows the user's latest clarification: model geometry can remain lightweight, but skill VFX timing must be driven by real combat events rather than decorative CSS defaults.
+- Parallel UI/CSS audit found two browser-cascade timing gaps. Defensive `player-status-vfx` nodes carried `--skill-duration: 520ms`, but their core/ring/shards still used fixed 420/520/560 ms timings. `furnace-taunt` and `shield-quake` target impact bursts carried 380 ms / 360 ms event windows, but their subparts still used fixed 340/420/460 ms and 320/420/440 ms timings.
+- RED note: real-browser defensive shield-open coverage first failed because status core duration computed `0.42s` instead of `0.52s`. Real-browser Iron target-impact coverage first failed because furnace-roar core duration computed `0.34s` instead of `0.38s`.
+- Fix note: status-open cue selectors for `anvil-guard-open`, `molten-wall-open`, and `black-aegis-open` now apply `animation-duration: var(--skill-duration, 520ms)` to all impact parts. `furnace-roar-impact` and `shield-quake-impact` cue selectors now apply the same runtime event-window contract to target impact core/ring/shards.
+- Verification note: focused browser GREEN passed for shield-open status VFX and Iron roar/quake target VFX. Full real-browser computed-style suite passed 24 tests.

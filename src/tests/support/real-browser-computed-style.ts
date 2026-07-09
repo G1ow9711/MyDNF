@@ -71,6 +71,7 @@ export type SkillImpactVfxFixture = {
   phase?: string;
   cue?: string;
   durationMs?: number;
+  status?: boolean;
 };
 
 export type WeaponLayerFixture = {
@@ -753,10 +754,11 @@ function skillImpactVfxFixtureMarkup(fixture: SkillImpactVfxFixture): string {
   const durationMs = fixture.durationMs ?? 680;
   const phase = fixture.phase ?? "";
   const cue = fixture.cue ?? "";
+  const statusClass = fixture.status ? "player-status-vfx " : "";
 
   return `<div
     data-skill-impact-fixture="${escapeAttribute(fixture.key)}"
-    class="skill-impact-burst skill-impact-shape-${escapeAttribute(fixture.shape)}"
+    class="${statusClass}skill-impact-burst skill-impact-shape-${escapeAttribute(fixture.shape)}"
     data-impact-vfx-shape="${escapeAttribute(fixture.shape)}"
     data-hit-phase="${escapeAttribute(phase)}"
     data-vfx-cue="${escapeAttribute(cue)}"

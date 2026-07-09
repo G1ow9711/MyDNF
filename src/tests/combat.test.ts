@@ -1458,6 +1458,95 @@ describe("combat actions and impact feel", () => {
     expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
   });
 
+  it("lets same-frame monster impact interrupt iron-palm before the shield jab resolves", () => {
+    const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 318, y: 340, hp: 190, maxHp: 190 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "iron-palm" });
+    const [jabAtMs] = scheduledSkillTimes(cast, "iron-palm");
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: jabAtMs,
+            attackRecoverUntilMs: jabAtMs + 320,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      jabAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: jabAtMs
+        })
+      ])
+    );
+    expect(skillHitEvents(interrupted, "iron-palm")).toHaveLength(0);
+    expect(skillMissEvents(interrupted, "iron-palm")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "iron-palm")).toHaveLength(0);
+  });
+
+  it("stops iron-palm model-following lunge when monster damage interrupts before the shield jab", () => {
+    const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 318, y: 340, hp: 190, maxHp: 190 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "iron-palm" });
+    const [jabAtMs] = scheduledSkillTimes(cast, "iron-palm");
+    const uninterruptedEndpoint = stepToElapsed(cast, jabAtMs);
+    const interrupted = stepCombat(
+      {
+        ...cast,
+        enemies: [
+          {
+            ...cast.enemies[0],
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 80,
+            attackRecoverUntilMs: 360,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      {},
+      jabAtMs
+    );
+
+    expect(interrupted.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "player-hit",
+          skillId: "ash-ember-spit",
+          occurredAtMs: 80
+        })
+      ])
+    );
+    expect(interrupted.player.activeSkillMovement).toBeUndefined();
+    expect(interrupted.player.x).toBeLessThan(uninterruptedEndpoint.player.x);
+    expect(skillHitEvents(interrupted, "iron-palm")).toHaveLength(0);
+    expect(skillMissEvents(interrupted, "iron-palm")).toHaveLength(0);
+    expect(interrupted.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "iron-palm")).toHaveLength(0);
+  });
+
   it("cancels spark-combo jab when monster damage interrupts before the jab frame", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(createInitialState(), "cinder-kiln-alley"),

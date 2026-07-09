@@ -3906,3 +3906,15 @@
   - Focused sword-prism GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "sword-prism-field lock and burst root" --reporter=basic`, 1 matched test.
   - Browser computed-style suite passed: `npm test -- src/tests/browser-computed-style.test.ts --reporter=dot`, 1 file / 25 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 555 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 155 DNF-Style Iron Palm Interruption Guardrails
+- Continued toward the strict DNF combat objective: player/monster model geometry can remain lightweight, but interruption and same-frame priority must prevent fake hit frames and stop model-following motion.
+- Added guardrail coverage:
+  - `src/tests/combat.test.ts` now verifies same-frame monster impact at the `iron-palm` shield-jab frame preempts the jab, emits only the player-hit, leaves enemy HP unchanged, and clears queued shield-jab effects.
+  - `src/tests/combat.test.ts` now verifies monster damage during `iron-palm` startup clears active skill movement, keeps the player short of the uninterrupted jab endpoint, emits no fake hit/miss, leaves enemy HP unchanged, and clears pending shield-jab effects.
+- Evidence:
+  - These tests passed immediately, confirming current implementation already satisfied the guardrails; this task improves regression coverage rather than changing production behavior.
+- Verification so far:
+  - Focused `iron-palm` coverage passed: `npm test -- src/tests/combat.test.ts --testNamePattern "iron-palm" --reporter=basic`, 4 matched tests.
+  - Related interruption coverage passed: `npm test -- src/tests/combat.test.ts --testNamePattern "iron-palm|spark-combo jab|same-frame monster impact|same-frame enemy interruption|interrupt" --reporter=basic`, 37 matched tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 557 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

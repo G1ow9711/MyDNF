@@ -1170,3 +1170,10 @@
 - Fix note: `sword-prism-field` now has phase-gated player and weapon selectors for `prism-field-lock` and `prism-field-burst`, plus distinct keyframes for body lock, body burst, weapon lock, and weapon burst.
 - Parallel Iron audit note: the next combat-logic candidate is `iron-palm` startup/same-frame interruption guardrails. The audit expects current logic to pass, but those tests would prove interrupted shield-jab movement cannot continue to the endpoint or create fake hit/miss events.
 - Verification note: focused sword-prism browser GREEN passed; browser computed-style suite passed 25 tests; full final verification passed `git diff --check`, 14-file Vitest suite with 555 tests, `npm run build`, and HTTP 200 on `http://127.0.0.1:5174/`.
+
+## DNF-Style Iron Palm Interruption Guardrail Findings
+- Current priority follows the user's latest clarification: models can remain lightweight, but interruption must stop model-following action and prevent fake hit-frame output.
+- Coverage note: `iron-palm` already used the shared dynamic hitbox and interruption cancellation path, so the new tests passed immediately as guardrails rather than requiring production code changes.
+- Guardrail note: same-frame `ash-ember-spit` impact at the 150 ms shield-jab frame now has dedicated coverage proving enemy impact preempts `iron-palm`, no shield-jab hit/miss event is emitted, enemy HP is unchanged, and the queued shield-jab effect is cleared.
+- Guardrail note: startup interruption at 80 ms now has dedicated coverage proving `activeSkillMovement` is cleared, player X remains short of the uninterrupted jab endpoint, no shield-jab hit/miss event is emitted, enemy HP is unchanged, and no `iron-palm` scheduled hit effect remains.
+- Verification note: focused `iron-palm` coverage passed 4 tests, related interruption coverage passed 37 tests, and final verification passed `git diff --check`, 14-file Vitest suite with 557 tests, `npm run build`, and HTTP 200 on `http://127.0.0.1:5174/`.

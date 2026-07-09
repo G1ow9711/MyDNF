@@ -10145,12 +10145,28 @@ p {
   animation: player-liuli-prism-field-cast var(--skill-duration, 860ms) cubic-bezier(0.12, 0.84, 0.16, 1) both;
 }
 
+.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="prism-field-lock"] .combat-player-art {
+  animation: player-liuli-prism-field-lock var(--skill-duration, 860ms) cubic-bezier(0.12, 0.84, 0.16, 1) both;
+}
+
+.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="prism-field-burst"] .combat-player-art {
+  animation: player-liuli-prism-field-burst var(--skill-duration, 860ms) cubic-bezier(0.08, 0.82, 0.14, 1) both;
+}
+
 .combat-player[data-player-skill-move="sword-prism-field"] .combat-player-art {
   filter: drop-shadow(0 0 18px rgba(103, 232, 249, 0.58)) drop-shadow(0 0 26px rgba(196, 181, 253, 0.28));
 }
 
 .combat-player[data-player-motion="skill"][data-skill-weapon-arc="prism-field"] .combat-weapon {
   animation: weapon-prism-field var(--skill-duration, 860ms) cubic-bezier(0.12, 0.82, 0.16, 1) both;
+}
+
+.combat-player[data-player-motion="skill"] .combat-weapon[data-weapon-hit-phase="prism-field-lock"] {
+  animation: weapon-prism-field-lock var(--skill-duration, 860ms) cubic-bezier(0.12, 0.84, 0.16, 1) both;
+}
+
+.combat-player[data-player-motion="skill"] .combat-weapon[data-weapon-hit-phase="prism-field-burst"] {
+  animation: weapon-prism-field-burst var(--skill-duration, 860ms) cubic-bezier(0.08, 0.82, 0.14, 1) both;
 }
 
 .skill-vfx-shape-sword-prism-field {
@@ -10282,12 +10298,40 @@ p {
   100% { transform: translateX(0) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
 }
 
+@keyframes player-liuli-prism-field-lock {
+  0% { transform: translateX(calc(var(--skill-lunge-x, 20px) * -0.28)) translateY(2px) rotate(-2deg) scale(0.98) scaleX(var(--model-scale-x, 1)); filter: brightness(1.04); }
+  30% { transform: translateX(calc(var(--skill-lunge-x, 20px) * 0.16)) translateY(-6px) rotate(2deg) scale(1.04) scaleX(var(--model-scale-x, 1)); filter: brightness(1.34) saturate(1.16); }
+  62% { transform: translateX(calc(var(--skill-lunge-x, 20px) * 0.42)) translateY(-2px) rotate(-1deg) scale(1.06) scaleX(var(--model-scale-x, 1)); filter: brightness(1.56) saturate(1.26); }
+  100% { transform: translateX(calc(var(--skill-lunge-x, 20px) * 0.16)) translateY(0) rotate(0deg) scale(1.01) scaleX(var(--model-scale-x, 1)); filter: brightness(1.12); }
+}
+
+@keyframes player-liuli-prism-field-burst {
+  0% { transform: translateX(calc(var(--skill-lunge-x, 20px) * 0.12)) translateY(0) rotate(1deg) scale(1.02) scaleX(var(--model-scale-x, 1)); filter: brightness(1.22) saturate(1.16); }
+  24% { transform: translateX(calc(var(--skill-lunge-x, 20px) * 0.72)) translateY(-9px) rotate(-5deg) scale(1.12) scaleX(var(--model-scale-x, 1)); filter: brightness(1.94) saturate(1.42); }
+  54% { transform: translateX(calc(var(--skill-lunge-x, 20px) * 0.34)) translateY(3px) rotate(4deg) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.72) saturate(1.28); }
+  100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
+}
+
 @keyframes weapon-prism-field {
   0% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, -24deg)) scale(var(--weapon-scale, 1)); opacity: 1; filter: brightness(1); }
   22% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 20px) * -0.8), calc(-50% + var(--weapon-skill-lift, -18px))) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, -24deg) + var(--weapon-facing, 1) * -72deg)) scale(calc(var(--weapon-scale, 1) * 1.05)); opacity: 1; filter: brightness(1.35); }
   52% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 20px) * 1.45), calc(-50% + var(--weapon-skill-lift, -18px) * 1.35)) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, -24deg) + var(--weapon-facing, 1) * 182deg)) scale(calc(var(--weapon-scale, 1) * 1.18)); opacity: 1; filter: brightness(1.78) drop-shadow(0 0 12px rgba(103, 232, 249, 0.9)); }
   76% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 20px) * 0.25), -50%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, -24deg) + var(--weapon-facing, 1) * 280deg)) scale(calc(var(--weapon-scale, 1) * 1.04)); opacity: 0.92; filter: brightness(1.25); }
   100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, -24deg)) scale(var(--weapon-scale, 1)); opacity: 1; filter: brightness(1); }
+}
+
+@keyframes weapon-prism-field-lock {
+  0% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 20px) * -0.5), calc(-50% + var(--weapon-skill-lift, -18px) * 0.15)) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, -24deg) + var(--weapon-facing, 1) * -40deg)) scale(calc(var(--weapon-scale, 1) * 0.96)); opacity: 0.92; filter: brightness(1.16); }
+  38% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 20px) * 0.35), calc(-50% + var(--weapon-skill-lift, -18px) * 1.05)) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, -24deg) + var(--weapon-facing, 1) * 58deg)) scale(calc(var(--weapon-scale, 1) * 1.1)); opacity: 1; filter: brightness(1.58) drop-shadow(0 0 10px rgba(103, 232, 249, 0.78)); }
+  72% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 20px) * 0.68), calc(-50% + var(--weapon-skill-lift, -18px) * 0.55)) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, -24deg) + var(--weapon-facing, 1) * 116deg)) scale(calc(var(--weapon-scale, 1) * 1.06)); opacity: 0.98; filter: brightness(1.44); }
+  100% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 20px) * 0.18), -50%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, -24deg) + var(--weapon-facing, 1) * 72deg)) scale(var(--weapon-scale, 1)); opacity: 0.92; filter: brightness(1.16); }
+}
+
+@keyframes weapon-prism-field-burst {
+  0% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 20px) * 0.12), -50%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, -24deg) + var(--weapon-facing, 1) * 78deg)) scale(calc(var(--weapon-scale, 1) * 1.02)); opacity: 1; filter: brightness(1.3); }
+  26% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 20px) * 1.7), calc(-50% + var(--weapon-skill-lift, -18px) * 1.28)) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, -24deg) + var(--weapon-facing, 1) * 204deg)) scale(calc(var(--weapon-scale, 1) * 1.22)); opacity: 1; filter: brightness(1.95) drop-shadow(0 0 14px rgba(196, 181, 253, 0.9)); }
+  58% { transform: translate(calc(-50% + var(--weapon-facing, 1) * var(--weapon-skill-lunge, 20px) * 0.48), calc(-50% + var(--weapon-skill-lift, -18px) * 0.28)) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, -24deg) + var(--weapon-facing, 1) * 322deg)) scale(calc(var(--weapon-scale, 1) * 1.08)); opacity: 0.96; filter: brightness(1.5); }
+  100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, -24deg)) scale(var(--weapon-scale, 1)); opacity: 1; filter: brightness(1.05); }
 }
 
 @keyframes sword-prism-field-cast-core {

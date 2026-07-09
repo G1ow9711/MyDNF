@@ -3889,3 +3889,20 @@
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 555 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
 - Commit-prep note:
   - Initial combined `git add ... && git commit ...` failed because this PowerShell does not accept `&&`; reran staging and commit as separate commands.
+
+## Task 154 DNF-Style Sword Prism Player and Weapon Phase Motion
+- Continued toward the full DNF-style objective: models can remain lightweight, but player and weapon actions must follow real skill stages and not stay on one static/whole-skill presentation.
+- Used two parallel read-only agents:
+  - Sword-prism UI audit confirmed the real browser cascade still resolved lock/burst player and weapon to whole-skill `player-liuli-prism-field-cast` and `weapon-prism-field`, while root/target VFX already used lock/burst cues.
+  - Iron-palm combat audit recommended next guardrail tests for same-frame monster impact and startup interruption; current logic likely already passes, so it remains a focused coverage candidate rather than this task's production change.
+- Added RED coverage:
+  - `src/tests/browser-computed-style.test.ts` now requires `sword-prism-field` lock and burst fixtures to resolve distinct player-body and weapon animation names, and to differ from the whole-skill cast/weapon animations.
+- RED evidence:
+  - Focused browser RED failed because lock player animation computed `player-liuli-prism-field-cast` instead of `player-liuli-prism-field-lock`.
+- Implemented:
+  - `src/styles.css` now cue-gates `prism-field-lock` and `prism-field-burst` for player art and weapon nodes.
+  - Added `player-liuli-prism-field-lock`, `player-liuli-prism-field-burst`, `weapon-prism-field-lock`, and `weapon-prism-field-burst` keyframes.
+- Verification so far:
+  - Focused sword-prism GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "sword-prism-field lock and burst root" --reporter=basic`, 1 matched test.
+  - Browser computed-style suite passed: `npm test -- src/tests/browser-computed-style.test.ts --reporter=dot`, 1 file / 25 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 555 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

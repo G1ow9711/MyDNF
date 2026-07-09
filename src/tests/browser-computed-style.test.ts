@@ -449,6 +449,17 @@ describe("real browser computed style regressions", () => {
     const phaseComputed = await computePlayerSkillPhaseStylesInRealBrowser(stylesCss, phaseFixtures);
     const impactComputed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, impactFixtures);
 
+    expect(phaseComputed.lock.player.animationName).toBe("player-liuli-prism-field-lock");
+    expect(phaseComputed.lock.weapon.animationName).toBe("weapon-prism-field-lock");
+    expect(phaseComputed.burst.player.animationName).toBe("player-liuli-prism-field-burst");
+    expect(phaseComputed.burst.weapon.animationName).toBe("weapon-prism-field-burst");
+    expect(phaseComputed.lock.player.animationName).not.toBe("player-liuli-prism-field-cast");
+    expect(phaseComputed.burst.player.animationName).not.toBe("player-liuli-prism-field-cast");
+    expect(phaseComputed.lock.weapon.animationName).not.toBe("weapon-prism-field");
+    expect(phaseComputed.burst.weapon.animationName).not.toBe("weapon-prism-field");
+    expect(phaseComputed.lock.player.animationName).not.toBe(phaseComputed.burst.player.animationName);
+    expect(phaseComputed.lock.weapon.animationName).not.toBe(phaseComputed.burst.weapon.animationName);
+
     expect(phaseComputed.lock.skillVfx.core.animationName).toBe("sword-prism-field-root-lock-core");
     expect(phaseComputed.lock.skillVfx.wave.animationName).toBe("sword-prism-field-root-lock-ring");
     expect(phaseComputed.lock.skillVfx.sparks.animationName).toBe("sword-prism-field-root-lock-sparks");

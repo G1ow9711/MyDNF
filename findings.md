@@ -1162,3 +1162,11 @@
 - RED note: the cleared-room combat test first failed because a queued `anvil-crash` survived after the last monster died while hitstop was still active. The browser VFX RED first failed because `glass-lotus` bind ring computed `0.43s` while the event window was `0.36s`.
 - Fix note: `stepCombat()` now clears expired terminal/cleared-room buffers before the hitstop branch and prevents buffer release once `roomIsCleared(run)` is true. `glass-lotus` bind and bloom target impact core/ring/shards now use `var(--skill-duration)` with event-matched fallbacks.
 - Verification note: focused cleared-room buffer and glass-lotus browser GREEN passed; related combat buffer/room tests passed 6 matched tests; browser computed-style suite passed 25 tests; full final verification passed `git diff --check`, 14-file Vitest suite with 555 tests, `npm run build`, and HTTP 200 on `http://127.0.0.1:5174/`.
+
+## DNF-Style Sword Prism Phase Motion Findings
+- Current priority follows the user's latest clarification: models may stay lightweight, but player/weapon actions must follow real combat phases instead of a static whole-skill pose.
+- Parallel UI audit confirmed `sword-prism-field` root VFX and target impact VFX already consumed lock/burst cues, but the player actor and weapon still resolved to whole-skill `player-liuli-prism-field-cast` and `weapon-prism-field` animations.
+- RED note: the real-browser focused test first failed because lock player animation computed `player-liuli-prism-field-cast` instead of `player-liuli-prism-field-lock`.
+- Fix note: `sword-prism-field` now has phase-gated player and weapon selectors for `prism-field-lock` and `prism-field-burst`, plus distinct keyframes for body lock, body burst, weapon lock, and weapon burst.
+- Parallel Iron audit note: the next combat-logic candidate is `iron-palm` startup/same-frame interruption guardrails. The audit expects current logic to pass, but those tests would prove interrupted shield-jab movement cannot continue to the endpoint or create fake hit/miss events.
+- Verification note: focused sword-prism browser GREEN passed; browser computed-style suite passed 25 tests; full final verification passed `git diff --check`, 14-file Vitest suite with 555 tests, `npm run build`, and HTTP 200 on `http://127.0.0.1:5174/`.

@@ -72,6 +72,39 @@ type BrowserCommandState = {
   skillVfx: string;
 };
 
+type BrowserComboCancelState = {
+  objective: string;
+  playerX: number;
+  activeSkill: string;
+  skillReleaseSource: string;
+  playerMotion: string;
+  normalAttackMove: string;
+  playerDashAttackReadyUntilMs: string;
+  comboCancelWindowActive: string;
+  comboCancelAvailable: string;
+  comboCancelState: string;
+  comboCancelActive: string;
+  comboCancelSkillId: string;
+  comboCancelMsRemaining: number;
+  hitstopActive: string;
+  impactCue: string;
+  actionBufferState: string;
+  bufferedAction: string;
+  bufferedSkillId: string;
+  skillStage: string;
+  hitPhase: string;
+  vfxCue: string;
+  playerAnimation: string;
+  weaponAnimation: string;
+  skillVfx: string;
+  skillVfxHitPhase: string;
+  skillVfxCue: string;
+  skillVfxCoreAnimation: string;
+  skillVfxWaveAnimation: string;
+  skillVfxSparksAnimation: string;
+  skillCancelToast: string;
+};
+
 const readCombatStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
@@ -202,6 +235,53 @@ const readCommandStateExpression = `
     bufferedAction: scene?.getAttribute("data-buffered-action") ?? "",
     bufferedSkillId: scene?.getAttribute("data-buffered-skill-id") ?? "",
     skillVfx: skillVfx?.getAttribute("data-player-skill-vfx") ?? ""
+  };
+})()
+`;
+
+const readComboCancelStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const player = document.querySelector(".combat-player");
+  const art = document.querySelector(".combat-player-art");
+  const weapon = document.querySelector(".combat-weapon");
+  const playerStyle = player?.getAttribute("style") ?? "";
+  const actorX = /--actor-x:\\s*([0-9.]+)%/.exec(playerStyle)?.[1] ?? "0";
+  const impact = document.querySelector("[data-impact-spark='true']");
+  const skillVfx = document.querySelector('[data-player-skill-vfx="spark-combo"]');
+  const skillCancelToast = document.querySelector("[data-skill-cancel-toast='true']");
+
+  return {
+    objective: scene?.getAttribute("data-combat-objective") ?? "",
+    playerX: Number(actorX),
+    activeSkill: player?.getAttribute("data-active-skill-id") ?? "",
+    skillReleaseSource: player?.getAttribute("data-skill-release-source") ?? "",
+    playerMotion: player?.getAttribute("data-player-motion") ?? "",
+    normalAttackMove: player?.getAttribute("data-player-normal-attack-move") ?? "",
+    playerDashAttackReadyUntilMs: player?.getAttribute("data-player-dash-attack-ready-until-ms") ?? "",
+    comboCancelWindowActive: scene?.getAttribute("data-combo-cancel-window-active") ?? "",
+    comboCancelAvailable: scene?.getAttribute("data-combo-cancel-available") ?? "",
+    comboCancelState: scene?.getAttribute("data-combo-cancel-state") ?? "",
+    comboCancelActive: scene?.getAttribute("data-combo-cancel-active") ?? "",
+    comboCancelSkillId: scene?.getAttribute("data-combo-cancel-skill-id") ?? "",
+    comboCancelMsRemaining: Number(scene?.getAttribute("data-combo-cancel-ms-remaining") || "0"),
+    hitstopActive: scene?.getAttribute("data-hitstop-active") ?? "",
+    impactCue: impact?.getAttribute("data-vfx-cue") ?? "",
+    actionBufferState: scene?.getAttribute("data-action-buffer-state") ?? "",
+    bufferedAction: scene?.getAttribute("data-buffered-action") ?? "",
+    bufferedSkillId: scene?.getAttribute("data-buffered-skill-id") ?? "",
+    skillStage: player?.getAttribute("data-player-skill-stage") ?? "",
+    hitPhase: player?.getAttribute("data-player-skill-hit-phase") ?? "",
+    vfxCue: player?.getAttribute("data-player-skill-vfx-cue") ?? "",
+    playerAnimation: art ? getComputedStyle(art).animationName : "",
+    weaponAnimation: weapon ? getComputedStyle(weapon).animationName : "",
+    skillVfx: skillVfx?.getAttribute("data-player-skill-vfx") ?? "",
+    skillVfxHitPhase: skillVfx?.getAttribute("data-hit-phase") ?? "",
+    skillVfxCue: skillVfx?.getAttribute("data-vfx-cue") ?? "",
+    skillVfxCoreAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-core")).animationName : "",
+    skillVfxWaveAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-wave")).animationName : "",
+    skillVfxSparksAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-sparks")).animationName : "",
+    skillCancelToast: skillCancelToast?.getAttribute("data-combo-cancel-skill-id") ?? ""
   };
 })()
 `;
@@ -426,6 +506,72 @@ describe("real browser keyboard control", () => {
         expect(commandCast.bufferedAction).toBe("");
         expect(commandCast.bufferedSkillId).toBe("");
         expect(commandCast.skillVfx).toBe("spark-combo");
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
+  it("cancels a confirmed light hit into spark-combo with real keyboard input and live VFX", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<BrowserComboCancelState>(
+          readComboCancelStateExpression,
+          (state) => state.objective === "active",
+          5000
+        );
+
+        await page.keyDown("ShiftLeft");
+        await page.keyDown("ArrowRight");
+        try {
+          await page.waitFor<BrowserComboCancelState>(
+            readComboCancelStateExpression,
+            (state) => state.playerX >= 36.5,
+            2000
+          );
+        } finally {
+          await page.keyUp("ArrowRight");
+          await page.keyUp("ShiftLeft");
+        }
+        await page.waitFor<BrowserComboCancelState>(
+          readComboCancelStateExpression,
+          (state) => state.playerDashAttackReadyUntilMs === "",
+          800
+        );
+
+        await page.pressKey("KeyX");
+        await page.evaluate<void>("new Promise((resolve) => setTimeout(resolve, 70))");
+        const cancelWindow = await page.evaluate<BrowserComboCancelState>(readComboCancelStateExpression);
+
+        expect(cancelWindow.objective).toBe("active");
+        expect(cancelWindow.comboCancelWindowActive).toBe("true");
+        expect(cancelWindow.comboCancelAvailable).toBe("true");
+        expect(cancelWindow.comboCancelState).toBe("available");
+        expect(cancelWindow.comboCancelMsRemaining).toBeGreaterThan(0);
+        expect(cancelWindow.impactCue).toBe("ground-light-slash-1");
+
+        await page.pressKey("KeyA");
+        const cancelCast = await page.waitFor<BrowserComboCancelState>(
+          readComboCancelStateExpression,
+          (state) =>
+            state.activeSkill === "spark-combo" &&
+            state.skillReleaseSource === "cancel" &&
+            state.comboCancelActive === "true" &&
+            state.comboCancelSkillId === "spark-combo",
+          1200
+        );
+
+        expect(cancelCast.playerMotion).toBe("skill");
+        expect(cancelCast.actionBufferState).toBe("empty");
+        expect(cancelCast.bufferedAction).toBe("");
+        expect(cancelCast.bufferedSkillId).toBe("");
+        expect(cancelCast.skillCancelToast).toBe("spark-combo");
+        expect(cancelCast.skillVfx).toBe("spark-combo");
+        expect(cancelCast.playerAnimation).toBe("player-ember-spark-combo");
+        expect(cancelCast.weaponAnimation).toBe("weapon-jab-chain");
       });
     } finally {
       await server.close();

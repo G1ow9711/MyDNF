@@ -1210,3 +1210,11 @@
 - Stability note: a full-suite run showed app mount could exceed the previous 5-second dungeon-button wait under browser/Vite load. The helper now keeps the same button-ready predicate but waits longer before failing with diagnostics.
 - Review note: phase verification now uses page-local rAF sampling so short `active` windows are recorded inside the browser instead of depending on 50 ms CDP polling. Command verification now also asserts the action buffer stays empty, proving `KeyZ` heavy did not queue alongside the manual command cast.
 - Verification note: live-browser coverage now proves `KeyA` `spark-combo` reaches jab/cross/finish with player/weapon/root VFX phase animations, and `ArrowRight` -> `KeyZ` releases `spark-combo` through manual command input instead of normal heavy.
+
+## DNF-Style Real-Browser Combo-Cancel Findings
+- Current priority follows the user's latest clarification: player and monster models can remain simple while the loop is completed, but combat feel, model-following actions, strict hit windows, hit feedback, skill VFX, and monster VFX remain hard gates.
+- Parallel combo-cancel audit found the stable live path is Shift+ArrowRight to about 36.5% actor X, wait for dash-light readiness to clear, press real `KeyX` for a ground light hit, then press real `KeyA` during the 125 ms hit-confirm cancel window.
+- Parallel room-flow audit found live room-gate traversal is feasible, but full clear-room keyboard acceptance needs extra stable DOM fields and/or a controlled combat setup before it should become a browser regression.
+- RED note: the first live combo-cancel test missed the window when it relied on 50 ms CDP polling, and an intermediate synthetic-key helper was rejected because it did not honestly represent real keyboard input.
+- Stability note: the final test uses browser-side timing after `KeyX` to sample the cancel window, then dispatches a real CDP `KeyA`, proving `data-skill-release-source="cancel"` without buffering a stale action.
+- Verification note: focused combo-cancel live-browser GREEN passed, then the full live-browser keyboard suite passed 7 tests; a prior full suite passed 15 files / 566 tests, and the final build plus HTTP 200 check passed.

@@ -3995,3 +3995,20 @@
   - Full live-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (6 tests).
   - Full suite passed after the app-mount wait fix: `npm test -- --reporter=dot` (15 files / 565 tests).
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 160 Real-Browser Light Hit Combo-Cancel Acceptance
+- Continued after the user's clarification: character modeling can be simpler for now, but combat motion smoothness, model-following attacks, hit timing, skill effects, and monster effects must stay strict.
+- Used two read-only agents:
+  - Combo-cancel audit recommended a stable live path: Shift+ArrowRight into range, wait for dash-light readiness to clear, real `KeyX` light hit, then real `KeyA` `spark-combo` inside the hit-confirm cancel window.
+  - Room-flow audit confirmed gate traversal is implemented, but warned that full clear-room live-browser acceptance should wait for additional room/enemy state hooks to avoid slow flaky keyboard-only clears.
+- Added coverage:
+  - `src/tests/browser-keyboard-control.test.ts` now has `BrowserComboCancelState` and a live-browser test for real keyboard light-hit cancel into `spark-combo`.
+  - The test verifies active cancel-window DOM metadata, `ground-light-slash-1` impact cue, real `KeyA` cancel release, empty action buffer, cancel toast, live skill VFX root, and dedicated `player-ember-spark-combo` / `weapon-jab-chain` animations.
+- Debug evidence:
+  - Early RED runs showed `Shift` movement could accidentally leave dash-light readiness active, turning the next light into dash-light with no combo-cancel window.
+  - Polling the cancel window and then sending `KeyA` was sometimes too late for the 125 ms window, so the final test samples the live browser 70 ms after `KeyX` and sends a real CDP `KeyA` immediately.
+  - A synthetic in-page key helper passed but was removed because it did not meet the real-keyboard intent.
+- Verification:
+  - Focused combo-cancel test passed: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "cancels a confirmed light hit" --reporter=basic`.
+  - Full live-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (7 tests).
+  - Fresh final checks passed: `npm test -- --reporter=basic` (15 files / 566 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

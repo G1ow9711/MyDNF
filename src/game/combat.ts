@@ -28,6 +28,7 @@ export type CombatHitPhase =
   | "ground-light-1"
   | "ground-light-2"
   | "ground-light-3"
+  | "ground-heavy-launch"
   | "dash-light"
   | "air-light"
   | "air-heavy-slam"
@@ -75,6 +76,7 @@ export type CombatVfxCue =
   | "ground-light-slash-1"
   | "ground-light-slash-2"
   | "ground-light-slash-3"
+  | "ground-heavy-impact"
   | "dash-light-slash"
   | "air-light-slash"
   | "air-heavy-impact"
@@ -6071,6 +6073,9 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       run.player.facing,
       {
         id: `ground-heavy-${run.elapsedMs}`,
+        hitPhase: "ground-heavy-launch",
+        vfxCue: "ground-heavy-impact",
+        vfxWindowMs: 320,
         resourceGainOnHit: 4,
         resetComboStepOnMiss: true
       }

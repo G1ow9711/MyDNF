@@ -171,7 +171,7 @@ function scheduledGroundLightTimes(run: CombatRun): number[] {
 
 function scheduledGroundHeavyTimes(run: CombatRun): number[] {
   const times = run.scheduledEnemyHitEffects
-    .filter((effect) => effect.action === "heavy" && !effect.skillId && !effect.hitPhase)
+    .filter((effect) => effect.action === "heavy" && !effect.skillId && effect.id.startsWith("ground-heavy-"))
     .map((effect) => effect.applyAtMs)
     .sort((left, right) => left - right);
 
@@ -572,6 +572,7 @@ describe("combat actions and impact feel", () => {
     const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
     const inRangeRun = withPlayerAndEnemies(baseRun, { x: 240, y: 340, facing: 1 }, [{ x: 304, y: 340, hp: 220, maxHp: 220 }]);
     const castWithTarget = performAction(inRangeRun, { type: "heavy" });
+    const [heavyEffect] = castWithTarget.scheduledEnemyHitEffects.filter((effect) => effect.id.startsWith("ground-heavy-"));
     const [heavyAtMs] = scheduledGroundHeavyTimes(castWithTarget);
     const movedOutBeforeHit = stepToElapsed(
       {
@@ -606,9 +607,21 @@ describe("combat actions and impact feel", () => {
       lateHeavyAtMs
     );
     const [lateHit] = movedInBeforeHit.events.filter((event): event is CombatHitEvent => event.kind === "hit" && event.action === "heavy");
+    const [heavyMiss] = movedOutBeforeHit.events.filter((event) => event.kind === "miss" && event.action === "heavy");
+
+    expect(heavyEffect).toMatchObject({
+      hitPhase: "ground-heavy-launch",
+      vfxCue: "ground-heavy-impact",
+      vfxWindowMs: 320
+    });
 
     expect(movedOutBeforeHit.events.filter((event) => event.kind === "hit" && event.action === "heavy")).toHaveLength(0);
     expect(movedOutBeforeHit.events.filter((event) => event.kind === "miss" && event.action === "heavy")).toHaveLength(1);
+    expect(heavyMiss).toMatchObject({
+      hitPhase: "ground-heavy-launch",
+      vfxCue: "ground-heavy-impact",
+      vfxWindowMs: 320
+    });
     expect(movedOutBeforeHit.enemies[0].hp).toBe(inRangeRun.enemies[0].hp);
     expect(movedOutBeforeHit.enemies[0].airborne).not.toBe(true);
     expect(movedOutBeforeHit.player.resource.current).toBe(inRangeRun.player.resource.current);
@@ -617,6 +630,9 @@ describe("combat actions and impact feel", () => {
     expect(lateHit).toMatchObject({
       targetId: outOfRangeRun.enemies[0].id,
       action: "heavy",
+      hitPhase: "ground-heavy-launch",
+      vfxCue: "ground-heavy-impact",
+      vfxWindowMs: 320,
       actionTags: expect.arrayContaining(["launcher"])
     });
     expect(movedInBeforeHit.events.filter((event) => event.kind === "miss" && event.action === "heavy")).toHaveLength(0);

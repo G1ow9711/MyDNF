@@ -54,6 +54,11 @@ export type ComputedPlayerSkillPhaseStyles = Record<
   {
     player: ComputedVfxPartStyle;
     weapon: ComputedVfxPartStyle;
+    skillVfx: {
+      core: ComputedVfxPartStyle;
+      wave: ComputedVfxPartStyle;
+      sparks: ComputedVfxPartStyle;
+    };
   }
 >;
 
@@ -221,6 +226,11 @@ export async function computePlayerSkillPhaseStylesInRealBrowser(
         for (const root of document.querySelectorAll("[data-player-phase-fixture]")) {
           const playerStyle = getComputedStyle(root.querySelector(".combat-player-art"));
           const weaponStyle = getComputedStyle(root.querySelector(".combat-weapon"));
+          const skillVfxParts = [
+            ["core", ".skill-core"],
+            ["wave", ".skill-wave"],
+            ["sparks", ".skill-sparks"]
+          ];
           result[root.getAttribute("data-player-phase-fixture")] = {
             player: {
               animationName: playerStyle.animationName,
@@ -229,7 +239,16 @@ export async function computePlayerSkillPhaseStylesInRealBrowser(
             weapon: {
               animationName: weaponStyle.animationName,
               animationDuration: weaponStyle.animationDuration
-            }
+            },
+            skillVfx: Object.fromEntries(
+              skillVfxParts.map(([name, selector]) => {
+                const style = getComputedStyle(root.querySelector(selector));
+                return [name, {
+                  animationName: style.animationName,
+                  animationDuration: style.animationDuration
+                }];
+              })
+            )
           };
         }
         return result;
@@ -451,6 +470,18 @@ function playerSkillPhaseFixtureMarkup(fixture: PlayerSkillPhaseFixture): string
   >
     <span class="combat-player-art"></span>
     <span class="combat-weapon" data-weapon-hit-phase="${escapeAttribute(phase)}" data-weapon-vfx-cue="${escapeAttribute(cue)}"></span>
+    <span
+      class="player-skill-vfx skill-vfx-flowing-light-chain skill-vfx-shape-flowing-chain"
+      data-player-skill-vfx="flowing-light-chain"
+      data-skill-vfx-shape="flowing-chain"
+      data-hit-phase="${escapeAttribute(phase)}"
+      data-vfx-cue="${escapeAttribute(cue)}"
+      data-vfx-action="skill"
+    >
+      <i class="skill-core"></i>
+      <i class="skill-wave"></i>
+      <i class="skill-sparks"></i>
+    </span>
   </div>`;
 }
 

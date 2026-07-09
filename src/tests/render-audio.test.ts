@@ -117,7 +117,7 @@ describe("render plan", () => {
     );
     const heavyInputPlan = createRenderPlan(heavyCast, "cinder-kiln-alley");
     const [heavyAtMs] = heavyCast.scheduledEnemyHitEffects
-      .filter((effect) => effect.action === "heavy" && !effect.skillId && !effect.hitPhase)
+      .filter((effect) => effect.action === "heavy" && !effect.skillId && effect.id.startsWith("ground-heavy-"))
       .map((effect) => effect.applyAtMs);
     if (heavyAtMs === undefined) {
       throw new Error("Expected scheduled ground-heavy effect");

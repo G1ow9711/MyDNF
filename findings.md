@@ -1019,3 +1019,12 @@
 - RED note: focused combat coverage failed because `flowing-light-chain` first-slash MISS had no `chain-open` / `flowing-chain-open` metadata. Focused app coverage failed because the whiff open frame lacked player/weapon phase hooks and VFX cue attrs.
 - Fix note: scheduled MISS effects now preserve stage/cue/window metadata from the dynamic scheduled hitbox. `playerSkillVisualState()` reads phase/cue from both hit and miss action events, and the player skill VFX root exposes `data-hit-phase` plus `data-vfx-cue`.
 - VFX note: target-bound `data-skill-impact-vfx` still only renders from real hit events. A whiff now animates the player, weapon, and skill VFX as the real opening slash without creating fake target impact bursts or damage numbers.
+
+## DNF-Style Flowing Chain Root VFX and Ground Heavy Phase Findings
+- Current priority follows the user's clarified scope: player/monster geometry can stay simpler while the loop is completed, but action smoothness, model-following attacks, strict hit frames, skill VFX, monster VFX, and hit feedback remain hard gates.
+- Parallel combat audit selected grounded heavy because its dynamic hitbox already used the correct 85 ms launcher frame but still omitted phase/cue/window metadata, so delayed hit and MISS feedback could not bind to a real action stage.
+- Parallel UI/CSS audit selected `flowing-light-chain` root VFX because player and weapon phase hooks existed, but the `.player-skill-vfx` core/wave/sparks still resolved to the generic `flowing-chain-cast-*` animations.
+- RED note: focused combat coverage failed because `ground-heavy-0` had undefined `hitPhase`, `vfxCue`, and `vfxWindowMs`. Real-browser computed-style coverage failed first because the open stage root VFX still computed `flowing-chain-cast-core`.
+- Fix note: grounded heavy scheduled hitboxes now carry `ground-heavy-launch`, `ground-heavy-impact`, and a 320 ms VFX window, and the existing delayed hit/MISS pipeline propagates that metadata to real frame feedback.
+- CSS note: `flowing-light-chain` root VFX now gates core/wave/sparks on `flowing-chain-open`, `flowing-chain-cross`, and `flowing-chain-finish`, giving each real slash stage distinct browser-resolved animations.
+- Test-support note: integration, UI, and render-audio helpers now identify grounded heavy by `ground-heavy-` effect id instead of relying on the old absence of `hitPhase`.

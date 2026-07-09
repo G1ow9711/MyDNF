@@ -3493,3 +3493,24 @@
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 520 tests), and `npm run build`.
   - HTTP check first failed because no dev server was running on `127.0.0.1:5174`; started Vite locally with project-local logs under `.codex-local/tmp`, then `Invoke-WebRequest http://127.0.0.1:5174/` returned HTTP 200.
   - In-app browser verification loaded `http://127.0.0.1:5174/`, entered the dungeon through the visible `进图` button, and confirmed 2 live enemies, 6 DNF skill slots, quest tracker, combat scene, background art, and no console error logs.
+
+## Task 137 DNF-Style Flowing Chain Root VFX and Ground Heavy Phase Tags
+- Continued after the user's clarification: character and monster modeling can stay simpler for now, but combat action flow, model-following attacks, strict hit frames, hit feedback, skill VFX, and monster skill VFX remain strict.
+- Used the parallel read-only audits from this pass:
+  - Combat audit selected grounded heavy because its scheduled launcher effect lacked `hitPhase`, `vfxCue`, and `vfxWindowMs`.
+  - UI/CSS audit selected `flowing-light-chain` root VFX because the player/weapon slash phases were exposed, but root core/wave/sparks still used generic whole-skill cast animations.
+- Added RED coverage:
+  - `src/tests/browser-computed-style.test.ts` now verifies real browser animation names for flowing-chain open/cross/finish core, wave, and sparks.
+  - `src/tests/combat.test.ts` now requires scheduled grounded heavy effects, delayed MISS events, and delayed HIT events to carry `ground-heavy-launch`, `ground-heavy-impact`, and a 320 ms VFX window.
+- RED evidence:
+  - Real-browser RED failed with `flowing-chain-cast-core` instead of `flowing-chain-open-core`.
+  - Combat RED failed because `ground-heavy-0` had undefined phase/cue/window metadata.
+- Implemented:
+  - `src/styles.css` now has cue-gated flowing-chain open/cross/finish root VFX selectors and nine stage-specific keyframes.
+  - `src/game/combat.ts` now defines `ground-heavy-launch` / `ground-heavy-impact` and attaches them to grounded heavy scheduled hitboxes with `vfxWindowMs: 320`.
+  - Test helpers in combat, app integration, UI smoke, and render-audio now detect grounded heavy by `ground-heavy-` effect id instead of assuming base heavy effects have no hit phase.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "rechecks grounded heavy targets" --reporter=basic`, 1 matched test.
+  - Focused GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "flowing-light-chain phase animations" --reporter=basic`, 1 matched test.
+  - Related suite passed after helper updates: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 421 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 520 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

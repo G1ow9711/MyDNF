@@ -193,7 +193,7 @@ function scheduledGroundLightTimes(run: CombatRun): number[] {
 
 function scheduledGroundHeavyTimes(run: CombatRun): number[] {
   const times = run.scheduledEnemyHitEffects
-    .filter((effect) => effect.action === "heavy" && !effect.skillId && !effect.hitPhase)
+    .filter((effect) => effect.action === "heavy" && !effect.skillId && effect.id.startsWith("ground-heavy-"))
     .map((effect) => effect.applyAtMs)
     .sort((left, right) => left - right);
 

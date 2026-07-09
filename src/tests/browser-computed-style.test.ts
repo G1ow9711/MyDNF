@@ -347,6 +347,69 @@ describe("real browser computed style regressions", () => {
     expect(computed.burst.skillVfx.core.animationName).not.toBe("mirrorflame-cast-core");
   }, 30000);
 
+  it("uses staged Ink snare and mechanism net root VFX animations in the browser cascade", async () => {
+    const fixtures: PlayerSkillPhaseFixture[] = [
+      {
+        key: "ink-bind",
+        skillId: "ink-snare",
+        preset: "ink-snare",
+        weaponArc: "snare-cast",
+        vfxShape: "ink-snare",
+        phase: "trap-bind",
+        cue: "ink-snare-bind",
+        durationMs: 360
+      },
+      {
+        key: "ink-snap",
+        skillId: "ink-snare",
+        preset: "ink-snare",
+        weaponArc: "snare-cast",
+        vfxShape: "ink-snare",
+        phase: "trap-snap",
+        cue: "ink-snare-snap",
+        durationMs: 520
+      },
+      {
+        key: "mechanism-bind",
+        skillId: "mechanism-shadow-net",
+        preset: "mechanism-net",
+        weaponArc: "mechanism-net",
+        vfxShape: "mechanism-net",
+        phase: "trap-bind",
+        cue: "mechanism-net-bind",
+        durationMs: 420
+      },
+      {
+        key: "mechanism-snap",
+        skillId: "mechanism-shadow-net",
+        preset: "mechanism-net",
+        weaponArc: "mechanism-net",
+        vfxShape: "mechanism-net",
+        phase: "trap-snap",
+        cue: "mechanism-net-snap",
+        durationMs: 560
+      }
+    ];
+    const computed = await computePlayerSkillPhaseStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed["ink-bind"].skillVfx.core.animationName).toBe("ink-snare-root-bind-core");
+    expect(computed["ink-bind"].skillVfx.wave.animationName).toBe("ink-snare-root-bind-ring");
+    expect(computed["ink-bind"].skillVfx.sparks.animationName).toBe("ink-snare-root-bind-sparks");
+    expect(computed["ink-snap"].skillVfx.core.animationName).toBe("ink-snare-root-snap-core");
+    expect(computed["ink-snap"].skillVfx.wave.animationName).toBe("ink-snare-root-snap-ring");
+    expect(computed["ink-snap"].skillVfx.sparks.animationName).toBe("ink-snare-root-snap-sparks");
+    expect(computed["mechanism-bind"].skillVfx.core.animationName).toBe("mechanism-net-root-bind-core");
+    expect(computed["mechanism-bind"].skillVfx.wave.animationName).toBe("mechanism-net-root-bind-ring");
+    expect(computed["mechanism-bind"].skillVfx.sparks.animationName).toBe("mechanism-net-root-bind-sparks");
+    expect(computed["mechanism-snap"].skillVfx.core.animationName).toBe("mechanism-net-root-snap-core");
+    expect(computed["mechanism-snap"].skillVfx.wave.animationName).toBe("mechanism-net-root-snap-ring");
+    expect(computed["mechanism-snap"].skillVfx.sparks.animationName).toBe("mechanism-net-root-snap-sparks");
+    expect(computed["ink-bind"].skillVfx.core.animationDuration).toBe("0.36s");
+    expect(computed["ink-snap"].skillVfx.core.animationDuration).toBe("0.52s");
+    expect(computed["mechanism-bind"].skillVfx.core.animationDuration).toBe("0.42s");
+    expect(computed["mechanism-snap"].skillVfx.core.animationDuration).toBe("0.56s");
+  }, 30000);
+
   it("uses distinct glass-rain impact animations for each Liuli rain wave", async () => {
     const fixtures: SkillImpactVfxFixture[] = [
       { key: "open", shape: "glass-rain", phase: "rain-open", cue: "glass-rain-open", durationMs: 300 },

@@ -3661,3 +3661,25 @@
   - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 436 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 535 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
   - In-app browser verification loaded `http://127.0.0.1:5174/`, entered `灰窑巷`, confirmed 2 visible live enemies, quest tracker text, 6 combat skill slots, no console errors, and a clicked `ink-shot` skill produced player skill motion, root VFX, target impact VFX, and a real target `ink-bolt` hit phase.
+
+## Task 144 DNF-Style Hitstop Combat Freeze and Trap Root VFX
+- Continued after the user's clarification: character/monster geometry can stay lighter for now, but combat motion smoothness, strict hit frames, actor state changes, hit feedback, player/enemy skill VFX, and monster skill VFX remain strict gates.
+- Used two parallel read-only agents:
+  - Combat audit found hitstop was only exposed as scene/UI state while `stepCombat()` still allowed movement sampling, enemy impact resolution, and enemy windup time to advance.
+  - UI/CSS audit found staged trap target VFX existed, but `ink-snare` and `mechanism-shadow-net` root player skill VFX still resolved generic cast animations for bind/snap phases.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires active hitstop to freeze player movement and delay active monster attack timers before monster impact can resolve.
+  - Existing monster multi-hit tests now assert later boss/monster hit frames include the prior hitstop delay instead of advancing while the player is frozen.
+  - `src/tests/browser-computed-style.test.ts` now verifies real browser root VFX animations for `ink-snare` bind/snap and `mechanism-shadow-net` bind/snap cues.
+- RED evidence:
+  - Hitstop RED failed because player X changed during hitstop.
+  - Browser RED failed because `ink-snare` bind root VFX still computed `ink-snare-cast-core`.
+- Implemented:
+  - `src/game/combat.ts` now has a hitstop frame path before normal combat advancement. It advances elapsed time, freezes player position/facing, skips movement/effect/enemy-impact resolution, and shifts active enemy attack timers plus arena hazard impacts by the frozen amount. Player scheduled skill frames remain on their catalog timelines.
+  - `src/styles.css` now cue-gates `ink-snare` and `mechanism-shadow-net` root core/wave/sparks animations for bind and snap phases with real runtime durations.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "freezes combat timers" --reporter=basic`, 1 matched test.
+  - Combat suite passed: `npm test -- src/tests/combat.test.ts --reporter=dot`, 240 tests.
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "Ink snare and mechanism net root" --reporter=basic`, 1 matched test.
+  - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 438 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 537 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

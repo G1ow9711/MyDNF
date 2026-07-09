@@ -766,6 +766,75 @@ function samplePlayerPosition(player: CombatPlayer, elapsedMs: number): CombatVe
   return playerSkillMovementPosition(player.activeSkillMovement, elapsedMs);
 }
 
+function shiftFutureTime(value: number, originMs: number, deltaMs: number): number {
+  return value > originMs ? value + deltaMs : value;
+}
+
+function shiftFutureOptionalTime(value: number | undefined, originMs: number, deltaMs: number): number | undefined {
+  return value !== undefined && value > originMs ? value + deltaMs : value;
+}
+
+function shiftEnemyTimersForHitstop(enemy: CombatEnemy, originMs: number, deltaMs: number): CombatEnemy {
+  const attackActive =
+    enemy.attackSkillId !== undefined &&
+    enemy.attackStartedAtMs !== undefined &&
+    enemy.attackImpactAtMs !== undefined &&
+    (enemy.attackRecoverUntilMs ?? enemy.attackImpactAtMs) > originMs;
+
+  return {
+    ...enemy,
+    airborneUntilMs: shiftFutureOptionalTime(enemy.airborneUntilMs, originMs, deltaMs),
+    downedUntilMs: shiftFutureOptionalTime(enemy.downedUntilMs, originMs, deltaMs),
+    nextAttackAtMs: shiftFutureTime(enemy.nextAttackAtMs, originMs, deltaMs),
+    attackStartedAtMs: attackActive ? enemy.attackStartedAtMs! + deltaMs : enemy.attackStartedAtMs,
+    attackImpactAtMs: attackActive ? enemy.attackImpactAtMs! + deltaMs : enemy.attackImpactAtMs,
+    attackRecoverUntilMs: attackActive ? shiftFutureOptionalTime(enemy.attackRecoverUntilMs, originMs, deltaMs) : enemy.attackRecoverUntilMs,
+    controlledUntilMs: shiftFutureOptionalTime(enemy.controlledUntilMs, originMs, deltaMs),
+    armorBrokenUntilMs: shiftFutureOptionalTime(enemy.armorBrokenUntilMs, originMs, deltaMs)
+  };
+}
+
+function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: number): CombatRun {
+  return {
+    ...run,
+    enemies: run.enemies.map((enemy) => shiftEnemyTimersForHitstop(enemy, originMs, deltaMs)),
+    scheduledArenaHazards: run.scheduledArenaHazards.map((hazard) => ({
+      ...hazard,
+      impactAtMs: hazard.impactAtMs >= originMs ? hazard.impactAtMs + deltaMs : hazard.impactAtMs
+    }))
+  };
+}
+
+function hitstopRemainingMs(run: CombatRun): number {
+  return Math.max(0, run.player.hitstopUntilMs - run.elapsedMs);
+}
+
+function advanceHitstopFrame(run: CombatRun, input: CombatInput, dtMs: number): CombatRun {
+  const remainingMs = hitstopRemainingMs(run);
+
+  if (remainingMs <= 0 || dtMs <= 0) {
+    return run;
+  }
+
+  const freezeMs = Math.min(dtMs, remainingMs);
+  const originMs = run.elapsedMs;
+  const frozenPosition = samplePlayerPosition(run.player, originMs);
+  const shiftedRun = shiftCombatTimersForHitstop(run, originMs, freezeMs);
+  const frozenRun: CombatRun = {
+    ...shiftedRun,
+    elapsedMs: originMs + freezeMs,
+    player: {
+      ...shiftedRun.player,
+      x: frozenPosition.x,
+      y: frozenPosition.y,
+      facing: run.player.facing
+    }
+  };
+  const remainingDtMs = dtMs - freezeMs;
+
+  return remainingDtMs > 0 ? stepCombat(frozenRun, input, remainingDtMs) : frozenRun;
+}
+
 function playerAirStateAt(player: CombatPlayer, elapsedMs: number): CombatPlayer["airState"] {
   if (elapsedMs < player.airborneUntilMs) {
     return "jumping";
@@ -4243,6 +4312,10 @@ function advanceRoomTransitionFrame(run: CombatRun, dtMs: number): CombatRun {
 export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): CombatRun {
   if (run.roomTransition) {
     return advanceRoomTransitionFrame(run, dtMs);
+  }
+
+  if (hitstopRemainingMs(run) > 0) {
+    return advanceHitstopFrame(run, input, dtMs);
   }
 
   const elapsedMs = run.elapsedMs + dtMs;

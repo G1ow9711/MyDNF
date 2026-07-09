@@ -1079,3 +1079,12 @@
 - Fix note: `spark-combo` now schedules three model-following dynamic hitboxes with `spark-jab`, `spark-cross`, and `spark-finish` phases, separate ember cues, short VFX windows, per-stage damage/knockback/hitstop, and finish stagger.
 - UI/VFX note: player skill root VFX, target impact bursts, and player status bursts now prefer event-level `vfxWindowMs`; spark combo adds dedicated player, weapon, root VFX, and target impact keyframes for all three stages.
 - Boss note: active Taotie phase events now feed the enemy actor motion contract when no normal attack is playing, giving forge-collapse a boss attack class, runtime duration, lunge distance, and browser-verified `monster-taotie-forge-collapse` animation.
+
+## DNF-Style Hitstop Freeze and Trap Root VFX Findings
+- Current priority follows the user's latest clarification: character and monster modeling may stay lighter while the full loop is completed, but hitstop, action flow, actor state changes, skill VFX, and monster skill VFX remain strict acceptance gates.
+- Parallel combat audit found hitstop had become mostly presentation state: the scene could freeze animations, but `stepCombat()` still advanced player movement sampling, enemy windup timers, and enemy impacts while `player.hitstopUntilMs` was active.
+- RED note: focused combat coverage first failed because the player moved during hitstop. After tightening the contract, active monster attack timers and arena hazards are shifted by the frozen duration, so monster impacts no longer occur inside the freeze window.
+- Compatibility note: player scheduled skill hit frames remain on their catalog timelines. This preserves strict player combo/staged-skill timing while preventing monsters and hazards from advancing during player/enemy hitstop.
+- Parallel UI/CSS audit found `ink-snare` and `mechanism-shadow-net` already emitted bind/snap cue metadata, but their root player skill VFX still computed the generic cast keyframes in a real browser.
+- CSS note: `ink-snare` and `mechanism-shadow-net` root core/wave/sparks now consume bind/snap `data-vfx-cue` values and runtime skill durations, so trap bind and snap phases are visually distinct without changing damage timing.
+- Queue note: remaining high-value strict-combat candidates are flowing-light-chain target impact browser VFX, target-impact duration hardening, and broader same-frame/mid-frame hitstop priority inside large `stepCombat()` frames.

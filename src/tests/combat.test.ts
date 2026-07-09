@@ -1730,6 +1730,76 @@ describe("combat actions and impact feel", () => {
     expect(cast.player.actionLockUntilMs - run.elapsedMs).toBe(skill.animation.durationMs);
   });
 
+  it("freezes combat timers, movement, and monster impacts during hitstop", () => {
+    const baseRun = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 324, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const hitRun = applyHit(baseRun, {
+      id: "test-hitstop-freeze",
+      targetId: baseRun.enemies[0].id,
+      damage: 1,
+      hitstopMs: 70,
+      knockback: 0,
+      juggle: false,
+      action: "test"
+    });
+    const impactAtMs = hitRun.elapsedMs + 10;
+    const armedRun: CombatRun = {
+      ...hitRun,
+      enemies: hitRun.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: {
+                x: hitRun.player.x + 84,
+                y: hitRun.player.y
+              },
+              attackStartedAtMs: hitRun.elapsedMs,
+              attackImpactAtMs: impactAtMs,
+              attackRecoverUntilMs: hitRun.elapsedMs + 320,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              attackConnectedHitIndexes: [],
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+
+    expect(armedRun.player.hitstopUntilMs).toBe(70);
+    const frozen = stepCombat(armedRun, { moveX: 1, moveY: 0 }, 20);
+
+    expect(frozen.elapsedMs).toBe(20);
+    expect(frozen.player.x).toBe(armedRun.player.x);
+    expect(frozen.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-ember-spit")).toBe(false);
+    expect(frozen.enemies[0].attackResolvedHits).toBe(0);
+    expect(frozen.enemies[0].attackStartedAtMs).toBe(20);
+    expect(frozen.enemies[0].attackImpactAtMs).toBe(30);
+    expect(frozen.enemies[0].attackRecoverUntilMs).toBe(340);
+
+    const released = stepCombat(frozen, {}, 50);
+    expect(released.elapsedMs).toBe(70);
+    expect(released.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-ember-spit")).toBe(false);
+    expect(released.enemies[0].attackImpactAtMs).toBe(80);
+
+    const beforeImpact = stepCombat(released, {}, 9);
+    expect(beforeImpact.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-ember-spit")).toBe(false);
+
+    const impacted = stepCombat(beforeImpact, {}, 1);
+    const playerHit = impacted.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(playerHit).toMatchObject({
+      occurredAtMs: 80,
+      hitstopMs: 36
+    });
+    expect(impacted.enemies[0].attackResolvedHits).toBe(1);
+  });
+
   it("uses equipped attack stats and cooldown stats in combat formulas", () => {
     const plainRun = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       nextAttackAtMs: 9999
@@ -5023,8 +5093,10 @@ describe("combat actions and impact feel", () => {
     );
 
     const cast = performAction(run, { type: "skill", skillId: "black-rain-volley" });
-    const [firstRainAtMs, , finalRainAtMs] = scheduledSkillTimes(cast, "black-rain-volley");
+    const [firstRainAtMs, secondRainAtMs, finalRainAtMs] = scheduledSkillTimes(cast, "black-rain-volley");
     const firstRain = stepToElapsed(cast, firstRainAtMs);
+    const interruptDelayMs = 30;
+    const shiftedInterruptAtMs = firstRainAtMs + interruptDelayMs + (firstRain.player.hitstopUntilMs - firstRain.elapsedMs);
     const interrupted = stepCombat(
       {
         ...firstRain,
@@ -5033,7 +5105,7 @@ describe("combat actions and impact feel", () => {
             ...firstRain.enemies[0],
             attackSkillId: "ash-ember-spit",
             attackStartedAtMs: firstRainAtMs,
-            attackImpactAtMs: firstRainAtMs + 55,
+            attackImpactAtMs: firstRainAtMs + interruptDelayMs,
             attackRecoverUntilMs: firstRainAtMs + 260,
             attackHitResolved: false,
             attackResolvedHits: 0
@@ -5046,12 +5118,13 @@ describe("combat actions and impact feel", () => {
     );
 
     expect(skillHitEvents(firstRain, "black-rain-volley")).toHaveLength(2);
+    expect(shiftedInterruptAtMs).toBeLessThan(secondRainAtMs);
     expect(interrupted.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           kind: "player-hit",
           skillId: "ash-ember-spit",
-          occurredAtMs: firstRainAtMs + 55
+          occurredAtMs: shiftedInterruptAtMs
         })
       ])
     );
@@ -7680,8 +7753,9 @@ describe("enemy attacks and player defeat", () => {
     const actionDuringBind = performAction(bind, { type: "light" });
     const moveDuringBind = stepCombat(bind, { moveX: -1, moveY: 1, dash: true }, 120);
     const slamAtMs = impactAtMs + 240;
-    const beforeSlam = stepToElapsed(bind, slamAtMs - 1);
-    const slammed = stepToElapsed(beforeSlam, slamAtMs);
+    const shiftedSlamAtMs = slamAtMs + (bind.player.hitstopUntilMs - bind.elapsedMs);
+    const beforeSlam = stepToElapsed(bind, shiftedSlamAtMs - 1);
+    const slammed = stepToElapsed(beforeSlam, shiftedSlamAtMs);
     const shackleAttacks = slammed.events.filter(
       (event): event is CombatEnemyAttackEvent => event.kind === "enemy-attack" && event.skillId === "taotie-forge-shackle"
     );
@@ -7701,7 +7775,7 @@ describe("enemy attacks and player defeat", () => {
     );
     expect(beforeBind.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-forge-shackle")).toBe(false);
     expect(playerHits).toHaveLength(2);
-    expect(playerHits.map((event) => event.occurredAtMs)).toEqual([impactAtMs, slamAtMs]);
+    expect(playerHits.map((event) => event.occurredAtMs)).toEqual([impactAtMs, shiftedSlamAtMs]);
     expect(playerHits.map((event) => event.feedbackCue)).toEqual(["player-hurt-forge-shackle", "player-hurt-forge-slam"]);
     expect(shackleAttacks.filter((event) => event.phase === "active").map((event) => event.vfxCue)).toEqual([
       "taotie-forge-shackle-bind",
@@ -7710,7 +7784,7 @@ describe("enemy attacks and player defeat", () => {
     expect(actionDuringBind.events.some((event) => event.kind === "hit" && event.action === "light" && event.occurredAtMs === bind.elapsedMs)).toBe(false);
     expect(moveDuringBind.player.x).toBe(bind.player.x);
     expect(moveDuringBind.player.y).toBe(bind.player.y);
-    expect(bind.player.hurtLockUntilMs).toBeGreaterThan(slamAtMs);
+    expect(bind.player.hurtLockUntilMs).toBeGreaterThan(shiftedSlamAtMs);
     expect(slammed.player.hp).toBeLessThan(bind.player.hp);
     expect(slammed.player.hurtLockUntilMs).toBeGreaterThan(slammed.elapsedMs);
   });
@@ -7755,8 +7829,9 @@ describe("enemy attacks and player defeat", () => {
     const actionDuringDrag = performAction(drag, { type: "light" });
     const moveDuringDrag = stepCombat(drag, { moveX: -1, moveY: 1, dash: true }, 96);
     const smashAtMs = impactAtMs + 180;
-    const beforeSmash = stepToElapsed(drag, smashAtMs - 1);
-    const smashed = stepToElapsed(beforeSmash, smashAtMs);
+    const shiftedSmashAtMs = smashAtMs + (drag.player.hitstopUntilMs - drag.elapsedMs);
+    const beforeSmash = stepToElapsed(drag, shiftedSmashAtMs - 1);
+    const smashed = stepToElapsed(beforeSmash, shiftedSmashAtMs);
     const chainAttacks = smashed.events.filter(
       (event): event is CombatEnemyAttackEvent => event.kind === "enemy-attack" && event.skillId === "taotie-chain-cleave"
     );
@@ -7776,7 +7851,7 @@ describe("enemy attacks and player defeat", () => {
     );
     expect(beforeDrag.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-chain-cleave")).toBe(false);
     expect(playerHits).toHaveLength(2);
-    expect(playerHits.map((event) => event.occurredAtMs)).toEqual([impactAtMs, smashAtMs]);
+    expect(playerHits.map((event) => event.occurredAtMs)).toEqual([impactAtMs, shiftedSmashAtMs]);
     expect(playerHits.map((event) => event.feedbackCue)).toEqual(["player-hurt-chain-drag", "player-hurt-chain-smash"]);
     expect(chainAttacks.filter((event) => event.phase === "active").map((event) => event.vfxCue)).toEqual([
       "taotie-chain-cleave-drag",
@@ -7785,7 +7860,7 @@ describe("enemy attacks and player defeat", () => {
     expect(actionDuringDrag.events.some((event) => event.kind === "hit" && event.action === "light" && event.occurredAtMs === drag.elapsedMs)).toBe(false);
     expect(moveDuringDrag.player.x).toBe(drag.player.x);
     expect(moveDuringDrag.player.y).toBe(drag.player.y);
-    expect(drag.player.boundUntilMs).toBeGreaterThan(smashAtMs);
+    expect(drag.player.boundUntilMs).toBeGreaterThan(shiftedSmashAtMs);
     expect(smashed.player.hp).toBeLessThan(drag.player.hp);
     expect(smashed.player.hurtLockUntilMs).toBeGreaterThan(smashed.elapsedMs);
   });
@@ -9081,7 +9156,9 @@ describe("enemy attacks and player defeat", () => {
     const telegraph = stepCombat(run, {}, 80);
     const firstPulse = stepCombat(telegraph, {}, 430);
     const secondPulse = stepCombat(firstPulse, {}, 180);
-    const thirdPulse = stepCombat(secondPulse, {}, 180);
+    const thirdPulse = stepCombat(secondPulse, {}, 240);
+    const secondPulseAtMs = 500 + (firstPulse.player.hitstopUntilMs - firstPulse.elapsedMs) + 180;
+    const thirdPulseAtMs = secondPulseAtMs + 180;
     const attackPulses = thirdPulse.events.filter(
       (event): event is CombatEnemyAttackEvent =>
         event.kind === "enemy-attack" && event.skillId === "taotie-flame-breath" && event.phase === "active"
@@ -9091,7 +9168,7 @@ describe("enemy attacks and player defeat", () => {
     );
 
     expect(attackPulses).toHaveLength(3);
-    expect(attackPulses.map((event) => event.occurredAtMs)).toEqual([500, 680, 860]);
+    expect(attackPulses.map((event) => event.occurredAtMs)).toEqual([500, secondPulseAtMs, thirdPulseAtMs]);
     expect(attackPulses).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ hitIndex: 1, totalHits: 3, vfxCue: "taotie-flame-breath-sustain" }),
@@ -9100,7 +9177,7 @@ describe("enemy attacks and player defeat", () => {
       ])
     );
     expect(playerHits).toHaveLength(3);
-    expect(playerHits.map((event) => event.occurredAtMs)).toEqual([500, 680, 860]);
+    expect(playerHits.map((event) => event.occurredAtMs)).toEqual([500, secondPulseAtMs, thirdPulseAtMs]);
     expect(thirdPulse.enemies[0].attackHitResolved).toBe(true);
   });
 

@@ -3976,3 +3976,22 @@
   - Full live-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (4 tests).
   - Full suite passed: `npm test -- --reporter=dot` (15 files / 563 tests).
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 159 Real-Browser Spark Combo Phase and Command Input Acceptance
+- Continued toward the strict DNF objective: models can stay lightweight, but real keyboard inputs must prove command-input priority, staged skill phases, model-following actor motion, and phase-specific root VFX in the mounted browser game.
+- Used two read-only agents:
+  - Command-input audit confirmed `ArrowRight` -> `KeyZ` maps to slot 0 `spark-combo`, should beat normal `KeyZ` heavy fallback, and is the stable zero-resource live-browser path. It also warned that `ArrowDown` -> `ArrowRight` -> `KeyZ` maps to `anvil-crash`, which needs heat.
+  - Spark-combo audit confirmed jab/cross/finish already carry `hitPhase` and `vfxCue` through hit or miss events, and recommended validating root skill VFX plus player/weapon animations instead of target impact bursts from the default distant spawn.
+- Added RED/GREEN coverage:
+  - `src/tests/browser-keyboard-control.test.ts` now reads live `data-player-skill-hit-phase`, `data-player-skill-vfx-cue`, root `[data-player-skill-vfx="spark-combo"]` phase/cue, and computed root VFX animations.
+  - New live-browser coverage presses `KeyA` and verifies `spark-jab`, `spark-cross`, and `spark-finish` in order with phase-specific player animation, weapon animation, root VFX core/wave/sparks animations, and no monster-hit hurt lock during the sequence.
+  - New live-browser command-input coverage presses `ArrowRight` then `KeyZ`, proving `data-command-release-source="manual"`, `data-command-match-skill-id="spark-combo"`, command discount metadata, `data-last-input-method="command"`, skill motion, empty action buffer, and no normal heavy fallback.
+  - Initial command RED with `ArrowDown` -> `ArrowRight` -> `KeyZ` failed because the default live character did not have enough heat for command `anvil-crash`; the test now uses zero-cost `spark-combo` for the stable DNF command-priority acceptance.
+  - Full-suite RED then exposed a browser app-mount timing race: under full Vitest load the page scripts could exist while `#app` was still empty after 5 seconds. `enterDungeonWithKeyboard()` now condition-waits up to 15 seconds for the dungeon button, preserving the same ready predicate and diagnostics.
+  - Code-review fixes replaced short-window phase polling with page-local rAF phase sampling, added exact root VFX wave/sparks animation assertions, and asserted the command path leaves no heavy action in the buffer.
+- Verification:
+  - Focused spark-combo phase check passed: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "spark-combo jab" --reporter=basic`.
+  - Focused DNF command-input check passed: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "DNF command input" --reporter=basic`.
+  - Full live-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (6 tests).
+  - Full suite passed after the app-mount wait fix: `npm test -- --reporter=dot` (15 files / 565 tests).
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.

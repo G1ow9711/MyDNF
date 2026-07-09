@@ -4048,3 +4048,17 @@
   - Combined focus passed: `npm test -- src/tests/browser-keyboard-control.test.ts src/tests/app-integration.test.ts --testNamePattern "auto-saves combat rewards|walks from elite room" --reporter=basic` (2 matched tests).
   - Full live-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (9 tests).
   - Fresh final checks passed: `npm test -- --reporter=basic` (15 files / 569 tests), `npm run build`, `git diff --check` (CRLF warnings only), and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 163 Real-Browser Two-Room Strict Combat Motion and VFX Acceptance
+- Continued after the user's clarification: character/monster models may remain lightweight while the playable loop is completed, but combat action smoothness, model-following attacks, strict hit frames, hitstop, player/enemy action changes, skill VFX, and monster VFX are hard gates.
+- Used two read-only agents:
+  - Player-side audit found strong existing support for staged skill movement, dynamic hit-frame target recheck, hit/miss phase cues, root/target VFX, and browser-computed player/weapon animations. It recommended future Liuli phase hardening.
+  - Monster-side audit found all monster attack profiles have data/UI/CSS coverage, but true live-browser proof mainly covered room-0 ash enemies. It recommended extending keyboard browser acceptance toward elite/boss progression.
+- Added acceptance coverage:
+  - `src/tests/browser-keyboard-control.test.ts` now exposes `data-enemy-kind` in live room-flow state reads and adds a page-local strict-combat recorder.
+  - The new real-browser test enters the dungeon with keyboard, clears room 0, walks into room 1, clears room 1, walks into the boss room, verifies a live boss enemy, and requires the same mounted play session to record player skill motion, player skill VFX, hitstop, impact cue, monster attack motion, and monster skill VFX.
+- Evidence:
+  - Focused strict live-combat browser test passed immediately: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "clears two rooms" --reporter=basic`, 1 matched test, 9 skipped.
+- Next strict-combat candidates:
+  - Controlled live-browser boss clear with Taotie phase changes, summon pressure, and hazards.
+  - Liuli `glass-lotus` bind/bloom root/player/weapon phase VFX hardening.

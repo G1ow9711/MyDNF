@@ -129,10 +129,45 @@ type BrowserRoomFlowState = {
   transitionTargetRoom: string;
   enemies: Array<{
     id: string;
+    kind: string;
     hp: number;
     x: number;
     y: number;
   }>;
+};
+
+type BrowserStrictCombatState = {
+  objective: string;
+  roomIndex: string;
+  activeSkill: string;
+  playerMotion: string;
+  skillMove: string;
+  skillStage: string;
+  skillVfx: string;
+  skillVfxCue: string;
+  skillVfxCoreAnimation: string;
+  hitstopActive: string;
+  impactCue: string;
+  enemies: Array<{
+    id: string;
+    kind: string;
+    stage: string;
+    skill: string;
+    animationName: string;
+  }>;
+  enemyVfx: string;
+  enemyVfxCue: string;
+};
+
+type BrowserStrictCombatEvidence = {
+  roomsSeen: string[];
+  enemyKindsSeen: string[];
+  sawPlayerSkillVfx: boolean;
+  sawSkillMotion: boolean;
+  sawHitstop: boolean;
+  sawImpactCue: boolean;
+  sawEnemyAttackMotion: boolean;
+  sawEnemySkillVfx: boolean;
 };
 
 type BrowserSavedState = {
@@ -175,6 +210,7 @@ const readRoomFlowStateExpression = `
   const gate = document.querySelector("[data-room-gate='true']");
   const enemies = Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => ({
     id: enemy.getAttribute("data-enemy-id") ?? "",
+    kind: enemy.getAttribute("data-enemy-kind") ?? "",
     hp: Number(enemy.getAttribute("data-enemy-hp-current") || "0"),
     x: Number(enemy.getAttribute("data-enemy-x") || "0"),
     y: Number(enemy.getAttribute("data-enemy-y") || "0")
@@ -199,6 +235,130 @@ const readRoomFlowStateExpression = `
     transitionTargetRoom: scene?.getAttribute("data-room-transition-target-room") ?? "",
     enemies
   };
+})()
+`;
+
+const readStrictCombatStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const player = document.querySelector(".combat-player");
+  const skillVfx = document.querySelector("[data-player-skill-vfx]");
+  const impact = document.querySelector("[data-impact-spark='true']");
+  const enemyVfx = document.querySelector("[data-enemy-skill-vfx]");
+  const enemies = Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => {
+    const art = enemy.querySelector(".enemy-art");
+    return {
+      id: enemy.getAttribute("data-enemy-id") ?? "",
+      kind: enemy.getAttribute("data-enemy-kind") ?? "",
+      stage: enemy.getAttribute("data-enemy-attack-stage") ?? "",
+      skill: enemy.getAttribute("data-enemy-attack-skill-id") ?? "",
+      animationName: art ? getComputedStyle(art).animationName : ""
+    };
+  });
+  return {
+    objective: scene?.getAttribute("data-combat-objective") ?? "",
+    roomIndex: scene?.getAttribute("data-room-index") ?? "",
+    activeSkill: player?.getAttribute("data-active-skill-id") ?? "",
+    playerMotion: player?.getAttribute("data-player-motion") ?? "",
+    skillMove: player?.getAttribute("data-player-skill-move") ?? "",
+    skillStage: player?.getAttribute("data-player-skill-stage") ?? "",
+    skillVfx: skillVfx?.getAttribute("data-player-skill-vfx") ?? "",
+    skillVfxCue: skillVfx?.getAttribute("data-vfx-cue") ?? "",
+    skillVfxCoreAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-core")).animationName : "",
+    hitstopActive: scene?.getAttribute("data-hitstop-active") ?? "",
+    impactCue: impact?.getAttribute("data-vfx-cue") ?? "",
+    enemies,
+    enemyVfx: enemyVfx?.getAttribute("data-enemy-skill-vfx") ?? "",
+    enemyVfxCue: enemyVfx?.getAttribute("data-enemy-vfx-cue") ?? ""
+  };
+})()
+`;
+
+const installStrictCombatRecorderExpression = `
+(() => {
+  globalThis.__strictCombatEvidence = {
+    roomsSeen: [],
+    enemyKindsSeen: [],
+    sawPlayerSkillVfx: false,
+    sawSkillMotion: false,
+    sawHitstop: false,
+    sawImpactCue: false,
+    sawEnemyAttackMotion: false,
+    sawEnemySkillVfx: false
+  };
+  const addUnique = (items, value) => {
+    if (value && !items.includes(value)) {
+      items.push(value);
+    }
+  };
+  const tick = () => {
+    const evidence = globalThis.__strictCombatEvidence;
+    const state = ${readStrictCombatStateExpression.trim()};
+
+    if (state.objective) {
+      addUnique(evidence.roomsSeen, state.roomIndex);
+    }
+    for (const enemy of state.enemies) {
+      addUnique(evidence.enemyKindsSeen, enemy.kind);
+    }
+
+    if (
+      state.skillVfx &&
+      state.skillVfxCoreAnimation &&
+      state.skillVfxCoreAnimation !== "none"
+    ) {
+      evidence.sawPlayerSkillVfx = true;
+    }
+    if (
+      state.activeSkill &&
+      state.playerMotion === "skill" &&
+      state.skillMove &&
+      ["windup", "active", "recovery"].includes(state.skillStage)
+    ) {
+      evidence.sawSkillMotion = true;
+    }
+    if (state.hitstopActive === "true") {
+      evidence.sawHitstop = true;
+    }
+    if (state.impactCue) {
+      evidence.sawImpactCue = true;
+    }
+    if (
+      state.enemies.some(
+        (enemy) =>
+          enemy.stage === "windup" &&
+          enemy.skill &&
+          enemy.animationName &&
+          enemy.animationName !== "none" &&
+          enemy.animationName !== "monster-idle-breathe"
+      )
+    ) {
+      evidence.sawEnemyAttackMotion = true;
+    }
+    if (state.enemyVfx && state.enemyVfxCue) {
+      evidence.sawEnemySkillVfx = true;
+    }
+
+    globalThis.__strictCombatRecorder = requestAnimationFrame(tick);
+  };
+  if (globalThis.__strictCombatRecorder) {
+    cancelAnimationFrame(globalThis.__strictCombatRecorder);
+  }
+  globalThis.__strictCombatRecorder = requestAnimationFrame(tick);
+  return true;
+})()
+`;
+
+const readStrictCombatEvidenceExpression = `
+(() => globalThis.__strictCombatEvidence ?? {
+  roomsSeen: [],
+  enemyKindsSeen: [],
+  sawPlayerSkillVfx: false,
+  sawSkillMotion: false,
+  sawHitstop: false,
+  sawImpactCue: false,
+  sawEnemyAttackMotion: false,
+  sawEnemySkillVfx: false
 })()
 `;
 
@@ -779,6 +939,53 @@ describe("real browser keyboard control", () => {
     }
   }, 90000);
 
+  it("clears two rooms into the boss room while proving live action motion and VFX", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        await page.evaluate<boolean>(installStrictCombatRecorderExpression);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.roomIndex === "0" && state.liveEnemyCount === "2",
+          5000
+        );
+
+        const firstCleared = await clearCurrentRoomWithKeyboard(page);
+        expect(firstCleared.defeatedEnemyCount).toBe("2");
+        expect(firstCleared.gateState).toBe("open");
+        expect(firstCleared.gateTargetRoom).toBe("1");
+
+        const eliteRoom = await walkThroughOpenGate(page);
+        expect(eliteRoom.roomIndex).toBe("1");
+        expect(eliteRoom.liveEnemyCount).toBe("3");
+
+        const secondCleared = await clearCurrentRoomWithKeyboard(page, 28);
+        expect(secondCleared.defeatedEnemyCount).toBe("3");
+        expect(secondCleared.gateState).toBe("boss");
+        expect(secondCleared.gateTargetRoom).toBe("2");
+
+        const bossRoom = await walkThroughOpenGate(page);
+        expect(bossRoom.roomIndex).toBe("2");
+        expect(bossRoom.liveEnemyCount).toBe("1");
+        expect(bossRoom.enemies.some((enemy) => enemy.kind === "boss" && enemy.hp > 0)).toBe(true);
+
+        const evidence = await page.evaluate<BrowserStrictCombatEvidence>(readStrictCombatEvidenceExpression);
+        expect(evidence.roomsSeen).toEqual(expect.arrayContaining(["0", "1", "2"]));
+        expect(evidence.enemyKindsSeen).toContain("boss");
+        expect(evidence.sawSkillMotion).toBe(true);
+        expect(evidence.sawPlayerSkillVfx).toBe(true);
+        expect(evidence.sawHitstop).toBe(true);
+        expect(evidence.sawImpactCue).toBe(true);
+        expect(evidence.sawEnemyAttackMotion).toBe(true);
+        expect(evidence.sawEnemySkillVfx).toBe(true);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 120000);
+
   it("auto-saves combat rewards and restores them after a real browser reload", async () => {
     const server = await startViteServer();
 
@@ -912,8 +1119,8 @@ describe("real browser keyboard control", () => {
   }, 60000);
 });
 
-async function clearCurrentRoomWithKeyboard(page: RealBrowserAppPage): Promise<BrowserRoomFlowState> {
-  for (let attempt = 0; attempt < 18; attempt += 1) {
+async function clearCurrentRoomWithKeyboard(page: RealBrowserAppPage, maxAttempts = 18): Promise<BrowserRoomFlowState> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
     if (state.liveEnemyCount === "0") {
       break;

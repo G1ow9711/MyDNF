@@ -1250,6 +1250,18 @@ p {
   animation: weapon-jab-chain var(--skill-duration, 420ms) cubic-bezier(0.14, 0.86, 0.18, 1) both;
 }
 
+.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="spark-jab"] .combat-weapon {
+  animation: weapon-spark-jab var(--skill-duration, 260ms) cubic-bezier(0.12, 0.84, 0.16, 1) both;
+}
+
+.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="spark-cross"] .combat-weapon {
+  animation: weapon-spark-cross var(--skill-duration, 260ms) cubic-bezier(0.1, 0.84, 0.14, 1) both;
+}
+
+.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="spark-finish"] .combat-weapon {
+  animation: weapon-spark-finish var(--skill-duration, 320ms) cubic-bezier(0.08, 0.82, 0.14, 1) both;
+}
+
 .combat-player[data-player-motion="skill"][data-skill-weapon-arc="shield-jab"] .combat-weapon {
   animation: weapon-shield-jab var(--skill-duration, 440ms) cubic-bezier(0.14, 0.82, 0.16, 1) both;
 }
@@ -1740,6 +1752,18 @@ p {
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="ember-combo"] .combat-player-art {
   animation: player-ember-spark-combo var(--skill-duration, 420ms) cubic-bezier(0.14, 0.86, 0.18, 1) both;
+}
+
+.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="spark-jab"] .combat-player-art {
+  animation: player-ember-spark-jab var(--skill-duration, 260ms) cubic-bezier(0.12, 0.84, 0.16, 1) both;
+}
+
+.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="spark-cross"] .combat-player-art {
+  animation: player-ember-spark-cross var(--skill-duration, 260ms) cubic-bezier(0.1, 0.84, 0.14, 1) both;
+}
+
+.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="spark-finish"] .combat-player-art {
+  animation: player-ember-spark-finish var(--skill-duration, 320ms) cubic-bezier(0.08, 0.82, 0.14, 1) both;
 }
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="ember-uppercut"] .combat-player-art {
@@ -2438,6 +2462,11 @@ p {
   filter: saturate(1.22) contrast(1.1) drop-shadow(0 0 18px rgba(248, 113, 113, 0.52));
 }
 
+.combat-enemy[data-boss-phase-skill-id="taotie-forge-collapse"] .enemy-art {
+  animation: monster-taotie-forge-collapse var(--enemy-attack-duration, 1180ms) cubic-bezier(0.1, 0.82, 0.14, 1) both;
+  filter: saturate(1.35) contrast(1.16) brightness(1.08) drop-shadow(0 0 24px rgba(248, 113, 113, 0.72));
+}
+
 .boss-phase-vfx {
   width: 360px;
   height: 220px;
@@ -2787,6 +2816,42 @@ p {
     radial-gradient(circle at 30% 68%, rgba(254, 240, 138, 0.96) 0 4px, transparent 5px),
     radial-gradient(circle at 74% 36%, rgba(255, 247, 237, 0.9) 0 3px, transparent 4px);
   animation: ember-jab-chain-impact-shards 380ms ease-out both;
+}
+
+.skill-impact-shape-ember-sparks[data-vfx-cue="ember-spark-jab"] .skill-impact-core {
+  animation: ember-spark-jab-impact-core var(--skill-duration, 260ms) cubic-bezier(0.12, 0.84, 0.16, 1) both;
+}
+
+.skill-impact-shape-ember-sparks[data-vfx-cue="ember-spark-jab"] .skill-impact-ring {
+  animation: ember-spark-jab-impact-ring var(--skill-duration, 260ms) ease-out both;
+}
+
+.skill-impact-shape-ember-sparks[data-vfx-cue="ember-spark-jab"] .skill-impact-shards {
+  animation: ember-spark-jab-impact-shards var(--skill-duration, 260ms) ease-out both;
+}
+
+.skill-impact-shape-ember-sparks[data-vfx-cue="ember-spark-cross"] .skill-impact-core {
+  animation: ember-spark-cross-impact-core var(--skill-duration, 260ms) cubic-bezier(0.12, 0.84, 0.16, 1) both;
+}
+
+.skill-impact-shape-ember-sparks[data-vfx-cue="ember-spark-cross"] .skill-impact-ring {
+  animation: ember-spark-cross-impact-ring var(--skill-duration, 260ms) ease-out both;
+}
+
+.skill-impact-shape-ember-sparks[data-vfx-cue="ember-spark-cross"] .skill-impact-shards {
+  animation: ember-spark-cross-impact-shards var(--skill-duration, 260ms) ease-out both;
+}
+
+.skill-impact-shape-ember-sparks[data-vfx-cue="ember-spark-finish"] .skill-impact-core {
+  animation: ember-spark-finish-impact-core var(--skill-duration, 320ms) cubic-bezier(0.1, 0.84, 0.14, 1) both;
+}
+
+.skill-impact-shape-ember-sparks[data-vfx-cue="ember-spark-finish"] .skill-impact-ring {
+  animation: ember-spark-finish-impact-ring var(--skill-duration, 320ms) ease-out both;
+}
+
+.skill-impact-shape-ember-sparks[data-vfx-cue="ember-spark-finish"] .skill-impact-shards {
+  animation: ember-spark-finish-impact-shards var(--skill-duration, 320ms) ease-out both;
 }
 
 .skill-impact-shape-iron-spark {
@@ -4664,6 +4729,42 @@ p {
     radial-gradient(circle at 24% 70%, rgba(254, 240, 138, 0.94) 0 4px, transparent 5px),
     radial-gradient(circle at 72% 42%, rgba(255, 247, 237, 0.88) 0 3px, transparent 4px);
   animation: ember-sparks-cast-sparks var(--skill-duration, 420ms) ease-out both;
+}
+
+.skill-vfx-shape-ember-sparks[data-vfx-cue="ember-spark-jab"] .skill-core {
+  animation: ember-spark-jab-vfx-core var(--skill-duration, 260ms) cubic-bezier(0.12, 0.84, 0.16, 1) both;
+}
+
+.skill-vfx-shape-ember-sparks[data-vfx-cue="ember-spark-jab"] .skill-wave {
+  animation: ember-spark-jab-vfx-ring var(--skill-duration, 260ms) ease-out both;
+}
+
+.skill-vfx-shape-ember-sparks[data-vfx-cue="ember-spark-jab"] .skill-sparks {
+  animation: ember-spark-jab-vfx-sparks var(--skill-duration, 260ms) ease-out both;
+}
+
+.skill-vfx-shape-ember-sparks[data-vfx-cue="ember-spark-cross"] .skill-core {
+  animation: ember-spark-cross-vfx-core var(--skill-duration, 260ms) cubic-bezier(0.1, 0.84, 0.14, 1) both;
+}
+
+.skill-vfx-shape-ember-sparks[data-vfx-cue="ember-spark-cross"] .skill-wave {
+  animation: ember-spark-cross-vfx-ring var(--skill-duration, 260ms) ease-out both;
+}
+
+.skill-vfx-shape-ember-sparks[data-vfx-cue="ember-spark-cross"] .skill-sparks {
+  animation: ember-spark-cross-vfx-sparks var(--skill-duration, 260ms) ease-out both;
+}
+
+.skill-vfx-shape-ember-sparks[data-vfx-cue="ember-spark-finish"] .skill-core {
+  animation: ember-spark-finish-vfx-core var(--skill-duration, 320ms) cubic-bezier(0.08, 0.82, 0.14, 1) both;
+}
+
+.skill-vfx-shape-ember-sparks[data-vfx-cue="ember-spark-finish"] .skill-wave {
+  animation: ember-spark-finish-vfx-ring var(--skill-duration, 320ms) ease-out both;
+}
+
+.skill-vfx-shape-ember-sparks[data-vfx-cue="ember-spark-finish"] .skill-sparks {
+  animation: ember-spark-finish-vfx-sparks var(--skill-duration, 320ms) ease-out both;
 }
 
 .skill-vfx-shape-iron-spark {
@@ -6635,6 +6736,25 @@ p {
   100% { transform: translateX(0) translateY(0) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.05); }
 }
 
+@keyframes player-ember-spark-jab {
+  0% { transform: translateX(calc(var(--model-scale-x, 1) * -8px)) translateY(2px) scale(0.98) scaleX(var(--model-scale-x, 1)); filter: brightness(1.04); }
+  42% { transform: translateX(calc(var(--model-scale-x, 1) * 24px)) translateY(-2px) scale(1.08) scaleX(var(--model-scale-x, 1)); filter: brightness(1.82) saturate(1.22); }
+  100% { transform: translateX(calc(var(--model-scale-x, 1) * 10px)) translateY(0) scale(1.02) scaleX(var(--model-scale-x, 1)); filter: brightness(1.2) saturate(1.08); }
+}
+
+@keyframes player-ember-spark-cross {
+  0% { transform: translateX(calc(var(--model-scale-x, 1) * 8px)) translateY(-2px) skewX(-5deg) scale(1.02) scaleX(var(--model-scale-x, 1)); filter: brightness(1.18); }
+  44% { transform: translateX(calc(var(--model-scale-x, 1) * 36px)) translateY(1px) skewX(10deg) scale(1.1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.94) saturate(1.28); }
+  100% { transform: translateX(calc(var(--model-scale-x, 1) * 18px)) translateY(-1px) skewX(0deg) scale(1.03) scaleX(var(--model-scale-x, 1)); filter: brightness(1.24) saturate(1.08); }
+}
+
+@keyframes player-ember-spark-finish {
+  0% { transform: translateX(calc(var(--model-scale-x, 1) * 12px)) translateY(3px) rotate(-3deg) scale(1.02) scaleX(var(--model-scale-x, 1)); filter: brightness(1.2); }
+  46% { transform: translateX(calc(var(--model-scale-x, 1) * 46px)) translateY(-8px) rotate(5deg) scale(1.14) scaleX(var(--model-scale-x, 1)); filter: brightness(2.1) saturate(1.34); }
+  76% { transform: translateX(calc(var(--model-scale-x, 1) * 30px)) translateY(3px) rotate(0deg) scale(1.06) scaleX(var(--model-scale-x, 1)); filter: brightness(1.52) saturate(1.16); }
+  100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
+}
+
 @keyframes player-ember-uppercut {
   0% { transform: translateY(6px) scale(0.98) scaleX(var(--model-scale-x, 1)); filter: brightness(1); }
   28% { transform: translateX(calc(var(--skill-lunge-x, 24px) * 0.38)) translateY(4px) rotate(-4deg) scaleX(var(--model-scale-x, 1)); }
@@ -6972,6 +7092,25 @@ p {
   48% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 24px) * 1.2), -50%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 4deg)) scale(calc(var(--weapon-scale, 1) * 1.12)); filter: drop-shadow(0 0 34px color-mix(in srgb, var(--weapon-glow, #fb923c) 96%, transparent)) brightness(1.48); }
   72% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 24px) * 0.34), -54%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 28deg)) scale(calc(var(--weapon-scale, 1) * 0.98)); filter: brightness(1.2); }
   100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 0.92; }
+}
+
+@keyframes weapon-spark-jab {
+  0% { transform: translate(calc(-50% - var(--weapon-skill-lunge, 24px) * 0.2), -48%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 16deg)) scale(var(--weapon-scale, 1)); opacity: 0.82; }
+  46% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 24px) * 0.96), calc(-50% + var(--weapon-skill-lift, -10px) - 3px)) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 16deg)) scale(calc(var(--weapon-scale, 1) * 1.1)); filter: drop-shadow(0 0 30px color-mix(in srgb, var(--weapon-glow, #fb923c) 96%, transparent)) brightness(1.42); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 24px) * 0.26), -52%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 8deg)) scale(var(--weapon-scale, 1)); opacity: 0.96; }
+}
+
+@keyframes weapon-spark-cross {
+  0% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 24px) * 0.12), -54%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 24deg)) scale(var(--weapon-scale, 1)); opacity: 0.88; }
+  48% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 24px) * 1.24), -48%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 12deg)) scale(calc(var(--weapon-scale, 1) * 1.16)); filter: drop-shadow(0 0 34px color-mix(in srgb, var(--weapon-glow, #fb923c) 98%, transparent)) brightness(1.52); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 24px) * 0.38), -50%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 18deg)) scale(var(--weapon-scale, 1)); opacity: 0.96; }
+}
+
+@keyframes weapon-spark-finish {
+  0% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 24px) * 0.18), -58%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) - 28deg)) scale(var(--weapon-scale, 1)); opacity: 0.86; }
+  42% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 24px) * 1.48), calc(-50% + var(--weapon-skill-lift, -10px) - 5px)) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 34deg)) scale(calc(var(--weapon-scale, 1) * 1.22)); filter: drop-shadow(0 0 42px color-mix(in srgb, var(--weapon-glow, #facc15) 94%, transparent)) brightness(1.68); opacity: 1; }
+  72% { transform: translate(calc(-50% + var(--weapon-skill-lunge, 24px) * 0.58), -46%) scaleX(var(--weapon-facing, 1)) rotate(calc(var(--weapon-rotation, 0deg) + 12deg)) scale(calc(var(--weapon-scale, 1) * 1.08)); filter: brightness(1.26); }
+  100% { transform: translate(-50%, -50%) scaleX(var(--weapon-facing, 1)) rotate(var(--weapon-rotation, 0deg)) scale(var(--weapon-scale, 1)); opacity: 0.94; }
 }
 
 @keyframes weapon-shield-jab {
@@ -8211,6 +8350,60 @@ p {
   100% { opacity: 0; transform: translateX(66px) translateY(-8px) scale(1.34); filter: blur(2px); }
 }
 
+@keyframes ember-spark-jab-vfx-core {
+  0% { opacity: 0; transform: scaleX(0.22) translateX(-24px); filter: blur(1px) brightness(0.95); }
+  34% { opacity: 1; transform: scaleX(0.96) translateX(4px); filter: blur(0) brightness(1.62); }
+  100% { opacity: 0; transform: scaleX(1.34) translateX(56px); filter: blur(1.8px) brightness(0.98); }
+}
+
+@keyframes ember-spark-jab-vfx-ring {
+  0% { opacity: 0; transform: scaleX(0.24) scaleY(0.7) rotate(-6deg); }
+  38% { opacity: 0.9; transform: scaleX(1.02) scaleY(1) rotate(-2deg); }
+  100% { opacity: 0; transform: scaleX(1.46) scaleY(1.18) rotate(5deg); }
+}
+
+@keyframes ember-spark-jab-vfx-sparks {
+  0% { opacity: 0; transform: translateX(-18px) translateY(2px) scale(0.7); filter: blur(1px); }
+  30% { opacity: 1; transform: translateX(8px) translateY(-2px) scale(1.02); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(62px) translateY(-10px) scale(1.3); filter: blur(2px); }
+}
+
+@keyframes ember-spark-cross-vfx-core {
+  0% { opacity: 0; transform: scaleX(0.26) translateX(-18px) rotate(-4deg); filter: blur(1.2px); }
+  34% { opacity: 1; transform: scaleX(1.08) translateX(10px) rotate(3deg); filter: blur(0) brightness(1.72); }
+  100% { opacity: 0; transform: scaleX(1.56) translateX(70px) rotate(7deg); filter: blur(2px); }
+}
+
+@keyframes ember-spark-cross-vfx-ring {
+  0% { opacity: 0; transform: scaleX(0.3) scaleY(0.72) rotate(8deg); }
+  38% { opacity: 0.92; transform: scaleX(1.08) scaleY(1) rotate(2deg); }
+  100% { opacity: 0; transform: scaleX(1.62) scaleY(1.2) rotate(-6deg); }
+}
+
+@keyframes ember-spark-cross-vfx-sparks {
+  0% { opacity: 0; transform: translateX(-10px) translateY(-4px) scale(0.72); filter: blur(1.1px); }
+  32% { opacity: 1; transform: translateX(18px) translateY(1px) scale(1.08); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(78px) translateY(8px) scale(1.38); filter: blur(2.2px); }
+}
+
+@keyframes ember-spark-finish-vfx-core {
+  0% { opacity: 0; transform: scaleX(0.28) translateX(-22px); filter: blur(1.4px) brightness(0.95); }
+  30% { opacity: 1; transform: scaleX(1.18) translateX(18px); filter: blur(0) brightness(1.9); }
+  100% { opacity: 0; transform: scaleX(1.86) translateX(96px); filter: blur(2.4px) brightness(0.96); }
+}
+
+@keyframes ember-spark-finish-vfx-ring {
+  0% { opacity: 0; transform: scaleX(0.32) scaleY(0.68) rotate(-10deg); }
+  34% { opacity: 1; transform: scaleX(1.2) scaleY(1.06) rotate(-2deg); }
+  100% { opacity: 0; transform: scaleX(1.94) scaleY(1.28) rotate(8deg); }
+}
+
+@keyframes ember-spark-finish-vfx-sparks {
+  0% { opacity: 0; transform: translateX(-18px) translateY(4px) scale(0.7); filter: blur(1.2px); }
+  28% { opacity: 1; transform: translateX(24px) translateY(-6px) scale(1.12); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(108px) translateY(-18px) scale(1.46); filter: blur(2.4px); }
+}
+
 @keyframes anvil-sparks-cast-core {
   0% { opacity: 0; transform: translateY(32px) scaleX(0.44) scaleY(0.24); filter: blur(2px) brightness(0.94); }
   26% { opacity: 0.72; transform: translateY(8px) scaleX(0.82) scaleY(0.72); filter: blur(0.7px) brightness(1.36); }
@@ -8392,6 +8585,60 @@ p {
   0% { opacity: 0; transform: translateX(-20px) scale(0.68); filter: blur(1.2px); }
   26% { opacity: 1; transform: translateX(4px) scale(1.04); filter: blur(0); }
   100% { opacity: 0; transform: translateX(52px) translateY(-8px) scale(1.34); filter: blur(2.2px); }
+}
+
+@keyframes ember-spark-jab-impact-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.18); filter: blur(1.4px) brightness(0.95); }
+  26% { opacity: 1; transform: translate(-50%, -50%) scaleX(1.04); filter: blur(0) brightness(1.68); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scaleX(1.48); filter: blur(2px) brightness(0.96); }
+}
+
+@keyframes ember-spark-jab-impact-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-8deg) scaleX(0.22) scaleY(0.68); }
+  32% { opacity: 0.9; transform: translate(-50%, -50%) rotate(-3deg) scaleX(1.02) scaleY(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(6deg) scaleX(1.5) scaleY(1.18); }
+}
+
+@keyframes ember-spark-jab-impact-shards {
+  0% { opacity: 0; transform: translateX(-18px) scale(0.66); filter: blur(1.1px); }
+  26% { opacity: 1; transform: translateX(5px) scale(1.04); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(54px) translateY(-8px) scale(1.32); filter: blur(2px); }
+}
+
+@keyframes ember-spark-cross-impact-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.2) rotate(-5deg); filter: blur(1.5px) brightness(0.94); }
+  26% { opacity: 1; transform: translate(-50%, -50%) scaleX(1.12) rotate(2deg); filter: blur(0) brightness(1.76); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scaleX(1.62) rotate(7deg); filter: blur(2.1px) brightness(0.95); }
+}
+
+@keyframes ember-spark-cross-impact-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(9deg) scaleX(0.22) scaleY(0.7); }
+  32% { opacity: 0.92; transform: translate(-50%, -50%) rotate(2deg) scaleX(1.1) scaleY(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(-7deg) scaleX(1.66) scaleY(1.2); }
+}
+
+@keyframes ember-spark-cross-impact-shards {
+  0% { opacity: 0; transform: translateX(-10px) translateY(-4px) scale(0.68); filter: blur(1.2px); }
+  28% { opacity: 1; transform: translateX(12px) translateY(2px) scale(1.08); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(70px) translateY(9px) scale(1.38); filter: blur(2.2px); }
+}
+
+@keyframes ember-spark-finish-impact-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.22); filter: blur(1.6px) brightness(0.94); }
+  26% { opacity: 1; transform: translate(-50%, -50%) scaleX(1.26); filter: blur(0) brightness(1.96); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scaleX(1.9); filter: blur(2.6px) brightness(0.95); }
+}
+
+@keyframes ember-spark-finish-impact-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-12deg) scaleX(0.26) scaleY(0.7); }
+  30% { opacity: 1; transform: translate(-50%, -50%) rotate(-2deg) scaleX(1.24) scaleY(1.08); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(9deg) scaleX(2.02) scaleY(1.3); }
+}
+
+@keyframes ember-spark-finish-impact-shards {
+  0% { opacity: 0; transform: translateX(-22px) translateY(4px) scale(0.68); filter: blur(1.3px); }
+  24% { opacity: 1; transform: translateX(18px) translateY(-5px) scale(1.14); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(102px) translateY(-18px) scale(1.48); filter: blur(2.5px); }
 }
 
 @keyframes iron-shield-jab-impact-core {
@@ -9298,6 +9545,29 @@ p {
   34% { transform: translateX(calc(var(--model-scale-x, 1) * 7px)) scale(1.07); filter: brightness(1.18); }
   58% { transform: translateX(calc(var(--model-scale-x, 1) * -5px)) scale(1.03); filter: brightness(1.3); }
   100% { transform: translateX(0) scale(1); filter: brightness(1.12); }
+}
+
+@keyframes monster-taotie-forge-collapse {
+  0% {
+    transform: translateX(calc(var(--model-scale-x, 1) * -10px)) translateY(4px) scale(1.02);
+    filter: brightness(1.05) saturate(1.15);
+  }
+  22% {
+    transform: translateX(calc(var(--model-scale-x, 1) * 18px)) translateY(-10px) rotate(-2deg) scale(1.1);
+    filter: brightness(1.65) saturate(1.35);
+  }
+  48% {
+    transform: translateX(calc(var(--model-scale-x, 1) * -24px)) translateY(3px) rotate(3deg) scale(1.16);
+    filter: brightness(2.05) saturate(1.45);
+  }
+  72% {
+    transform: translateX(calc(var(--model-scale-x, 1) * 12px)) translateY(-4px) rotate(-1deg) scale(1.08);
+    filter: brightness(1.48) saturate(1.28);
+  }
+  100% {
+    transform: translateX(0) translateY(0) rotate(0deg) scale(1.04);
+    filter: brightness(1.16) saturate(1.18);
+  }
 }
 
 @keyframes taotie-forge-collapse-ring {

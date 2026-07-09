@@ -3636,3 +3636,28 @@
   - Focused combat GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "taotie forge shackle|taotie chain cleave" --reporter=basic`, 7 matched tests.
   - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 433 tests.
   - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 532 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 143 DNF-Style Spark Combo Staging and Taotie Forge-Collapse Motion
+- Continued after the user's clarification: character and monster modeling may stay lightweight while the full gameplay loop is connected, but combat smoothness, model-following attacks, strict hit frames, hit feedback, skill VFX, and monster skill VFX remain strict.
+- Used two parallel read-only agents:
+  - Combat/UI audit found `spark-combo` still resolved as one jab-chain hit and UI VFX durations stretched event-level hit/miss windows to catalog skill duration.
+  - Boss audit found `taotie-forge-collapse` phase hazards and VFX existed, but the boss model had no attack motion hook during the phase burst.
+- Added RED coverage:
+  - `src/tests/combat.test.ts` now requires `spark-combo` to chain `spark-jab`, `spark-cross`, and `spark-finish` at strict delayed hit frames with separate cues/windows and live target rechecks.
+  - `src/tests/app-integration.test.ts` and `src/tests/ui-smoke.test.ts` now require staged spark DOM hooks, three target impact bursts, and Taotie phase boss attack attrs.
+  - `src/tests/browser-computed-style.test.ts` now verifies spark player/weapon/root/impact animations and Taotie forge-collapse boss model animation in a real Edge/Chrome cascade.
+- RED evidence:
+  - Focused spark tests initially observed only one `jab-chain` hit/event cue.
+  - Focused Taotie phase tests initially lacked `data-enemy-motion="attack"` and `data-boss-phase-skill-id="taotie-forge-collapse"`.
+- Implemented:
+  - `src/game/combat.ts` now schedules three dynamic model-following `spark-combo` hitboxes at 120/220/320 ms, with separate damage, knockback, hitstop, `vfxWindowMs`, and finish stagger.
+  - `src/ui/app.ts` now lets hit/miss/status event `vfxWindowMs` drive root/status/target skill VFX duration, and maps active boss phase events into enemy attack motion when no normal boss attack is running.
+  - `src/styles.css` now includes staged spark player, weapon, root VFX, target impact keyframes, plus a browser-verified `monster-taotie-forge-collapse` boss model animation.
+  - `src/tests/support/real-browser-computed-style.ts` now includes a reusable enemy-model computed-style fixture for boss motion regressions.
+- Verification so far:
+  - Focused GREEN passed: `npm test -- src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts --testNamePattern "taotie boss phase|taotie half-health phase" --reporter=basic`, 2 matched tests.
+  - Focused GREEN passed: `npm test -- src/tests/combat.test.ts --testNamePattern "spark-combo" --reporter=basic`, 9 matched tests.
+  - Focused browser GREEN passed: `npm test -- src/tests/browser-computed-style.test.ts --testNamePattern "spark-combo|Taotie forge-collapse" --reporter=basic`, 2 matched tests.
+  - Related suite passed: `npm test -- src/tests/combat.test.ts src/tests/app-integration.test.ts src/tests/ui-smoke.test.ts src/tests/browser-computed-style.test.ts --reporter=dot`, 436 tests.
+  - Fresh final checks passed: `git diff --check` (CRLF warnings only), `npm test -- --reporter=dot` (14 files / 535 tests), `npm run build`, and HTTP 200 from `http://127.0.0.1:5174/`.
+  - In-app browser verification loaded `http://127.0.0.1:5174/`, entered `灰窑巷`, confirmed 2 visible live enemies, quest tracker text, 6 combat skill slots, no console errors, and a clicked `ink-shot` skill produced player skill motion, root VFX, target impact VFX, and a real target `ink-bolt` hit phase.

@@ -1207,8 +1207,8 @@ describe("combat actions and impact feel", () => {
       action: "skill",
       skillId: "spark-combo",
       canceledFromCombo: true,
-      hitPhase: "jab-chain",
-      vfxCue: "ember-jab-chain"
+      hitPhase: "spark-jab",
+      vfxCue: "ember-spark-jab"
     });
     expect(skillHitEvents(canceled, "spark-combo")).toHaveLength(0);
     expect(skillHitEvents(beforeJab, "spark-combo")).toHaveLength(0);
@@ -1264,13 +1264,41 @@ describe("combat actions and impact feel", () => {
     expect(beforeJab.enemies[0].hp).toBe(run.enemies[0].hp);
     expect(jabHit).toMatchObject({
       targetId: run.enemies[0].id,
-      hitPhase: "jab-chain",
-      vfxCue: "ember-jab-chain",
-      vfxWindowMs: 240
+      hitPhase: "spark-jab",
+      vfxCue: "ember-spark-jab",
+      vfxWindowMs: 260
     });
-    expect(hit.player.activeSkillMovement).toBeUndefined();
+    expect(hit.player.activeSkillMovement?.skillId).toBe("spark-combo");
     expect(hit.player.x).toBe(266);
     expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
+  it("chains spark-combo through three strict ember hit frames", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(createInitialState(), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 306, y: 340, hp: 240, maxHp: 240 }]
+    );
+
+    const cast = performAction(run, { type: "skill", skillId: "spark-combo" });
+    const [jabAtMs, crossAtMs, finishAtMs] = scheduledSkillTimes(cast, "spark-combo");
+    const beforeJab = stepToElapsed(cast, jabAtMs - 1);
+    const jab = stepToElapsed(cast, jabAtMs);
+    const beforeCross = stepToElapsed(jab, crossAtMs - 1);
+    const cross = stepToElapsed(jab, crossAtMs);
+    const finish = stepToElapsed(cross, finishAtMs);
+    const hits = skillHitEvents(finish, "spark-combo");
+
+    expect([jabAtMs, crossAtMs, finishAtMs]).toEqual([120, 220, 320]);
+    expect(skillHitEvents(beforeJab, "spark-combo")).toHaveLength(0);
+    expect(skillHitEvents(jab, "spark-combo").map((event) => event.hitPhase)).toEqual(["spark-jab"]);
+    expect(skillHitEvents(beforeCross, "spark-combo").map((event) => event.hitPhase)).toEqual(["spark-jab"]);
+    expect(skillHitEvents(cross, "spark-combo").map((event) => event.hitPhase)).toEqual(["spark-jab", "spark-cross"]);
+    expect(hits.map((event) => event.hitPhase)).toEqual(["spark-jab", "spark-cross", "spark-finish"]);
+    expect(hits.map((event) => event.vfxCue)).toEqual(["ember-spark-jab", "ember-spark-cross", "ember-spark-finish"]);
+    expect(finish.player.activeSkillMovement).toBeUndefined();
+    expect(finish.player.x).toBeGreaterThan(run.player.x + 80);
+    expect(finish.enemies[0].hp).toBeLessThan(cross.enemies[0].hp);
   });
 
   it("rechecks spark-combo targets at the jab frame instead of locking cast-time targets", () => {
@@ -1325,8 +1353,8 @@ describe("combat actions and impact feel", () => {
 
     expect(lateHit).toMatchObject({
       targetId: outOfRangeRun.enemies[0].id,
-      hitPhase: "jab-chain",
-      vfxCue: "ember-jab-chain"
+      hitPhase: "spark-jab",
+      vfxCue: "ember-spark-jab"
     });
     expect(skillMissEvents(movedInBeforeJab, "spark-combo")).toHaveLength(0);
     expect(movedInBeforeJab.enemies[0].hp).toBeLessThan(outOfRangeRun.enemies[0].hp);
@@ -1349,8 +1377,8 @@ describe("combat actions and impact feel", () => {
     expect(hit.player.x).toBe(266);
     expect(jabHit).toMatchObject({
       targetId: run.enemies[0].id,
-      hitPhase: "jab-chain",
-      vfxCue: "ember-jab-chain"
+      hitPhase: "spark-jab",
+      vfxCue: "ember-spark-jab"
     });
     expect(skillMissEvents(hit, "spark-combo")).toHaveLength(0);
     expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);

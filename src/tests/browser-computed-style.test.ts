@@ -1,11 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  computeEnemyModelMotionStylesInRealBrowser,
   computeEnemyVfxStylesInRealBrowser,
   computePlayerSkillPhaseStylesInRealBrowser,
   computeRoomGateStylesInRealBrowser,
   computeSkillImpactVfxStylesInRealBrowser,
   computeWeaponLayerStylesInRealBrowser,
+  type EnemyModelMotionFixture,
   type EnemyVfxFixture,
   type PlayerSkillPhaseFixture,
   type RoomGateFixture,
@@ -67,6 +69,21 @@ describe("real browser computed style regressions", () => {
     }
   }, 30000);
 
+  it("uses a real boss model animation for Taotie forge-collapse phase burst", async () => {
+    const fixtures: EnemyModelMotionFixture[] = [
+      {
+        key: "taotie-forge-collapse",
+        motion: "attack",
+        bossPhaseSkillId: "taotie-forge-collapse",
+        durationMs: 1180
+      }
+    ];
+    const computed = await computeEnemyModelMotionStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed["taotie-forge-collapse"].art.animationName).toBe("monster-taotie-forge-collapse");
+    expect(computed["taotie-forge-collapse"].art.animationDuration).toBe("1.18s");
+  }, 30000);
+
   it("uses dedicated enter-rift animations for room gate transition", async () => {
     const fixtures: RoomGateFixture[] = [
       { key: "open-ready", vfx: "open-rift", transition: "ready", durationMs: 480 },
@@ -111,6 +128,69 @@ describe("real browser computed style regressions", () => {
     expect(computed.finish.player.animationDuration).toBe("0.76s");
     expect(computed.finish.weapon.animationDuration).toBe("0.76s");
     expect(computed.finish.skillVfx.core.animationDuration).toBe("0.76s");
+  }, 30000);
+
+  it("uses staged spark-combo player, weapon, root VFX, and impact VFX animations in the browser cascade", async () => {
+    const phaseFixtures: PlayerSkillPhaseFixture[] = [
+      {
+        key: "jab",
+        skillId: "spark-combo",
+        preset: "ember-spark-combo",
+        weaponArc: "jab-chain",
+        vfxShape: "ember-sparks",
+        phase: "spark-jab",
+        cue: "ember-spark-jab",
+        durationMs: 260
+      },
+      {
+        key: "cross",
+        skillId: "spark-combo",
+        preset: "ember-spark-combo",
+        weaponArc: "jab-chain",
+        vfxShape: "ember-sparks",
+        phase: "spark-cross",
+        cue: "ember-spark-cross",
+        durationMs: 260
+      },
+      {
+        key: "finish",
+        skillId: "spark-combo",
+        preset: "ember-spark-combo",
+        weaponArc: "jab-chain",
+        vfxShape: "ember-sparks",
+        phase: "spark-finish",
+        cue: "ember-spark-finish",
+        durationMs: 320
+      }
+    ];
+    const impactFixtures: SkillImpactVfxFixture[] = [
+      { key: "jab", shape: "ember-sparks", phase: "spark-jab", cue: "ember-spark-jab", durationMs: 260 },
+      { key: "cross", shape: "ember-sparks", phase: "spark-cross", cue: "ember-spark-cross", durationMs: 260 },
+      { key: "finish", shape: "ember-sparks", phase: "spark-finish", cue: "ember-spark-finish", durationMs: 320 }
+    ];
+    const phaseComputed = await computePlayerSkillPhaseStylesInRealBrowser(stylesCss, phaseFixtures);
+    const impactComputed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, impactFixtures);
+
+    expect(phaseComputed.jab.player.animationName).toBe("player-ember-spark-jab");
+    expect(phaseComputed.jab.weapon.animationName).toBe("weapon-spark-jab");
+    expect(phaseComputed.jab.skillVfx.core.animationName).toBe("ember-spark-jab-vfx-core");
+    expect(phaseComputed.jab.skillVfx.wave.animationName).toBe("ember-spark-jab-vfx-ring");
+    expect(phaseComputed.jab.skillVfx.sparks.animationName).toBe("ember-spark-jab-vfx-sparks");
+    expect(phaseComputed.cross.player.animationName).toBe("player-ember-spark-cross");
+    expect(phaseComputed.cross.weapon.animationName).toBe("weapon-spark-cross");
+    expect(phaseComputed.cross.skillVfx.core.animationName).toBe("ember-spark-cross-vfx-core");
+    expect(phaseComputed.finish.player.animationName).toBe("player-ember-spark-finish");
+    expect(phaseComputed.finish.weapon.animationName).toBe("weapon-spark-finish");
+    expect(phaseComputed.finish.skillVfx.core.animationName).toBe("ember-spark-finish-vfx-core");
+
+    expect(impactComputed.jab.core.animationName).toBe("ember-spark-jab-impact-core");
+    expect(impactComputed.jab.ring.animationName).toBe("ember-spark-jab-impact-ring");
+    expect(impactComputed.jab.shards.animationName).toBe("ember-spark-jab-impact-shards");
+    expect(impactComputed.cross.core.animationName).toBe("ember-spark-cross-impact-core");
+    expect(impactComputed.finish.core.animationName).toBe("ember-spark-finish-impact-core");
+    expect(phaseComputed.jab.player.animationDuration).toBe("0.26s");
+    expect(phaseComputed.finish.weapon.animationDuration).toBe("0.32s");
+    expect(impactComputed.finish.core.animationDuration).toBe("0.32s");
   }, 30000);
 
   it("uses earth-furnace-breaker crack and eruption root VFX animations in the browser cascade", async () => {

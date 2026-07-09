@@ -886,6 +886,9 @@ describe("town app shell", () => {
 
     expect(phaseHtml).toContain('data-boss-phase="2"');
     expect(phaseHtml).toContain('data-boss-enraged="true"');
+    expect(phaseHtml).toContain('data-enemy-motion="attack"');
+    expect(phaseHtml).toContain('data-boss-phase-skill-id="taotie-forge-collapse"');
+    expect(phaseHtml).toContain('actor-enemy-skill-taotie-forge-collapse');
     expect(phaseHtml).toContain('data-boss-phase-vfx="taotie-forge-collapse"');
     expect(phaseHtml).toContain('data-arena-danger="taotie-forge-collapse"');
     expect(phaseHtml).toContain('data-arena-hazard-layer="true"');
@@ -897,7 +900,9 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('.combat-enemy-boss[data-boss-phase="2"]');
     expect(stylesCss).toContain(".boss-phase-vfx-taotie-forge-collapse");
     expect(stylesCss).toContain(".arena-hazard-taotie-forge-collapse");
+    expect(stylesCss).toContain('.combat-enemy[data-boss-phase-skill-id="taotie-forge-collapse"] .enemy-art');
     expect(stylesCss).toContain("@keyframes monster-taotie-forge-enrage");
+    expect(stylesCss).toContain("@keyframes monster-taotie-forge-collapse");
     expect(stylesCss).toContain("@keyframes taotie-forge-collapse-ring");
     expect(stylesCss).toContain("@keyframes taotie-forge-hazard-drop");
     expect(stylesCss).toContain("@keyframes taotie-forge-collapse-hit-feedback");
@@ -1022,7 +1027,7 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes heat-bloom-eruption-core");
   });
 
-  it("defines dedicated spark-combo player, weapon, sparks, and jab-chain animations", () => {
+  it("defines dedicated spark-combo player, weapon, sparks, and staged chain animations", () => {
     const state = createInitialState();
     const baseRun = createCombatRun(state, "cinder-kiln-alley");
     const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
@@ -1040,14 +1045,20 @@ describe("town app shell", () => {
       },
       { type: "skill", skillId: "spark-combo" }
     );
-    const [jabAtMs] = scheduledSkillTimes(castRun, "spark-combo");
+    const [jabAtMs, , finishAtMs] = scheduledSkillTimes(castRun, "spark-combo");
     const beforeJabHtml = renderAppHtml({
       state,
       mode: "combat",
       combatRun: stepToElapsed(castRun, jabAtMs - 1)
     });
     const hitRun = stepToElapsed(castRun, jabAtMs);
+    const finishRun = stepToElapsed(hitRun, finishAtMs);
     const html = renderAppHtml({
+      state,
+      mode: "combat",
+      combatRun: finishRun
+    });
+    const jabHtml = renderAppHtml({
       state,
       mode: "combat",
       combatRun: hitRun
@@ -1055,18 +1066,28 @@ describe("town app shell", () => {
 
     expect(skillHitEvents(castRun, "spark-combo")).toHaveLength(0);
     expect(skillHitEvents(hitRun, "spark-combo")).toHaveLength(1);
+    expect(skillHitEvents(finishRun, "spark-combo").map((event) => event.hitPhase)).toEqual([
+      "spark-jab",
+      "spark-cross",
+      "spark-finish"
+    ]);
     expect(beforeJabHtml).toContain('data-player-skill-move="spark-combo"');
     expect(beforeJabHtml).toContain('data-player-skill-stage="windup"');
     expect(beforeJabHtml).toContain('data-player-skill-stage-progress="99"');
     expect(beforeJabHtml).not.toContain('data-skill-impact-vfx="spark-combo"');
-    expect(countOccurrences(html, 'data-skill-impact-vfx="spark-combo"')).toBe(1);
-    expect(html).toContain('data-player-skill-stage="active"');
-    expect(html).toContain('data-player-skill-stage-progress="100"');
+    expect(countOccurrences(html, 'data-skill-impact-vfx="spark-combo"')).toBe(3);
+    expect(jabHtml).toContain('data-player-skill-stage="active"');
+    expect(jabHtml).toContain('data-player-skill-stage-progress="100"');
     expect(html).toContain('data-impact-vfx-shape="ember-sparks"');
-    expect(html).toContain('data-vfx-cue="ember-jab-chain"');
-    expect(html).toContain('data-hit-phase="jab-chain"');
+    expect(jabHtml).toContain('data-vfx-cue="ember-spark-jab"');
+    expect(jabHtml).toContain('data-hit-phase="spark-jab"');
+    expect(html).toContain('data-vfx-cue="ember-spark-finish"');
+    expect(html).toContain('data-hit-phase="spark-finish"');
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-ember-sparks"');
     expect(stylesCss).toContain('.combat-player[data-player-skill-move="spark-combo"]');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="spark-jab"] .combat-player-art');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="spark-cross"] .combat-player-art');
+    expect(stylesCss).toContain('.combat-player[data-player-motion="skill"][data-player-skill-hit-phase="spark-finish"] .combat-player-art');
     expect(stylesCss).toContain('.combat-player[data-player-skill-stage="windup"] .combat-player-art');
     expect(stylesCss).toContain('.combat-player[data-player-skill-stage="active"] .combat-player-art');
     expect(stylesCss).toContain('.combat-player[data-player-skill-stage="recovery"] .combat-player-art');
@@ -1075,9 +1096,12 @@ describe("town app shell", () => {
     expect(stylesCss).toContain(".skill-vfx-shape-ember-sparks");
     expect(stylesCss).toContain(".skill-impact-shape-ember-sparks");
     expect(stylesCss).toContain("@keyframes player-ember-spark-combo");
+    expect(stylesCss).toContain("@keyframes player-ember-spark-jab");
+    expect(stylesCss).toContain("@keyframes player-ember-spark-cross");
+    expect(stylesCss).toContain("@keyframes player-ember-spark-finish");
     expect(stylesCss).toContain("@keyframes weapon-jab-chain");
     expect(stylesCss).toContain("@keyframes ember-sparks-cast-core");
-    expect(stylesCss).toContain("@keyframes ember-jab-chain-impact-core");
+    expect(stylesCss).toContain("@keyframes ember-spark-finish-impact-core");
   });
 
   it("defines dedicated iron-palm player, weapon, sparks, and shield-jab animations", () => {

@@ -61,6 +61,9 @@ export type CombatHitPhase =
   | "contract-mark"
   | "glass-cut"
   | "jab-chain"
+  | "spark-jab"
+  | "spark-cross"
+  | "spark-finish"
   | "shield-jab"
   | "shield-quake"
   | "furnace-roar"
@@ -116,6 +119,9 @@ export type CombatVfxCue =
   | "ink-snare-snap"
   | "glass-slash-cut"
   | "ember-jab-chain"
+  | "ember-spark-jab"
+  | "ember-spark-cross"
+  | "ember-spark-finish"
   | "iron-shield-jab"
   | "shield-quake-impact"
   | "anvil-guard-open"
@@ -2107,29 +2113,97 @@ function sparkComboHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledF
   };
 }
 
+const sparkComboStages: Array<{
+  suffix: string;
+  hitAtMs: number;
+  hitPhase: CombatHitPhase;
+  vfxCue: CombatVfxCue;
+  vfxWindowMs: number;
+  damageScale: number;
+  knockback: number;
+  hitstopMs: number;
+}> = [
+  {
+    suffix: "jab",
+    hitAtMs: 120,
+    hitPhase: "spark-jab",
+    vfxCue: "ember-spark-jab",
+    vfxWindowMs: 260,
+    damageScale: 0.4,
+    knockback: 14,
+    hitstopMs: 38
+  },
+  {
+    suffix: "cross",
+    hitAtMs: 220,
+    hitPhase: "spark-cross",
+    vfxCue: "ember-spark-cross",
+    vfxWindowMs: 260,
+    damageScale: 0.44,
+    knockback: 18,
+    hitstopMs: 42
+  },
+  {
+    suffix: "finish",
+    hitAtMs: 320,
+    hitPhase: "spark-finish",
+    vfxCue: "ember-spark-finish",
+    vfxWindowMs: 320,
+    damageScale: 0.58,
+    knockback: 30,
+    hitstopMs: 54
+  }
+];
+
 function applySparkCombo(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+  const firstStageProgress = (() => {
+    const progress = sparkComboStages[0].hitAtMs / sparkComboStages[sparkComboStages.length - 1].hitAtMs;
+    return progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+  })();
+  const totalLunge = skillMovementDistance(skill) / firstStageProgress;
   const endPosition = {
-    x: clamp(run.player.x + skillMovementDistance(skill) * run.player.facing, 0, run.arena.width),
+    x: clamp(run.player.x + totalLunge * run.player.facing, 0, run.arena.width),
     y: run.player.y
   };
+  const movement: CombatPlayerSkillMovement = {
+    skillId: skill.id,
+    startAtMs: run.elapsedMs,
+    endAtMs: run.elapsedMs + sparkComboStages[sparkComboStages.length - 1].hitAtMs,
+    startX: run.player.x,
+    startY: run.player.y,
+    endX: endPosition.x,
+    endY: endPosition.y
+  };
   const movingRun = appendSkillCastEvent(
-    startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + skill.animation.hitFrameMs),
+    {
+      ...run,
+      player: {
+        ...run.player,
+        activeSkillMovement: movement
+      }
+    },
     skill,
     canceledFromCombo
   );
 
-  return schedulePlayerHitboxEffect(
-    movingRun,
-    sparkComboHitbox(run, skill, canceledFromCombo),
-    endPosition,
-    run.player.facing,
-    {
-      id: `hit-${run.elapsedMs}-skill-${skill.id}-jab-chain`,
-      hitPhase: "jab-chain",
-      vfxCue: "ember-jab-chain",
-      vfxWindowMs: 240
-    }
-  );
+  return sparkComboStages.reduce((nextRun, stage) => {
+    const stageOrigin = playerSkillMovementPosition(movement, run.elapsedMs + stage.hitAtMs);
+    const stageHitbox = {
+      ...sparkComboHitbox(run, skill, canceledFromCombo),
+      inputToHitMs: stage.hitAtMs,
+      damage: Math.max(1, Math.round(skillDamage(run, skill) * stage.damageScale)),
+      knockback: stage.knockback,
+      hitstopMs: stage.hitstopMs,
+      statusTags: stage.suffix === "finish" ? (["stagger"] as CombatSkillStatusTag[]) : undefined
+    };
+
+    return schedulePlayerHitboxEffect(nextRun, stageHitbox, stageOrigin, run.player.facing, {
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.suffix}`,
+      hitPhase: stage.hitPhase,
+      vfxCue: stage.vfxCue,
+      vfxWindowMs: stage.vfxWindowMs
+    });
+  }, movingRun);
 }
 
 function ironPalmHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {

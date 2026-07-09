@@ -12,6 +12,14 @@ export type EnemyVfxFixture = {
   vfxDurationMs?: number;
 };
 
+export type EnemyModelMotionFixture = {
+  key: string;
+  motion: string;
+  skillId?: string;
+  bossPhaseSkillId?: string;
+  durationMs?: number;
+};
+
 export type ComputedVfxPartStyle = {
   animationName: string;
   animationDuration: string;
@@ -23,6 +31,13 @@ export type ComputedEnemyVfxStyles = Record<
     ring: ComputedVfxPartStyle;
     core: ComputedVfxPartStyle;
     trail: ComputedVfxPartStyle;
+  }
+>;
+
+export type ComputedEnemyModelMotionStyles = Record<
+  string,
+  {
+    art: ComputedVfxPartStyle;
   }
 >;
 
@@ -244,6 +259,31 @@ export async function computeEnemyVfxStylesInRealBrowser(
               }];
             })
           );
+        }
+        return result;
+      })()
+    `
+  );
+}
+
+export async function computeEnemyModelMotionStylesInRealBrowser(
+  css: string,
+  fixtures: EnemyModelMotionFixture[]
+): Promise<ComputedEnemyModelMotionStyles> {
+  return computeStylesInRealBrowser(
+    css,
+    fixtures.map((fixture) => enemyModelMotionFixtureMarkup(fixture)).join("\n"),
+    `
+      (() => {
+        const result = {};
+        for (const root of document.querySelectorAll("[data-enemy-model-fixture]")) {
+          const style = getComputedStyle(root.querySelector(".enemy-art"));
+          result[root.getAttribute("data-enemy-model-fixture")] = {
+            art: {
+              animationName: style.animationName,
+              animationDuration: style.animationDuration
+            }
+          };
         }
         return result;
       })()
@@ -603,6 +643,22 @@ function roomGateFixtureMarkup(fixture: RoomGateFixture): string {
     <span class="room-gate-core"></span>
     <span class="room-gate-rift"></span>
     <span class="room-gate-threshold"></span>
+  </div>`;
+}
+
+function enemyModelMotionFixtureMarkup(fixture: EnemyModelMotionFixture): string {
+  const durationMs = fixture.durationMs ?? 520;
+  const skillClass = fixture.skillId ? ` actor-enemy-skill-${escapeAttribute(fixture.skillId)}` : "";
+
+  return `<div
+    data-enemy-model-fixture="${escapeAttribute(fixture.key)}"
+    class="combat-actor combat-enemy combat-enemy-boss"
+    data-enemy-motion="${escapeAttribute(fixture.motion)}"
+    data-enemy-attack-skill-id="${escapeAttribute(fixture.skillId ?? "")}"
+    data-boss-phase-skill-id="${escapeAttribute(fixture.bossPhaseSkillId ?? "")}"
+    style="--enemy-attack-duration: ${durationMs}ms; --model-scale-x: -1;"
+  >
+    <span class="enemy-art actor-model actor-model-${escapeAttribute(fixture.motion)}${skillClass}"></span>
   </div>`;
 }
 

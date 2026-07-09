@@ -6,6 +6,8 @@ import {
   type RealBrowserKeyCode
 } from "./support/real-browser-computed-style";
 import { SAVE_KEY } from "../systems/save";
+import { createInitialState } from "../game/state";
+import { advanceClass, selectBaseClass } from "../systems/classes";
 
 type BrowserCombatState = {
   objective: string;
@@ -39,6 +41,43 @@ type BrowserSkillState = {
 
 type BrowserSparkComboPhaseSample = BrowserSkillState & {
   capturedAtMs: number;
+};
+
+type BrowserFlowingLightPhaseSample = {
+  capturedAtMs: number;
+  appMode: string;
+  classId: string;
+  advancementId: string;
+  playerX: number;
+  playerY: number;
+  playerHurtLockActive: string;
+  playerHurtCue: string;
+  activeSkill: string;
+  playerMotion: string;
+  skillMove: string;
+  skillMoveProgress: number;
+  skillStage: string;
+  hitstopActive: string;
+  hitPhase: string;
+  vfxCue: string;
+  playerAnimation: string;
+  weaponAnimation: string;
+  skillVfx: string;
+  skillVfxHitPhase: string;
+  skillVfxCue: string;
+  skillVfxCoreAnimation: string;
+  skillVfxWaveAnimation: string;
+  skillVfxSparksAnimation: string;
+  enemies: Array<{
+    id: string;
+    kind: string;
+    hp: number;
+    x: number;
+    y: number;
+    attackSkillId: string;
+    attackStage: string;
+    attackProgress: number;
+  }>;
 };
 
 type BrowserEnemyAttackState = {
@@ -139,6 +178,9 @@ type BrowserRoomFlowState = {
 type BrowserStrictCombatState = {
   objective: string;
   roomIndex: string;
+  bossPhase: string;
+  bossPhaseTriggered: string;
+  arenaHazardCount: string;
   activeSkill: string;
   playerMotion: string;
   skillMove: string;
@@ -168,6 +210,14 @@ type BrowserStrictCombatEvidence = {
   sawImpactCue: boolean;
   sawEnemyAttackMotion: boolean;
   sawEnemySkillVfx: boolean;
+  sawBossPhase: boolean;
+  sawArenaHazard: boolean;
+  sawBossSkillVfx: boolean;
+};
+
+type BrowserAppModeState = {
+  appMode: string;
+  townScene: string;
 };
 
 type BrowserSavedState = {
@@ -258,6 +308,9 @@ const readStrictCombatStateExpression = `
   return {
     objective: scene?.getAttribute("data-combat-objective") ?? "",
     roomIndex: scene?.getAttribute("data-room-index") ?? "",
+    bossPhase: scene?.getAttribute("data-boss-phase") ?? "",
+    bossPhaseTriggered: scene?.getAttribute("data-boss-phase-triggered") ?? "",
+    arenaHazardCount: scene?.getAttribute("data-arena-hazard-count") ?? "",
     activeSkill: player?.getAttribute("data-active-skill-id") ?? "",
     playerMotion: player?.getAttribute("data-player-motion") ?? "",
     skillMove: player?.getAttribute("data-player-skill-move") ?? "",
@@ -284,7 +337,10 @@ const installStrictCombatRecorderExpression = `
     sawHitstop: false,
     sawImpactCue: false,
     sawEnemyAttackMotion: false,
-    sawEnemySkillVfx: false
+    sawEnemySkillVfx: false,
+    sawBossPhase: false,
+    sawArenaHazard: false,
+    sawBossSkillVfx: false
   };
   const addUnique = (items, value) => {
     if (value && !items.includes(value)) {
@@ -338,6 +394,15 @@ const installStrictCombatRecorderExpression = `
     if (state.enemyVfx && state.enemyVfxCue) {
       evidence.sawEnemySkillVfx = true;
     }
+    if (state.bossPhase === "2" || state.bossPhaseTriggered === "true") {
+      evidence.sawBossPhase = true;
+    }
+    if (Number(state.arenaHazardCount || "0") > 0) {
+      evidence.sawArenaHazard = true;
+    }
+    if (state.roomIndex === "2" && state.enemyVfx && state.enemyVfx.startsWith("taotie-")) {
+      evidence.sawBossSkillVfx = true;
+    }
 
     globalThis.__strictCombatRecorder = requestAnimationFrame(tick);
   };
@@ -358,7 +423,21 @@ const readStrictCombatEvidenceExpression = `
   sawHitstop: false,
   sawImpactCue: false,
   sawEnemyAttackMotion: false,
-  sawEnemySkillVfx: false
+  sawEnemySkillVfx: false,
+  sawBossPhase: false,
+  sawArenaHazard: false,
+  sawBossSkillVfx: false
+})()
+`;
+
+const readAppModeStateExpression = `
+(() => {
+  const shell = document.querySelector(".app-shell");
+  const town = document.querySelector(".town-scene");
+  return {
+    appMode: shell?.getAttribute("data-app-mode") ?? "",
+    townScene: town?.getAttribute("data-town-scene") ?? ""
+  };
 })()
 `;
 
@@ -438,6 +517,36 @@ const sparkComboPhases = [
     coreAnimation: "ember-spark-finish-vfx-core",
     waveAnimation: "ember-spark-finish-vfx-ring",
     sparksAnimation: "ember-spark-finish-vfx-sparks"
+  }
+] as const;
+
+const flowingLightPhases = [
+  {
+    phase: "chain-open",
+    cue: "flowing-chain-open",
+    playerAnimation: "player-flowing-chain-open",
+    weaponAnimation: "weapon-flowing-chain-open",
+    coreAnimation: "flowing-chain-open-core",
+    waveAnimation: "flowing-chain-open-wave",
+    sparksAnimation: "flowing-chain-open-sparks"
+  },
+  {
+    phase: "chain-cross",
+    cue: "flowing-chain-cross",
+    playerAnimation: "player-flowing-chain-cross",
+    weaponAnimation: "weapon-flowing-chain-cross",
+    coreAnimation: "flowing-chain-cross-core",
+    waveAnimation: "flowing-chain-cross-wave",
+    sparksAnimation: "flowing-chain-cross-sparks"
+  },
+  {
+    phase: "chain-finish",
+    cue: "flowing-chain-finish",
+    playerAnimation: "player-flowing-chain-finish",
+    weaponAnimation: "weapon-flowing-chain-finish",
+    coreAnimation: "flowing-chain-finish-core",
+    waveAnimation: "flowing-chain-finish-wave",
+    sparksAnimation: "flowing-chain-finish-sparks"
   }
 ] as const;
 
@@ -604,6 +713,93 @@ const readSparkComboPhaseSamplesExpression = `
 (() => globalThis.__sparkComboPhaseSamples ?? [])()
 `;
 
+const installFlowingLightPhaseRecorderExpression = `
+(() => {
+  globalThis.__flowingLightPhaseSamples = [];
+  globalThis.__flowingLightDebugSamples = [];
+  const readSample = () => {
+    const shell = document.querySelector(".app-shell");
+    const scene = document.querySelector(".combat-scene");
+    const player = document.querySelector(".combat-player");
+    const art = document.querySelector(".combat-player-art");
+    const weapon = document.querySelector(".combat-weapon");
+    const skillVfx = document.querySelector('[data-player-skill-vfx="flowing-light-chain"]');
+    return {
+      capturedAtMs: performance.now(),
+      appMode: shell?.getAttribute("data-app-mode") ?? "",
+      classId: scene?.getAttribute("data-class-id") ?? "",
+      advancementId: scene?.getAttribute("data-advancement-id") ?? "",
+      playerX: Number(scene?.getAttribute("data-player-x") || "0"),
+      playerY: Number(scene?.getAttribute("data-player-y") || "0"),
+      playerHurtLockActive: player?.getAttribute("data-player-hurt-lock-active") ?? "",
+      playerHurtCue: player?.getAttribute("data-player-hurt-feedback-cue") ?? "",
+      activeSkill: player?.getAttribute("data-active-skill-id") ?? "",
+      playerMotion: player?.getAttribute("data-player-motion") ?? "",
+      skillMove: player?.getAttribute("data-player-skill-move") ?? "",
+      skillMoveProgress: Number(player?.getAttribute("data-player-skill-move-progress") || "0"),
+      skillStage: player?.getAttribute("data-player-skill-stage") ?? "",
+      hitstopActive: scene?.getAttribute("data-hitstop-active") ?? "",
+      hitPhase: player?.getAttribute("data-player-skill-hit-phase") ?? "",
+      vfxCue: player?.getAttribute("data-player-skill-vfx-cue") ?? "",
+      playerAnimation: art ? getComputedStyle(art).animationName : "",
+      weaponAnimation: weapon ? getComputedStyle(weapon).animationName : "",
+      skillVfx: skillVfx?.getAttribute("data-player-skill-vfx") ?? "",
+      skillVfxHitPhase: skillVfx?.getAttribute("data-hit-phase") ?? "",
+      skillVfxCue: skillVfx?.getAttribute("data-vfx-cue") ?? "",
+      skillVfxCoreAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-core")).animationName : "",
+      skillVfxWaveAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-wave")).animationName : "",
+      skillVfxSparksAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-sparks")).animationName : "",
+      enemies: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => ({
+        id: enemy.getAttribute("data-enemy-id") ?? "",
+        kind: enemy.getAttribute("data-enemy-kind") ?? "",
+        hp: Number(enemy.getAttribute("data-enemy-hp-current") || "0"),
+        x: Number(enemy.getAttribute("data-enemy-x") || "0"),
+        y: Number(enemy.getAttribute("data-enemy-y") || "0"),
+        attackSkillId: enemy.getAttribute("data-enemy-attack-skill-id") ?? "",
+        attackStage: enemy.getAttribute("data-enemy-attack-stage") ?? "",
+        attackProgress: Number(enemy.getAttribute("data-enemy-attack-progress") || "0")
+      }))
+    };
+  };
+  const tick = () => {
+    const sample = readSample();
+    globalThis.__flowingLightDebugSamples.push(sample);
+    if (globalThis.__flowingLightDebugSamples.length > 80) {
+      globalThis.__flowingLightDebugSamples.shift();
+    }
+    if (
+      sample.activeSkill === "flowing-light-chain" &&
+      sample.playerMotion === "skill" &&
+      sample.hitPhase !== "" &&
+      sample.vfxCue !== "" &&
+      sample.skillVfxHitPhase === sample.hitPhase &&
+      sample.skillVfxCue === sample.vfxCue
+    ) {
+      const existing = globalThis.__flowingLightPhaseSamples.some((item) => item.hitPhase === sample.hitPhase);
+      if (!existing) {
+        globalThis.__flowingLightPhaseSamples.push(sample);
+      }
+    }
+    if (globalThis.__flowingLightPhaseSamples.length < 3) {
+      globalThis.__flowingLightPhaseRecorder = requestAnimationFrame(tick);
+    }
+  };
+  if (globalThis.__flowingLightPhaseRecorder) {
+    cancelAnimationFrame(globalThis.__flowingLightPhaseRecorder);
+  }
+  globalThis.__flowingLightPhaseRecorder = requestAnimationFrame(tick);
+  return true;
+})()
+`;
+
+const readFlowingLightPhaseSamplesExpression = `
+(() => globalThis.__flowingLightPhaseSamples ?? [])()
+`;
+
+const readFlowingLightDebugSamplesExpression = `
+(() => globalThis.__flowingLightDebugSamples ?? [])()
+`;
+
 describe("real browser keyboard control", () => {
   it("moves continuously and lands a heavy attack through real keyboard events", async () => {
     const server = await startViteServer();
@@ -733,6 +929,83 @@ describe("real browser keyboard control", () => {
       await server.close();
     }
   }, 60000);
+
+  it("casts Liuli flowing-light-chain with real keyboard input and staged VFX", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, createFlowingLightSwordmasterState());
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.roomIndex === "0" && state.liveEnemyCount === "2",
+          5000
+        );
+
+        const positioned = await moveIntoOpeningFlowingLightChainRange(page);
+        expect(Number(positioned.playerX)).toBeGreaterThanOrEqual(348);
+        expect(positioned.enemies.some((enemy) => enemy.hp > 0 && Math.abs(enemy.x - Number(positioned.playerX)) <= 190)).toBe(true);
+
+        await page.evaluate<boolean>(installFlowingLightPhaseRecorderExpression);
+        await page.pressKey("Space");
+
+        let samples: BrowserFlowingLightPhaseSample[];
+        try {
+          samples = await page.waitFor<BrowserFlowingLightPhaseSample[]>(
+            readFlowingLightPhaseSamplesExpression,
+            (state) => flowingLightPhases.every((expected) => state.some((sample) => sample.hitPhase === expected.phase)),
+            2200
+          );
+        } catch (error) {
+          const debugSamples = await page.evaluate<BrowserFlowingLightPhaseSample[]>(readFlowingLightDebugSamplesExpression);
+          const tail = debugSamples.slice(-12).map((sample) => ({
+            capturedAtMs: Math.round(sample.capturedAtMs),
+            playerX: sample.playerX,
+            playerHurtLockActive: sample.playerHurtLockActive,
+            playerHurtCue: sample.playerHurtCue,
+            activeSkill: sample.activeSkill,
+            playerMotion: sample.playerMotion,
+            skillStage: sample.skillStage,
+            hitPhase: sample.hitPhase,
+            vfxCue: sample.vfxCue,
+            acceptedPhases: debugSamples
+              .filter((item) => item.activeSkill === "flowing-light-chain" && item.hitPhase)
+              .map((item) => item.hitPhase)
+              .filter((phase, index, phases) => phases.indexOf(phase) === index),
+            enemies: sample.enemies
+          }));
+          throw new Error(`${error instanceof Error ? error.message : String(error)}\nFlowing light debug tail: ${JSON.stringify(tail, null, 2)}`);
+        }
+
+        for (const expected of flowingLightPhases) {
+          const phaseState = samples.find((sample) => sample.hitPhase === expected.phase);
+
+          expect(phaseState?.appMode).toBe("combat");
+          expect(phaseState?.classId).toBe("liuli-blademage");
+          expect(phaseState?.advancementId).toBe("flowing-light-swordmaster");
+          expect(phaseState?.activeSkill).toBe("flowing-light-chain");
+          expect(phaseState?.playerMotion).toBe("skill");
+          if (expected.phase !== "chain-finish") {
+            expect(phaseState?.skillMove).toBe("flowing-light-chain");
+            expect(phaseState?.skillMoveProgress).toBeGreaterThan(0);
+          }
+          expect(phaseState?.skillStage).toBe("active");
+          expect(phaseState?.vfxCue).toBe(expected.cue);
+          expect(phaseState?.skillVfx).toBe("flowing-light-chain");
+          expect(phaseState?.skillVfxHitPhase).toBe(expected.phase);
+          expect(phaseState?.skillVfxCue).toBe(expected.cue);
+          expect(phaseState?.playerAnimation).toBe(expected.playerAnimation);
+          expect(phaseState?.weaponAnimation).toBe(expected.weaponAnimation);
+          expect(phaseState?.skillVfxCoreAnimation).toBe(expected.coreAnimation);
+          expect(phaseState?.skillVfxWaveAnimation).toBe(expected.waveAnimation);
+          expect(phaseState?.skillVfxSparksAnimation).toBe(expected.sparksAnimation);
+        }
+      });
+    } finally {
+      await server.close();
+    }
+  }, 140000);
 
   it("drives a DNF command input skill before the normal heavy fallback in the live browser", async () => {
     const server = await startViteServer();
@@ -986,6 +1259,63 @@ describe("real browser keyboard control", () => {
     }
   }, 120000);
 
+  it("clears the boss room and returns to town with real keyboard input", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        await page.evaluate<boolean>(installStrictCombatRecorderExpression);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.roomIndex === "0" && state.liveEnemyCount === "2",
+          5000
+        );
+
+        await clearCurrentRoomWithKeyboard(page);
+        await walkThroughOpenGate(page);
+        await clearCurrentRoomWithKeyboard(page, 28);
+        const bossRoom = await walkThroughOpenGate(page);
+
+        expect(bossRoom.roomIndex).toBe("2");
+        expect(bossRoom.liveEnemyCount).toBe("1");
+        expect(bossRoom.enemies.some((enemy) => enemy.kind === "boss" && enemy.hp > 0)).toBe(true);
+
+        const bossCleared = await clearCurrentRoomWithKeyboard(page, 80);
+        expect(bossCleared.objective).toBe("cleared");
+        expect(bossCleared.roomIndex).toBe("2");
+        expect(bossCleared.liveEnemyCount).toBe("0");
+        expect(bossCleared.gateState).toBe("complete");
+        expect(bossCleared.gateTargetRoom).toBe("");
+
+        await walkThroughCompletionGateToTown(page);
+        const returned = await page.waitFor<BrowserAppModeState>(
+          readAppModeStateExpression,
+          (state) => state.appMode === "town" && state.townScene === "true",
+          8000
+        );
+
+        expect(returned.appMode).toBe("town");
+        expect(returned.townScene).toBe("true");
+
+        const evidence = await page.evaluate<BrowserStrictCombatEvidence>(readStrictCombatEvidenceExpression);
+        expect(evidence.roomsSeen).toEqual(expect.arrayContaining(["0", "1", "2"]));
+        expect(evidence.enemyKindsSeen).toContain("boss");
+        expect(evidence.sawSkillMotion).toBe(true);
+        expect(evidence.sawPlayerSkillVfx).toBe(true);
+        expect(evidence.sawHitstop).toBe(true);
+        expect(evidence.sawImpactCue).toBe(true);
+        expect(evidence.sawEnemyAttackMotion).toBe(true);
+        expect(evidence.sawEnemySkillVfx).toBe(true);
+        expect(evidence.sawBossPhase).toBe(true);
+        expect(evidence.sawArenaHazard).toBe(true);
+        expect(evidence.sawBossSkillVfx).toBe(true);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 240000);
+
   it("auto-saves combat rewards and restores them after a real browser reload", async () => {
     const server = await startViteServer();
 
@@ -1163,6 +1493,25 @@ async function walkThroughOpenGate(page: RealBrowserAppPage): Promise<BrowserRoo
   );
 }
 
+async function walkThroughCompletionGateToTown(page: RealBrowserAppPage): Promise<void> {
+  await page.keyDown("ArrowRight");
+  try {
+    await page.waitFor<BrowserRoomFlowState>(
+      readRoomFlowStateExpression,
+      (state) => state.gateTransition === "entering" && state.transitionState === "entering",
+      5000
+    );
+  } finally {
+    await page.keyUp("ArrowRight");
+  }
+
+  await page.waitFor<BrowserAppModeState>(
+    readAppModeStateExpression,
+    (state) => state.appMode === "town" && state.townScene === "true",
+    8000
+  );
+}
+
 async function moveIntoLiveEnemyRange(page: RealBrowserAppPage): Promise<void> {
   const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
   const playerX = Number(state.playerX);
@@ -1203,8 +1552,57 @@ async function moveIntoLiveEnemyRange(page: RealBrowserAppPage): Promise<void> {
   }
 }
 
+async function moveIntoOpeningFlowingLightChainRange(page: RealBrowserAppPage): Promise<BrowserRoomFlowState> {
+  await page.keyDown("ShiftLeft");
+  await page.keyDown("ArrowRight");
+  try {
+    return await page.waitFor<BrowserRoomFlowState>(
+      readRoomFlowStateExpression,
+      (state) => Number(state.playerX) >= 348 && state.liveEnemyCount === "2",
+      1200
+    );
+  } finally {
+    await page.keyUp("ArrowRight");
+    await page.keyUp("ShiftLeft");
+  }
+}
+
 async function waitInBrowser(page: RealBrowserAppPage, ms: number): Promise<void> {
   await page.evaluate<void>(`new Promise((resolve) => setTimeout(resolve, ${ms}))`);
+}
+
+function createFlowingLightSwordmasterState() {
+  const liuliState = selectBaseClass(createInitialState(), "liuli-blademage");
+  const readyState = {
+    ...liuliState,
+    player: {
+      ...liuliState.player,
+      level: 15,
+      heat: 100,
+      classResources: {
+        ...liuliState.player.classResources,
+        "liuli-blademage": 100
+      },
+      quests: {
+        ...liuliState.player.quests,
+        "prologue-ember-warden": "ready" as const
+      }
+    }
+  };
+
+  return advanceClass(readyState, "flowing-light-swordmaster");
+}
+
+async function seedSaveAndReload(page: RealBrowserAppPage, state: ReturnType<typeof createFlowingLightSwordmasterState>): Promise<void> {
+  await page.evaluate<void>(`(() => {
+    localStorage.setItem(${JSON.stringify(SAVE_KEY)}, ${JSON.stringify(JSON.stringify(state))});
+    location.reload();
+  })()`);
+  await page.waitFor<BrowserAppModeState>(
+    readAppModeStateExpression,
+    (mode) => mode.appMode === "town" && mode.townScene === "true",
+    15000
+  );
 }
 
 async function enterDungeonWithKeyboard(

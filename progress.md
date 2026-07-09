@@ -4062,3 +4062,20 @@
 - Next strict-combat candidates:
   - Controlled live-browser boss clear with Taotie phase changes, summon pressure, and hazards.
   - Liuli `glass-lotus` bind/bloom root/player/weapon phase VFX hardening.
+
+## Task 164 Real-Browser Boss Clear and Liuli Flowing Light Chain Acceptance
+- Continued after the user's clarification: character and monster geometry can stay simple while the full feature loop is built, but attack flow, model-following motion, smooth keyboard control, strict hit frames, hitstop, skill VFX, and monster VFX remain hard gates.
+- Used two read-only agents:
+  - Boss-clear audit found Taotie already has phase 2, arena hazards, summons, and boss skill VFX, but needed a natural true-keyboard browser clear and town-return acceptance.
+  - Liuli audit selected `flowing-light-chain` as the strongest advanced-skill live-browser target because it has explicit `chain-open`, `chain-cross`, and `chain-finish` player, weapon, and root VFX hooks.
+- Added acceptance coverage in `src/tests/browser-keyboard-control.test.ts`:
+  - The boss test now enters the dungeon with keyboard, clears room 0 and room 1, enters the boss room, clears all live boss-room enemies, walks through the completion gate, returns to town, and asserts strict evidence for player skill motion, skill VFX, hitstop, impact cue, enemy attack motion, monster VFX, boss phase 2, arena hazards, and boss skill VFX.
+  - The Liuli test now seeds an offline Flowing Light Swordmaster save, reloads into town, enters the dungeon with keyboard, uses real Shift+ArrowRight movement to reach live targets, presses Space, and rAF-samples all three `flowing-light-chain` phases with matching player, weapon, and root VFX animations.
+- RED/GREEN evidence:
+  - Initial Liuli boss-room route failed with only `chain-open`. Diagnostic rAF samples showed the player was out of range, so the opening slash produced a real MISS and later stages had no target event. The final route casts in room 0 after real keyboard positioning, before the first monster impact, and captures all three phases.
+  - Focused Liuli test passed after route correction: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "Liuli flowing-light-chain" --reporter=basic`.
+  - Combined focused browser checks passed: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "clears the boss room|Liuli flowing-light-chain" --reporter=basic` (2 matched tests).
+- Verification:
+  - Full live-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (12 tests).
+  - Full Vitest suite passed: `npm test -- --reporter=basic` (15 files / 572 tests).
+  - Final build and checks passed: `npm run build`, `git diff --check` (CRLF warnings only), and HTTP 200 from `http://127.0.0.1:5174/`.

@@ -1098,7 +1098,7 @@ function interruptedActiveSkillId(before: CombatPlayer, after: CombatPlayer, fal
     return undefined;
   }
 
-  const tookHit = after.hp < before.hp || after.hurtLockUntilMs > before.hurtLockUntilMs || after.defeated;
+  const tookHit = after.hurtLockUntilMs > before.hurtLockUntilMs || after.boundUntilMs > before.boundUntilMs || after.defeated;
 
   if (skillId === "mountain-crack-hammer") {
     return undefined;
@@ -4957,6 +4957,7 @@ function applyEnemyImpact(
 
     const shieldActive = hitTime < nextPlayer.shieldUntilMs;
     const mitigation = shieldActive ? clamp(nextPlayer.shieldReduction, 0, 0.85) : 0;
+    const shieldAbsorbedImpact = shieldActive && mitigation > 0;
     const damage = Math.max(1, Math.round(hitDamage * combatProfile.damageTakenMultiplier * (1 - mitigation)));
     const nextHp = Math.max(0, nextPlayer.hp - damage);
     const nextFacing: 1 | -1 = nextEnemy.position.x >= nextPlayer.x ? 1 : -1;
@@ -4980,22 +4981,22 @@ function applyEnemyImpact(
     const damagedPlayer: CombatPlayer = {
       ...nextPlayer,
       hp: nextHp,
-      x: clamp(nextPlayer.x - nextFacing * hitKnockback, 0, arena.width),
-      facing: nextFacing,
+      x: shieldAbsorbedImpact ? nextPlayer.x : clamp(nextPlayer.x - nextFacing * hitKnockback, 0, arena.width),
+      facing: shieldAbsorbedImpact ? nextPlayer.facing : nextFacing,
       hitstopUntilMs: Math.max(nextPlayer.hitstopUntilMs, hitTime + attack.hitstopMs),
       invulnerableStartedAtMs: hitTime,
       invulnerableUntilMs: hitTime + hitInvulnerabilityMs,
-      hurtLockUntilMs: hitTime + Math.max(attack.hitstopMs, hitHurtLockMs),
-      boundUntilMs: Math.max(nextPlayer.boundUntilMs, hitBoundMs > 0 ? hitTime + hitBoundMs : 0),
-      quickRecoverReadyUntilMs,
-      quickRecoverStartedAtMs: 0,
-      quickRecoverUntilMs: 0,
-      shieldUntilMs: shieldActive ? hitTime : nextPlayer.shieldUntilMs,
-      shieldReduction: shieldActive ? 0 : nextPlayer.shieldReduction,
-      bufferedAction: undefined,
-      bufferedActionQueuedAtMs: undefined,
-      bufferedActionExecuteAtMs: undefined,
-      activeSkillMovement: undefined,
+      hurtLockUntilMs: shieldAbsorbedImpact ? nextPlayer.hurtLockUntilMs : hitTime + Math.max(attack.hitstopMs, hitHurtLockMs),
+      boundUntilMs: shieldAbsorbedImpact ? nextPlayer.boundUntilMs : Math.max(nextPlayer.boundUntilMs, hitBoundMs > 0 ? hitTime + hitBoundMs : 0),
+      quickRecoverReadyUntilMs: shieldAbsorbedImpact ? nextPlayer.quickRecoverReadyUntilMs : quickRecoverReadyUntilMs,
+      quickRecoverStartedAtMs: shieldAbsorbedImpact ? nextPlayer.quickRecoverStartedAtMs : 0,
+      quickRecoverUntilMs: shieldAbsorbedImpact ? nextPlayer.quickRecoverUntilMs : 0,
+      shieldUntilMs: nextPlayer.shieldUntilMs,
+      shieldReduction: nextPlayer.shieldReduction,
+      bufferedAction: shieldAbsorbedImpact ? nextPlayer.bufferedAction : undefined,
+      bufferedActionQueuedAtMs: shieldAbsorbedImpact ? nextPlayer.bufferedActionQueuedAtMs : undefined,
+      bufferedActionExecuteAtMs: shieldAbsorbedImpact ? nextPlayer.bufferedActionExecuteAtMs : undefined,
+      activeSkillMovement: shieldAbsorbedImpact ? nextPlayer.activeSkillMovement : undefined,
       defeated: nextHp <= 0
     };
 

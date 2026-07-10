@@ -284,6 +284,23 @@ type BrowserAudioSettingsState = {
   saved: { master: number; music: number; sfx: number } | null;
 };
 
+type BrowserIronVanguardState = {
+  appMode: string;
+  classId: string;
+  advancementId: string;
+  activeSkill: string;
+  playerMotion: string;
+  skillMove: string;
+  skillStage: string;
+  shieldActive: string;
+  skillVfx: string;
+  skillVfxCue: string;
+  statusVfx: string;
+  statusVfxCue: string;
+  enemyVfx: string;
+  enemyVfxCue: string;
+};
+
 const readCombatStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
@@ -564,6 +581,33 @@ const readAudioSettingsStateExpression = `
     music: Number(shell?.getAttribute("data-audio-music") || "0"),
     sfx: Number(shell?.getAttribute("data-audio-sfx") || "0"),
     saved: rawSettings ? JSON.parse(rawSettings) : null
+  };
+})()
+`;
+
+const readIronVanguardStateExpression = `
+(() => {
+  const shell = document.querySelector(".app-shell");
+  const scene = document.querySelector(".combat-scene");
+  const player = document.querySelector(".combat-player");
+  const skillVfx = document.querySelector("[data-player-skill-vfx]");
+  const statusVfx = document.querySelector("[data-player-status-vfx]");
+  const enemyVfx = document.querySelector("[data-enemy-skill-vfx]");
+  return {
+    appMode: shell?.getAttribute("data-app-mode") ?? "",
+    classId: scene?.getAttribute("data-class-id") ?? "",
+    advancementId: scene?.getAttribute("data-advancement-id") ?? "",
+    activeSkill: player?.getAttribute("data-active-skill-id") ?? "",
+    playerMotion: player?.getAttribute("data-player-motion") ?? "",
+    skillMove: player?.getAttribute("data-player-skill-move") ?? "",
+    skillStage: player?.getAttribute("data-player-skill-stage") ?? "",
+    shieldActive: player?.getAttribute("data-shield-active") ?? "",
+    skillVfx: skillVfx?.getAttribute("data-player-skill-vfx") ?? "",
+    skillVfxCue: skillVfx?.getAttribute("data-vfx-cue") ?? "",
+    statusVfx: statusVfx?.getAttribute("data-player-status-vfx") ?? "",
+    statusVfxCue: statusVfx?.getAttribute("data-vfx-cue") ?? "",
+    enemyVfx: enemyVfx?.getAttribute("data-enemy-skill-vfx") ?? "",
+    enemyVfxCue: enemyVfx?.getAttribute("data-enemy-vfx-cue") ?? ""
   };
 })()
 `;
@@ -1863,6 +1907,98 @@ describe("real browser keyboard control", () => {
     }
   }, 90000);
 
+  it("drives Iron Forge Vanguard shield counter skills with real class clicks and keyboard input", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, createReadyIronVanguardState());
+        await page.click('[data-mode="classes"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "classes",
+          3000
+        );
+        await page.click('[data-class-id="iron-forge-guardian"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.classId === "iron-forge-guardian",
+          3000
+        );
+        await page.click('[data-advancement-id="black-furnace-vanguard"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.advancementId === "black-furnace-vanguard",
+          3000
+        );
+        await page.click('[data-mode="town"]');
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.liveEnemyCount === "2",
+          5000
+        );
+        await page.pressKey("KeyA");
+        const palmWindup = await page.waitFor<BrowserIronVanguardState>(
+          readIronVanguardStateExpression,
+          (state) =>
+            state.classId === "iron-forge-guardian" &&
+            state.advancementId === "black-furnace-vanguard" &&
+            state.activeSkill === "iron-palm" &&
+            state.playerMotion === "skill" &&
+            state.skillMove === "iron-palm" &&
+            state.skillStage === "windup" &&
+            state.skillVfx === "iron-palm",
+          3000
+        );
+        expect(palmWindup.skillMove).toBe("iron-palm");
+        const palmImpact = await page.waitFor<BrowserIronVanguardState>(
+          readIronVanguardStateExpression,
+          (state) => state.activeSkill === "iron-palm" && state.skillStage === "active" && state.skillVfxCue === "iron-shield-jab",
+          1000
+        );
+        expect(palmImpact.skillVfx).toBe("iron-palm");
+
+        await waitInBrowser(page, 480);
+        await page.pressKey("KeyS");
+        const guard = await page.waitFor<BrowserIronVanguardState>(
+          readIronVanguardStateExpression,
+          (state) =>
+            state.activeSkill === "anvil-guard" &&
+            state.shieldActive === "true" &&
+            state.statusVfx === "anvil-guard" &&
+            state.statusVfxCue === "anvil-guard-open",
+          3000
+        );
+        expect(guard.playerMotion).toBe("shield");
+
+        await waitInBrowser(page, 560);
+        await page.pressKey("Space");
+        const aegis = await page.waitFor<BrowserIronVanguardState>(
+          readIronVanguardStateExpression,
+          (state) =>
+            state.activeSkill === "black-furnace-aegis" &&
+            state.shieldActive === "true" &&
+            state.statusVfx === "black-furnace-aegis" &&
+            state.statusVfxCue === "black-aegis-open",
+          3000
+        );
+
+        expect(aegis.skillVfx).toBe("black-furnace-aegis");
+
+        await moveIntoLiveEnemyRange(page);
+        const enemyAttack = await page.waitFor<BrowserIronVanguardState>(
+          readIronVanguardStateExpression,
+          (state) => state.enemyVfx !== "" && state.enemyVfxCue !== "",
+          3500
+        );
+        expect(enemyAttack.enemyVfx).toMatch(/^ash-(ember-spit|crawler-burst)$/);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 75000);
+
   it("shows Liuli Furnace enemy windup, model motion, and VFX through real browser control", async () => {
     const server = await startViteServer();
 
@@ -2299,6 +2435,26 @@ function createReadyClassProgressionState(): GameState {
         ...baseState.player.inventory,
         createOwnedGear(browserProgressionAlternateCoreCatalogId(baseState), "browser-loadout")
       ]
+    }
+  };
+}
+
+function createReadyIronVanguardState(): GameState {
+  const baseState = createInitialState();
+
+  return {
+    ...baseState,
+    player: {
+      ...baseState.player,
+      level: 15,
+      classResources: {
+        ...baseState.player.classResources,
+        "iron-forge-guardian": 100
+      },
+      quests: {
+        ...baseState.player.quests,
+        "prologue-ember-warden": "ready"
+      }
     }
   };
 }

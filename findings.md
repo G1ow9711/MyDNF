@@ -1305,3 +1305,8 @@
 - Character progress uses `mydnf-save-v1`; audio volume has no place in that game-state schema. A separate `mydnf-audio-settings-v1` avoids save migration churn while retaining all three user settings.
 - Range input is now proven through the mounted UI: the CDP helper real-clicks the music slider, keyboard changes its focused range value, the app handles the native input event, then browser reload confirms the persisted setting is used during BGM initialization.
 - Invalid, incomplete, or non-numeric stored settings fall back to the normal 90/75/85 volume defaults rather than causing a save-load failure.
+
+## Strict Combat Audit and Iron Guard Slice
+- A five-room Liuli acceptance cannot use a pre-unlocked endgame save as proof of the requested offline progression. The remaining strict route must begin from the new-save Cinder clear, claim the unlock, enter Liuli with focused keyboard control, verify its five rooms and boss profiles, then claim and reload the settlement.
+- Iron guard previously reduced damage but consumed its window and imposed hurt-lock on every hit. Shielded impact now preserves the timed guard state, model-facing position, queued input, and active skill movement while still emitting a real reduced-damage player-hit event. Unshielded damage remains interrupting.
+- The mounted Iron path proves original browser clicks for class/advancement plus keyboard `A` Iron Palm, `S` Anvil Guard, `Space` Black Furnace Aegis, player/weapon VFX state, and a real monster skill VFX in the same combat session.

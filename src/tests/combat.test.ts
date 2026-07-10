@@ -1557,6 +1557,45 @@ describe("combat actions and impact feel", () => {
     expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "iron-palm")).toHaveLength(0);
   });
 
+  it("keeps iron-palm's shield jab scheduled when a guard window absorbs monster damage", () => {
+    const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 318, y: 340, hp: 190, maxHp: 190 }]
+    );
+    const guardedRun: CombatRun = {
+      ...run,
+      player: {
+        ...run.player,
+        shieldUntilMs: 1000,
+        shieldReduction: 0.5
+      },
+      enemies: run.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 120,
+              attackRecoverUntilMs: 620,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const cast = performAction(guardedRun, { type: "skill", skillId: "iron-palm" });
+    const [jabAtMs] = scheduledSkillTimes(cast, "iron-palm");
+    const resolved = stepToElapsed(cast, jabAtMs);
+
+    expect(resolved.player.hurtLockUntilMs).toBeLessThanOrEqual(resolved.elapsedMs);
+    expect(resolved.player.shieldUntilMs).toBeGreaterThan(resolved.elapsedMs);
+    expect(skillHitEvents(resolved, "iron-palm")).toHaveLength(1);
+    expect(resolved.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+  });
+
   it("cancels spark-combo jab when monster damage interrupts before the jab frame", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(createInitialState(), "cinder-kiln-alley"),
@@ -2576,7 +2615,9 @@ describe("combat actions and impact feel", () => {
     expect(walled.player.shieldUntilMs).toBeGreaterThan(walled.elapsedMs);
     expect(walled.player.shieldReduction).toBeGreaterThanOrEqual(0.5);
     expect(impacted.player.hp).toBeGreaterThan(run.player.hp - 28);
-    expect(impacted.player.shieldUntilMs).toBeLessThanOrEqual(impacted.elapsedMs);
+    expect(impacted.player.hurtLockUntilMs).toBeLessThanOrEqual(impacted.elapsedMs);
+    expect(impacted.player.x).toBe(walled.player.x);
+    expect(impacted.player.shieldUntilMs).toBeGreaterThan(impacted.elapsedMs);
     expect(impacted.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -7631,7 +7672,7 @@ describe("combat actions and impact feel", () => {
     expect(guarded.player.shieldReduction).toBeGreaterThanOrEqual(0.45);
     expect(playerHits).toHaveLength(1);
     expect(playerHits[0].damage).toBeLessThan(20);
-    expect(afterGuardHit.player.shieldUntilMs).toBeLessThanOrEqual(afterGuardHit.elapsedMs);
+    expect(afterGuardHit.player.shieldUntilMs).toBeGreaterThan(afterGuardHit.elapsedMs);
   });
 
   it("opens anvil-guard before same-frame monster impacts so mitigation applies on the guard frame", () => {
@@ -7803,7 +7844,7 @@ describe("combat actions and impact feel", () => {
     expect(playerHits).toHaveLength(1);
     expect(playerHits[0].damage).toBeGreaterThan(0);
     expect(playerHits[0].damage).toBeLessThanOrEqual(12);
-    expect(afterAegisHit.player.shieldUntilMs).toBeLessThanOrEqual(afterAegisHit.elapsedMs);
+    expect(afterAegisHit.player.shieldUntilMs).toBeGreaterThan(afterAegisHit.elapsedMs);
   });
 
   it("cancels black-furnace-aegis opening when monster damage interrupts startup", () => {

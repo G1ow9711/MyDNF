@@ -541,6 +541,20 @@ function playerModelMotionStyle(run: CombatRun, animation?: SkillAnimationDefini
 
 function enemyAttackLungePx(skillId: string | undefined): number {
   switch (skillId) {
+    case "liuli-glass-spray":
+      return 18;
+    case "liuli-splinter-rush":
+      return 48;
+    case "liuli-crucible-wave":
+      return 26;
+    case "liuli-prism-charge":
+      return 66;
+    case "liuli-prism-barrage":
+      return 22;
+    case "liuli-kiln-gravity":
+      return 44;
+    case "liuli-crucible-shards":
+      return 58;
     case "ash-ember-spit":
       return 20;
     case "ash-crawler-burst":
@@ -1300,6 +1314,34 @@ function enemyArmorState(enemy: CombatEnemy, elapsedMs: number): string {
 }
 
 function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { id: string; label: string } {
+  if (skillId === "liuli-glass-spray") {
+    return { id: skillId, label: "琉璃碎雾" };
+  }
+
+  if (skillId === "liuli-splinter-rush") {
+    return { id: skillId, label: "琉璃裂冲" };
+  }
+
+  if (skillId === "liuli-crucible-wave") {
+    return { id: skillId, label: "熔池震波" };
+  }
+
+  if (skillId === "liuli-prism-charge") {
+    return { id: skillId, label: "棱镜突袭" };
+  }
+
+  if (skillId === "liuli-prism-barrage") {
+    return { id: skillId, label: "监工棱雨" };
+  }
+
+  if (skillId === "liuli-kiln-gravity") {
+    return { id: skillId, label: "熔炉引力" };
+  }
+
+  if (skillId === "liuli-crucible-shards") {
+    return { id: skillId, label: "坩埚裂片" };
+  }
+
   if (skillId === "ash-crawler-burst") {
     return { id: "ash-crawler-burst", label: "灰爬虫爆冲" };
   }
@@ -1336,11 +1378,26 @@ function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { 
 }
 
 function enemyTelegraphShape(effectId: string): "cone" | "line" | "circle" {
-  if (effectId === "taotie-flame-breath" || effectId === "zheng-horn-charge" || effectId === "taotie-chain-cleave") {
+  if (
+    effectId === "taotie-flame-breath" ||
+    effectId === "zheng-horn-charge" ||
+    effectId === "taotie-chain-cleave" ||
+    effectId === "liuli-prism-charge" ||
+    effectId === "liuli-prism-barrage" ||
+    effectId === "liuli-crucible-shards"
+  ) {
     return "line";
   }
 
-  if (effectId === "zheng-shockwave" || effectId === "ash-crawler-burst" || effectId === "taotie-ash-summon" || effectId === "taotie-forge-shackle") {
+  if (
+    effectId === "zheng-shockwave" ||
+    effectId === "ash-crawler-burst" ||
+    effectId === "taotie-ash-summon" ||
+    effectId === "taotie-forge-shackle" ||
+    effectId === "liuli-crucible-wave" ||
+    effectId === "liuli-kiln-gravity" ||
+    effectId === "liuli-splinter-rush"
+  ) {
     return "circle";
   }
 

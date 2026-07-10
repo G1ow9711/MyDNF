@@ -4131,3 +4131,8 @@
 - Extended the mounted class/build path to equip a core, save loadout 1, equip an alternate core, apply loadout 1, and reload. The real UI path now targets build persistence rather than only checking that the three loadout array entries exist.
 - A first real-browser story route for Cinder clear -> quest claim -> Liuli unlock -> five Liuli rooms -> return/save stopped with `Execution context was destroyed` after 109 seconds. Removed the unstable new route so it does not degrade the verified suite; the next content pass must rebuild the story acceptance in stages without pre-unlocking the dungeon.
 - Build passed after the loadout implementation: `npm run build`.
+
+## Task 172 Liuli Furnace Enemy Identity Slice
+- Added dungeon-specific combat profiles: `liuli-glass-spray`, `liuli-splinter-rush`, `liuli-crucible-wave`, `liuli-prism-charge`, and the Liuli Overseer boss cycle `liuli-prism-barrage` / `liuli-kiln-gravity` / `liuli-crucible-shards`.
+- Cinder-only Taotie phase transition is now restricted to Taotie pattern lists. Liuli no longer inherits Forge Collapse, shackle, or ash-summon behavior.
+- Added UI labels, lunge presentation, telegraph shapes, and cyan/amber actor treatment for the new Liuli skills. Focused combat test passed (1 matched, 246 skipped) and `npm run build` passed. Real-keyboard Liuli run acceptance remains pending.

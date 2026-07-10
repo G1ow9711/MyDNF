@@ -2297,6 +2297,25 @@ p {
   filter: drop-shadow(0 0 18px rgba(248, 113, 113, 0.58)) brightness(1.14);
 }
 
+.combat-enemy[data-enemy-motion="attack"][data-enemy-attack-skill-id="liuli-glass-spray"] .enemy-art,
+.combat-enemy[data-enemy-motion="attack"][data-enemy-attack-skill-id="liuli-prism-barrage"] .enemy-art {
+  animation: monster-ember-spit var(--enemy-attack-duration, 620ms) cubic-bezier(0.14, 0.82, 0.18, 1) both;
+  filter: drop-shadow(0 0 22px rgba(103, 232, 249, 0.72)) drop-shadow(0 0 12px rgba(251, 191, 36, 0.46)) brightness(1.2) saturate(1.22);
+}
+
+.combat-enemy[data-enemy-motion="attack"][data-enemy-attack-skill-id="liuli-splinter-rush"] .enemy-art,
+.combat-enemy[data-enemy-motion="attack"][data-enemy-attack-skill-id="liuli-prism-charge"] .enemy-art {
+  animation: monster-zheng-horn-charge var(--enemy-attack-duration, 720ms) cubic-bezier(0.1, 0.78, 0.12, 1) both;
+  filter: drop-shadow(0 0 26px rgba(45, 212, 191, 0.7)) drop-shadow(0 0 14px rgba(251, 191, 36, 0.48)) brightness(1.22) saturate(1.28);
+}
+
+.combat-enemy[data-enemy-motion="attack"][data-enemy-attack-skill-id="liuli-crucible-wave"] .enemy-art,
+.combat-enemy[data-enemy-motion="attack"][data-enemy-attack-skill-id="liuli-kiln-gravity"] .enemy-art,
+.combat-enemy[data-enemy-motion="attack"][data-enemy-attack-skill-id="liuli-crucible-shards"] .enemy-art {
+  animation: monster-taotie-devour-pull var(--enemy-attack-duration, 840ms) cubic-bezier(0.12, 0.8, 0.14, 1) both;
+  filter: drop-shadow(0 0 28px rgba(34, 211, 238, 0.68)) drop-shadow(0 0 18px rgba(253, 224, 71, 0.5)) brightness(1.2) saturate(1.24);
+}
+
 .combat-enemy[data-enemy-motion="attack"][data-enemy-attack-skill-id] .enemy-art {
   animation-duration: var(--enemy-attack-duration, 520ms);
 }

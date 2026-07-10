@@ -247,6 +247,16 @@ function reachEliteRoom(run: CombatRun): CombatRun {
   return finishRoom(defeatAll(run));
 }
 
+function reachRoom(run: CombatRun, targetRoomIndex: number): CombatRun {
+  let next = run;
+
+  while (next.roomIndex < targetRoomIndex) {
+    next = finishRoom(defeatAll(next));
+  }
+
+  return next;
+}
+
 function withEnemyInRange(run: CombatRun, enemyPatch: Partial<CombatEnemy> = {}): CombatRun {
   return {
     ...run,
@@ -7838,6 +7848,38 @@ describe("combat actions and impact feel", () => {
 });
 
 describe("enemy attacks and player defeat", () => {
+  it("spawns Liuli Furnace enemies with dungeon-specific trash, elite, and boss patterns", () => {
+    const initialRun = createCombatRun(unlockLiuli(createInitialState()), "liuli-furnace");
+    const dungeon = catalog.dungeons.find((item) => item.id === "liuli-furnace");
+
+    if (!dungeon) {
+      throw new Error("Missing Liuli Furnace dungeon");
+    }
+
+    const eliteRun = reachRoom(initialRun, dungeon.rooms - 2);
+    const bossRun = reachBossRoom(initialRun);
+    const boss = bossRun.enemies[0] as CombatEnemy & { attackPatternIds?: string[] };
+    const cinderProfiles = new Set([
+      "ash-ember-spit",
+      "ash-crawler-burst",
+      "zheng-shockwave",
+      "zheng-horn-charge",
+      "taotie-flame-breath",
+      "taotie-devour-pull",
+      "taotie-ash-summon"
+    ]);
+
+    expect(initialRun.enemies.map((enemy) => enemy.attackProfileId)).toEqual(["liuli-glass-spray", "liuli-splinter-rush"]);
+    expect(eliteRun.enemies.map((enemy) => enemy.attackProfileId)).toEqual([
+      "liuli-crucible-wave",
+      "liuli-prism-charge",
+      "liuli-glass-spray"
+    ]);
+    expect(boss.attackProfileId).toBe("liuli-prism-barrage");
+    expect(boss.attackPatternIds).toEqual(["liuli-prism-barrage", "liuli-kiln-gravity", "liuli-crucible-shards"]);
+    expect([...initialRun.enemies, ...eliteRun.enemies, ...bossRun.enemies].every((enemy) => !cinderProfiles.has(enemy.attackProfileId))).toBe(true);
+  });
+
   it("creates mixed trash attack profiles in normal rooms", () => {
     const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
 

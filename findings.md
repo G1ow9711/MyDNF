@@ -1291,3 +1291,8 @@
 - Loadout save/apply reducers exist, but the inventory panel had no player-facing controls and the app click reducer had no matching actions. This blocked the requested multi-build gameplay despite three saved loadout slots being present in the save schema.
 - The second dungeon has its own five-room data, background, BGM selection, loot bonus, and quest unlock, but it currently reuses the first dungeon's enemy generator, attack profiles, and monster assets. A later content slice must add a distinct Liuli enemy roster and Overseer boss behavior rather than only extending verification.
 - Story data currently covers the prologue and first chapter only. The approved completion checklist also requires a second chapter and epilogue hook, plus quest events for combat, loot, trade, shop, reinforcement, and amplification.
+
+## Liuli Furnace Enemy Identity Slice
+- Liuli Furnace now generates its own Glass Spray and Splinter Rush trash enemies, Crucible Wave and Prism Charge elites, plus a three-skill Overseer pattern: Prism Barrage, Kiln Gravity, and Crucible Shards.
+- The Cinder Taotie half-health Forge Collapse remains explicitly gated to Taotie-pattern bosses, so the Liuli boss no longer receives inherited ash-forge phase behavior.
+- UI now gives each Liuli attack a dedicated Chinese label, motion lunge distance, telegraph shape, and cyan/amber model treatment. A stable real-keyboard five-room clear remains a pending acceptance task.

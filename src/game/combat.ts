@@ -10,11 +10,18 @@ export type EnemyAttackProfileId =
   | "ash-crawler-burst"
   | "zheng-shockwave"
   | "zheng-horn-charge"
+  | "liuli-glass-spray"
+  | "liuli-splinter-rush"
+  | "liuli-crucible-wave"
+  | "liuli-prism-charge"
   | "taotie-flame-breath"
   | "taotie-devour-pull"
   | "taotie-ash-summon"
   | "taotie-forge-shackle"
-  | "taotie-chain-cleave";
+  | "taotie-chain-cleave"
+  | "liuli-prism-barrage"
+  | "liuli-kiln-gravity"
+  | "liuli-crucible-shards";
 export type CombatSkillInputMethod = "hotkey" | "command";
 export type CombatActionInput =
   | { type: "light" }
@@ -738,6 +745,7 @@ const taotieForgeCollapseLaneRange = 36;
 const taotieAshSummonMinionDelayMs = 540;
 const taotieBossPhaseOnePattern: EnemyAttackProfileId[] = ["taotie-flame-breath", "taotie-devour-pull", "taotie-ash-summon"];
 const taotieBossPhaseTwoPattern: EnemyAttackProfileId[] = [...taotieBossPhaseOnePattern, "taotie-forge-shackle", "taotie-chain-cleave"];
+const liuliBossPattern: EnemyAttackProfileId[] = ["liuli-prism-barrage", "liuli-kiln-gravity", "liuli-crucible-shards"];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -1250,7 +1258,13 @@ function triggerBossPhaseTransitions(run: CombatRun, occurredAtMs = run.elapsedM
   const events: CombatEvent[] = [];
   const scheduledArenaHazards: CombatScheduledArenaHazard[] = [];
   const enemies = run.enemies.map((enemy) => {
-    if (enemy.kind !== "boss" || enemy.hp <= 0 || bossPhase(enemy) >= 2 || bossHpPercent(enemy) > 0.5) {
+    if (
+      enemy.kind !== "boss" ||
+      !enemy.attackPatternIds?.some((profileId) => profileId.startsWith("taotie-")) ||
+      enemy.hp <= 0 ||
+      bossPhase(enemy) >= 2 ||
+      bossHpPercent(enemy) > 0.5
+    ) {
       return enemy;
     }
 
@@ -1446,11 +1460,18 @@ function isEnemyAttackProfileId(value: string | undefined): value is EnemyAttack
     value === "ash-crawler-burst" ||
     value === "zheng-shockwave" ||
     value === "zheng-horn-charge" ||
+    value === "liuli-glass-spray" ||
+    value === "liuli-splinter-rush" ||
+    value === "liuli-crucible-wave" ||
+    value === "liuli-prism-charge" ||
     value === "taotie-flame-breath" ||
     value === "taotie-devour-pull" ||
     value === "taotie-ash-summon" ||
     value === "taotie-forge-shackle" ||
-    value === "taotie-chain-cleave"
+    value === "taotie-chain-cleave" ||
+    value === "liuli-prism-barrage" ||
+    value === "liuli-kiln-gravity" ||
+    value === "liuli-crucible-shards"
   );
 }
 
@@ -1460,12 +1481,20 @@ function enemyAttackProfileKind(profileId: EnemyAttackProfileId): EnemyKind {
     profileId === "taotie-devour-pull" ||
     profileId === "taotie-ash-summon" ||
     profileId === "taotie-forge-shackle" ||
-    profileId === "taotie-chain-cleave"
+    profileId === "taotie-chain-cleave" ||
+    profileId === "liuli-prism-barrage" ||
+    profileId === "liuli-kiln-gravity" ||
+    profileId === "liuli-crucible-shards"
   ) {
     return "boss";
   }
 
-  if (profileId === "zheng-shockwave" || profileId === "zheng-horn-charge") {
+  if (
+    profileId === "zheng-shockwave" ||
+    profileId === "zheng-horn-charge" ||
+    profileId === "liuli-crucible-wave" ||
+    profileId === "liuli-prism-charge"
+  ) {
     return "elite";
   }
 
@@ -1499,6 +1528,75 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
         : enemyAttackProfileKind(enemy.attackProfileId) === enemy.kind
           ? enemy.attackProfileId
           : defaultEnemyAttackProfile(enemy.kind);
+
+  if (profileId === "liuli-crucible-shards") {
+    return {
+      skillId: "liuli-crucible-shards",
+      damage: 46,
+      rangeX: 260,
+      laneRange: 42,
+      windupMs: 440,
+      recoveryMs: 420,
+      cooldownMs: 2800,
+      hitstopMs: 60,
+      knockback: 48,
+      hitCount: 2,
+      hitIntervalMs: 160,
+      vfxCue: "taotie-chain-cleave-drag",
+      hitVfxCues: ["taotie-chain-cleave-drag", "taotie-chain-cleave-smash"],
+      vfxWindowMs: 500,
+      feedbackCue: "player-hurt-chain-drag",
+      feedbackCues: ["player-hurt-chain-drag", "player-hurt-chain-smash"],
+      invulnerabilityMs: 120,
+      hurtLockMs: 380,
+      damageMultipliers: [0.75, 1.25],
+      knockbackByHit: [18, 72],
+      jumpEvade: true
+    };
+  }
+
+  if (profileId === "liuli-kiln-gravity") {
+    return {
+      skillId: "liuli-kiln-gravity",
+      damage: 54,
+      rangeX: 134,
+      laneRange: 30,
+      windupMs: 430,
+      recoveryMs: 400,
+      cooldownMs: 2500,
+      hitstopMs: 68,
+      knockback: 34,
+      hitCount: 1,
+      hitIntervalMs: 0,
+      vfxCue: "taotie-devour-bite",
+      vfxWindowMs: 520,
+      feedbackCue: "player-hurt-devoured",
+      invulnerabilityMs: 500,
+      hurtLockMs: 480,
+      windupPullPx: 150
+    };
+  }
+
+  if (profileId === "liuli-prism-barrage") {
+    return {
+      skillId: "liuli-prism-barrage",
+      damage: 40,
+      rangeX: 310,
+      laneRange: 72,
+      windupMs: 380,
+      recoveryMs: 340,
+      cooldownMs: 2100,
+      hitstopMs: 54,
+      knockback: 36,
+      hitCount: 3,
+      hitIntervalMs: 170,
+      vfxCue: "taotie-flame-breath-sustain",
+      vfxWindowMs: 480,
+      feedbackCue: "player-hurt-boss-breath",
+      invulnerabilityMs: 110,
+      hurtLockMs: 240
+    };
+  }
 
   if (profileId === "taotie-forge-shackle") {
     return {
@@ -1671,6 +1769,51 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
     };
   }
 
+  if (profileId === "liuli-prism-charge") {
+    return {
+      skillId: "liuli-prism-charge",
+      damage: 48,
+      rangeX: 96,
+      laneRange: 34,
+      windupMs: 390,
+      recoveryMs: 340,
+      cooldownMs: 2000,
+      hitstopMs: 52,
+      knockback: 76,
+      hitCount: 1,
+      hitIntervalMs: 0,
+      vfxCue: "zheng-horn-charge-impact",
+      vfxWindowMs: 440,
+      feedbackCue: "player-hurt-heavy",
+      invulnerabilityMs: 540,
+      hurtLockMs: 440,
+      windupRushPx: 230,
+      jumpEvade: true
+    };
+  }
+
+  if (profileId === "liuli-crucible-wave") {
+    return {
+      skillId: "liuli-crucible-wave",
+      damage: 50,
+      rangeX: 220,
+      laneRange: 64,
+      windupMs: 340,
+      recoveryMs: 280,
+      cooldownMs: 1750,
+      hitstopMs: 46,
+      knockback: 60,
+      hitCount: 1,
+      hitIntervalMs: 0,
+      vfxCue: "zheng-shockwave-impact",
+      vfxWindowMs: 400,
+      feedbackCue: "player-hurt-heavy",
+      invulnerabilityMs: 540,
+      hurtLockMs: 400,
+      jumpEvade: true
+    };
+  }
+
   if (profileId === "ash-crawler-burst") {
     return {
       skillId: "ash-crawler-burst",
@@ -1691,6 +1834,50 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       hurtLockMs: 460,
       windupRushPx: 190,
       jumpEvade: true
+    };
+  }
+
+  if (profileId === "liuli-splinter-rush") {
+    return {
+      skillId: "liuli-splinter-rush",
+      damage: 36,
+      rangeX: 76,
+      laneRange: 44,
+      windupMs: 300,
+      recoveryMs: 320,
+      cooldownMs: 1800,
+      hitstopMs: 48,
+      knockback: 62,
+      hitCount: 1,
+      hitIntervalMs: 0,
+      vfxCue: "ash-crawler-burst-explode",
+      vfxWindowMs: 420,
+      feedbackCue: "player-hurt-heavy",
+      invulnerabilityMs: 540,
+      hurtLockMs: 440,
+      windupRushPx: 170,
+      jumpEvade: true
+    };
+  }
+
+  if (profileId === "liuli-glass-spray") {
+    return {
+      skillId: "liuli-glass-spray",
+      damage: 30,
+      rangeX: 205,
+      laneRange: 62,
+      windupMs: 260,
+      recoveryMs: 230,
+      cooldownMs: 1450,
+      hitstopMs: 34,
+      knockback: 38,
+      hitCount: 1,
+      hitIntervalMs: 0,
+      vfxCue: "ash-ember-spit-impact",
+      vfxWindowMs: 340,
+      feedbackCue: "player-hurt-light",
+      invulnerabilityMs: 540,
+      hurtLockMs: 400
     };
   }
 
@@ -1722,7 +1909,8 @@ function createEnemy(
   attackProfileId = defaultEnemyAttackProfile(kind)
 ): CombatEnemy {
   const stats = enemyStats(kind);
-  const attackPatternIds: EnemyAttackProfileId[] | undefined = kind === "boss" ? taotieBossPhaseOnePattern : undefined;
+  const attackPatternIds: EnemyAttackProfileId[] | undefined =
+    kind === "boss" ? (dungeonId === "liuli-furnace" ? liuliBossPattern : taotieBossPhaseOnePattern) : undefined;
   const nextAttackPatternIndex = attackPatternIds
     ? attackPatternIds.includes(attackProfileId)
       ? attackPatternIds.indexOf(attackProfileId)
@@ -1761,14 +1949,37 @@ function createRoomEnemies(dungeonId: DungeonId, roomIndex: number): CombatEnemy
   }
 
   if (roomIndex === dungeon.rooms - 1) {
-    return [createEnemy(dungeonId, roomIndex, 0, "boss")];
+    return [
+      createEnemy(
+        dungeonId,
+        roomIndex,
+        0,
+        "boss",
+        dungeonId === "liuli-furnace" ? "liuli-prism-barrage" : "taotie-flame-breath"
+      )
+    ];
   }
 
   if (roomIndex === dungeon.rooms - 2) {
+    if (dungeonId === "liuli-furnace") {
+      return [
+        createEnemy(dungeonId, roomIndex, 0, "elite", "liuli-crucible-wave"),
+        createEnemy(dungeonId, roomIndex, 1, "elite", "liuli-prism-charge"),
+        createEnemy(dungeonId, roomIndex, 2, "trash", "liuli-glass-spray")
+      ];
+    }
+
     return [
       createEnemy(dungeonId, roomIndex, 0, "elite", "zheng-shockwave"),
       createEnemy(dungeonId, roomIndex, 1, "elite", "zheng-horn-charge"),
       createEnemy(dungeonId, roomIndex, 2, "trash", "ash-ember-spit")
+    ];
+  }
+
+  if (dungeonId === "liuli-furnace") {
+    return [
+      createEnemy(dungeonId, roomIndex, 0, "trash", "liuli-glass-spray"),
+      createEnemy(dungeonId, roomIndex, 1, "trash", "liuli-splinter-rush")
     ];
   }
 

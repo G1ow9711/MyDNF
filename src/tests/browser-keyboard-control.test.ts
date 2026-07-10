@@ -1641,6 +1641,80 @@ describe("real browser keyboard control", () => {
     }
   }, 90000);
 
+  it("advances chapter two and the epilogue through real trade, amplify, shop, and quest clicks", async () => {
+    const server = await startViteServer();
+    const seededState = createChapterTwoQuestState();
+    const echoGearId = browserEcosystemEchoOwnedId();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, seededState);
+
+        await page.click('[data-mode="auction"]');
+        await page.click('[data-trade-offer-id]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.quests["chapter-two-trade-contract"] === "ready",
+          3000
+        );
+
+        await page.click('[data-mode="quests"]');
+        await page.click('[data-quest-id="chapter-two-trade-contract"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.saved?.player.quests["chapter-two-trade-contract"] === "completed" &&
+            state.saved.player.quests["chapter-two-resonance"] === "active",
+          3000
+        );
+
+        await page.click('[data-mode="smith"]');
+        await page.click(`[data-app-action="amplify"][data-gear-id="${echoGearId}"]`);
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.quests["chapter-two-resonance"] === "ready",
+          3000
+        );
+
+        await page.click('[data-mode="quests"]');
+        await page.click('[data-quest-id="chapter-two-resonance"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.quests["epilogue-market-oath"] === "active",
+          3000
+        );
+
+        await page.click('[data-mode="shop"]');
+        await page.click('[data-shop-sku="liuli-gift-pack"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.quests["epilogue-market-oath"] === "ready",
+          3000
+        );
+
+        await page.click('[data-mode="quests"]');
+        await page.click('[data-quest-id="epilogue-market-oath"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.quests["epilogue-market-oath"] === "completed",
+          3000
+        );
+
+        await page.evaluate<void>("location.reload()");
+        const restored = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "town" && state.saved?.player.quests["epilogue-market-oath"] === "completed",
+          15000
+        );
+
+        expect(restored.saved?.player.quests["chapter-two-trade-contract"]).toBe("completed");
+        expect(restored.saved?.player.quests["chapter-two-resonance"]).toBe("completed");
+      });
+    } finally {
+      await server.close();
+    }
+  }, 90000);
+
   it("selects a class, advances its build, equips a core, and persists the progression", async () => {
     const server = await startViteServer();
     const seededState = createReadyClassProgressionState();
@@ -2120,6 +2194,28 @@ function createTownEcosystemState(): GameState {
         protectionTicket: 3
       },
       inventory: [...baseState.player.inventory, createOwnedGear(echoGear.id, "browser-echo")]
+    }
+  };
+}
+
+function createChapterTwoQuestState(): GameState {
+  const baseState = createTownEcosystemState();
+
+  return {
+    ...baseState,
+    player: {
+      ...baseState.player,
+      quests: {
+        ...baseState.player.quests,
+        "prologue-ember-warden": "completed",
+        "smith-first-spark": "completed",
+        "chapter-liuli-furnace": "completed",
+        "chapter-two-trade-contract": "active",
+        "chapter-two-relic-study": "active",
+        "chapter-two-resonance": "locked",
+        "epilogue-market-oath": "locked"
+      },
+      unlockedDungeons: ["cinder-kiln-alley", "liuli-furnace"]
     }
   };
 }

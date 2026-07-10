@@ -4142,3 +4142,4 @@
 - Extended the catalog with chapter two trade-contract, relic-study, resonance-amplification, and epilogue market-oath quests after Liuli Furnace completion.
 - Added `tradeCompleted` and wired it to NPC trade. Gear drops now emit `itemLooted` when they enter inventory, completing the quest-event path for combat/loot/trade/shop/reinforce/amplify/auction.
 - Quest progression regression passed: `npm test -- src/tests/quests.test.ts --maxWorkers=1 --minWorkers=1 --reporter=basic` (8 passed). Build and diff checks passed.
+- Mounted browser acceptance passed: a legal post-Liuli state used actual auction trade, quest claim, smith amplify, shop purchase, epilogue claim, and reload. It verified the trade/resonance/epilogue quest states persist after `localStorage` reload (1 passed, 17 skipped).

@@ -4135,4 +4135,5 @@
 ## Task 172 Liuli Furnace Enemy Identity Slice
 - Added dungeon-specific combat profiles: `liuli-glass-spray`, `liuli-splinter-rush`, `liuli-crucible-wave`, `liuli-prism-charge`, and the Liuli Overseer boss cycle `liuli-prism-barrage` / `liuli-kiln-gravity` / `liuli-crucible-shards`.
 - Cinder-only Taotie phase transition is now restricted to Taotie pattern lists. Liuli no longer inherits Forge Collapse, shackle, or ash-summon behavior.
-- Added UI labels, lunge presentation, telegraph shapes, and cyan/amber actor treatment for the new Liuli skills. Focused combat test passed (1 matched, 246 skipped) and `npm run build` passed. Real-keyboard Liuli run acceptance remains pending.
+- Added UI labels, lunge presentation, telegraph shapes, and cyan/amber actor treatment for the new Liuli skills. Focused combat test passed (1 matched, 246 skipped) and `npm run build` passed.
+- Added stable real-browser acceptance: seed an unlocked local save, click the Liuli Furnace button, use ArrowRight to approach live enemies, then require a `liuli-glass-spray` or `liuli-splinter-rush` windup/model animation plus an active Liuli VFX root and cue. The focused browser test passed (1 passed, 16 skipped).

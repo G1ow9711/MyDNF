@@ -217,6 +217,18 @@ type BrowserStrictCombatEvidence = {
   sawBossSkillVfx: boolean;
 };
 
+type BrowserLiuliEnemyState = {
+  dungeonId: string;
+  roomIndex: string;
+  enemies: Array<{
+    skill: string;
+    stage: string;
+    animationName: string;
+  }>;
+  enemyVfx: string;
+  enemyVfxCue: string;
+};
+
 type BrowserReactionState = {
   objective: string;
   roomIndex: string;
@@ -349,6 +361,28 @@ const readStrictCombatStateExpression = `
     skillVfxCoreAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-core")).animationName : "",
     hitstopActive: scene?.getAttribute("data-hitstop-active") ?? "",
     impactCue: impact?.getAttribute("data-vfx-cue") ?? "",
+    enemies,
+    enemyVfx: enemyVfx?.getAttribute("data-enemy-skill-vfx") ?? "",
+    enemyVfxCue: enemyVfx?.getAttribute("data-enemy-vfx-cue") ?? ""
+  };
+})()
+`;
+
+const readLiuliEnemyStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const enemyVfx = document.querySelector("[data-enemy-skill-vfx]");
+  const enemies = Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => {
+    const art = enemy.querySelector(".enemy-art");
+    return {
+      skill: enemy.getAttribute("data-enemy-attack-skill-id") ?? "",
+      stage: enemy.getAttribute("data-enemy-attack-stage") ?? "",
+      animationName: art ? getComputedStyle(art).animationName : ""
+    };
+  });
+  return {
+    dungeonId: scene?.getAttribute("data-dungeon-id") ?? "",
+    roomIndex: scene?.getAttribute("data-room-index") ?? "",
     enemies,
     enemyVfx: enemyVfx?.getAttribute("data-enemy-skill-vfx") ?? "",
     enemyVfxCue: enemyVfx?.getAttribute("data-enemy-vfx-cue") ?? ""
@@ -1692,6 +1726,46 @@ describe("real browser keyboard control", () => {
     }
   }, 90000);
 
+  it("shows Liuli Furnace enemy windup, model motion, and VFX through real browser control", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, createLiuliUnlockedState());
+        await page.click('[data-enter-dungeon="liuli-furnace"]');
+        await page.waitFor<BrowserLiuliEnemyState>(
+          readLiuliEnemyStateExpression,
+          (state) => state.dungeonId === "liuli-furnace" && state.roomIndex === "0" && state.enemies.length === 2,
+          5000
+        );
+
+        await page.keyDown("ArrowRight");
+        try {
+          await page.waitFor<BrowserRoomFlowState>(
+            readRoomFlowStateExpression,
+            (state) => Number(state.playerX) >= 340,
+            1800
+          );
+        } finally {
+          await page.keyUp("ArrowRight");
+        }
+
+        const active = await page.waitFor<BrowserLiuliEnemyState>(
+          readLiuliEnemyStateExpression,
+          (state) =>
+            state.enemies.some((enemy) => enemy.skill.startsWith("liuli-") && enemy.stage !== "none" && enemy.animationName !== "none") &&
+            state.enemyVfx.startsWith("liuli-") && state.enemyVfxCue.length > 0,
+          6000
+        );
+
+        expect(active.enemies.some((enemy) => enemy.skill === "liuli-glass-spray" || enemy.skill === "liuli-splinter-rush")).toBe(true);
+        expect(active.enemyVfx).toMatch(/^liuli-(glass-spray|splinter-rush)$/);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
   it("auto-saves combat rewards and restores them after a real browser reload", async () => {
     const server = await startViteServer();
 
@@ -2066,6 +2140,18 @@ function createReadyClassProgressionState(): GameState {
         ...baseState.player.inventory,
         createOwnedGear(browserProgressionAlternateCoreCatalogId(baseState), "browser-loadout")
       ]
+    }
+  };
+}
+
+function createLiuliUnlockedState(): GameState {
+  const baseState = createInitialState();
+
+  return {
+    ...baseState,
+    player: {
+      ...baseState.player,
+      unlockedDungeons: [...baseState.player.unlockedDungeons, "liuli-furnace"]
     }
   };
 }

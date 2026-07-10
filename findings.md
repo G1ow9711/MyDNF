@@ -1296,3 +1296,7 @@
 - Liuli Furnace now generates its own Glass Spray and Splinter Rush trash enemies, Crucible Wave and Prism Charge elites, plus a three-skill Overseer pattern: Prism Barrage, Kiln Gravity, and Crucible Shards.
 - The Cinder Taotie half-health Forge Collapse remains explicitly gated to Taotie-pattern bosses, so the Liuli boss no longer receives inherited ash-forge phase behavior.
 - UI now gives each Liuli attack a dedicated Chinese label, motion lunge distance, telegraph shape, and cyan/amber model treatment. A stable real-keyboard five-room clear remains a pending acceptance task.
+
+## Story Quest Event Chain
+- The campaign now continues beyond the Liuli Furnace clear: chapter two opens a trade-contract objective and a loot-study objective, trade unlocks resonance amplification, and a Liuli gift-pack purchase completes the epilogue hook.
+- `tradeCompleted` is now an explicit quest event. Combat loot emits `itemLooted` when a gear drop is added, while reinforcement, amplification, auction, and shop already dispatch their respective events through the app reducer.

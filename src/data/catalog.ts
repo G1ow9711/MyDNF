@@ -989,6 +989,46 @@ export const quests: QuestDef[] = [
     objectiveTrigger: { type: "dungeonCleared", targetId: "liuli-furnace" },
     rewards: { gold: 1600, arcShard: 8, valorToken: 3 },
     unlocks: ["auction", "amplification", "costume-pavilion"],
+    nextQuestIds: ["chapter-two-trade-contract", "chapter-two-relic-study"]
+  },
+  {
+    id: "chapter-two-trade-contract",
+    displayName: "琉璃商路",
+    chapter: "第二章",
+    objective: "以交易凭证完成一次城镇委托，追查熔炉碎片的流向。",
+    objectiveTrigger: { type: "tradeCompleted" },
+    rewards: { tradeCredit: 4, gold: 900 },
+    unlocks: ["trade"],
+    nextQuestIds: ["chapter-two-resonance"]
+  },
+  {
+    id: "chapter-two-relic-study",
+    displayName: "碎片鉴定",
+    chapter: "第二章",
+    objective: "取得一件副本战利品，交由市集鉴定师分析。",
+    objectiveTrigger: { type: "itemLooted" },
+    rewards: { ironDust: 45, arcShard: 2 },
+    unlocks: [],
+    nextQuestIds: []
+  },
+  {
+    id: "chapter-two-resonance",
+    displayName: "共鸣增幅",
+    chapter: "第二章",
+    objective: "对带有异响槽的装备完成一次增幅，唤醒碎片共鸣。",
+    objectiveTrigger: { type: "amplified" },
+    rewards: { arcShard: 10, protectionTicket: 1 },
+    unlocks: ["amplification"],
+    nextQuestIds: ["epilogue-market-oath"]
+  },
+  {
+    id: "epilogue-market-oath",
+    displayName: "尾声：炉山誓约",
+    chapter: "尾声",
+    objective: "购入一份琉璃补给，准备踏入尚未开启的天炉深层。",
+    objectiveTrigger: { type: "shopPurchased", targetId: "liuli-gift-pack" },
+    rewards: { valorToken: 5, gold: 2200 },
+    unlocks: ["shop"],
     nextQuestIds: []
   }
 ];

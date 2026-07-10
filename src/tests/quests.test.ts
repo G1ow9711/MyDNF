@@ -99,6 +99,32 @@ describe("story quest progression", () => {
     expect(claimed.player.currencies.valorToken - chapterActive.player.currencies.valorToken).toBe(3);
   });
 
+  it("advances chapter two through trade, loot, amplification, and the epilogue shop hook", () => {
+    const liuliClaimed = claimQuestReward(
+      applyQuestEvent(claimPrologue(createInitialState()), { type: "dungeonCleared", dungeonId: "liuli-furnace" }),
+      "chapter-liuli-furnace"
+    );
+
+    expect(liuliClaimed.player.quests["chapter-two-trade-contract"]).toBe("active");
+    expect(liuliClaimed.player.quests["chapter-two-relic-study"]).toBe("active");
+
+    const relicFound = applyQuestEvent(liuliClaimed, { type: "itemLooted", itemId: "any-dungeon-drop" });
+    const tradeReady = applyQuestEvent(relicFound, { type: "tradeCompleted", offerId: "market-contract" });
+
+    expect(relicFound.player.quests["chapter-two-relic-study"]).toBe("ready");
+    expect(tradeReady.player.quests["chapter-two-trade-contract"]).toBe("ready");
+
+    const tradeClaimed = claimQuestReward(tradeReady, "chapter-two-trade-contract");
+    const resonanceReady = applyQuestEvent(tradeClaimed, { type: "amplified" });
+    const resonanceClaimed = claimQuestReward(resonanceReady, "chapter-two-resonance");
+    const epilogueReady = applyQuestEvent(resonanceClaimed, { type: "shopPurchased", sku: "liuli-gift-pack" });
+
+    expect(tradeClaimed.player.quests["chapter-two-resonance"]).toBe("active");
+    expect(resonanceClaimed.player.quests["epilogue-market-oath"]).toBe("active");
+    expect(epilogueReady.player.quests["epilogue-market-oath"]).toBe("ready");
+    expect(claimQuestReward(epilogueReady, "epilogue-market-oath").player.quests["epilogue-market-oath"]).toBe("completed");
+  });
+
   it("ignores unmatched events and rejects invalid reward claims", () => {
     const state = createInitialState();
     const unmatched = applyQuestEvent(state, { type: "dungeonCleared", dungeonId: "liuli-furnace" });

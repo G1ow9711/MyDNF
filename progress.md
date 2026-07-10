@@ -4137,3 +4137,8 @@
 - Cinder-only Taotie phase transition is now restricted to Taotie pattern lists. Liuli no longer inherits Forge Collapse, shackle, or ash-summon behavior.
 - Added UI labels, lunge presentation, telegraph shapes, and cyan/amber actor treatment for the new Liuli skills. Focused combat test passed (1 matched, 246 skipped) and `npm run build` passed.
 - Added stable real-browser acceptance: seed an unlocked local save, click the Liuli Furnace button, use ArrowRight to approach live enemies, then require a `liuli-glass-spray` or `liuli-splinter-rush` windup/model animation plus an active Liuli VFX root and cue. The focused browser test passed (1 passed, 16 skipped).
+
+## Task 173 Chapter Two and Epilogue Quest Events
+- Extended the catalog with chapter two trade-contract, relic-study, resonance-amplification, and epilogue market-oath quests after Liuli Furnace completion.
+- Added `tradeCompleted` and wired it to NPC trade. Gear drops now emit `itemLooted` when they enter inventory, completing the quest-event path for combat/loot/trade/shop/reinforce/amplify/auction.
+- Quest progression regression passed: `npm test -- src/tests/quests.test.ts --maxWorkers=1 --minWorkers=1 --reporter=basic` (8 passed). Build and diff checks passed.

@@ -53,7 +53,8 @@ export type QuestEventType =
   | "reinforced"
   | "amplified"
   | "auctionSold"
-  | "shopPurchased";
+  | "shopPurchased"
+  | "tradeCompleted";
 
 export type SystemId = "smith" | "trade" | "auction" | "amplification" | "costume-pavilion" | "shop";
 

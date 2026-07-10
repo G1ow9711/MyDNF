@@ -8,7 +8,8 @@ export type QuestEvent =
   | { type: "reinforced"; itemId?: string }
   | { type: "amplified"; itemId?: string }
   | { type: "auctionSold"; listingId?: string }
-  | { type: "shopPurchased"; sku: string };
+  | { type: "shopPurchased"; sku: string }
+  | { type: "tradeCompleted"; offerId: string };
 
 const dungeonIds = new Set<string>(catalog.dungeons.map((dungeon) => dungeon.id));
 const alwaysUnlockedSystems = new Set<SystemId>(["shop"]);
@@ -33,6 +34,8 @@ function eventTargetId(event: QuestEvent): string | undefined {
       return event.itemId;
     case "shopPurchased":
       return event.sku;
+    case "tradeCompleted":
+      return event.offerId;
     default:
       return undefined;
   }

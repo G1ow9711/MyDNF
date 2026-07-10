@@ -2125,6 +2125,7 @@ function applyCombatLoot(state: GameState, loot: CombatLootEvent): GameState {
 
   if (loot.gearDropId) {
     next = addOwnedGear(next, loot.gearDropId);
+    next = applyQuestEvent(next, { type: "itemLooted", itemId: loot.gearDropId });
   }
 
   return next;
@@ -2542,7 +2543,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
     case "acceptTrade":
       return {
         ...model,
-        state: acceptTrade(model.state, action.offerId),
+        state: applyQuestEvent(acceptTrade(model.state, action.offerId), { type: "tradeCompleted", offerId: action.offerId }),
         message: "交易完成",
         audio: playSfx(model.audio, "trade-complete")
       };

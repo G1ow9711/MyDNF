@@ -1251,3 +1251,18 @@
 - Stability note: the final Liuli route keeps the test honest by seeding an offline Liuli advancement save, entering through the mounted town button, using real Shift+ArrowRight movement to reach live trash enemies before their first attack, and pressing Space for `flowing-light-chain`.
 - Browser acceptance note: the new boss test clears room 0 and room 1, enters the boss room, naturally reaches boss phase 2, sees arena hazard and boss skill VFX evidence, clears the boss room, walks through the completion gate, and verifies return to town.
 - Verification note: focused browser checks passed for Liuli `flowing-light-chain` and Boss full clear together; full final verification is tracked in `progress.md`.
+
+## DNF-Style Real-Browser Town Ecosystem Findings
+- Current priority follows the user's clarification: model geometry can be simpler while the full loop is completed, but combat action smoothness, model-following attacks, hit frames, skill VFX, and monster VFX stay strict. Town systems still need real player-operation evidence because the requested single-player loop includes trade, enhancement, amplification, shop, costumes, gift packs, and save.
+- Read-only economy audit found reducer/UI coverage for shop, market, reinforcement, amplification, and save, but no mounted browser click chain proving the player can actually use those systems and persist the result.
+- Read-only combat audit found the next battle-side gap is true-keyboard mechanism reaction for Taotie hazards, player hurt/quick-recover, and `KeyC` agency; that remains the next strict-combat candidate after this town-loop proof.
+- RED note: the new real-browser town test first failed with `page.click is not a function`, proving the app browser helper could dispatch keyboard input but could not yet exercise mounted mouse-driven town panels.
+- Implementation note: `runAppInRealBrowser()` now exposes a CDP-backed `click(selector)` helper that scrolls to a target, rejects missing/disabled/zero-size elements, and sends real mouse move/press/release events.
+- Browser acceptance note: the live Vite app now loads a seeded offline save, clicks into the shop, buys a gift pack, opens a mythic box, reinforces and amplifies Echo Slot gear, completes NPC trade, lists gear on the auction hall, settles the auction, reloads, and verifies shop/cosmetic/market/gear persistence from `localStorage`.
+
+## DNF-Style Flowing Light Chain Actor-Origin Findings
+- Real-browser regression exposed two separate facts: a chain cast can correctly be interrupted by an incoming monster hit, but when uninterrupted each slash must select targets from the player's actual stage position, not a fixed route midpoint.
+- `flowing-light-chain` now samples the actor's model-following movement at 220/340/470 ms and schedules each live target recheck from that stage origin. This preserves live targets, per-stage hitstop, knockback, interruption, and phase VFX while making the terminal slash cover the actual dash endpoint.
+- Added deterministic combat coverage for a target reachable only by the late path. The test failed with the old midpoint origin, then passed after the stage-origin change.
+- The mounted browser acceptance deliberately waits through one real enemy attack cycle before casting. This validates the complete skill during a valid player recovery window instead of falsely treating monster interruption as a VFX failure.
+- Verification: focused chain reducer tests passed; focused mounted chain acceptance passed twice; serial full mounted browser suite passed all 13 tests.

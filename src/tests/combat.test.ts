@@ -6177,6 +6177,27 @@ describe("combat actions and impact feel", () => {
     expect(final.enemies[0].controlledUntilMs).toBeGreaterThan(finishAtMs);
   });
 
+  it("uses the flowing-light-chain finisher endpoint for a late-path target", () => {
+    const state = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),
+      "flowing-light-swordmaster"
+    );
+    const run = withPlayerAndEnemies(
+      createCombatRun(state, "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 510, y: 340, hp: 180, maxHp: 180 }]
+    );
+    const cast = performAction(run, { type: "skill", skillId: "flowing-light-chain" });
+    const [, , finishAtMs] = scheduledSkillTimes(cast, "flowing-light-chain");
+    const final = stepToElapsed(cast, finishAtMs);
+    const chainHits = skillHitEvents(final, "flowing-light-chain");
+
+    expect(chainHits).toEqual(
+      expect.arrayContaining([expect.objectContaining({ hitPhase: "chain-finish", vfxCue: "flowing-chain-finish" })])
+    );
+    expect(final.enemies[0].hp).toBeLessThan(cast.enemies[0].hp);
+  });
+
   it("rechecks flowing-light-chain targets live on each slash frame", () => {
     const state = advanceClass(
       readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),

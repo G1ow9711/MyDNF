@@ -59,6 +59,9 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Add reset-save confirmation flow
 - [x] Update progress and findings
 - [x] Final handoff with paths and run command
+- [x] Add mounted town economy click acceptance and reload persistence
+- [x] Verify flowing-light-chain slash origins follow the moving actor at every phase
+- [x] Complete serial real-browser regression for keyboard combat, Boss, save, and economy
 - **Status:** ongoing for continuation polish; latest full verification is tracked in `progress.md`
 
 ## Key Questions
@@ -96,6 +99,8 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 | Browser GREEN first failed because flame-breath trail kept shorthand duration | 1 | Increased runtime duration override specificity so hit-index trail selectors still use `--enemy-vfx-duration` |
 | Full suite failed after CSS selector hardening because UI smoke expected the old flame-breath hit-index selectors | 1 | Updated the static smoke assertions to require the new cue-gated selectors |
 | Build failed after adding `@types/node` because Node timer globals conflicted with browser timer assumptions | 1 | Limited build globals in `tsconfig.json`, excluded test sources from app typecheck, and changed browser audio timer storage to `ReturnType<typeof globalThis.setInterval>` |
+| Default parallel browser suite stalled with many local Edge profiles | 1 | Verified only project-local test processes, stopped them, then ran browser regression serially with one Vitest worker |
+| Flowing Light Chain could miss the finisher after actor movement | 1 | Added endpoint regression and made each chain stage resolve from the actor position sampled at that stage frame |
 
 ## Notes
 - Project root at start: `F:\My_DNF`.
@@ -266,3 +271,5 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current boss-clear progress: the real browser now verifies a full true-keyboard dungeon run that clears two rooms, enters the Taotie boss room, triggers boss phase 2, sees arena hazards and boss skill VFX, clears all live enemies, uses the completion gate, and returns to town.
 - Current Liuli advanced-skill progress: the real browser now seeds an offline Liuli Flowing Light Swordmaster save, enters the dungeon by keyboard, dashes into live-target range, casts `flowing-light-chain` with Space, and verifies `chain-open`, `chain-cross`, and `chain-finish` player, weapon, and root VFX animations from actual mounted combat state.
 - Current strict-combat clarification: character and monster geometry can stay lightweight, but smooth keyboard-driven movement, model-following attacks, staged skill timing, hitstop/impact feedback, player/enemy action changes, skill VFX, monster VFX, boss mechanics, and offline save flow remain hard acceptance gates.
+- Current town-ecosystem acceptance progress: real browser tests now operate the mounted town UI with CDP mouse clicks for shop purchase, gift-box opening, reinforcement, amplification, NPC trade, auction listing, auction settlement, and reload persistence. This supports the full single-player loop without relaxing the strict combat priority.
+- Current strict-combat clarification: character and monster geometry may remain simpler while the whole game loop is connected, but combat action smoothness, model-following attacks, strict hit frames, hitstop, player/enemy reaction changes, player skill VFX, and monster skill VFX remain hard gates.

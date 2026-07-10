@@ -3631,10 +3631,6 @@ function applyFlowingLightChain(run: CombatRun, skill: ClassSkillDefinition, can
     x: clamp(run.player.x + run.player.facing * 142, 0, run.arena.width),
     y: run.player.y
   };
-  const chainCenter = {
-    x: (run.player.x + endPosition.x) / 2,
-    y: run.player.y
-  };
   const movingRun = appendSkillCastEvent(
     startPlayerSkillMovement(run, skill, endPosition, run.elapsedMs + flowingLightChainEndDelayMs),
     skill,
@@ -3642,10 +3638,11 @@ function applyFlowingLightChain(run: CombatRun, skill: ClassSkillDefinition, can
   );
 
   return flowingLightChainStages.reduce((stageRun, stage, index) => {
+    const stageOrigin = samplePlayerPosition(stageRun.player, run.elapsedMs + stage.delayMs);
     const hitbox: PlayerHitboxDefinition = {
       action: "skill",
       skillId: skill.id,
-      rangeX: Math.abs(endPosition.x - run.player.x) / 2 + 40,
+      rangeX: Math.abs(endPosition.x - run.player.x) / 2 + 82,
       laneRange: 52,
       targetCap: 2,
       frontOnly: false,
@@ -3658,7 +3655,7 @@ function applyFlowingLightChain(run: CombatRun, skill: ClassSkillDefinition, can
       statusTags: stage.statusTags
     };
 
-    return schedulePlayerHitboxEffect(stageRun, hitbox, chainCenter, run.player.facing, {
+    return schedulePlayerHitboxEffect(stageRun, hitbox, stageOrigin, run.player.facing, {
       id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}`,
       hitPhase: stage.phase,
       vfxCue: stage.cue,

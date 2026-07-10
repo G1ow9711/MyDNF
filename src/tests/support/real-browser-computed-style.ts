@@ -183,6 +183,7 @@ export type RealBrowserKeyCode =
 export type RealBrowserAppPage = {
   evaluate<T>(expression: string): Promise<T>;
   waitFor<T>(expression: string, predicate: (value: T) => boolean, timeoutMs?: number): Promise<T>;
+  click(selector: string): Promise<void>;
   keyDown(code: RealBrowserKeyCode): Promise<void>;
   keyUp(code: RealBrowserKeyCode): Promise<void>;
   pressKey(code: RealBrowserKeyCode): Promise<void>;
@@ -392,6 +393,85 @@ export async function runAppInRealBrowser<T>(
       );
     };
 
+    const click = async (selector: string): Promise<void> => {
+      const targetPoint = await evaluate<{
+        disabled: boolean;
+        found: boolean;
+        height: number;
+        selector: string;
+        width: number;
+        x: number;
+        y: number;
+      }>(`
+(() => {
+  const selector = ${JSON.stringify(selector)};
+  const element = document.querySelector(selector);
+  if (!element) {
+    return { disabled: false, found: false, height: 0, selector, width: 0, x: 0, y: 0 };
+  }
+
+  const target = element.closest("button,[role='button'],a,input,select,textarea") ?? element;
+  target.scrollIntoView({ block: "center", inline: "center" });
+  const rect = target.getBoundingClientRect();
+  return {
+    disabled: Boolean(target.disabled || target.getAttribute("disabled") !== null || target.getAttribute("aria-disabled") === "true"),
+    found: true,
+    height: rect.height,
+    selector,
+    width: rect.width,
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2
+  };
+})()
+`);
+
+      if (!targetPoint.found) {
+        throw new Error(`No element found for browser click: ${selector}`);
+      }
+
+      if (targetPoint.disabled) {
+        throw new Error(`Element is disabled for browser click: ${selector}`);
+      }
+
+      if (targetPoint.width <= 0 || targetPoint.height <= 0) {
+        throw new Error(`Element has no clickable box for browser click: ${selector}`);
+      }
+
+      await client?.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseMoved",
+          x: targetPoint.x,
+          y: targetPoint.y
+        },
+        session.sessionId
+      );
+      await client?.send(
+        "Input.dispatchMouseEvent",
+        {
+          button: "left",
+          buttons: 1,
+          clickCount: 1,
+          type: "mousePressed",
+          x: targetPoint.x,
+          y: targetPoint.y
+        },
+        session.sessionId
+      );
+      await client?.send(
+        "Input.dispatchMouseEvent",
+        {
+          button: "left",
+          buttons: 0,
+          clickCount: 1,
+          type: "mouseReleased",
+          x: targetPoint.x,
+          y: targetPoint.y
+        },
+        session.sessionId
+      );
+    };
+
     const page: RealBrowserAppPage = {
       evaluate,
       waitFor: async <R>(expression: string, predicate: (value: R) => boolean, timeoutMs = 3000): Promise<R> => {
@@ -409,6 +489,7 @@ export async function runAppInRealBrowser<T>(
 
         throw new Error(`Timed out waiting for browser expression. Last value: ${JSON.stringify(latest)}`);
       },
+      click,
       keyDown: (code) => dispatchKey("keyDown", code),
       keyUp: (code) => dispatchKey("keyUp", code),
       pressKey: async (code) => {

@@ -4079,3 +4079,26 @@
   - Full live-browser keyboard suite passed: `npm test -- src/tests/browser-keyboard-control.test.ts --reporter=basic` (12 tests).
   - Full Vitest suite passed: `npm test -- --reporter=basic` (15 files / 572 tests).
   - Final build and checks passed: `npm run build`, `git diff --check` (CRLF warnings only), and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 165 Real-Browser Town Ecosystem Acceptance
+- Continued after the user's clarification: character and monster geometry can remain lighter during loop completion, but combat motion, model-following attacks, strict hit frames, hitstop, skill VFX, and monster VFX remain strict gates. This task tightened non-combat ecosystem proof without changing that priority.
+- Used two read-only agents:
+  - Boss/mechanism audit confirmed Taotie phase 2, hazards, and boss VFX already exist, but true-keyboard hazard dodge/hurt/quick-recover reaction should be the next battle-side acceptance.
+  - Town ecosystem audit found shop, market, upgrades, and save logic exist, but mounted browser proof was missing for real player clicks across shop, reinforcement, amplification, trade, auction, and reload persistence.
+- RED/GREEN coverage:
+  - Added `BrowserTownEcosystemState` and a new real-browser test in `src/tests/browser-keyboard-control.test.ts` that loads a seeded offline save, clicks shop/smith/auction panels, and reads persisted state from `localStorage`.
+  - RED passed for the intended reason: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "shop, smith" --reporter=basic` failed because `page.click` did not exist.
+  - `src/tests/support/real-browser-computed-style.ts` now exposes CDP-backed `page.click(selector)` with missing/disabled/zero-size target checks and real mouse move/press/release events.
+  - GREEN passed: the browser clicked the live mounted UI to buy `liuli-gift-pack`, open `ember-mythic-box`, reinforce and amplify Echo Slot gear, complete NPC trade, list auction gear, resolve auctions, reload, and verify shop/cosmetic/market/gear persistence.
+- Verification so far:
+  - Focused town ecosystem browser test passed: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "shop, smith" --reporter=basic` (1 matched test, 12 skipped).
+
+## Task 166 Flowing Light Chain Stage-Origin and Browser Stability
+- Diagnosed a full browser regression: default Vitest worker fan-out started many project-local Edge profiles and stalled. Verified the scoped process tree, stopped only those processes, and ran browser acceptance serially with `--maxWorkers=1 --minWorkers=1`.
+- A serial run exposed a real Flowing Light Chain mismatch: the actor dashed forward but all three dynamic target checks shared the path midpoint. Added a RED reducer test for a late-path target and changed `applyFlowingLightChain()` to sample the model-following actor position for each 220/340/470 ms stage.
+- The deterministic endpoint regression initially failed with no hit, then passed after the actor-origin fix. Existing three-stage and live-recheck reducer tests also passed.
+- The mounted Liuli route can be legitimately interrupted by monster damage. The browser acceptance now waits for both room-0 enemies to finish a natural attack cycle before Space casts, proving all chain phases in a real safe window rather than weakening interruption rules.
+- Verification:
+  - Focused reducer chain coverage passed: 3 tests.
+  - Focused mounted Liuli chain acceptance passed twice consecutively.
+  - Serial full mounted browser suite passed: 13/13 tests, covering keyboard combat, phase motion/VFX, Boss clear, save reload, town clicks, and monster VFX.

@@ -5,8 +5,10 @@ import {
   type RealBrowserAppPage,
   type RealBrowserKeyCode
 } from "./support/real-browser-computed-style";
+import { catalog } from "../data/catalog";
+import type { GameState } from "../game/types";
 import { SAVE_KEY } from "../systems/save";
-import { createInitialState } from "../game/state";
+import { createInitialState, createOwnedGear } from "../game/state";
 import { advanceClass, selectBaseClass } from "../systems/classes";
 
 type BrowserCombatState = {
@@ -234,6 +236,13 @@ type BrowserSavedState = {
   savedInventoryCount: number;
 };
 
+type BrowserTownEcosystemState = {
+  appMode: string;
+  toast: string;
+  inventoryCount: number;
+  saved: GameState | null;
+};
+
 const readCombatStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
@@ -437,6 +446,19 @@ const readAppModeStateExpression = `
   return {
     appMode: shell?.getAttribute("data-app-mode") ?? "",
     townScene: town?.getAttribute("data-town-scene") ?? ""
+  };
+})()
+`;
+
+const readTownEcosystemStateExpression = `
+(() => {
+  const shell = document.querySelector(".app-shell");
+  const rawSave = localStorage.getItem(${JSON.stringify(SAVE_KEY)});
+  return {
+    appMode: shell?.getAttribute("data-app-mode") ?? "",
+    toast: document.querySelector(".toast")?.textContent ?? "",
+    inventoryCount: Number(shell?.getAttribute("data-inventory-count") || "0"),
+    saved: rawSave ? JSON.parse(rawSave) : null
   };
 })()
 `;
@@ -800,6 +822,17 @@ const readFlowingLightDebugSamplesExpression = `
 (() => globalThis.__flowingLightDebugSamples ?? [])()
 `;
 
+const readFlowingLightSafeCastWindowExpression = `
+(() => {
+  const stages = Array.from(document.querySelectorAll(".combat-enemy[data-enemy-attack-stage]")).map((enemy) =>
+    enemy.getAttribute("data-enemy-attack-stage") ?? "none"
+  );
+  const sawAttack = Boolean(globalThis.__flowingLightSawEnemyAttack) || stages.some((stage) => stage !== "none");
+  globalThis.__flowingLightSawEnemyAttack = sawAttack;
+  return { sawAttack, stages };
+})()
+`;
+
 describe("real browser keyboard control", () => {
   it("moves continuously and lands a heavy attack through real keyboard events", async () => {
     const server = await startViteServer();
@@ -881,8 +914,8 @@ describe("real browser keyboard control", () => {
         expect(cast.playerAnimation).not.toBe("player-skill-cast");
         expect(cast.weaponAnimation).not.toBe("weapon-skill-flare");
         expect(moving.skillMoveProgress).toBeGreaterThan(0);
-        expect(moving.playerAnimation).toBe("player-ember-spark-combo");
-        expect(moving.weaponAnimation).toBe("weapon-jab-chain");
+        expect(["player-ember-spark-combo", ...sparkComboPhases.map((phase) => phase.playerAnimation)]).toContain(moving.playerAnimation);
+        expect(["weapon-jab-chain", ...sparkComboPhases.map((phase) => phase.weaponAnimation)]).toContain(moving.weaponAnimation);
       });
     } finally {
       await server.close();
@@ -947,6 +980,11 @@ describe("real browser keyboard control", () => {
         expect(Number(positioned.playerX)).toBeGreaterThanOrEqual(348);
         expect(positioned.enemies.some((enemy) => enemy.hp > 0 && Math.abs(enemy.x - Number(positioned.playerX)) <= 190)).toBe(true);
 
+        await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
+          readFlowingLightSafeCastWindowExpression,
+          (state) => state.sawAttack && state.stages.length === 2 && state.stages.every((stage) => stage === "none"),
+          4000
+        );
         await page.evaluate<boolean>(installFlowingLightPhaseRecorderExpression);
         await page.pressKey("Space");
 
@@ -1074,8 +1112,15 @@ describe("real browser keyboard control", () => {
         );
 
         await page.pressKey("KeyX");
-        await page.evaluate<void>("new Promise((resolve) => setTimeout(resolve, 70))");
-        const cancelWindow = await page.evaluate<BrowserComboCancelState>(readComboCancelStateExpression);
+        const cancelWindow = await page.waitFor<BrowserComboCancelState>(
+          readComboCancelStateExpression,
+          (state) =>
+            state.comboCancelWindowActive === "true" &&
+            state.comboCancelAvailable === "true" &&
+            state.comboCancelState === "available" &&
+            state.impactCue === "ground-light-slash-1",
+          700
+        );
 
         expect(cancelWindow.objective).toBe("active");
         expect(cancelWindow.comboCancelWindowActive).toBe("true");
@@ -1244,7 +1289,19 @@ describe("real browser keyboard control", () => {
         expect(bossRoom.liveEnemyCount).toBe("1");
         expect(bossRoom.enemies.some((enemy) => enemy.kind === "boss" && enemy.hp > 0)).toBe(true);
 
-        const evidence = await page.evaluate<BrowserStrictCombatEvidence>(readStrictCombatEvidenceExpression);
+        const evidence = await page.waitFor<BrowserStrictCombatEvidence>(
+          readStrictCombatEvidenceExpression,
+          (state) =>
+            ["0", "1", "2"].every((roomIndex) => state.roomsSeen.includes(roomIndex)) &&
+            state.enemyKindsSeen.includes("boss") &&
+            state.sawSkillMotion &&
+            state.sawPlayerSkillVfx &&
+            state.sawHitstop &&
+            state.sawImpactCue &&
+            state.sawEnemyAttackMotion &&
+            state.sawEnemySkillVfx,
+          5000
+        );
         expect(evidence.roomsSeen).toEqual(expect.arrayContaining(["0", "1", "2"]));
         expect(evidence.enemyKindsSeen).toContain("boss");
         expect(evidence.sawSkillMotion).toBe(true);
@@ -1315,6 +1372,115 @@ describe("real browser keyboard control", () => {
       await server.close();
     }
   }, 240000);
+
+  it("operates shop, smith, trade, and auction through real browser clicks and persists them", async () => {
+    const server = await startViteServer();
+    const seededState = createTownEcosystemState();
+    const echoGearId = browserEcosystemEchoOwnedId();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, seededState);
+
+        await page.click('[data-mode="shop"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "shop",
+          5000
+        );
+
+        await page.click('[data-shop-sku="liuli-gift-pack"]');
+        const bought = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.toast.includes("礼包") &&
+            state.saved?.shop.purchasedSkus.includes("liuli-gift-pack") === true &&
+            state.saved?.shop.boxes["ember-mythic-box"] === 3,
+          3000
+        );
+
+        await page.click('[data-box-id="ember-mythic-box"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.toast.includes("箱子") &&
+            state.saved?.shop.boxes["ember-mythic-box"] === 2 &&
+            (state.saved?.player.inventory.length ?? 0) > (bought.saved?.player.inventory.length ?? 0),
+          3000
+        );
+
+        await page.click('[data-mode="smith"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "smith",
+          3000
+        );
+
+        await page.click(`[data-app-action="reinforce"][data-gear-id="${echoGearId}"]`);
+        const reinforced = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.toast.includes("强化") &&
+            state.saved?.player.inventory.some((item) => item.instanceId === echoGearId && item.reinforceLevel === 1) === true,
+          3000
+        );
+        const arcShardBeforeAmplify = reinforced.saved?.player.currencies.arcShard ?? 0;
+
+        await page.click(`[data-app-action="amplify"][data-gear-id="${echoGearId}"]`);
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.toast.includes("增幅") && (state.saved?.player.currencies.arcShard ?? arcShardBeforeAmplify) < arcShardBeforeAmplify,
+          3000
+        );
+
+        await page.click('[data-mode="auction"]');
+        const auctionReady = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "auction",
+          3000
+        );
+        const currencyBeforeTrade = JSON.stringify(auctionReady.saved?.player.currencies);
+
+        await page.click("[data-trade-offer-id]");
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.toast.includes("交易完成") && JSON.stringify(state.saved?.player.currencies) !== currencyBeforeTrade,
+          3000
+        );
+
+        await page.click('[data-auction-gear-id]:not([data-auction-gear-id=""])');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.toast.includes("寄售") && state.saved?.market.auctions.length === 1,
+          3000
+        );
+
+        await page.click('[data-app-action="resolve-auctions"]');
+        const resolved = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.toast.includes("拍卖结算") && state.saved?.market.turn === 1 && state.saved?.market.auctions.length === 0,
+          3000
+        );
+
+        await page.evaluate<void>("location.reload()");
+        const reloaded = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.appMode === "town" &&
+            state.saved?.shop.purchasedSkus.includes("liuli-gift-pack") === true &&
+            state.saved?.shop.boxes["ember-mythic-box"] === 2 &&
+            state.saved?.market.turn === 1,
+          15000
+        );
+
+        expect(reloaded.saved?.player.inventory.some((item) => item.instanceId === echoGearId && item.reinforceLevel === 1)).toBe(true);
+        expect(reloaded.saved?.shop.ownedCosmetics.length).toBeGreaterThan(0);
+        expect(resolved.saved?.market.auctions).toHaveLength(0);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 90000);
 
   it("auto-saves combat rewards and restores them after a real browser reload", async () => {
     const server = await startViteServer();
@@ -1593,7 +1759,43 @@ function createFlowingLightSwordmasterState() {
   return advanceClass(readyState, "flowing-light-swordmaster");
 }
 
-async function seedSaveAndReload(page: RealBrowserAppPage, state: ReturnType<typeof createFlowingLightSwordmasterState>): Promise<void> {
+function browserEcosystemEchoOwnedId(): string {
+  const gear = catalog.gear.find((item) => item.amplification.echoSlot);
+
+  if (!gear) {
+    throw new Error("Expected at least one Echo Slot gear item for browser ecosystem acceptance");
+  }
+
+  return createOwnedGear(gear.id, "browser-echo").instanceId;
+}
+
+function createTownEcosystemState(): GameState {
+  const baseState = createInitialState();
+  const echoGear = catalog.gear.find((item) => item.amplification.echoSlot);
+
+  if (!echoGear) {
+    throw new Error("Expected at least one Echo Slot gear item for browser ecosystem acceptance");
+  }
+
+  return {
+    ...baseState,
+    player: {
+      ...baseState.player,
+      currencies: {
+        ...baseState.player.currencies,
+        gold: 20000,
+        ironDust: 2000,
+        arcShard: 500,
+        valorToken: 10,
+        tradeCredit: 10,
+        protectionTicket: 3
+      },
+      inventory: [...baseState.player.inventory, createOwnedGear(echoGear.id, "browser-echo")]
+    }
+  };
+}
+
+async function seedSaveAndReload(page: RealBrowserAppPage, state: GameState): Promise<void> {
   await page.evaluate<void>(`(() => {
     localStorage.setItem(${JSON.stringify(SAVE_KEY)}, ${JSON.stringify(JSON.stringify(state))});
     location.reload();

@@ -217,6 +217,26 @@ type BrowserStrictCombatEvidence = {
   sawBossSkillVfx: boolean;
 };
 
+type BrowserReactionState = {
+  objective: string;
+  roomIndex: string;
+  bossPhase: string;
+  playerY: number;
+  playerMotion: string;
+  playerHurtCue: string;
+  playerHurtLockActive: string;
+  playerRecoveryState: string;
+  playerQuickRecoverActive: string;
+  playerInvulnerableActive: string;
+  recoveryVfx: string;
+  hazards: Array<{
+    phase: string;
+    skillId: string;
+  }>;
+  hazardFeedback: string;
+  hazardFeedbackCue: string;
+};
+
 type BrowserAppModeState = {
   appMode: string;
   townScene: string;
@@ -332,6 +352,34 @@ const readStrictCombatStateExpression = `
     enemies,
     enemyVfx: enemyVfx?.getAttribute("data-enemy-skill-vfx") ?? "",
     enemyVfxCue: enemyVfx?.getAttribute("data-enemy-vfx-cue") ?? ""
+  };
+})()
+`;
+
+const readReactionStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const player = document.querySelector(".combat-player");
+  const hazards = Array.from(document.querySelectorAll("[data-arena-hazard]")).map((hazard) => ({
+    phase: hazard.getAttribute("data-hazard-phase") ?? "",
+    skillId: hazard.getAttribute("data-arena-hazard") ?? ""
+  }));
+  const feedback = document.querySelector("[data-combat-feedback^='arena-hazard-']");
+  return {
+    objective: scene?.getAttribute("data-combat-objective") ?? "",
+    roomIndex: scene?.getAttribute("data-room-index") ?? "",
+    bossPhase: scene?.getAttribute("data-boss-phase") ?? "",
+    playerY: Number(scene?.getAttribute("data-player-y") ?? "0"),
+    playerMotion: player?.getAttribute("data-player-motion") ?? "",
+    playerHurtCue: player?.getAttribute("data-player-hurt-feedback-cue") ?? "",
+    playerHurtLockActive: player?.getAttribute("data-player-hurt-lock-active") ?? "",
+    playerRecoveryState: player?.getAttribute("data-player-recovery-state") ?? "",
+    playerQuickRecoverActive: player?.getAttribute("data-player-quick-recover-active") ?? "",
+    playerInvulnerableActive: player?.getAttribute("data-player-invulnerable-active") ?? "",
+    recoveryVfx: document.querySelector("[data-player-recovery-vfx]")?.getAttribute("data-player-recovery-vfx") ?? "",
+    hazards,
+    hazardFeedback: feedback?.getAttribute("data-combat-feedback") ?? "",
+    hazardFeedbackCue: feedback?.getAttribute("data-player-feedback-cue") ?? ""
   };
 })()
 `;
@@ -1373,6 +1421,92 @@ describe("real browser keyboard control", () => {
     }
   }, 240000);
 
+  it("uses KeyC to quick-recover from a live heavy monster hit", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        await page.keyDown("ArrowRight");
+        try {
+          await page.waitFor<BrowserCombatState>(readCombatStateExpression, (state) => state.playerX >= 34, 1800);
+        } finally {
+          await page.keyUp("ArrowRight");
+        }
+
+        const hurt = await page.waitFor<BrowserReactionState>(
+          readReactionStateExpression,
+          (state) =>
+            state.playerHurtCue === "player-hurt-heavy" &&
+            state.playerHurtLockActive === "true" &&
+            state.playerRecoveryState === "ready",
+          7000
+        );
+
+        expect(hurt.playerMotion).toBe("hit");
+        await page.pressKey("KeyC");
+
+        const recovered = await page.waitFor<BrowserReactionState>(
+          readReactionStateExpression,
+          (state) =>
+            state.playerMotion === "quick-recover" &&
+            state.playerQuickRecoverActive === "true" &&
+            state.playerInvulnerableActive === "true" &&
+            state.recoveryVfx === "wake-invulnerable",
+          1200
+        );
+
+        expect(recovered.playerRecoveryState).toBe("quick-recover");
+        expect(recovered.playerHurtLockActive).toBe("false");
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
+  it("sidesteps Taotie forge-collapse with live keyboard lane movement", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        await clearCurrentRoomWithKeyboard(page);
+        await walkThroughOpenGate(page);
+        await clearCurrentRoomWithKeyboard(page, 28);
+        await walkThroughOpenGate(page);
+
+        const phased = await triggerBossPhaseTwoWithKeyboard(page);
+        expect(phased.bossPhase).toBe("2");
+
+        const telegraph = await page.waitFor<BrowserReactionState>(
+          readReactionStateExpression,
+          (state) => state.hazards.some((hazard) => hazard.skillId === "taotie-forge-collapse" && hazard.phase === "telegraph"),
+          5000
+        );
+
+        await page.keyDown("ArrowUp");
+        let dodged: BrowserReactionState;
+        try {
+          dodged = await page.waitFor<BrowserReactionState>(
+            readReactionStateExpression,
+            (state) =>
+              state.hazardFeedback === "arena-hazard-miss" &&
+              state.hazardFeedbackCue === "" &&
+              state.playerHurtCue !== "player-hurt-forge-collapse",
+            2500
+          );
+        } finally {
+          await page.keyUp("ArrowUp");
+        }
+
+        expect(dodged.playerY).toBeLessThan(telegraph.playerY - 36);
+        expect(dodged.playerHurtCue).not.toBe("player-hurt-forge-collapse");
+      });
+    } finally {
+      await server.close();
+    }
+  }, 180000);
+
   it("operates shop, smith, trade, and auction through real browser clicks and persists them", async () => {
     const server = await startViteServer();
     const seededState = createTownEcosystemState();
@@ -1638,6 +1772,51 @@ async function clearCurrentRoomWithKeyboard(page: RealBrowserAppPage, maxAttempt
     (state) => state.objective === "cleared" && state.liveEnemyCount === "0" && state.gateState !== "locked",
     5000
   );
+}
+
+async function triggerBossPhaseTwoWithKeyboard(page: RealBrowserAppPage, maxAttempts = 40): Promise<BrowserStrictCombatState> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const state = await page.evaluate<BrowserStrictCombatState>(readStrictCombatStateExpression);
+    if (state.bossPhase === "2") {
+      return state;
+    }
+
+    await moveIntoLiveEnemyRange(page);
+    await page.pressKey("KeyA");
+    const afterSpark = await waitForBossPhaseTwoWithin(page, 430);
+    if (afterSpark) {
+      return afterSpark;
+    }
+    await page.pressKey("KeyS");
+    const afterFollowUp = await waitForBossPhaseTwoWithin(page, 560);
+    if (afterFollowUp) {
+      return afterFollowUp;
+    }
+    await page.pressKey("KeyX");
+    const afterLightOne = await waitForBossPhaseTwoWithin(page, 280);
+    if (afterLightOne) {
+      return afterLightOne;
+    }
+    await page.pressKey("KeyX");
+    const afterLightTwo = await waitForBossPhaseTwoWithin(page, 320);
+    if (afterLightTwo) {
+      return afterLightTwo;
+    }
+  }
+
+  return page.waitFor<BrowserStrictCombatState>(readStrictCombatStateExpression, (state) => state.bossPhase === "2", 5000);
+}
+
+async function waitForBossPhaseTwoWithin(page: RealBrowserAppPage, timeoutMs: number): Promise<BrowserStrictCombatState | undefined> {
+  try {
+    return await page.waitFor<BrowserStrictCombatState>(readStrictCombatStateExpression, (state) => state.bossPhase === "2", timeoutMs);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Timed out waiting for browser expression")) {
+      return undefined;
+    }
+
+    throw error;
+  }
 }
 
 async function walkThroughOpenGate(page: RealBrowserAppPage): Promise<BrowserRoomFlowState> {

@@ -62,6 +62,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Add mounted town economy click acceptance and reload persistence
 - [x] Verify flowing-light-chain slash origins follow the moving actor at every phase
 - [x] Complete serial real-browser regression for keyboard combat, Boss, save, and economy
+- [x] Add live Boss hazard sidestep and heavy-hit quick-recover keyboard acceptance
 - **Status:** ongoing for continuation polish; latest full verification is tracked in `progress.md`
 
 ## Key Questions

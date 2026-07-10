@@ -1266,3 +1266,10 @@
 - Added deterministic combat coverage for a target reachable only by the late path. The test failed with the old midpoint origin, then passed after the stage-origin change.
 - The mounted browser acceptance deliberately waits through one real enemy attack cycle before casting. This validates the complete skill during a valid player recovery window instead of falsely treating monster interruption as a VFX failure.
 - Verification: focused chain reducer tests passed; focused mounted chain acceptance passed twice; serial full mounted browser suite passed all 13 tests.
+
+## DNF-Style Boss Reaction Acceptance Audit
+- Taotie Forge Collapse already creates three real 620/760/900 ms arena telegraphs around the player and resolves hit or MISS from the player position at each impact frame.
+- Player hurt state already exposes feedback cue, hurt lock, quick-recover readiness, quick-recover motion, invulnerability, and recovery VFX. `KeyC` is mapped to the existing 260 ms quick-recover action and is intentionally unavailable after light hits.
+- Current missing evidence is mounted keyboard proof: player must sidestep a live Taotie telegraph and use `KeyC` during a genuine heavy-hurt recovery window. This is the next acceptance task; combat rules need no speculative redesign.
+- Browser acceptance now proves both paths. A real crawler heavy hit opens the recovery window and `KeyC` produces quick-recover motion, recovery VFX, and invulnerability. A real Taotie phase-two Forge Collapse telegraph is followed by held ArrowUp, which moves the player beyond the lane radius and resolves the hazard as `MISS` without a Forge Collapse hurt cue.
+- Boss attacks can overlap the hazard window, so the hazard test intentionally asserts the specific Forge Collapse result rather than requiring no unrelated boss hurt state.

@@ -4102,3 +4102,10 @@
   - Focused reducer chain coverage passed: 3 tests.
   - Focused mounted Liuli chain acceptance passed twice consecutively.
   - Serial full mounted browser suite passed: 13/13 tests, covering keyboard combat, phase motion/VFX, Boss clear, save reload, town clicks, and monster VFX.
+
+## Task 167 Boss Hazard and Quick-Recover Acceptance Audit
+- Reviewed the actual Taotie Forge Collapse path, player recovery reducer, UI state hooks, and current real-browser suite.
+- Confirmed the mechanics already exist: telegraphed hazards resolve from live player position, heavy damage opens the recovery window, and `KeyC` starts a visible/invulnerable quick recover. Missing coverage is a single real-keyboard proof for these player responses.
+- Added real-browser acceptance for both player responses. `KeyC` after a live crawler heavy hit passed with quick-recover motion, wake-invulnerable VFX, and active invulnerability. Taotie Forge Collapse passed with a real phase-two telegraph, held ArrowUp lane movement, arena-hazard MISS feedback, and no Forge Collapse hurt cue.
+- Diagnostic correction: phase two was initially detected after the test's fixed action wait had already consumed the first telegraph. Boss-phase steering now checks after each real input. The test also distinguishes unrelated Taotie chain-drag hurt lock from the specific Forge Collapse result.
+- Verification: full serial mounted browser suite passed 15/15. Full serial project suite passed 15 files / 576 tests, including 25 computed-style browser regressions for player, monster, Boss, VFX, and weapon motion.

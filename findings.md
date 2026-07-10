@@ -1273,3 +1273,16 @@
 - Current missing evidence is mounted keyboard proof: player must sidestep a live Taotie telegraph and use `KeyC` during a genuine heavy-hurt recovery window. This is the next acceptance task; combat rules need no speculative redesign.
 - Browser acceptance now proves both paths. A real crawler heavy hit opens the recovery window and `KeyC` produces quick-recover motion, recovery VFX, and invulnerability. A real Taotie phase-two Forge Collapse telegraph is followed by held ArrowUp, which moves the player beyond the lane radius and resolves the hazard as `MISS` without a Forge Collapse hurt cue.
 - Boss attacks can overlap the hazard window, so the hazard test intentionally asserts the specific Forge Collapse result rather than requiring no unrelated boss hurt state.
+
+## DNF-Style Class and Build Loop Audit
+- Class selection, advancement, equipment, build-tag evaluation, and local save already exist in the reducers and panels, but mounted browser clicks currently prove only the economy portion of the town loop.
+- The next acceptance should seed only legitimate advancement requirements, click Liuli base selection, click the Flowing Light advancement, equip a real unequipped core, reload, and verify the stored class, advancement, and equipment state. This tests an actual player workflow without bypassing game reducers.
+- Mounted browser acceptance now completes that workflow with real click events and `localStorage` reload. The persisted Liuli resource pool and all three loadout slots remain intact after the class/advancement/equipment mutations.
+
+## DNF-Style Reinforcement Browser Acceptance Stability
+- Reinforcement is an intentionally stateful random operation: every valid click consumes gold and Iron Dust, while a low-level failure can leave the reinforcement level unchanged.
+- The mounted town test now treats a material decrease as evidence that each real UI click reached the reducer, then uses bounded retries to obtain +1 before validating the later amplification and persisted reload path. It does not replace the RNG or inject a success result.
+
+## DNF-Style Combo-Cancel Browser Acceptance Stability
+- The real keyboard cancel test must not use a fixed visual coordinate as evidence of a valid light-hit range. Live enemy positions and their attack cycle can differ by the time the input reaches the mounted app.
+- The acceptance route now uses the real enemy positions to enter valid range, waits for both enemies to finish an observed attack cycle, waits for the player to leave the hurt pose, then issues `KeyX` and `KeyA`. This preserves real hit confirmation and cancel timing without freezing enemies or mocking combat state.

@@ -1140,23 +1140,21 @@ describe("real browser keyboard control", () => {
           (state) => state.objective === "active",
           5000
         );
-
-        await page.keyDown("ShiftLeft");
-        await page.keyDown("ArrowRight");
-        try {
-          await page.waitFor<BrowserComboCancelState>(
-            readComboCancelStateExpression,
-            (state) => state.playerX >= 36.5,
-            2000
-          );
-        } finally {
-          await page.keyUp("ArrowRight");
-          await page.keyUp("ShiftLeft");
-        }
+        await moveIntoLiveEnemyRange(page);
         await page.waitFor<BrowserComboCancelState>(
           readComboCancelStateExpression,
           (state) => state.playerDashAttackReadyUntilMs === "",
           800
+        );
+        await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
+          readFlowingLightSafeCastWindowExpression,
+          (state) => state.sawAttack && state.stages.length === 2 && state.stages.every((stage) => stage === "none"),
+          4000
+        );
+        await page.waitFor<BrowserComboCancelState>(
+          readComboCancelStateExpression,
+          (state) => state.playerMotion !== "hit",
+          1000
         );
 
         await page.pressKey("KeyX");
@@ -1550,14 +1548,7 @@ describe("real browser keyboard control", () => {
           3000
         );
 
-        await page.click(`[data-app-action="reinforce"][data-gear-id="${echoGearId}"]`);
-        const reinforced = await page.waitFor<BrowserTownEcosystemState>(
-          readTownEcosystemStateExpression,
-          (state) =>
-            state.toast.includes("强化") &&
-            state.saved?.player.inventory.some((item) => item.instanceId === echoGearId && item.reinforceLevel === 1) === true,
-          3000
-        );
+        const reinforced = await reinforceGearThroughRealClicks(page, echoGearId);
         const arcShardBeforeAmplify = reinforced.saved?.player.currencies.arcShard ?? 0;
 
         await page.click(`[data-app-action="amplify"][data-gear-id="${echoGearId}"]`);
@@ -1610,6 +1601,72 @@ describe("real browser keyboard control", () => {
         expect(reloaded.saved?.player.inventory.some((item) => item.instanceId === echoGearId && item.reinforceLevel === 1)).toBe(true);
         expect(reloaded.saved?.shop.ownedCosmetics.length).toBeGreaterThan(0);
         expect(resolved.saved?.market.auctions).toHaveLength(0);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 90000);
+
+  it("selects a class, advances its build, equips a core, and persists the progression", async () => {
+    const server = await startViteServer();
+    const seededState = createReadyClassProgressionState();
+    const coreGearId = browserProgressionCoreGearId(seededState);
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, seededState);
+
+        await page.click('[data-mode="classes"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "classes",
+          3000
+        );
+
+        await page.click('[data-class-id="liuli-blademage"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.toast.includes("职业") && state.saved?.player.classId === "liuli-blademage",
+          3000
+        );
+
+        await page.click('[data-advancement-id="flowing-light-swordmaster"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.toast.includes("转职") &&
+            state.saved?.player.classId === "liuli-blademage" &&
+            state.saved?.player.advancementId === "flowing-light-swordmaster",
+          3000
+        );
+
+        await page.click('[data-mode="inventory"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "inventory",
+          3000
+        );
+
+        await page.click(`[data-app-action="equip-item"][data-gear-id="${coreGearId}"]`);
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.toast.includes("装备") && state.saved?.player.equipment.core === coreGearId,
+          3000
+        );
+
+        await page.evaluate<void>("location.reload()");
+        const restored = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.appMode === "town" &&
+            state.saved?.player.classId === "liuli-blademage" &&
+            state.saved?.player.advancementId === "flowing-light-swordmaster" &&
+            state.saved?.player.equipment.core === coreGearId,
+          15000
+        );
+
+        expect(restored.saved?.player.classResources["liuli-blademage"]).toBeDefined();
+        expect(restored.saved?.player.loadouts).toHaveLength(3);
       });
     } finally {
       await server.close();
@@ -1972,6 +2029,62 @@ function createTownEcosystemState(): GameState {
       inventory: [...baseState.player.inventory, createOwnedGear(echoGear.id, "browser-echo")]
     }
   };
+}
+
+function createReadyClassProgressionState(): GameState {
+  const baseState = createInitialState();
+
+  return {
+    ...baseState,
+    player: {
+      ...baseState.player,
+      level: 15,
+      quests: {
+        ...baseState.player.quests,
+        "prologue-ember-warden": "ready"
+      }
+    }
+  };
+}
+
+function browserProgressionCoreGearId(state: GameState): string {
+  const core = state.player.inventory.find((owned) => catalog.gear.find((gear) => gear.id === owned.catalogGearId)?.slot === "core");
+
+  if (!core) {
+    throw new Error("Expected an unequipped starter core for browser progression acceptance");
+  }
+
+  return core.instanceId;
+}
+
+async function reinforceGearThroughRealClicks(
+  page: RealBrowserAppPage,
+  gearId: string,
+  maxAttempts = 4
+): Promise<BrowserTownEcosystemState> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const before = await page.evaluate<BrowserTownEcosystemState>(readTownEcosystemStateExpression);
+    const beforeGear = before.saved?.player.inventory.find((item) => item.instanceId === gearId);
+    const ironDustBefore = before.saved?.player.currencies.ironDust ?? 0;
+
+    if ((beforeGear?.reinforceLevel ?? 0) >= 1) {
+      return before;
+    }
+
+    await page.click(`[data-app-action="reinforce"][data-gear-id="${gearId}"]`);
+    const after = await page.waitFor<BrowserTownEcosystemState>(
+      readTownEcosystemStateExpression,
+      (state) => (state.saved?.player.currencies.ironDust ?? ironDustBefore) < ironDustBefore,
+      3000
+    );
+    const afterGear = after.saved?.player.inventory.find((item) => item.instanceId === gearId);
+
+    if ((afterGear?.reinforceLevel ?? 0) > (beforeGear?.reinforceLevel ?? 0)) {
+      return after;
+    }
+  }
+
+  throw new Error(`Real browser reinforcement did not reach +1 after ${maxAttempts} clicks for ${gearId}`);
 }
 
 async function seedSaveAndReload(page: RealBrowserAppPage, state: GameState): Promise<void> {

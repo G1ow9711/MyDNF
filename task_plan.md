@@ -102,6 +102,8 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 | Build failed after adding `@types/node` because Node timer globals conflicted with browser timer assumptions | 1 | Limited build globals in `tsconfig.json`, excluded test sources from app typecheck, and changed browser audio timer storage to `ReturnType<typeof globalThis.setInterval>` |
 | Default parallel browser suite stalled with many local Edge profiles | 1 | Verified only project-local test processes, stopped them, then ran browser regression serially with one Vitest worker |
 | Flowing Light Chain could miss the finisher after actor movement | 1 | Added endpoint regression and made each chain stage resolve from the actor position sampled at that stage frame |
+| Full serial town acceptance assumed the first reinforcement click always reached +1 | 1 | Kept real reinforcement randomness and changed the browser test to confirm each material-consuming click, retrying a bounded number of times until +1 is reached |
+| Full serial combo-cancel acceptance used a fixed coordinate during an enemy attack window | 1 | Changed the real keyboard route to acquire the live enemy range, wait for a completed attack cycle and player recovery, then start the light-hit cancel |
 
 ## Notes
 - Project root at start: `F:\My_DNF`.

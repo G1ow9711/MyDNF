@@ -4109,3 +4109,19 @@
 - Added real-browser acceptance for both player responses. `KeyC` after a live crawler heavy hit passed with quick-recover motion, wake-invulnerable VFX, and active invulnerability. Taotie Forge Collapse passed with a real phase-two telegraph, held ArrowUp lane movement, arena-hazard MISS feedback, and no Forge Collapse hurt cue.
 - Diagnostic correction: phase two was initially detected after the test's fixed action wait had already consumed the first telegraph. Boss-phase steering now checks after each real input. The test also distinguishes unrelated Taotie chain-drag hurt lock from the specific Forge Collapse result.
 - Verification: full serial mounted browser suite passed 15/15. Full serial project suite passed 15 files / 576 tests, including 25 computed-style browser regressions for player, monster, Boss, VFX, and weapon motion.
+
+## Task 168 Class and Build Browser Acceptance Audit
+- Audited panel button attributes, reducer actions, class gate requirements, inventory equip actions, and save hooks.
+- Found the class/build system is mechanically complete but lacks a mounted browser click path across base selection, advancement, equipment, and reload persistence. The next implementation is acceptance coverage only.
+- Added and passed the real browser workflow: seed only level-15/prologue-ready state, click Liuli base class, click Flowing Light Swordmaster advancement, equip an actual unequipped core, reload, then verify class, advancement, core equipment, Liuli resource storage, and all three loadout slots persist.
+
+## Task 169 Town Reinforcement Browser Acceptance Stability
+- Full serial verification found that the town click test incorrectly expected the first real reinforcement click to be +1. The game operation itself is random and correctly consumes materials even when a low-level result does not increase the level.
+- Updated the browser helper path to read the saved state before each genuine smith button click, wait for Iron Dust to decrease, and retry up to four actual clicks until the equipment reaches +1. No reducer, RNG, or saved state is bypassed.
+- Focused live browser verification passed: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "shop, smith" --maxWorkers=1 --minWorkers=1 --reporter=verbose` (1 passed, 15 skipped).
+
+## Task 170 Combo-Cancel Browser Acceptance Stability
+- Full browser regression exposed a pre-existing flaky route: the cancel test could arrive at a fixed coordinate outside the current enemy light-hit range or during a monster attack, so the real `KeyX` was legitimately interrupted or missed.
+- Replaced the coordinate assumption with `moveIntoLiveEnemyRange()`, then waits for a witnessed enemy attack cycle to return to idle and for the player to leave hurt motion before issuing the light attack and `KeyA` cancel.
+- Focused mounted keyboard verification passed twice consecutively: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "cancels a confirmed" --maxWorkers=1 --minWorkers=1 --reporter=verbose` (1 passed, 15 skipped each run).
+- Final verification passed: serial mounted browser suite (16/16), serial full project suite (15 files / 577 tests), `npm run build`, `git diff --check` (CRLF warnings only), and HTTP 200 from `http://127.0.0.1:5174/`.

@@ -4143,3 +4143,9 @@
 - Added `tradeCompleted` and wired it to NPC trade. Gear drops now emit `itemLooted` when they enter inventory, completing the quest-event path for combat/loot/trade/shop/reinforce/amplify/auction.
 - Quest progression regression passed: `npm test -- src/tests/quests.test.ts --maxWorkers=1 --minWorkers=1 --reporter=basic` (8 passed). Build and diff checks passed.
 - Mounted browser acceptance passed: a legal post-Liuli state used actual auction trade, quest claim, smith amplify, shop purchase, epilogue claim, and reload. It verified the trade/resonance/epilogue quest states persist after `localStorage` reload (1 passed, 17 skipped).
+
+## Task 174 Offline Audio Settings Persistence
+- Kept audio preferences separate from the versioned character save schema. `mydnf-audio-settings-v1` stores master, music, and SFX values only after a real settings change; malformed values are ignored and safe defaults remain active.
+- App startup now restores those volumes before queuing town BGM. The settings panel also states that audio preferences are part of offline local persistence.
+- Added integration coverage for persistence/recovery and malformed settings fallback. Added real-browser acceptance that waits for town readiness, clicks the mounted settings navigation, changes the real music range control with a real click plus ArrowLeft, reloads, and verifies the stored value is restored.
+- Verification: `npm run build` passed; `npm test -- --run src/tests/render-audio.test.ts src/tests/app-integration.test.ts --maxWorkers=1 --minWorkers=1` passed (129 tests); `npm test -- --run src/tests/browser-keyboard-control.test.ts -t "persists real settings slider input" --maxWorkers=1 --minWorkers=1` passed (1 test, 18 skipped).

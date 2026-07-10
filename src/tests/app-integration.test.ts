@@ -8,6 +8,7 @@ import { saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 import {
   combatActionForCommandSequence,
   combatActionForKeyCode,
+  AUDIO_SETTINGS_KEY,
   createAppModel,
   mountApp,
   reduceAppAction,
@@ -6438,7 +6439,8 @@ describe("playable app integration actions", () => {
   });
 
   it("updates audio volumes through app settings actions", () => {
-    const model = createAppModel({ storage: new MemoryStorage() });
+    const storage = new MemoryStorage();
+    const model = createAppModel({ storage });
 
     const musicChanged = reduceAppAction(model, { type: "setVolume", kind: "music", value: 0.32 });
     const sfxMuted = reduceAppAction(musicChanged, { type: "setVolume", kind: "sfx", value: -1 });
@@ -6447,6 +6449,17 @@ describe("playable app integration actions", () => {
     expect(musicChanged.message).toContain("音量");
     expect(sfxMuted.audio.volumes.sfx).toBe(0);
     expect(sfxMuted.audio.volumes.music).toBe(0.32);
+    expect(JSON.parse(storage.getItem(AUDIO_SETTINGS_KEY) ?? "{}")).toEqual({ master: 0.9, music: 0.32, sfx: 0 });
+
+    const restored = createAppModel({ storage });
+    expect(restored.audio.volumes).toEqual({ master: 0.9, music: 0.32, sfx: 0 });
+  });
+
+  it("ignores malformed saved audio settings and keeps safe defaults", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(AUDIO_SETTINGS_KEY, '{"master":0.9,"music":"loud","sfx":0.85}');
+
+    expect(createAppModel({ storage }).audio.volumes).toEqual({ master: 0.9, music: 0.75, sfx: 0.85 });
   });
 
   it("requires confirmation before resetting the local save", () => {

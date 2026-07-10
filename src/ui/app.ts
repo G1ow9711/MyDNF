@@ -34,6 +34,7 @@ import {
   chooseMusicLayer,
   createAudioCommandProcessor,
   createAudioState,
+  parseSavedVolumes,
   playBgm,
   playSfx,
   setVolume,
@@ -60,6 +61,8 @@ import {
 } from "./panels";
 
 export type AppMode = "town" | "combat" | "inventory" | "smith" | "auction" | "shop" | "quests" | "classes" | "settings";
+
+export const AUDIO_SETTINGS_KEY = "mydnf-audio-settings-v1";
 
 export interface AppViewModel {
   state: GameState;
@@ -2062,9 +2065,10 @@ function renderActivePanel(model: AppViewModel): string {
 export function renderAppHtml(model: AppViewModel): string {
   const scene = model.mode === "combat" && model.combatRun ? renderCombatScene(model.combatRun, model.state) : renderTownScene(model);
   const currencies = model.state.player.currencies;
+  const audioVolumes = model.audio?.volumes ?? createAudioState().volumes;
 
   return `
-    <main class="app-shell" aria-label="烬璃纪元" data-app-mode="${model.mode}" data-save-key="${SAVE_KEY}" data-player-gold="${currencies.gold}" data-player-iron-dust="${currencies.ironDust}" data-player-arc-shard="${currencies.arcShard}" data-inventory-count="${model.state.player.inventory.length}">
+    <main class="app-shell" aria-label="烬璃纪元" data-app-mode="${model.mode}" data-save-key="${SAVE_KEY}" data-audio-settings-key="${AUDIO_SETTINGS_KEY}" data-audio-master="${audioVolumes.master}" data-audio-music="${audioVolumes.music}" data-audio-sfx="${audioVolumes.sfx}" data-player-gold="${currencies.gold}" data-player-iron-dust="${currencies.ironDust}" data-player-arc-shard="${currencies.arcShard}" data-inventory-count="${model.state.player.inventory.length}">
       ${renderNav(model.mode)}
       <section class="game-layout">
         ${scene}
@@ -2202,13 +2206,14 @@ export function createAppModel(options: CreateAppModelOptions = {}): AppModel {
   const townMusic = chooseMusicLayer({ mode: "town" });
   const storage = options.storage ?? defaultStorage();
   const initial = resolveInitialState(options, storage);
+  const savedVolumes = storage ? parseSavedVolumes(storage.getItem(AUDIO_SETTINGS_KEY)) : undefined;
 
   return {
     state: initial.state,
     mode: "town",
     storage,
     rng: options.rng ?? Math.random,
-    audio: playBgm(createAudioState(), townMusic.trackId),
+    audio: playBgm(createAudioState(savedVolumes), townMusic.trackId),
     message: initial.message,
     autoSaveDisabled: initial.autoSaveDisabled
   };
@@ -2566,11 +2571,16 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       };
     }
     case "setVolume":
+      {
+        const audio = setVolume(model.audio, action.kind, action.value);
+        model.storage?.setItem(AUDIO_SETTINGS_KEY, JSON.stringify(audio.volumes));
+
       return {
         ...model,
-        audio: setVolume(model.audio, action.kind, action.value),
+        audio,
         message: "音量已调整"
       };
+      }
     case "save":
       if (!model.storage) {
         throw new Error("未配置存档空间");

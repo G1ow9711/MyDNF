@@ -612,7 +612,7 @@ export function renderSettingsPanel(audio?: AudioState): string {
     "设置",
     `
       <div class="settings-grid">
-        <p class="save-note">单机存档：本地自动保存角色、装备、任务、货币和商城进度；也可以手动保存、读取或重置。</p>
+        <p class="save-note">单机存档：本地自动保存角色、装备、任务、货币、商城进度和音量设置；也可以手动保存、读取或重置。</p>
         <label>主音量 <input data-volume-kind="master" type="range" min="0" max="100" value="${volumePercent(audio, "master", 0.9)}" /></label>
         <label>音乐 <input data-volume-kind="music" type="range" min="0" max="100" value="${volumePercent(audio, "music", 0.75)}" /></label>
         <label>音效 <input data-volume-kind="sfx" type="range" min="0" max="100" value="${volumePercent(audio, "sfx", 0.85)}" /></label>

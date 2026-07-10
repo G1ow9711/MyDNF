@@ -8,6 +8,7 @@ import {
 import { catalog } from "../data/catalog";
 import type { GameState } from "../game/types";
 import { SAVE_KEY } from "../systems/save";
+import { AUDIO_SETTINGS_KEY } from "../ui/app";
 import { createInitialState, createOwnedGear } from "../game/state";
 import { advanceClass, selectBaseClass } from "../systems/classes";
 
@@ -273,6 +274,14 @@ type BrowserTownEcosystemState = {
   toast: string;
   inventoryCount: number;
   saved: GameState | null;
+};
+
+type BrowserAudioSettingsState = {
+  appMode: string;
+  master: number;
+  music: number;
+  sfx: number;
+  saved: { master: number; music: number; sfx: number } | null;
 };
 
 const readCombatStateExpression = `
@@ -541,6 +550,20 @@ const readTownEcosystemStateExpression = `
     toast: document.querySelector(".toast")?.textContent ?? "",
     inventoryCount: Number(shell?.getAttribute("data-inventory-count") || "0"),
     saved: rawSave ? JSON.parse(rawSave) : null
+  };
+})()
+`;
+
+const readAudioSettingsStateExpression = `
+(() => {
+  const shell = document.querySelector(".app-shell");
+  const rawSettings = localStorage.getItem(${JSON.stringify(AUDIO_SETTINGS_KEY)});
+  return {
+    appMode: shell?.getAttribute("data-app-mode") ?? "",
+    master: Number(shell?.getAttribute("data-audio-master") || "0"),
+    music: Number(shell?.getAttribute("data-audio-music") || "0"),
+    sfx: Number(shell?.getAttribute("data-audio-sfx") || "0"),
+    saved: rawSettings ? JSON.parse(rawSettings) : null
   };
 })()
 `;
@@ -1640,6 +1663,46 @@ describe("real browser keyboard control", () => {
       await server.close();
     }
   }, 90000);
+
+  it("persists real settings slider input across a browser reload", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await page.waitFor<BrowserAppModeState>(
+          readAppModeStateExpression,
+          (state) => state.appMode === "town" && state.townScene === "true",
+          5000
+        );
+        await page.click('[data-mode="settings"]');
+        await page.waitFor<BrowserAudioSettingsState>(
+          readAudioSettingsStateExpression,
+          (state) => state.appMode === "settings" && state.music === 0.75,
+          5000
+        );
+
+        await page.click('[data-volume-kind="music"]');
+        await page.pressKey("ArrowLeft");
+        const changed = await page.waitFor<BrowserAudioSettingsState>(
+          readAudioSettingsStateExpression,
+          (state) => state.music !== 0.75 && state.saved?.music === state.music,
+          3000
+        );
+
+        await page.evaluate<void>("location.reload()");
+        const restored = await page.waitFor<BrowserAudioSettingsState>(
+          readAudioSettingsStateExpression,
+          (state) => state.appMode === "town" && state.music === changed.music && state.saved?.music === changed.music,
+          15000
+        );
+
+        expect(restored.master).toBe(0.9);
+        expect(restored.sfx).toBe(0.85);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
 
   it("advances chapter two and the epilogue through real trade, amplify, shop, and quest clicks", async () => {
     const server = await startViteServer();

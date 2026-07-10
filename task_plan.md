@@ -50,6 +50,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Make master/music/SFX volume controls update audio state
 - [x] Add sound/visual feedback where feasible
 - [x] Add formal per-class combat resource persistence with legacy `heat` save migration
+- [x] Persist master/music/SFX settings separately from character saves
 - **Status:** complete
 
 ### Phase 5: Verification and Delivery

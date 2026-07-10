@@ -51,12 +51,18 @@ export interface AudioState {
   commandQueue: AudioCommand[];
 }
 
-export function createAudioState(): AudioState {
+const defaultVolumes: AudioState["volumes"] = {
+  master: 0.9,
+  music: 0.75,
+  sfx: 0.85
+};
+
+export function createAudioState(savedVolumes?: Partial<AudioState["volumes"]>): AudioState {
   return {
     volumes: {
-      master: 0.9,
-      music: 0.75,
-      sfx: 0.85
+      master: clampVolume(savedVolumes?.master ?? defaultVolumes.master),
+      music: clampVolume(savedVolumes?.music ?? defaultVolumes.music),
+      sfx: clampVolume(savedVolumes?.sfx ?? defaultVolumes.sfx)
     },
     commandQueue: []
   };
@@ -68,6 +74,29 @@ function clampVolume(value: number): number {
   }
 
   return Math.min(1, Math.max(0, value));
+}
+
+export function parseSavedVolumes(rawSettings: string | null): AudioState["volumes"] | undefined {
+  if (!rawSettings) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(rawSettings) as Partial<Record<VolumeKind, unknown>>;
+    const values = [parsed.master, parsed.music, parsed.sfx];
+
+    if (!values.every((value) => typeof value === "number" && Number.isFinite(value))) {
+      return undefined;
+    }
+
+    return {
+      master: clampVolume(parsed.master as number),
+      music: clampVolume(parsed.music as number),
+      sfx: clampVolume(parsed.sfx as number)
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 export function setVolume(state: AudioState, kind: VolumeKind, value: number): AudioState {

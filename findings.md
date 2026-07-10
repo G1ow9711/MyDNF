@@ -1300,3 +1300,8 @@
 ## Story Quest Event Chain
 - The campaign now continues beyond the Liuli Furnace clear: chapter two opens a trade-contract objective and a loot-study objective, trade unlocks resonance amplification, and a Liuli gift-pack purchase completes the epilogue hook.
 - `tradeCompleted` is now an explicit quest event. Combat loot emits `itemLooted` when a gear drop is added, while reinforcement, amplification, auction, and shop already dispatch their respective events through the app reducer.
+
+## Offline Audio Settings Persistence
+- Character progress uses `mydnf-save-v1`; audio volume has no place in that game-state schema. A separate `mydnf-audio-settings-v1` avoids save migration churn while retaining all three user settings.
+- Range input is now proven through the mounted UI: the CDP helper real-clicks the music slider, keyboard changes its focused range value, the app handles the native input event, then browser reload confirms the persisted setting is used during BGM initialization.
+- Invalid, incomplete, or non-numeric stored settings fall back to the normal 90/75/85 volume defaults rather than causing a save-load failure.

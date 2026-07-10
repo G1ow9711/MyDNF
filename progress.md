@@ -4125,3 +4125,9 @@
 - Replaced the coordinate assumption with `moveIntoLiveEnemyRange()`, then waits for a witnessed enemy attack cycle to return to idle and for the player to leave hurt motion before issuing the light attack and `KeyA` cancel.
 - Focused mounted keyboard verification passed twice consecutively: `npm test -- src/tests/browser-keyboard-control.test.ts --testNamePattern "cancels a confirmed" --maxWorkers=1 --minWorkers=1 --reporter=verbose` (1 passed, 15 skipped each run).
 - Final verification passed: serial mounted browser suite (16/16), serial full project suite (15 files / 577 tests), `npm run build`, `git diff --check` (CRLF warnings only), and HTTP 200 from `http://127.0.0.1:5174/`.
+
+## Task 171 Player-Facing Loadout Loop and Liuli Story Audit
+- Two independent audits confirmed the immediate build-loop P0: three loadout reducers exist but the player cannot save or apply them from the inventory panel. Added app actions, inventory controls, loadout summaries, and integration coverage for save/apply behavior.
+- Extended the mounted class/build path to equip a core, save loadout 1, equip an alternate core, apply loadout 1, and reload. The real UI path now targets build persistence rather than only checking that the three loadout array entries exist.
+- A first real-browser story route for Cinder clear -> quest claim -> Liuli unlock -> five Liuli rooms -> return/save stopped with `Execution context was destroyed` after 109 seconds. Removed the unstable new route so it does not degrade the verified suite; the next content pass must rebuild the story acceptance in stages without pre-unlocking the dungeon.
+- Build passed after the loadout implementation: `npm run build`.

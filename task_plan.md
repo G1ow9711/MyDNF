@@ -104,6 +104,8 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 | Flowing Light Chain could miss the finisher after actor movement | 1 | Added endpoint regression and made each chain stage resolve from the actor position sampled at that stage frame |
 | Full serial town acceptance assumed the first reinforcement click always reached +1 | 1 | Kept real reinforcement randomness and changed the browser test to confirm each material-consuming click, retrying a bounded number of times until +1 is reached |
 | Full serial combo-cancel acceptance used a fixed coordinate during an enemy attack window | 1 | Changed the real keyboard route to acquire the live enemy range, wait for a completed attack cycle and player recovery, then start the light-hit cancel |
+| First multi-agent spawn rejected an incompatible full-history explorer role | 1 | Reissued the two independent read-only audits without full-history forking |
+| Five-room Liuli Furnace browser route lost its execution context | 1 | Captured the failure in a project-local test log; keep the route pending targeted stage-level diagnosis instead of treating it as evidence of completion |
 
 ## Notes
 - Project root at start: `F:\My_DNF`.

@@ -383,6 +383,31 @@ export function renderInventoryPanel(state: GameState): string {
       `;
     })
     .join("");
+  const loadoutRows = state.player.loadouts
+    .map((loadout, index) => {
+      const gearLabels = Object.entries(loadout)
+        .map(([slot, instanceId]) => {
+          const owned = state.player.inventory.find((item) => item.instanceId === instanceId);
+
+          return owned ? `${slot}: ${gearName(owned)}` : "";
+        })
+        .filter(Boolean);
+      const summary = gearLabels.length > 0 ? gearLabels.join(" / ") : "空配装";
+
+      return `
+        <li class="loadout-row" data-loadout-index="${index}" data-loadout-equipped-count="${gearLabels.length}">
+          <div>
+            <b>配装 ${index + 1}</b>
+            <small>${summary}</small>
+          </div>
+          <div class="inventory-actions">
+            <button data-app-action="save-loadout" data-loadout-index="${index}">保存</button>
+            <button data-app-action="apply-loadout" data-loadout-index="${index}" ${gearLabels.length > 0 ? "" : "disabled"}>应用</button>
+          </div>
+        </li>
+      `;
+    })
+    .join("");
 
   return panel(
     "背包",
@@ -397,6 +422,8 @@ export function renderInventoryPanel(state: GameState): string {
           <h3>套装</h3>
           <p>构筑标签 ${build.buildTags.length > 0 ? build.buildTags.join(" / ") : "未激活"}</p>
           ${setRows || "<p>未激活套装</p>"}
+          <h3>配装方案</h3>
+          <ul class="dense-list loadout-list">${loadoutRows}</ul>
           <p>负重 ${state.player.inventory.length}/120</p>
         </div>
       </div>

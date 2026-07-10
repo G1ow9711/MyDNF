@@ -6264,6 +6264,30 @@ describe("playable app integration actions", () => {
     expect(dismantled.state.player.currencies.ironDust).toBeGreaterThan(beforeDust);
   });
 
+  it("saves and applies one of three inventory loadouts through app actions", () => {
+    const model = createAppModel({ storage: new MemoryStorage() });
+    const saved = reduceAppAction(model, { type: "saveLoadout", index: 0 });
+    const changed = {
+      ...saved,
+      state: {
+        ...saved.state,
+        player: {
+          ...saved.state.player,
+          equipment: {}
+        }
+      }
+    };
+    const restored = reduceAppAction(changed, { type: "applyLoadout", index: 0 });
+    const inventoryHtml = renderAppHtml({ ...restored, mode: "inventory" });
+
+    expect(saved.state.player.loadouts[0]).toEqual(model.state.player.equipment);
+    expect(restored.state.player.equipment).toEqual(model.state.player.equipment);
+    expect(restored.message).toContain("已应用配装 1");
+    expect(inventoryHtml).toContain('data-app-action="save-loadout" data-loadout-index="0"');
+    expect(inventoryHtml).toContain('data-app-action="apply-loadout" data-loadout-index="0"');
+    expect(inventoryHtml).toContain('data-loadout-equipped-count="1"');
+  });
+
   it("accepts a trade offer and resolves an auction listing through app actions", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),

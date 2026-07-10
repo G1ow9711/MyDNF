@@ -1611,6 +1611,7 @@ describe("real browser keyboard control", () => {
     const server = await startViteServer();
     const seededState = createReadyClassProgressionState();
     const coreGearId = browserProgressionCoreGearId(seededState);
+    const alternateCoreGearId = browserProgressionAlternateCoreGearId(seededState, coreGearId);
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
@@ -1651,6 +1652,24 @@ describe("real browser keyboard control", () => {
         await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
           (state) => state.toast.includes("装备") && state.saved?.player.equipment.core === coreGearId,
+          3000
+        );
+        await page.click('[data-app-action="save-loadout"][data-loadout-index="0"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.loadouts[0]?.core === coreGearId,
+          3000
+        );
+        await page.click(`[data-app-action="equip-item"][data-gear-id="${alternateCoreGearId}"]`);
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.equipment.core === alternateCoreGearId,
+          3000
+        );
+        await page.click('[data-app-action="apply-loadout"][data-loadout-index="0"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.equipment.core === coreGearId && state.saved.player.loadouts[0]?.core === coreGearId,
           3000
         );
 
@@ -2042,7 +2061,11 @@ function createReadyClassProgressionState(): GameState {
       quests: {
         ...baseState.player.quests,
         "prologue-ember-warden": "ready"
-      }
+      },
+      inventory: [
+        ...baseState.player.inventory,
+        createOwnedGear(browserProgressionAlternateCoreCatalogId(baseState), "browser-loadout")
+      ]
     }
   };
 }
@@ -2052,6 +2075,35 @@ function browserProgressionCoreGearId(state: GameState): string {
 
   if (!core) {
     throw new Error("Expected an unequipped starter core for browser progression acceptance");
+  }
+
+  return core.instanceId;
+}
+
+function browserProgressionAlternateCoreCatalogId(state: GameState): string {
+  const starterCoreIds = new Set(
+    state.player.inventory
+      .filter((owned) => catalog.gear.find((gear) => gear.id === owned.catalogGearId)?.slot === "core")
+      .map((owned) => owned.catalogGearId)
+  );
+  const alternate = catalog.gear.find((gear) => gear.slot === "core" && !starterCoreIds.has(gear.id));
+
+  if (!alternate) {
+    throw new Error("Expected a distinct core catalog item for browser loadout acceptance");
+  }
+
+  return alternate.id;
+}
+
+function browserProgressionAlternateCoreGearId(state: GameState, primaryCoreGearId: string): string {
+  const core = state.player.inventory.find(
+    (owned) =>
+      owned.instanceId !== primaryCoreGearId &&
+      catalog.gear.find((gear) => gear.id === owned.catalogGearId)?.slot === "core"
+  );
+
+  if (!core) {
+    throw new Error("Expected a second owned core for browser loadout acceptance");
   }
 
   return core.instanceId;

@@ -41,7 +41,7 @@ import {
 } from "../systems/audio";
 import { createBrowserAudioSink } from "../systems/audio-browser";
 import { advanceClass as applyClassAdvancement, selectBaseClass as applyBaseClass, syncCurrentClassResource } from "../systems/classes";
-import { dismantleItem, equipItem, sellItem, setItemLock } from "../systems/inventory";
+import { applyLoadout, dismantleItem, equipItem, saveLoadout, sellItem, setItemLock } from "../systems/inventory";
 import { acceptTrade, listAuction, resolveAuctions } from "../systems/market";
 import { applyQuestEvent, claimQuestReward, getActiveQuestText } from "../systems/quests";
 import { loadGame, saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
@@ -89,6 +89,8 @@ export type AppAction =
   | { type: "selectBaseClass"; classId: ClassId }
   | { type: "advanceClass"; advancementId: AdvancementId }
   | { type: "equipItem"; gearId: string }
+  | { type: "saveLoadout"; index: number }
+  | { type: "applyLoadout"; index: number }
   | { type: "sellItem"; gearId: string }
   | { type: "dismantleItem"; gearId: string }
   | { type: "toggleItemLock"; gearId: string }
@@ -2394,6 +2396,22 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         message: "装备已穿戴",
         audio: playSfx(model.audio, "ui-equip")
       };
+    case "saveLoadout":
+      return {
+        ...model,
+        state: saveLoadout(model.state, action.index),
+        mode: "inventory",
+        message: `配装 ${action.index + 1} 已保存`,
+        audio: playSfx(model.audio, "ui-equip")
+      };
+    case "applyLoadout":
+      return {
+        ...model,
+        state: applyLoadout(model.state, action.index),
+        mode: "inventory",
+        message: `已应用配装 ${action.index + 1}`,
+        audio: playSfx(model.audio, "ui-equip")
+      };
     case "sellItem":
       return {
         ...model,
@@ -2630,6 +2648,7 @@ export function mountApp(root: HTMLDivElement): () => void {
       const auctionPrice = Number(target.dataset.auctionPrice);
       const classId = target.dataset.classId as ClassId | undefined;
       const advancementId = target.dataset.advancementId as AdvancementId | undefined;
+      const loadoutIndex = Number(target.dataset.loadoutIndex);
 
       if (mode) {
         dispatch({ type: "setMode", mode });
@@ -2659,6 +2678,14 @@ export function mountApp(root: HTMLDivElement): () => void {
 
       if (gearId && appAction === "equip-item") {
         dispatch({ type: "equipItem", gearId });
+      }
+
+      if (appAction === "save-loadout" && Number.isInteger(loadoutIndex)) {
+        dispatch({ type: "saveLoadout", index: loadoutIndex });
+      }
+
+      if (appAction === "apply-loadout" && Number.isInteger(loadoutIndex)) {
+        dispatch({ type: "applyLoadout", index: loadoutIndex });
       }
 
       if (gearId && appAction === "sell-item") {

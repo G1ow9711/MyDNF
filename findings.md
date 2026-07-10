@@ -1286,3 +1286,8 @@
 ## DNF-Style Combo-Cancel Browser Acceptance Stability
 - The real keyboard cancel test must not use a fixed visual coordinate as evidence of a valid light-hit range. Live enemy positions and their attack cycle can differ by the time the input reaches the mounted app.
 - The acceptance route now uses the real enemy positions to enter valid range, waits for both enemies to finish an observed attack cycle, waits for the player to leave the hurt pose, then issues `KeyX` and `KeyA`. This preserves real hit confirmation and cancel timing without freezing enemies or mocking combat state.
+
+## DNF-Style Completion Gap Audit
+- Loadout save/apply reducers exist, but the inventory panel had no player-facing controls and the app click reducer had no matching actions. This blocked the requested multi-build gameplay despite three saved loadout slots being present in the save schema.
+- The second dungeon has its own five-room data, background, BGM selection, loot bonus, and quest unlock, but it currently reuses the first dungeon's enemy generator, attack profiles, and monster assets. A later content slice must add a distinct Liuli enemy roster and Overseer boss behavior rather than only extending verification.
+- Story data currently covers the prologue and first chapter only. The approved completion checklist also requires a second chapter and epilogue hook, plus quest events for combat, loot, trade, shop, reinforcement, and amplification.

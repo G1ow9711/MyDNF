@@ -726,6 +726,26 @@ p {
   line-height: 1.35;
 }
 
+.loadout-list {
+  margin-top: 8px;
+}
+
+.loadout-row {
+  align-items: center;
+}
+
+.loadout-row > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.loadout-row small {
+  color: #cbd5e1;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .weapon-appearance {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr);

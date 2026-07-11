@@ -125,7 +125,7 @@ const classSkillBase: Array<Omit<ClassSkillDefinition, "animation">> = [
   { id: "liuli-rain", classId: "liuli-blademage", displayName: "琉璃雨", key: "U", resourceCost: 24, resourceGain: 0, cooldownMs: 5200, tags: ["range", "burst"] },
   { id: "glass-lotus", classId: "liuli-blademage", displayName: "晶莲绽", key: "I", resourceCost: 36, resourceGain: 0, cooldownMs: 7800, tags: ["area"] },
   { id: "sword-prism-field", classId: "liuli-blademage", displayName: "剑镜领域", key: "O", resourceCost: 70, resourceGain: 0, cooldownMs: 15000, tags: ["ultimate"] },
-  { id: "flowing-light-chain", classId: "liuli-blademage", displayName: "流光连式", key: "Space", resourceCost: 55, resourceGain: 0, cooldownMs: 14000, tags: ["advancement", "cycler"] },
+  { id: "flowing-light-chain", classId: "liuli-blademage", displayName: "流光剑阵舞", key: "Space", resourceCost: 55, resourceGain: 0, cooldownMs: 14000, tags: ["advancement", "cycler"] },
   { id: "mirrorflame-burst", classId: "liuli-blademage", displayName: "镜火爆鸣", key: "Space", resourceCost: 75, resourceGain: 0, cooldownMs: 17000, tags: ["advancement", "element"] },
 
   { id: "ink-shot", classId: "ink-shadow-ranger", displayName: "墨羽射", key: "J", resourceCost: 0, resourceGain: 10, cooldownMs: 1000, tags: ["starter", "range"] },
@@ -276,9 +276,9 @@ const skillAnimationById: Record<string, SkillAnimationDefinition> = {
   },
   "flowing-light-chain": {
     preset: "liuli-light-chain",
-    durationMs: 760,
-    hitFrameMs: 270,
-    lungePx: 44,
+    durationMs: 1120,
+    hitFrameMs: 220,
+    lungePx: 56,
     weaponArc: "chain-cut",
     vfxShape: "flowing-chain",
     vfxAnchor: "front"

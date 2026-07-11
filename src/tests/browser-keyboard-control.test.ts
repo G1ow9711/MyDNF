@@ -133,6 +133,23 @@ type BrowserFlowingLightPhaseSample = {
   }>;
 };
 
+type BrowserFlowingLightSwordDanceEvidence = {
+  stagePhases: Array<{ stage: number; phase: string; cue: string }>;
+  hitEventIds: string[];
+  maxComboCount: number;
+  sawFinisherAirborne: boolean;
+  startX: number;
+  maxX: number;
+};
+
+type BrowserFlowingLightLiveState = {
+  phase: string;
+  cue: string;
+  spriteFrame: number;
+  comboCount: number;
+  airborne: string[];
+};
+
 type BrowserEnemyAttackState = {
   objective: string;
   enemies: Array<{
@@ -1273,7 +1290,31 @@ const flowingLightPhases = [
     weaponAnimation: "weapon-flowing-chain-open",
     coreAnimation: "flowing-chain-open-core",
     waveAnimation: "flowing-chain-open-wave",
-    sparksAnimation: "flowing-chain-open-sparks"
+    sparksAnimation: "flowing-chain-open-sparks",
+    minFrame: 0,
+    maxFrame: 3
+  },
+  {
+    phase: "chain-dance-left",
+    cue: "flowing-chain-dance-left",
+    playerAnimation: "player-flowing-chain-dance-left",
+    weaponAnimation: "weapon-flowing-chain-dance-left",
+    coreAnimation: "flowing-chain-dance-left-core",
+    waveAnimation: "flowing-chain-dance-left-wave",
+    sparksAnimation: "flowing-chain-dance-left-sparks",
+    minFrame: 4,
+    maxFrame: 7
+  },
+  {
+    phase: "chain-dance-right",
+    cue: "flowing-chain-dance-right",
+    playerAnimation: "player-flowing-chain-dance-right",
+    weaponAnimation: "weapon-flowing-chain-dance-right",
+    coreAnimation: "flowing-chain-dance-right-core",
+    waveAnimation: "flowing-chain-dance-right-wave",
+    sparksAnimation: "flowing-chain-dance-right-sparks",
+    minFrame: 8,
+    maxFrame: 11
   },
   {
     phase: "chain-cross",
@@ -1282,7 +1323,9 @@ const flowingLightPhases = [
     weaponAnimation: "weapon-flowing-chain-cross",
     coreAnimation: "flowing-chain-cross-core",
     waveAnimation: "flowing-chain-cross-wave",
-    sparksAnimation: "flowing-chain-cross-sparks"
+    sparksAnimation: "flowing-chain-cross-sparks",
+    minFrame: 6,
+    maxFrame: 11
   },
   {
     phase: "chain-finish",
@@ -1291,7 +1334,9 @@ const flowingLightPhases = [
     weaponAnimation: "weapon-flowing-chain-finish",
     coreAnimation: "flowing-chain-finish-core",
     waveAnimation: "flowing-chain-finish-wave",
-    sparksAnimation: "flowing-chain-finish-sparks"
+    sparksAnimation: "flowing-chain-finish-sparks",
+    minFrame: 12,
+    maxFrame: 15
   }
 ] as const;
 
@@ -1608,6 +1653,14 @@ const installFlowingLightPhaseRecorderExpression = `
 (() => {
   globalThis.__flowingLightPhaseSamples = [];
   globalThis.__flowingLightDebugSamples = [];
+  globalThis.__flowingLightSwordDanceEvidence = {
+    stagePhases: [],
+    hitEventIds: [],
+    maxComboCount: 0,
+    sawFinisherAirborne: false,
+    startX: Number(document.querySelector(".combat-scene")?.getAttribute("data-player-x") || "0"),
+    maxX: Number(document.querySelector(".combat-scene")?.getAttribute("data-player-x") || "0")
+  };
   const readSample = () => {
     const shell = document.querySelector(".app-shell");
     const scene = document.querySelector(".combat-scene");
@@ -1662,6 +1715,7 @@ const installFlowingLightPhaseRecorderExpression = `
   };
   const tick = () => {
     const sample = readSample();
+    const evidence = globalThis.__flowingLightSwordDanceEvidence;
     globalThis.__flowingLightDebugSamples.push(sample);
     if (globalThis.__flowingLightDebugSamples.length > 80) {
       globalThis.__flowingLightDebugSamples.shift();
@@ -1679,7 +1733,26 @@ const installFlowingLightPhaseRecorderExpression = `
         globalThis.__flowingLightPhaseSamples.push(sample);
       }
     }
-    if (globalThis.__flowingLightPhaseSamples.length < 3) {
+    for (const impact of document.querySelectorAll('[data-skill-impact-vfx="flowing-light-chain"]')) {
+      const eventId = impact.getAttribute("data-hit-event-id") ?? "";
+      const phase = impact.getAttribute("data-hit-phase") ?? "";
+      const cue = impact.getAttribute("data-vfx-cue") ?? "";
+      if (eventId && !evidence.hitEventIds.includes(eventId)) evidence.hitEventIds.push(eventId);
+      const stage = Number(eventId.match(/flowing-light-chain-(\\d+)-/)?.[1] ?? "0");
+      if (stage > 0 && !evidence.stagePhases.some((item) => item.stage === stage)) {
+        evidence.stagePhases.push({ stage, phase, cue });
+        evidence.stagePhases.sort((left, right) => left.stage - right.stage);
+      }
+    }
+    evidence.maxComboCount = Math.max(
+      evidence.maxComboCount,
+      Number(document.querySelector(".combat-scene")?.getAttribute("data-combo-count") || "0")
+    );
+    evidence.maxX = Math.max(evidence.maxX, sample.playerX);
+    evidence.sawFinisherAirborne ||=
+      sample.hitPhase === "chain-finish" &&
+      Array.from(document.querySelectorAll(".combat-enemy")).some((enemy) => enemy.getAttribute("data-enemy-airborne") === "true");
+    if (globalThis.__flowingLightPhaseSamples.length < 5 || evidence.stagePhases.length < 7) {
       globalThis.__flowingLightPhaseRecorder = requestAnimationFrame(tick);
     }
   };
@@ -1693,6 +1766,25 @@ const installFlowingLightPhaseRecorderExpression = `
 
 const readFlowingLightPhaseSamplesExpression = `
 (() => globalThis.__flowingLightPhaseSamples ?? [])()
+`;
+
+const readFlowingLightSwordDanceEvidenceExpression = `
+(() => globalThis.__flowingLightSwordDanceEvidence)()
+`;
+
+const readFlowingLightLiveStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const player = document.querySelector(".combat-player");
+  const sprite = document.querySelector(".player-frame-sprite");
+  return {
+    phase: player?.getAttribute("data-player-skill-hit-phase") ?? "",
+    cue: player?.getAttribute("data-player-skill-vfx-cue") ?? "",
+    spriteFrame: Number(sprite?.getAttribute("data-sprite-frame") ?? "-1"),
+    comboCount: Number(scene?.getAttribute("data-combo-count") ?? "0"),
+    airborne: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => enemy.getAttribute("data-enemy-airborne") ?? "")
+  };
+})()
 `;
 
 const readFlowingLightDebugSamplesExpression = `
@@ -2534,7 +2626,7 @@ describe("real browser keyboard control", () => {
     }
   }, 60000);
 
-  it("casts Liuli flowing-light-chain with real keyboard input and staged VFX", async () => {
+  it("casts Liuli flowing-light-chain as a seven-hit sword dance with real keyboard input", async () => {
     const server = await startViteServer();
 
     try {
@@ -2564,14 +2656,31 @@ describe("real browser keyboard control", () => {
           (state) => state.some((sample) => sample.hitPhase === "chain-open"),
           1800
         );
-        await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/liuli-flowing-light.png`);
+        await page.waitFor<BrowserFlowingLightPhaseSample[]>(
+          readFlowingLightPhaseSamplesExpression,
+          (state) => state.some((sample) => sample.hitPhase === "chain-dance-left"),
+          1800
+        );
+        const liveFinisher = await page.waitFor<BrowserFlowingLightLiveState>(
+          readFlowingLightLiveStateExpression,
+          (state) =>
+            state.phase === "chain-finish" &&
+            state.cue === "flowing-chain-finish" &&
+            state.spriteFrame >= 14 &&
+            state.spriteFrame <= 15 &&
+            state.comboCount === 14 &&
+            state.airborne.includes("true"),
+          2600
+        );
+        expect(liveFinisher.airborne.filter((state) => state === "true")).toHaveLength(2);
+        await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/liuli-flowing-sword-dance-finish.png`);
 
         let samples: BrowserFlowingLightPhaseSample[];
         try {
           samples = await page.waitFor<BrowserFlowingLightPhaseSample[]>(
             readFlowingLightPhaseSamplesExpression,
             (state) => flowingLightPhases.every((expected) => state.some((sample) => sample.hitPhase === expected.phase)),
-            2200
+            3200
           );
         } catch (error) {
           const debugSamples = await page.evaluate<BrowserFlowingLightPhaseSample[]>(readFlowingLightDebugSamplesExpression);
@@ -2619,12 +2728,29 @@ describe("real browser keyboard control", () => {
           expect(phaseState?.spriteState).toBe("skill-dance");
           expect(phaseState?.spriteSkill).toBe("flowing-light-chain");
           expect(phaseState?.spriteSkillPhase).toBe(expected.phase);
-          expect(phaseState?.spriteFrame).toBeGreaterThanOrEqual(expected.phase === "chain-open" ? 0 : expected.phase === "chain-cross" ? 5 : 12);
-          expect(phaseState?.spriteFrame).toBeLessThanOrEqual(expected.phase === "chain-open" ? 4 : expected.phase === "chain-cross" ? 11 : 14);
+          expect(phaseState?.spriteFrame).toBeGreaterThanOrEqual(expected.minFrame);
+          expect(phaseState?.spriteFrame).toBeLessThanOrEqual(expected.maxFrame);
           expect(phaseState?.spriteBackground).toContain("liuli-flowing-light-array-atlas");
           expect(phaseState?.spriteSlashWidth).not.toBe("0px");
           expect(phaseState?.spriteGhostBackground).toContain("liuli-flowing-light-array-atlas");
         }
+
+        const evidence = await page.waitFor<BrowserFlowingLightSwordDanceEvidence>(
+          readFlowingLightSwordDanceEvidenceExpression,
+          (state) => state.stagePhases.length === 7 && state.hitEventIds.length === 14 && state.sawFinisherAirborne,
+          3200
+        );
+        expect(evidence.stagePhases).toEqual([
+          { stage: 1, phase: "chain-open", cue: "flowing-chain-open" },
+          { stage: 2, phase: "chain-dance-left", cue: "flowing-chain-dance-left" },
+          { stage: 3, phase: "chain-dance-right", cue: "flowing-chain-dance-right" },
+          { stage: 4, phase: "chain-dance-left", cue: "flowing-chain-dance-left" },
+          { stage: 5, phase: "chain-dance-right", cue: "flowing-chain-dance-right" },
+          { stage: 6, phase: "chain-cross", cue: "flowing-chain-cross" },
+          { stage: 7, phase: "chain-finish", cue: "flowing-chain-finish" }
+        ]);
+        expect(evidence.maxComboCount).toBe(14);
+        expect(evidence.maxX - evidence.startX).toBeGreaterThan(140);
       });
     } finally {
       await server.close();
@@ -4703,6 +4829,10 @@ function createFlowingLightSwordmasterState() {
       classResources: {
         ...liuliState.player.classResources,
         "liuli-blademage": 100
+      },
+      dungeonDifficultyPreferences: {
+        ...liuliState.player.dungeonDifficultyPreferences,
+        "cinder-kiln-alley": "warrior" as const
       },
       quests: {
         ...liuliState.player.quests,

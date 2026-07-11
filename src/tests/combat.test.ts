@@ -6872,7 +6872,7 @@ describe("combat actions and impact feel", () => {
     expect(jumped.player.hp).toBeLessThan(cast.player.hp);
   });
 
-  it("flowing-light-chain moves through delayed three-stage path slashes", () => {
+  it("flowing-light-chain moves through a seven-hit alternating sword dance", () => {
     const state = advanceClass(
       readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),
       "flowing-light-swordmaster"
@@ -6903,7 +6903,8 @@ describe("combat actions and impact feel", () => {
     };
 
     const cast = performAction(castingEnemyRun, { type: "skill", skillId: "flowing-light-chain" });
-    const [openAtMs, crossAtMs, finishAtMs] = scheduledSkillTimes(cast, "flowing-light-chain");
+    const [openAtMs, danceLeftOneAtMs, danceRightOneAtMs, danceLeftTwoAtMs, danceRightTwoAtMs, crossAtMs, finishAtMs] =
+      scheduledSkillTimes(cast, "flowing-light-chain");
     const beforeOpen = stepToElapsed(cast, openAtMs - 1);
     const final = stepToElapsed(cast, finishAtMs);
     const chainHits = skillHitEvents(final, "flowing-light-chain");
@@ -6913,15 +6914,27 @@ describe("combat actions and impact feel", () => {
     expect(cast.player.activeSkillMovement?.skillId).toBe("flowing-light-chain");
     expect(cast.enemies.map((enemy) => enemy.hp)).toEqual(castingEnemyRun.enemies.map((enemy) => enemy.hp));
     expect(skillHitEvents(cast, "flowing-light-chain")).toHaveLength(0);
-    expect([openAtMs, crossAtMs, finishAtMs]).toEqual([220, 340, 470]);
+    expect([openAtMs, danceLeftOneAtMs, danceRightOneAtMs, danceLeftTwoAtMs, danceRightTwoAtMs, crossAtMs, finishAtMs]).toEqual([
+      220, 330, 440, 550, 660, 790, 940
+    ]);
     expect(beforeOpen.player.x).toBeGreaterThan(run.player.x);
     expect(skillHitEvents(beforeOpen, "flowing-light-chain")).toHaveLength(0);
-    expect(chainHits).toHaveLength(6);
+    expect(chainHits).toHaveLength(14);
     expect(targetIds).toHaveLength(2);
-    expect(targetIds.every((targetId) => chainHits.filter((event) => event.targetId === targetId).length === 3)).toBe(true);
-    expect([...new Set(chainHits.map((event) => event.hitPhase))]).toEqual(["chain-open", "chain-cross", "chain-finish"]);
+    expect(targetIds.every((targetId) => chainHits.filter((event) => event.targetId === targetId).length === 7)).toBe(true);
+    expect(chainHits.filter((event) => event.targetId === targetIds[0]).map((event) => event.hitPhase)).toEqual([
+      "chain-open",
+      "chain-dance-left",
+      "chain-dance-right",
+      "chain-dance-left",
+      "chain-dance-right",
+      "chain-cross",
+      "chain-finish"
+    ]);
     expect([...new Set(chainHits.map((event) => event.vfxCue))]).toEqual([
       "flowing-chain-open",
+      "flowing-chain-dance-left",
+      "flowing-chain-dance-right",
       "flowing-chain-cross",
       "flowing-chain-finish"
     ]);
@@ -6931,6 +6944,7 @@ describe("combat actions and impact feel", () => {
     );
     expect(final.enemies[0].attackSkillId).toBeUndefined();
     expect(final.enemies[0].controlledUntilMs).toBeGreaterThan(finishAtMs);
+    expect(final.enemies.every((enemy) => enemy.airborne)).toBe(true);
   });
 
   it("uses the flowing-light-chain finisher endpoint for a late-path target", () => {
@@ -6944,7 +6958,7 @@ describe("combat actions and impact feel", () => {
       [{ x: 510, y: 340, hp: 180, maxHp: 180 }]
     );
     const cast = performAction(run, { type: "skill", skillId: "flowing-light-chain" });
-    const [, , finishAtMs] = scheduledSkillTimes(cast, "flowing-light-chain");
+    const finishAtMs = scheduledSkillTimes(cast, "flowing-light-chain").at(-1)!;
     const final = stepToElapsed(cast, finishAtMs);
     const chainHits = skillHitEvents(final, "flowing-light-chain");
 
@@ -6983,7 +6997,7 @@ describe("combat actions and impact feel", () => {
       ]
     };
     const cast = performAction(run, { type: "skill", skillId: "flowing-light-chain" });
-    const [, , finishAtMs] = scheduledSkillTimes(cast, "flowing-light-chain");
+    const finishAtMs = scheduledSkillTimes(cast, "flowing-light-chain").at(-1)!;
     const movedBeforeOpen = {
       ...cast,
       enemies: cast.enemies.map((enemy, index) => {
@@ -7004,7 +7018,7 @@ describe("combat actions and impact feel", () => {
     const chainHits = skillHitEvents(final, "flowing-light-chain");
     const hitTargetIds = [...new Set(chainHits.map((event) => event.targetId))];
 
-    expect(chainHits).toHaveLength(3);
+    expect(chainHits).toHaveLength(7);
     expect(hitTargetIds).toEqual([cast.enemies[2].id]);
     expect(final.enemies[0].hp).toBe(cast.enemies[0].hp);
     expect(final.enemies[1].hp).toBe(cast.enemies[1].hp);

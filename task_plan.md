@@ -399,7 +399,19 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify real X-X-X input, distinct player/enemy frames, three hit cues, combo count, and finisher airborne state.
 - [x] Run broad regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 196 Flowing Sword Dance Seven-Hit Choreography
+- [x] Audit the existing three-stage Flowing Light timing, movement, frame atlas, VFX, and browser acceptance.
+- [x] Lock the seven-hit original sword-dance timing and five distinct action families.
+- [x] Add RED coverage for seven real hitboxes, alternating phases, finisher launch, and rendered phase states.
+- [x] Implement synchronized body frames, weapon motion, afterimages, sword arcs, cast VFX, and target impacts.
+- [x] Verify the full skill through real Space input and inspect desktop evidence.
+- [x] Run broad regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 196 real-browser finisher capture first timed out after the earlier mid-dance screenshot encoding consumed the remaining live skill window. Removed the pre-finisher capture from the acceptance path and prioritized same-frame finisher evidence; the previously inspected mid-dance image remains valid.
+- Task 196 integration diagnostics found stages 1-6 landed twelve hits but reduced both normal enemies to zero HP before stage 7, so the live target recheck correctly skipped the finisher. Redistributed the same overall damage budget toward the final strike instead of weakening the acceptance requirement.
+- A combined Task 196 source patch targeted a partial fragment inside the one-line combat-player template and was rejected atomically. No source file changed; the implementation was split into core and mounted-state patches.
+- Task 196 RED expected seven scheduled stages at 220/330/440/550/660/790/940 ms and received only the legacy 220/340/470 ms sequence, directly proving the missing sword-dance gameplay stages.
 - Task 195 RED recorded the first real X hit and 26 damage but no player combo frame or enemy reaction metadata, proving the atlas layer repeated its generic attack sequence.
 - Task 195 third hit kills the normal target, so defeated-state priority could hide the launcher reaction. The frame stage preserves reaction step 3 on the defeated actor and selects frame 14 while authoritative HP/airborne state remains unchanged.
 - Task 194 first browser GREEN held the second direction through the monster pack before pressing X, so a natural monster hit could preempt the action. The route now uses an observed post-attack safe window and presses X on the first confirmed run frame without changing combat timing.

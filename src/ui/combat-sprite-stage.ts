@@ -93,7 +93,10 @@ export class CombatSpriteStage {
     const playerX = Number(scene.dataset.playerX ?? "0");
 
     if (playerElement && playerSprite && ["ember-warden", "liuli-blademage"].includes(playerSprite.dataset.frameClassId ?? "")) {
-      const skillProgress = progress(playerElement.dataset.playerSkillStageProgress);
+      const skillHitAtMs = Number(playerElement.dataset.playerSkillHitAtMs ?? "0");
+      const skillProgress = playerElement.dataset.playerSkillHitPhase && skillHitAtMs > 0
+        ? intervalProgress(skillHitAtMs, skillHitAtMs + 120, elapsedMs)
+        : progress(playerElement.dataset.playerSkillStageProgress);
       const normalAttackStartedAtMs = Number(playerElement.dataset.playerNormalAttackStartedAtMs ?? "0");
       const normalAttackUntilMs = Number(playerElement.dataset.playerNormalAttackUntilMs ?? "0");
       const normalProgress = normalAttackUntilMs > normalAttackStartedAtMs
@@ -172,11 +175,15 @@ export class CombatSpriteStage {
     if (flowingLightSkill) {
       const p = clamp01(actor.progress);
       if (actor.skillPhase === "chain-open") {
-        frame = Math.min(4, Math.floor(p * 5));
+        frame = Math.min(3, Math.floor(p * 4));
+      } else if (actor.skillPhase === "chain-dance-left") {
+        frame = 4 + Math.min(3, Math.floor(p * 4));
+      } else if (actor.skillPhase === "chain-dance-right") {
+        frame = 8 + Math.min(3, Math.floor(p * 4));
       } else if (actor.skillPhase === "chain-cross") {
-        frame = 5 + Math.min(6, Math.floor(p * 7));
+        frame = 6 + Math.min(5, Math.floor(p * 6));
       } else if (actor.skillPhase === "chain-finish") {
-        frame = 12 + Math.min(2, Math.floor(p * 3));
+        frame = 12 + Math.min(3, Math.floor(p * 4));
       } else if (actor.skillStage === "windup") {
         frame = Math.min(3, Math.floor(p * 4));
       } else if (actor.skillStage === "active") {

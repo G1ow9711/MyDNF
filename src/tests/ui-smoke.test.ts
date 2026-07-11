@@ -2975,7 +2975,7 @@ describe("town app shell", () => {
       },
       { type: "skill", skillId: "flowing-light-chain" }
     );
-    const [, , finishAtMs] = scheduledSkillTimes(castRun, "flowing-light-chain");
+    const finishAtMs = scheduledSkillTimes(castRun, "flowing-light-chain").at(-1)!;
     const finishRun = stepToElapsed(castRun, finishAtMs);
     const html = renderAppHtml({
       state: advancedState,
@@ -2983,7 +2983,7 @@ describe("town app shell", () => {
       combatRun: finishRun
     });
 
-    expect(skillHitEvents(finishRun, "flowing-light-chain")).toHaveLength(6);
+    expect(skillHitEvents(finishRun, "flowing-light-chain")).toHaveLength(14);
     expect(html).toContain('data-impact-vfx-shape="flowing-chain"');
     expect(html).toContain('data-vfx-cue="flowing-chain-finish"');
     expect(html).toContain('data-hit-phase="chain-finish"');
@@ -2996,19 +2996,27 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('[data-skill-animation-preset="liuli-light-chain"]');
     expect(stylesCss).toContain('[data-skill-weapon-arc="chain-cut"]');
     expect(stylesCss).toContain('[data-player-skill-hit-phase="chain-open"] .combat-player-art');
+    expect(stylesCss).toContain('[data-player-skill-hit-phase="chain-dance-left"] .combat-player-art');
+    expect(stylesCss).toContain('[data-player-skill-hit-phase="chain-dance-right"] .combat-player-art');
     expect(stylesCss).toContain('[data-player-skill-hit-phase="chain-cross"] .combat-player-art');
     expect(stylesCss).toContain('[data-player-skill-hit-phase="chain-finish"] .combat-player-art');
     expect(stylesCss).toContain('[data-weapon-hit-phase="chain-open"]');
+    expect(stylesCss).toContain('[data-weapon-hit-phase="chain-dance-left"]');
+    expect(stylesCss).toContain('[data-weapon-hit-phase="chain-dance-right"]');
     expect(stylesCss).toContain('[data-weapon-hit-phase="chain-cross"]');
     expect(stylesCss).toContain('[data-weapon-hit-phase="chain-finish"]');
     expect(stylesCss).toContain(".skill-vfx-shape-flowing-chain");
     expect(stylesCss).toContain(".skill-impact-shape-flowing-chain");
     expect(stylesCss).toContain("@keyframes player-liuli-light-chain-cast");
     expect(stylesCss).toContain("@keyframes player-flowing-chain-open");
+    expect(stylesCss).toContain("@keyframes player-flowing-chain-dance-left");
+    expect(stylesCss).toContain("@keyframes player-flowing-chain-dance-right");
     expect(stylesCss).toContain("@keyframes player-flowing-chain-cross");
     expect(stylesCss).toContain("@keyframes player-flowing-chain-finish");
     expect(stylesCss).toContain("@keyframes weapon-chain-cut");
     expect(stylesCss).toContain("@keyframes weapon-flowing-chain-open");
+    expect(stylesCss).toContain("@keyframes weapon-flowing-chain-dance-left");
+    expect(stylesCss).toContain("@keyframes weapon-flowing-chain-dance-right");
     expect(stylesCss).toContain("@keyframes weapon-flowing-chain-cross");
     expect(stylesCss).toContain("@keyframes weapon-flowing-chain-finish");
     expect(stylesCss).toContain("@keyframes flowing-chain-cast-core");

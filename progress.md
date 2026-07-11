@@ -4333,3 +4333,13 @@
 - Added narrow horizontal, cross-cut, and rising finisher arcs tied to impact phase. Enemy frame reactions now select 12, 13, and 14 with increasing lighting and preserve step 3 through lethal finishers.
 - Real browser X-X-X acceptance proves player frames 9/10/11, enemy frames 12/13/14, cues `ground-light-slash-1/2/3`, 3 CHAIN, target airborne state, and a computed 9 px glowing finisher arc. Screenshot: `normal-combo-finisher.png`.
 - Compatibility routes passed for base frame rendering, double-tap dash-light, and light-hit skill cancel. Final verification passed: focused combo route in 13.68 seconds, three compatibility routes in 43.10 seconds, 671/671 non-keyboard and computed-style tests, production build, HTTP 200, and Git whitespace validation.
+
+## Task 196 Flowing Sword Dance Seven-Hit Choreography
+- Audited the existing three-hit skill core, mounted phase state, 16-frame atlas mapping, CSS animation families, and true-browser Space route. No subagent was started.
+- Locked a 1120 ms seven-hit sequence at 220/330/440/550/660/790/940 ms with open, alternating left/right dance, cross, and launching finish phases.
+- Added the design and implementation records. RED tests and production implementation follow.
+- Added the core RED contract. The focused old implementation failed because only three scheduled hitboxes existed; no production timing was changed before observing this failure.
+- Expanded the skill to seven dynamic hitboxes at 220/330/440/550/660/790/940 ms. Rapid cuts carry light damage and short hitstop; the 940 ms finisher carries the main damage, stagger, launcher, 82 ms hitstop, and 52 px knockback.
+- Added left/right dance hit phases and cues, unique stage ids, 168 px path movement, phase-local sprite progress, frames 0-3/4-7/8-11/6-11/12-15, and dedicated body, weapon, sword-arc, afterimage, root VFX, and target-impact animation families.
+- Real Space input on Warrior difficulty proves all seven stages, 14 unique target hit events, 14 CHAIN, over 140 px forward travel, both targets airborne, and the original skill atlas. Inspected mid-dance and final desktop evidence; the final image retains character, monsters, environment, afterimage, and the wide cyan finisher arc without a clear-room overlay.
+- Final verification passed: six focused combat behavior routes, five focused render/style routes, 671/671 non-keyboard and computed-style tests, three real-browser compatibility routes in 47.21 seconds, and production build. Chinese commit and push follow this record update.

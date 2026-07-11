@@ -87,6 +87,8 @@ export type CombatHitPhase =
   | "mirrorflame-burst"
   | "uppercut"
   | "chain-open"
+  | "chain-dance-left"
+  | "chain-dance-right"
   | "chain-cross"
   | "chain-finish"
   | "prism-field-lock"
@@ -150,6 +152,8 @@ export type CombatVfxCue =
   | "mirrorflame-burst"
   | "cinder-uppercut-rise"
   | "flowing-chain-open"
+  | "flowing-chain-dance-left"
+  | "flowing-chain-dance-right"
   | "flowing-chain-cross"
   | "flowing-chain-finish"
   | "sword-prism-field-lock"
@@ -4042,7 +4046,7 @@ function applyPrismStep(run: CombatRun, skill: ClassSkillDefinition, canceledFro
   });
 }
 
-const flowingLightChainEndDelayMs = 470;
+const flowingLightChainEndDelayMs = 940;
 const flowingLightChainStages: Array<{
   phase: CombatHitPhase;
   cue: CombatVfxCue;
@@ -4050,38 +4054,74 @@ const flowingLightChainStages: Array<{
   damageMultiplier: number;
   hitstopMs: number;
   knockback: number;
+  juggle?: boolean;
   statusTags?: CombatSkillStatusTag[];
+  actionTags?: CombatActionTag[];
 }> = [
   {
     phase: "chain-open",
     cue: "flowing-chain-open",
     delayMs: 220,
-    damageMultiplier: 0.58,
-    hitstopMs: 44,
-    knockback: 18
+    damageMultiplier: 0.18,
+    hitstopMs: 30,
+    knockback: 6
+  },
+  {
+    phase: "chain-dance-left",
+    cue: "flowing-chain-dance-left",
+    delayMs: 330,
+    damageMultiplier: 0.08,
+    hitstopMs: 22,
+    knockback: 5
+  },
+  {
+    phase: "chain-dance-right",
+    cue: "flowing-chain-dance-right",
+    delayMs: 440,
+    damageMultiplier: 0.08,
+    hitstopMs: 24,
+    knockback: 5
+  },
+  {
+    phase: "chain-dance-left",
+    cue: "flowing-chain-dance-left",
+    delayMs: 550,
+    damageMultiplier: 0.08,
+    hitstopMs: 22,
+    knockback: 5
+  },
+  {
+    phase: "chain-dance-right",
+    cue: "flowing-chain-dance-right",
+    delayMs: 660,
+    damageMultiplier: 0.08,
+    hitstopMs: 24,
+    knockback: 5
   },
   {
     phase: "chain-cross",
     cue: "flowing-chain-cross",
-    delayMs: 340,
-    damageMultiplier: 0.68,
-    hitstopMs: 50,
-    knockback: 22
+    delayMs: 790,
+    damageMultiplier: 0.16,
+    hitstopMs: 38,
+    knockback: 12
   },
   {
     phase: "chain-finish",
     cue: "flowing-chain-finish",
     delayMs: flowingLightChainEndDelayMs,
-    damageMultiplier: 0.92,
-    hitstopMs: 68,
-    knockback: 46,
-    statusTags: ["stagger"]
+    damageMultiplier: 1.5,
+    hitstopMs: 82,
+    knockback: 52,
+    juggle: true,
+    statusTags: ["stagger"],
+    actionTags: ["launcher"]
   }
 ];
 
 function applyFlowingLightChain(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
   const endPosition = {
-    x: clamp(run.player.x + run.player.facing * 142, 0, run.arena.width),
+    x: clamp(run.player.x + run.player.facing * 168, 0, run.arena.width),
     y: run.player.y
   };
   const movingRun = appendSkillCastEvent(
@@ -4102,14 +4142,15 @@ function applyFlowingLightChain(run: CombatRun, skill: ClassSkillDefinition, can
       damage: Math.max(1, Math.round(skillDamage(run, skill) * stage.damageMultiplier)),
       hitstopMs: stage.hitstopMs,
       knockback: stage.knockback,
-      juggle: false,
+      juggle: stage.juggle ?? false,
       inputToHitMs: stage.delayMs,
       canceledFromCombo,
-      statusTags: stage.statusTags
+      statusTags: stage.statusTags,
+      actionTags: stage.actionTags
     };
 
     return schedulePlayerHitboxEffect(stageRun, hitbox, stageOrigin, run.player.facing, {
-      id: `hit-${run.elapsedMs}-skill-${skill.id}-${stage.phase}`,
+      id: `hit-${run.elapsedMs}-skill-${skill.id}-${index + 1}-${stage.phase}`,
       hitPhase: stage.phase,
       vfxCue: stage.cue,
       vfxWindowMs: 260,

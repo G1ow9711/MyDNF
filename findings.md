@@ -1526,3 +1526,12 @@
 - The frame stage currently reads only `normalAttackMoveProgress`, which ends at the hit frame, then generic action mapping falls back to frame 8 for the rest of recovery. It also ignores combo step, so all three X attacks reuse one visual sequence.
 - Full attack-window progress is sufficient for deterministic `windup / impact / recovery` presentation and stays frozen by the same combat elapsed clock during hitstop; no CSS timer or additional gameplay state is required.
 - Normal-room HP makes the third 41-damage hit lethal after 26 and 33 damage. Keeping `spriteReactionStep=3` on the defeated frame is necessary to show the launcher contact without altering death settlement.
+
+## Task 196 Flowing Sword Dance Audit
+- The current `flowing-light-chain` is only 760 ms with hits at 220/340/470 ms. Its three unique poses and cues read as a short three-hit chain, not a sustained sword dance.
+- The combat core already schedules each stage as a delayed dynamic hitbox and rechecks live targets. Expanding the stage table preserves authoritative movement, interruption, hitstop, critical, combo, and target-selection rules.
+- The existing original 4x4 skill atlas contains enough distinct poses for open, alternating left/right dance, cross, and finish families. Reusing those authored frames is more aligned than adding CSS-only body movement.
+- Browser hit markup exposes unique `data-hit-event-id` values for every target and stage, so real input acceptance can prove seven gameplay hits instead of counting decorative animations.
+- The first seven-stage integration render produced all twelve hits from stages 1-6 but no finisher because normal-room targets were already dead, not because the stage was missing or interrupted. Damage was redistributed into light rapid cuts plus a dominant finisher while keeping the total multiplier close to the previous skill, allowing ordinary targets to display the complete choreography.
+- A phase-local sprite clock can be derived from each hit event's mounted `data-player-skill-hit-at-ms`; this keeps body frames frozen by authoritative hitstop and avoids a second CSS-only gameplay timer.
+- Screenshot encoding can consume short live phases. The final route captures only after observing current `chain-finish`, frame 14-15, 14 CHAIN, and both enemies airborne in the same browser sample, then runs historical assertions afterward.

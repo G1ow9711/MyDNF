@@ -196,6 +196,8 @@ describe("real browser computed style regressions", () => {
     const fixtures: PlayerSkillPhaseFixture[] = [
       { key: "generic" },
       { key: "open", phase: "chain-open", cue: "flowing-chain-open" },
+      { key: "dance-left", phase: "chain-dance-left", cue: "flowing-chain-dance-left" },
+      { key: "dance-right", phase: "chain-dance-right", cue: "flowing-chain-dance-right" },
       { key: "cross", phase: "chain-cross", cue: "flowing-chain-cross" },
       { key: "finish", phase: "chain-finish", cue: "flowing-chain-finish" }
     ];
@@ -208,6 +210,12 @@ describe("real browser computed style regressions", () => {
     expect(computed.open.skillVfx.core.animationName).toBe("flowing-chain-open-core");
     expect(computed.open.skillVfx.wave.animationName).toBe("flowing-chain-open-wave");
     expect(computed.open.skillVfx.sparks.animationName).toBe("flowing-chain-open-sparks");
+    expect(computed["dance-left"].player.animationName).toBe("player-flowing-chain-dance-left");
+    expect(computed["dance-left"].weapon.animationName).toBe("weapon-flowing-chain-dance-left");
+    expect(computed["dance-left"].skillVfx.core.animationName).toBe("flowing-chain-dance-left-core");
+    expect(computed["dance-right"].player.animationName).toBe("player-flowing-chain-dance-right");
+    expect(computed["dance-right"].weapon.animationName).toBe("weapon-flowing-chain-dance-right");
+    expect(computed["dance-right"].skillVfx.core.animationName).toBe("flowing-chain-dance-right-core");
     expect(computed.cross.player.animationName).toBe("player-flowing-chain-cross");
     expect(computed.cross.weapon.animationName).toBe("weapon-flowing-chain-cross");
     expect(computed.cross.skillVfx.core.animationName).toBe("flowing-chain-cross-core");
@@ -218,14 +226,16 @@ describe("real browser computed style regressions", () => {
     expect(computed.finish.skillVfx.core.animationName).toBe("flowing-chain-finish-core");
     expect(computed.finish.skillVfx.wave.animationName).toBe("flowing-chain-finish-wave");
     expect(computed.finish.skillVfx.sparks.animationName).toBe("flowing-chain-finish-sparks");
-    expect(computed.finish.player.animationDuration).toBe("0.76s");
-    expect(computed.finish.weapon.animationDuration).toBe("0.76s");
-    expect(computed.finish.skillVfx.core.animationDuration).toBe("0.76s");
+    expect(computed.finish.player.animationDuration).toBe("0.36s");
+    expect(computed.finish.weapon.animationDuration).toBe("0.36s");
+    expect(computed.finish.skillVfx.core.animationDuration).toBe("0.36s");
   }, 30000);
 
   it("uses staged flowing-light-chain target impact animations in the browser cascade", async () => {
     const fixtures: SkillImpactVfxFixture[] = [
       { key: "open", shape: "flowing-chain", phase: "chain-open", cue: "flowing-chain-open", durationMs: 300 },
+      { key: "dance-left", shape: "flowing-chain", phase: "chain-dance-left", cue: "flowing-chain-dance-left", durationMs: 220 },
+      { key: "dance-right", shape: "flowing-chain", phase: "chain-dance-right", cue: "flowing-chain-dance-right", durationMs: 220 },
       { key: "cross", shape: "flowing-chain", phase: "chain-cross", cue: "flowing-chain-cross", durationMs: 340 },
       { key: "finish", shape: "flowing-chain", phase: "chain-finish", cue: "flowing-chain-finish", durationMs: 420 }
     ];
@@ -234,6 +244,12 @@ describe("real browser computed style regressions", () => {
     expect(computed.open.core.animationName).toBe("flowing-chain-open-impact-core");
     expect(computed.open.ring.animationName).toBe("flowing-chain-open-impact-ring");
     expect(computed.open.shards.animationName).toBe("flowing-chain-open-impact-shards");
+    expect(computed["dance-left"].core.animationName).toBe("flowing-chain-dance-left-impact-core");
+    expect(computed["dance-left"].ring.animationName).toBe("flowing-chain-dance-left-impact-ring");
+    expect(computed["dance-left"].shards.animationName).toBe("flowing-chain-dance-left-impact-shards");
+    expect(computed["dance-right"].core.animationName).toBe("flowing-chain-dance-right-impact-core");
+    expect(computed["dance-right"].ring.animationName).toBe("flowing-chain-dance-right-impact-ring");
+    expect(computed["dance-right"].shards.animationName).toBe("flowing-chain-dance-right-impact-shards");
     expect(computed.cross.core.animationName).toBe("flowing-chain-cross-impact-core");
     expect(computed.cross.ring.animationName).toBe("flowing-chain-cross-impact-ring");
     expect(computed.cross.shards.animationName).toBe("flowing-chain-cross-impact-shards");

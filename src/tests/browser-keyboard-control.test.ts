@@ -274,6 +274,8 @@ type BrowserDungeonDifficultyState = {
   combatScene: boolean;
   savedFatigue: number;
   savedPreference: string;
+  enterKeydownCount: number;
+  lastEnterKeydownAt: number;
 };
 
 type BrowserSavedState = {
@@ -656,7 +658,9 @@ const readDungeonDifficultyStateExpression = `
     firstTrashHpMax: Number(firstTrash?.getAttribute("data-enemy-hp-max") ?? "0"),
     combatScene: Boolean(combat),
     savedFatigue: Number(saved?.player?.fatigue?.current ?? -1),
-    savedPreference: saved?.player?.dungeonDifficultyPreferences?.["cinder-kiln-alley"] ?? ""
+    savedPreference: saved?.player?.dungeonDifficultyPreferences?.["cinder-kiln-alley"] ?? "",
+    enterKeydownCount: Number(globalThis.__browserEnterKeydownEvidence?.count ?? 0),
+    lastEnterKeydownAt: Number(globalThis.__browserEnterKeydownEvidence?.lastAt ?? 0)
   };
 })()
 `;
@@ -1602,10 +1606,28 @@ describe("real browser keyboard control", () => {
           (state) => state.selectedDifficulty === "adventure" && state.fatigueCost === 8,
           5000
         );
+        await page.evaluate<void>(`(() => {
+          globalThis.__browserEnterKeydownEvidence = { count: 0, lastAt: 0 };
+          globalThis.addEventListener("keydown", (event) => {
+            if (event.code === "Enter") {
+              globalThis.__browserEnterKeydownEvidence.count += 1;
+              globalThis.__browserEnterKeydownEvidence.lastAt = event.timeStamp;
+            }
+          }, { capture: true });
+        })()`);
         await page.pressKey("Enter");
-        await waitInBrowser(page, 100);
-        const refused = await page.evaluate<BrowserDungeonDifficultyState>(readDungeonDifficultyStateExpression);
+        const refused = await page.waitFor<BrowserDungeonDifficultyState>(
+          readDungeonDifficultyStateExpression,
+          (state) =>
+            state.enterKeydownCount >= 1 &&
+            state.appMode === "dungeon-prep" &&
+            !state.combatScene &&
+            state.savedFatigue === 7,
+          5000
+        );
 
+        expect(refused.enterKeydownCount).toBeGreaterThanOrEqual(1);
+        expect(refused.lastEnterKeydownAt).toBeGreaterThan(0);
         expect(refused.appMode).toBe("dungeon-prep");
         expect(refused.combatScene).toBe(false);
         expect(refused.savedFatigue).toBe(7);

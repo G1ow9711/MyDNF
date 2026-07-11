@@ -3105,6 +3105,14 @@ export function mountApp(root: HTMLDivElement): () => void {
           }
 
           if (event.code === "Enter") {
+            const interactiveSelector = "button, input, select, textarea, a, [contenteditable='true'], [role='button']";
+            const eventTarget = event.target as { closest?: (selector: string) => unknown } | null;
+            const interactiveTarget = eventTarget?.closest?.(interactiveSelector)
+              ?? globalThis.document?.activeElement?.closest?.(interactiveSelector);
+            if (interactiveTarget) {
+              return;
+            }
+
             event.preventDefault();
             if (canEnterDungeon(model.state, model.dungeonPrep.dungeonId, model.dungeonPrep.difficultyId).canEnter) {
               dispatch({ type: "enterDungeon", dungeonId: model.dungeonPrep.dungeonId });

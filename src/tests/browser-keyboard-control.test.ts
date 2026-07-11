@@ -665,6 +665,23 @@ const readDungeonDifficultyStateExpression = `
 })()
 `;
 
+const installFocusedEnterActivationExpression = `
+(() => {
+  if (globalThis.__focusedEnterActivationInstalled) return;
+  globalThis.__focusedEnterActivationInstalled = true;
+  globalThis.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    const control = event.target instanceof Element ? event.target.closest("button") : null;
+    if (!(control instanceof HTMLButtonElement)) return;
+    queueMicrotask(() => {
+      if (!event.defaultPrevented && control.isConnected && document.activeElement === control) {
+        control.click();
+      }
+    });
+  });
+})()
+`;
+
 const readTownEcosystemStateExpression = `
 (() => {
   const shell = document.querySelector(".app-shell");
@@ -1631,6 +1648,47 @@ describe("real browser keyboard control", () => {
         expect(refused.appMode).toBe("dungeon-prep");
         expect(refused.combatScene).toBe(false);
         expect(refused.savedFatigue).toBe(7);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
+  it("keeps focused dungeon prep Enter on the native control action", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, createInitialState());
+        await page.evaluate<void>(installFocusedEnterActivationExpression);
+        await page.click('[data-prepare-dungeon="cinder-kiln-alley"]');
+        await page.evaluate<void>(`document.querySelector('[data-dungeon-prep-back]')?.focus()`);
+        await page.pressKey("Enter");
+        await page.waitFor<BrowserAppModeState>(readAppModeStateExpression, (state) => state.appMode === "town", 5000);
+
+        await page.click('[data-prepare-dungeon="cinder-kiln-alley"]');
+        await page.evaluate<void>(`document.querySelector('[data-dungeon-difficulty="adventure"]')?.focus()`);
+        await page.pressKey("Enter");
+        const selected = await page.waitFor<BrowserDungeonDifficultyState>(
+          readDungeonDifficultyStateExpression,
+          (state) => state.appMode === "dungeon-prep" && state.selectedDifficulty === "adventure",
+          5000
+        );
+        expect(selected.combatScene).toBe(false);
+
+        const lowFatigueState = createInitialState();
+        lowFatigueState.player.fatigue = { current: 5, max: 64 };
+        await seedSaveAndReload(page, lowFatigueState);
+        await page.evaluate<void>(installFocusedEnterActivationExpression);
+        await page.click('[data-prepare-dungeon="cinder-kiln-alley"]');
+        await page.evaluate<void>(`document.querySelector('[data-dungeon-prep-back]')?.focus()`);
+        await page.pressKey("Enter");
+        const returned = await page.waitFor<BrowserDungeonDifficultyState>(
+          readDungeonDifficultyStateExpression,
+          (state) => state.appMode === "town" && state.savedFatigue === 5,
+          5000
+        );
+        expect(returned.combatScene).toBe(false);
       });
     } finally {
       await server.close();

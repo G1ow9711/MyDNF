@@ -6704,4 +6704,82 @@ describe("playable app integration actions", () => {
       Object.defineProperty(globalThis, "removeEventListener", { configurable: true, value: previousRemoveEventListener });
     }
   });
+
+  it("lets focused dungeon prep controls handle Enter through their native click actions", () => {
+    const previousLocalStorage = globalThis.localStorage;
+    const previousAddEventListener = globalThis.addEventListener;
+    const previousRemoveEventListener = globalThis.removeEventListener;
+    const storage = new MemoryStorage();
+    const listeners = new Map<string, EventListener>();
+    let clickHandler: ((event: Event) => void) | undefined;
+    const root = {
+      innerHTML: "",
+      addEventListener(type: string, handler: EventListener): void {
+        if (type === "click") clickHandler = handler as (event: Event) => void;
+      }
+    } as unknown as HTMLDivElement;
+
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: storage });
+    Object.defineProperty(globalThis, "addEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => listeners.set(type, handler)
+    });
+    Object.defineProperty(globalThis, "removeEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => {
+        if (listeners.get(type) === handler) listeners.delete(type);
+      }
+    });
+
+    try {
+      const cleanup = mountApp(root);
+      const button = (dataset: Record<string, string>) => {
+        const element = {
+          tagName: "BUTTON",
+          dataset,
+          closest: () => element
+        };
+        return element;
+      };
+      const prepareButton = button({ prepareDungeon: "cinder-kiln-alley" });
+      const backButton = button({ dungeonPrepBack: "true" });
+      const adventureButton = button({ dungeonDifficulty: "adventure" });
+      const pressFocusedEnter = (target: ReturnType<typeof button>): boolean => {
+        let prevented = false;
+        (listeners.get("keydown") as ((event: KeyboardEvent) => void) | undefined)?.({
+          code: "Enter",
+          repeat: false,
+          target,
+          preventDefault: () => { prevented = true; }
+        } as unknown as KeyboardEvent);
+        return prevented;
+      };
+
+      clickHandler?.({ target: prepareButton } as unknown as Event);
+      expect(pressFocusedEnter(backButton)).toBe(false);
+      clickHandler?.({ target: backButton } as unknown as Event);
+      expect(root.innerHTML).toContain('data-app-mode="town"');
+
+      clickHandler?.({ target: prepareButton } as unknown as Event);
+      expect(pressFocusedEnter(adventureButton)).toBe(false);
+      clickHandler?.({ target: adventureButton } as unknown as Event);
+      expect(root.innerHTML).toContain('data-app-mode="dungeon-prep"');
+      expect(root.innerHTML).toContain('data-dungeon-difficulty="adventure" data-difficulty-selected="true"');
+      expect(root.innerHTML).not.toContain('data-combat-difficulty=');
+
+      const lowState = createInitialState();
+      saveGame(storage, { ...lowState, player: { ...lowState.player, fatigue: { current: 5, max: 64 } } });
+      cleanup();
+      const lowCleanup = mountApp(root);
+      clickHandler?.({ target: prepareButton } as unknown as Event);
+      expect(pressFocusedEnter(backButton)).toBe(false);
+      clickHandler?.({ target: backButton } as unknown as Event);
+      expect(root.innerHTML).toContain('data-app-mode="town"');
+      lowCleanup();
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", { configurable: true, value: previousLocalStorage });
+      Object.defineProperty(globalThis, "addEventListener", { configurable: true, value: previousAddEventListener });
+      Object.defineProperty(globalThis, "removeEventListener", { configurable: true, value: previousRemoveEventListener });
+    }
+  });
 });

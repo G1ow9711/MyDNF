@@ -3021,6 +3021,10 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes weapon-flowing-chain-finish");
     expect(stylesCss).toContain("@keyframes flowing-chain-cast-core");
     expect(stylesCss).toContain("@keyframes flowing-chain-impact-core");
+    expect(stylesCss).toContain('.enemy-frame-sprite[data-sprite-skill-reaction="chain-dance-left"]');
+    expect(stylesCss).toContain('.enemy-frame-sprite[data-sprite-skill-reaction="chain-dance-right"]');
+    expect(stylesCss).toContain('.enemy-frame-sprite[data-sprite-skill-reaction="chain-cross"]');
+    expect(stylesCss).toContain('.enemy-frame-sprite[data-sprite-skill-reaction="chain-finish"]');
   });
 
   it("defines dedicated sword-prism-field player, weapon, field, and ultimate burst animations", () => {

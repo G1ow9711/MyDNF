@@ -13,6 +13,15 @@ type FrameActor = {
   atlas?: string;
   comboStep?: number;
   reactionStep?: number;
+  hitPhase?: string;
+};
+
+const swordDanceEnemyReactionFrames: Readonly<Record<string, number>> = {
+  "chain-open": 12,
+  "chain-dance-left": 12,
+  "chain-dance-right": 13,
+  "chain-cross": 13,
+  "chain-finish": 14
 };
 
 function clamp01(value: number): number {
@@ -134,7 +143,8 @@ export class CombatSpriteStage {
         skillId: enemy.dataset.enemyAttackSkillId || enemy.dataset.bossPhaseSkillId,
         skillStage: enemy.dataset.enemyAttackStage,
         atlas: sprite.dataset.frameAtlas ?? "ash-cinder-imp",
-        reactionStep: Number(enemy.dataset.enemyHitGroundLightStep ?? "0")
+        reactionStep: Number(enemy.dataset.enemyHitGroundLightStep ?? "0"),
+        hitPhase: enemy.dataset.hitPhase
       }, elapsedMs, hitstop);
     }
 
@@ -156,6 +166,7 @@ export class CombatSpriteStage {
     actor.sprite.dataset.spriteComboStep = "";
     actor.sprite.dataset.spriteComboPhase = "";
     actor.sprite.dataset.spriteReactionStep = "";
+    actor.sprite.dataset.spriteSkillReaction = "";
 
     if (actor.id === "player") {
       const classId = actor.sprite.dataset.frameClassId ?? "ember-warden";
@@ -171,6 +182,8 @@ export class CombatSpriteStage {
       actor.sprite.dataset.spriteSkill = actor.skillId ?? "";
       actor.sprite.dataset.spriteSkillPhase = actor.skillStage ?? "none";
     }
+
+    const swordDanceEnemyReaction = actor.id === "player" ? undefined : swordDanceEnemyReactionFrames[actor.hitPhase ?? ""];
 
     if (flowingLightSkill) {
       const p = clamp01(actor.progress);
@@ -192,6 +205,10 @@ export class CombatSpriteStage {
         frame = 14 + Math.min(1, Math.floor(p * 2));
       }
       state = "skill-dance";
+    } else if (swordDanceEnemyReaction !== undefined) {
+      frame = swordDanceEnemyReaction;
+      actor.sprite.dataset.spriteSkillReaction = actor.hitPhase ?? "";
+      state = actor.hitPhase === "chain-finish" ? "knockdown" : "hit";
     } else if (actor.defeated || actor.motion === "defeated" || actor.motion === "knockdown") {
       frame = actor.reactionStep === 3 ? 14 : 14 + Math.min(1, Math.floor((elapsedMs % 360) / 180));
       if (actor.reactionStep) actor.sprite.dataset.spriteReactionStep = String(actor.reactionStep);

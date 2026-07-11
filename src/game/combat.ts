@@ -4054,6 +4054,7 @@ const flowingLightChainStages: Array<{
   damageMultiplier: number;
   hitstopMs: number;
   knockback: number;
+  vfxWindowMs?: number;
   juggle?: boolean;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
@@ -4113,6 +4114,7 @@ const flowingLightChainStages: Array<{
     damageMultiplier: 1.5,
     hitstopMs: 82,
     knockback: 52,
+    vfxWindowMs: 420,
     juggle: true,
     statusTags: ["stagger"],
     actionTags: ["launcher"]
@@ -4153,7 +4155,7 @@ function applyFlowingLightChain(run: CombatRun, skill: ClassSkillDefinition, can
       id: `hit-${run.elapsedMs}-skill-${skill.id}-${index + 1}-${stage.phase}`,
       hitPhase: stage.phase,
       vfxCue: stage.cue,
-      vfxWindowMs: 260,
+      vfxWindowMs: stage.vfxWindowMs ?? 260,
       missOnEmpty: index === 0
     });
   }, movingRun);

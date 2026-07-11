@@ -130,6 +130,9 @@ type BrowserFlowingLightPhaseSample = {
     attackSkillId: string;
     attackStage: string;
     attackProgress: number;
+    spriteFrame: number;
+    spriteReaction: string;
+    spriteTransform: string;
   }>;
 };
 
@@ -1292,7 +1295,9 @@ const flowingLightPhases = [
     waveAnimation: "flowing-chain-open-wave",
     sparksAnimation: "flowing-chain-open-sparks",
     minFrame: 0,
-    maxFrame: 3
+    maxFrame: 3,
+    enemyFrame: 12,
+    enemyReaction: "chain-open"
   },
   {
     phase: "chain-dance-left",
@@ -1303,7 +1308,9 @@ const flowingLightPhases = [
     waveAnimation: "flowing-chain-dance-left-wave",
     sparksAnimation: "flowing-chain-dance-left-sparks",
     minFrame: 4,
-    maxFrame: 7
+    maxFrame: 7,
+    enemyFrame: 12,
+    enemyReaction: "chain-dance-left"
   },
   {
     phase: "chain-dance-right",
@@ -1314,7 +1321,9 @@ const flowingLightPhases = [
     waveAnimation: "flowing-chain-dance-right-wave",
     sparksAnimation: "flowing-chain-dance-right-sparks",
     minFrame: 8,
-    maxFrame: 11
+    maxFrame: 11,
+    enemyFrame: 13,
+    enemyReaction: "chain-dance-right"
   },
   {
     phase: "chain-cross",
@@ -1325,7 +1334,9 @@ const flowingLightPhases = [
     waveAnimation: "flowing-chain-cross-wave",
     sparksAnimation: "flowing-chain-cross-sparks",
     minFrame: 6,
-    maxFrame: 11
+    maxFrame: 11,
+    enemyFrame: 13,
+    enemyReaction: "chain-cross"
   },
   {
     phase: "chain-finish",
@@ -1336,7 +1347,9 @@ const flowingLightPhases = [
     waveAnimation: "flowing-chain-finish-wave",
     sparksAnimation: "flowing-chain-finish-sparks",
     minFrame: 12,
-    maxFrame: 15
+    maxFrame: 15,
+    enemyFrame: 14,
+    enemyReaction: "chain-finish"
   }
 ] as const;
 
@@ -1701,16 +1714,22 @@ const installFlowingLightPhaseRecorderExpression = `
       spriteBackground: sprite ? getComputedStyle(sprite).backgroundImage : "",
       spriteSlashWidth: sprite ? getComputedStyle(sprite, "::before").borderTopWidth : "",
       spriteGhostBackground: sprite ? getComputedStyle(sprite, "::after").backgroundImage : "",
-      enemies: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => ({
-        id: enemy.getAttribute("data-enemy-id") ?? "",
-        kind: enemy.getAttribute("data-enemy-kind") ?? "",
-        hp: Number(enemy.getAttribute("data-enemy-hp-current") || "0"),
-        x: Number(enemy.getAttribute("data-enemy-x") || "0"),
-        y: Number(enemy.getAttribute("data-enemy-y") || "0"),
-        attackSkillId: enemy.getAttribute("data-enemy-attack-skill-id") ?? "",
-        attackStage: enemy.getAttribute("data-enemy-attack-stage") ?? "",
-        attackProgress: Number(enemy.getAttribute("data-enemy-attack-progress") || "0")
-      }))
+      enemies: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => {
+        const enemySprite = enemy.querySelector(".enemy-frame-sprite");
+        return {
+          id: enemy.getAttribute("data-enemy-id") ?? "",
+          kind: enemy.getAttribute("data-enemy-kind") ?? "",
+          hp: Number(enemy.getAttribute("data-enemy-hp-current") || "0"),
+          x: Number(enemy.getAttribute("data-enemy-x") || "0"),
+          y: Number(enemy.getAttribute("data-enemy-y") || "0"),
+          attackSkillId: enemy.getAttribute("data-enemy-attack-skill-id") ?? "",
+          attackStage: enemy.getAttribute("data-enemy-attack-stage") ?? "",
+          attackProgress: Number(enemy.getAttribute("data-enemy-attack-progress") || "0"),
+          spriteFrame: Number(enemySprite?.getAttribute("data-sprite-frame") ?? "-1"),
+          spriteReaction: enemySprite?.getAttribute("data-sprite-skill-reaction") ?? "",
+          spriteTransform: enemySprite ? getComputedStyle(enemySprite).transform : ""
+        };
+      })
     };
   };
   const tick = () => {
@@ -2733,7 +2752,13 @@ describe("real browser keyboard control", () => {
           expect(phaseState?.spriteBackground).toContain("liuli-flowing-light-array-atlas");
           expect(phaseState?.spriteSlashWidth).not.toBe("0px");
           expect(phaseState?.spriteGhostBackground).toContain("liuli-flowing-light-array-atlas");
+          expect(phaseState?.enemies).toHaveLength(2);
+          expect(phaseState?.enemies.every((enemy) => enemy.spriteFrame === expected.enemyFrame)).toBe(true);
+          expect(phaseState?.enemies.every((enemy) => enemy.spriteReaction === expected.enemyReaction)).toBe(true);
         }
+        const leftReaction = samples.find((sample) => sample.hitPhase === "chain-dance-left")?.enemies[0];
+        const rightReaction = samples.find((sample) => sample.hitPhase === "chain-dance-right")?.enemies[0];
+        expect(leftReaction?.spriteTransform).not.toBe(rightReaction?.spriteTransform);
 
         const evidence = await page.waitFor<BrowserFlowingLightSwordDanceEvidence>(
           readFlowingLightSwordDanceEvidenceExpression,

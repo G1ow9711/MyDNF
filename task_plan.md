@@ -407,7 +407,16 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify the full skill through real Space input and inspect desktop evidence.
 - [x] Run broad regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 197 Sword Dance Enemy Reaction Choreography
+- [x] Audit enemy hit-phase mounting, generic hit frames, and the sword-dance browser recorder.
+- [x] Lock open, left, right, cross, and finish enemy reaction frames.
+- [x] Add RED coverage for synchronized player/enemy phase frames and reaction metadata.
+- [x] Implement directional monster reactions and finisher airborne pose.
+- [x] Verify the complete interaction through real Space input and inspect final evidence.
+- [x] Run broad regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 197 real-browser RED captured all player phases and happened to see expected generic enemy frame numbers, but every enemy `data-sprite-skill-reaction` was empty. This proved monster frames were incidental elapsed-time results rather than sword-dance-driven reactions.
 - Task 196 real-browser finisher capture first timed out after the earlier mid-dance screenshot encoding consumed the remaining live skill window. Removed the pre-finisher capture from the acceptance path and prioritized same-frame finisher evidence; the previously inspected mid-dance image remains valid.
 - Task 196 integration diagnostics found stages 1-6 landed twelve hits but reduced both normal enemies to zero HP before stage 7, so the live target recheck correctly skipped the finisher. Redistributed the same overall damage budget toward the final strike instead of weakening the acceptance requirement.
 - A combined Task 196 source patch targeted a partial fragment inside the one-line combat-player template and was rejected atomically. No source file changed; the implementation was split into core and mounted-state patches.

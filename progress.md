@@ -4336,10 +4336,20 @@
 
 ## Task 196 Flowing Sword Dance Seven-Hit Choreography
 - Audited the existing three-hit skill core, mounted phase state, 16-frame atlas mapping, CSS animation families, and true-browser Space route. No subagent was started.
-- Locked a 1120 ms seven-hit sequence at 220/330/440/550/660/790/940 ms with open, alternating left/right dance, cross, and launching finish phases.
+- Locked a 1300 ms seven-hit sequence at 220/330/440/550/660/790/940 ms with open, alternating left/right dance, cross, and launching finish phases plus a readable 360 ms finisher recovery.
 - Added the design and implementation records. RED tests and production implementation follow.
 - Added the core RED contract. The focused old implementation failed because only three scheduled hitboxes existed; no production timing was changed before observing this failure.
 - Expanded the skill to seven dynamic hitboxes at 220/330/440/550/660/790/940 ms. Rapid cuts carry light damage and short hitstop; the 940 ms finisher carries the main damage, stagger, launcher, 82 ms hitstop, and 52 px knockback.
 - Added left/right dance hit phases and cues, unique stage ids, 168 px path movement, phase-local sprite progress, frames 0-3/4-7/8-11/6-11/12-15, and dedicated body, weapon, sword-arc, afterimage, root VFX, and target-impact animation families.
 - Real Space input on Warrior difficulty proves all seven stages, 14 unique target hit events, 14 CHAIN, over 140 px forward travel, both targets airborne, and the original skill atlas. Inspected mid-dance and final desktop evidence; the final image retains character, monsters, environment, afterimage, and the wide cyan finisher arc without a clear-room overlay.
 - Final verification passed: six focused combat behavior routes, five focused render/style routes, 671/671 non-keyboard and computed-style tests, three real-browser compatibility routes in 47.21 seconds, and production build. Chinese commit and push follow this record update.
+
+## Task 197 Sword Dance Enemy Reaction Choreography
+- Audited the mounted enemy hit phase, sprite-stage reaction priority, atlas frame ranges, CSS transforms, and sword-dance recorder. No subagent was started.
+- Locked phase reactions: open 12, left 12, right 13, cross 13, finish 14 with directional body transforms and authoritative finisher airborne state.
+- Added design and implementation records. RED browser coverage follows.
+- Added true-browser RED assertions for both monsters' frame and reaction metadata on all five visual phases. The old implementation failed exactly on absent skill-driven reactions.
+- Passed enemy `data-hit-phase` into the deterministic sprite stage and mapped open/left/right/cross/finish to frames 12/12/13/13/14. Added opposite directional body transforms, cross-hit compression, and a raised rotating finisher pose.
+- Extended the action to 1300 ms for a 360 ms finisher recovery and the finisher target VFX window to 420 ms, keeping the character arc and monster reaction visible together while all seven hit times remain unchanged.
+- Real Space acceptance proves both monsters use the expected frame and reaction on every phase, left/right transforms differ, the combo reaches 14, and both targets are airborne. The inspected final screenshot shows the wide cyan arc and both monsters rotating in the air without covering the Chinese-fantasy environment.
+- Final verification passed: six focused sword-dance core routes, the focused true-browser interaction, 671/671 non-keyboard and computed-style tests, three real-browser compatibility routes in 48.96 seconds, and final production build. Chinese commit and push follow this record update.

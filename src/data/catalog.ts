@@ -276,7 +276,7 @@ const skillAnimationById: Record<string, SkillAnimationDefinition> = {
   },
   "flowing-light-chain": {
     preset: "liuli-light-chain",
-    durationMs: 1120,
+    durationMs: 1300,
     hitFrameMs: 220,
     lungePx: 56,
     weaponArc: "chain-cut",

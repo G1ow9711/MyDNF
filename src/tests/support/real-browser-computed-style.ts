@@ -1091,7 +1091,7 @@ function playerHurtMotionFixtureMarkup(fixture: PlayerHurtMotionFixture): string
 }
 
 function playerSkillPhaseFixtureMarkup(fixture: PlayerSkillPhaseFixture): string {
-  const durationMs = fixture.durationMs ?? 1120;
+  const durationMs = fixture.durationMs ?? 1300;
   const skillId = fixture.skillId ?? "flowing-light-chain";
   const preset = fixture.preset ?? "liuli-light-chain";
   const weaponArc = fixture.weaponArc ?? "chain-cut";

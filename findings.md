@@ -1535,3 +1535,10 @@
 - The first seven-stage integration render produced all twelve hits from stages 1-6 but no finisher because normal-room targets were already dead, not because the stage was missing or interrupted. Damage was redistributed into light rapid cuts plus a dominant finisher while keeping the total multiplier close to the previous skill, allowing ordinary targets to display the complete choreography.
 - A phase-local sprite clock can be derived from each hit event's mounted `data-player-skill-hit-at-ms`; this keeps body frames frozen by authoritative hitstop and avoids a second CSS-only gameplay timer.
 - Screenshot encoding can consume short live phases. The final route captures only after observing current `chain-finish`, frame 14-15, 14 CHAIN, and both enemies airborne in the same browser sample, then runs historical assertions afterward.
+
+## Task 197 Sword Dance Enemy Reaction Audit
+- Combat enemy markup already mounts each target's latest authoritative `data-hit-phase`, including every sword-dance phase.
+- `CombatSpriteStage` only reads `data-enemy-hit-ground-light-step`; all non-ground-light skill hits therefore reuse the generic elapsed-time frame 12/13 reaction.
+- The existing monster atlases reserve frames 12-15 for hit and down states. Directional transforms plus phase-specific selection can create readable alternating reactions without changing combat control or introducing fake timers.
+- The 1120 ms skill duration left only 180 ms after the 940 ms finisher, shorter than browser capture and visually abrupt. A 1300 ms action lock preserves all hit timings while giving the finisher 360 ms of readable recovery.
+- Extending only the player action was insufficient because enemy hit-phase mounting expires with each hit event's VFX window. The finisher now owns a 420 ms target window while rapid cuts remain 260 ms, keeping both actors synchronized without accumulating all seven effects.

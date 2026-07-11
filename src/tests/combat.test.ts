@@ -6938,7 +6938,8 @@ describe("combat actions and impact feel", () => {
       "flowing-chain-cross",
       "flowing-chain-finish"
     ]);
-    expect(chainHits.every((event) => event.vfxWindowMs === 260)).toBe(true);
+    expect(chainHits.filter((event) => event.hitPhase !== "chain-finish").every((event) => event.vfxWindowMs === 260)).toBe(true);
+    expect(chainHits.filter((event) => event.hitPhase === "chain-finish").every((event) => event.vfxWindowMs === 420)).toBe(true);
     expect(chainHits.filter((event) => event.hitPhase === "chain-finish").every((event) => event.statusTags?.includes("stagger"))).toBe(
       true
     );

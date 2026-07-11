@@ -178,6 +178,8 @@ export type RealBrowserKeyCode =
   | "KeyU"
   | "KeyX"
   | "KeyZ"
+  | "Digit1"
+  | "Digit2"
   | "Space";
 
 export type RealBrowserAppPage = {
@@ -988,6 +990,8 @@ function keyInfoForCode(code: RealBrowserKeyCode): { key: string; text: string; 
     KeyU: { key: "u", text: "u", windowsVirtualKeyCode: 85 },
     KeyX: { key: "x", text: "x", windowsVirtualKeyCode: 88 },
     KeyZ: { key: "z", text: "z", windowsVirtualKeyCode: 90 },
+    Digit1: { key: "1", text: "1", windowsVirtualKeyCode: 49 },
+    Digit2: { key: "2", text: "2", windowsVirtualKeyCode: 50 },
     Space: { key: " ", text: " ", windowsVirtualKeyCode: 32 }
   };
 

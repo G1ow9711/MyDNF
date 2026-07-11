@@ -1322,3 +1322,10 @@
 - Added encounter-local `ashSummonCount`, so phase two can complete one Ash Summon cast but cannot snowball repeated crawler waves. Room settlement restores 30% max HP, giving the offline default route a sustain rule before consumables exist.
 - Real-control helpers now wait through hurt-lock, use boss windup lane movement plus `C` jump, align exit lanes, and recognize gate entry initiated by that alignment. Town trade and gift-pack checks use bounded real mouse retries only after their state has not changed.
 - Verification: phase-three/summon/recovery reducer coverage passed; core regression 447/447; production build passed; serial real-browser suite passed 22/22 in 536.08 seconds.
+
+## Task 178 Consumable Combat Loop
+- Added an offline consumable quickbar with recovery potion (`1`) and revival token (`2`) without consuming the established `A/S/D/F/G/H` skill hotkeys.
+- Recovery potion restores 35% max HP in active combat; revival token restores 35% HP after defeat, keeps the current room/enemy state, and grants 1.2 seconds of invulnerability. Both actions emit their own player-status VFX and persist through the existing local save path.
+- Normal rooms award a recovery potion, boss rooms award a revival token, gift packs include supplies, and the shop sells both independent replenishment items. Legacy saves receive the default quickbar inventory during validation.
+- Browser regression exposed a real control-helper gap: move-to-target waited through player hurt lock. The helper now yields back to combat when interrupted. Liuli entry acceptance uses the established focused keyboard path rather than an intermittent post-reload mouse entry.
+- Verification: focused real `Digit1` potion/save/VFX acceptance passed; core regression 474/474; production build passed; final serial browser suite passed 23/23 in 518.14 seconds.

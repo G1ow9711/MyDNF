@@ -1,5 +1,5 @@
 import { catalog } from "../data/catalog";
-import type { CurrencyState, GameState, GearItem, GearSlot, OwnedGearItem, QuestStatus } from "./types";
+import type { ConsumableId, CurrencyState, GameState, GearItem, GearSlot, OwnedGearItem, QuestStatus } from "./types";
 import { createTradeBoard } from "../systems/market";
 
 const starterCurrency: CurrencyState = {
@@ -9,6 +9,11 @@ const starterCurrency: CurrencyState = {
   valorToken: 0,
   tradeCredit: 8,
   protectionTicket: 1
+};
+
+export const defaultConsumables: Record<ConsumableId, number> = {
+  "healing-potion": 3,
+  "revival-token": 1
 };
 
 function formatOwnedGearSequence(sequence: number | string): string {
@@ -127,6 +132,7 @@ export function createInitialState(): GameState {
         "ember-warden": 0
       },
       currencies: { ...starterCurrency },
+      consumables: { ...defaultConsumables },
       inventory,
       equipment: ownedWeapon ? { weapon: ownedWeapon.instanceId } : {},
       loadouts: [{}, {}, {}],

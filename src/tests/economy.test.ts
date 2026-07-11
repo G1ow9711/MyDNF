@@ -294,7 +294,19 @@ describe("shop packs", () => {
     expect(bought.player.inventory.at(-1)?.catalogGearId).toBe("epic-liuli-flow-ring");
     expect(bought.shop.ownedCosmetics).toContain("liuli-market-coat");
     expect(bought.shop.boxes["ember-mythic-box"]).toBe(3);
+    expect(bought.player.consumables).toEqual({ "healing-potion": 5, "revival-token": 2 });
     expect(state.shop.ownedCosmetics).toEqual([]);
+  });
+
+  it("sells recovery potions and revival tokens as independent consumable shop items", () => {
+    const state = withCurrencies(createInitialState(), { gold: 400, valorToken: 2 });
+    const withPotions = buyShopItem(state, "healing-potion-bundle");
+    const withRevival = buyShopItem(withPotions, "revival-token");
+
+    expect(withPotions.player.currencies.gold).toBe(220);
+    expect(withPotions.player.consumables["healing-potion"]).toBe(6);
+    expect(withRevival.player.currencies.valorToken).toBe(1);
+    expect(withRevival.player.consumables["revival-token"]).toBe(2);
   });
 
   it("rejects unknown or unaffordable shop purchases", () => {

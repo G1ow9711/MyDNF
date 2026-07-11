@@ -1,5 +1,5 @@
 import { catalog } from "../data/catalog";
-import type { ClassSkillDefinition, DungeonId, GameState } from "./types";
+import type { ClassSkillDefinition, ConsumableId, DungeonId, GameState } from "./types";
 import type { CombatInput } from "./input";
 import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
 import { classResourceValue } from "../systems/classes";
@@ -29,6 +29,7 @@ export type CombatActionInput =
   | { type: "heavy" }
   | { type: "jump" }
   | { type: "backstep" }
+  | { type: "consume"; consumableId: ConsumableId }
   | { type: "skill"; skillId: string; inputMethod?: CombatSkillInputMethod };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
 export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
@@ -135,6 +136,8 @@ export type CombatVfxCue =
   | "anvil-guard-open"
   | "molten-wall-open"
   | "black-aegis-open"
+  | "healing-potion-use"
+  | "revival-token-use"
   | "furnace-roar-impact"
   | "shadow-roll-shot"
   | "crow-feint-shot"
@@ -434,7 +437,7 @@ export interface CombatPlayerHitEvent {
 export interface CombatPlayerStatusEvent {
   kind: "player-status";
   id: string;
-  action: "skill";
+  action: "skill" | "consumable";
   skillId: string;
   occurredAtMs: number;
   inputToHitMs: number;
@@ -507,6 +510,7 @@ export interface CombatLootEvent {
   gold: number;
   ironDust: number;
   arcShard: number;
+  consumables?: Partial<Record<ConsumableId, number>>;
   gearDropId?: string;
 }
 
@@ -6317,6 +6321,10 @@ function canBufferAction(run: CombatRun, action: CombatActionInput, remainingLoc
     return false;
   }
 
+  if (action.type === "consume") {
+    return false;
+  }
+
   if (action.type !== "skill") {
     return true;
   }
@@ -6578,6 +6586,10 @@ function performAirHeavyAction(run: CombatRun): CombatRun {
 }
 
 export function performAction(run: CombatRun, action: CombatActionInput): CombatRun {
+  if (action.type === "consume") {
+    return performConsumableAction(run, action.consumableId);
+  }
+
   if (run.failed || run.player.defeated) {
     return run;
   }
@@ -6991,12 +7003,128 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   return finishSkillAction(hitRun);
 }
 
+export const healingPotionRecoveryRatio = 0.35;
+export const revivalTokenRecoveryRatio = 0.35;
+export const revivalTokenInvulnerabilityMs = 1200;
+
+function consumeFromRunState(run: CombatRun, consumableId: ConsumableId): GameState | undefined {
+  const amount = run.state.player.consumables[consumableId] ?? 0;
+
+  if (amount <= 0) {
+    return undefined;
+  }
+
+  return {
+    ...run.state,
+    player: {
+      ...run.state.player,
+      consumables: {
+        ...run.state.player.consumables,
+        [consumableId]: amount - 1
+      }
+    }
+  };
+}
+
+function consumableStatusEvent(run: CombatRun, consumableId: ConsumableId): CombatPlayerStatusEvent {
+  return {
+    kind: "player-status",
+    id: `consumable-${consumableId}-${run.elapsedMs}`,
+    action: "consumable",
+    skillId: consumableId,
+    occurredAtMs: run.elapsedMs,
+    inputToHitMs: 0,
+    canceledFromCombo: false,
+    vfxCue: consumableId === "healing-potion" ? "healing-potion-use" : "revival-token-use",
+    vfxWindowMs: consumableId === "healing-potion" ? 520 : 780,
+    casterPosition: { x: run.player.x, y: run.player.y },
+    casterFacing: run.player.facing
+  };
+}
+
+export function performConsumableAction(run: CombatRun, consumableId: ConsumableId): CombatRun {
+  const nextState = consumeFromRunState(run, consumableId);
+
+  if (!nextState) {
+    return run;
+  }
+
+  if (consumableId === "healing-potion") {
+    if (run.failed || run.player.defeated || run.completed || roomIsCleared(run) || run.player.hp >= run.player.maxHp) {
+      return run;
+    }
+
+    return {
+      ...run,
+      state: nextState,
+      events: [...run.events, consumableStatusEvent(run, consumableId)],
+      player: {
+        ...run.player,
+        hp: Math.min(run.player.maxHp, run.player.hp + Math.ceil(run.player.maxHp * healingPotionRecoveryRatio))
+      }
+    };
+  }
+
+  if (!run.failed && !run.player.defeated) {
+    return run;
+  }
+
+  const revivedPlayer = setPlayerInvulnerabilityWindow(
+    {
+      ...run.player,
+      hp: Math.ceil(run.player.maxHp * revivalTokenRecoveryRatio),
+      comboStep: 0,
+      actionLockUntilMs: run.elapsedMs + 260,
+      cancelWindowUntilMs: 0,
+      hitstopUntilMs: run.elapsedMs,
+      hurtLockUntilMs: run.elapsedMs,
+      boundUntilMs: 0,
+      airState: "grounded",
+      jumpStartedAtMs: 0,
+      airborneUntilMs: 0,
+      landingUntilMs: 0,
+      airAttackUsed: false,
+      airAttackType: "none",
+      airAttackStartedAtMs: 0,
+      airAttackUntilMs: 0,
+      normalAttackStartedAtMs: 0,
+      normalAttackUntilMs: 0,
+      normalAttackComboStep: 0,
+      normalAttackType: "none",
+      dashAttackReadyUntilMs: 0,
+      quickRecoverReadyUntilMs: 0,
+      quickRecoverStartedAtMs: 0,
+      quickRecoverUntilMs: 0,
+      activeSkillMovement: undefined,
+      bufferedAction: undefined,
+      bufferedActionQueuedAtMs: undefined,
+      bufferedActionExecuteAtMs: undefined,
+      defeated: false
+    },
+    run.elapsedMs,
+    run.elapsedMs + revivalTokenInvulnerabilityMs
+  );
+
+  return {
+    ...run,
+    state: nextState,
+    failed: false,
+    events: [...run.events, consumableStatusEvent(run, consumableId)],
+    scheduledEnemyHitEffects: [],
+    scheduledMissEffects: [],
+    scheduledArenaHazards: [],
+    player: revivedPlayer
+  };
+}
+
 export function skillCooldownRemaining(run: CombatRun, skillId: string): number {
   return Math.max(0, (run.player.skillCooldowns[skillId] ?? 0) - run.elapsedMs);
 }
 
 function createLootEvent(run: CombatRun): CombatLootEvent {
   const dungeonBonus = run.dungeonId === "liuli-furnace" ? 1 : 0;
+  const dungeon = getDungeon(run.dungeonId);
+  const bossRoom = dungeon !== undefined && run.roomIndex === dungeon.rooms - 1;
 
   return {
     dungeonId: run.dungeonId,
@@ -7005,6 +7133,7 @@ function createLootEvent(run: CombatRun): CombatLootEvent {
     gold: 120 + run.roomIndex * 30 + dungeonBonus * 80,
     ironDust: 6 + run.roomIndex * 2,
     arcShard: dungeonBonus,
+    consumables: bossRoom ? { "revival-token": 1 } : { "healing-potion": 1 },
     gearDropId: run.roomIndex % 2 === 0 ? catalog.gear[run.roomIndex % catalog.gear.length]?.id : undefined
   };
 }

@@ -66,6 +66,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Add live Boss hazard sidestep and heavy-hit quick-recover keyboard acceptance
 - [x] Complete fresh-save Cinder-to-Liuli campaign, chapter-two, and epilogue browser acceptance with reload persistence
 - [x] Add Taotie phase-three armor pulse, bounded ash summons, room recovery, and serial real-browser combat acceptance
+- [x] Add consumable quickbar, recovery/revival, combat drops, shop supplies, save migration, and serial real-browser acceptance
 - **Status:** ongoing for continuation polish; latest full verification is tracked in `progress.md`
 
 ## Key Questions

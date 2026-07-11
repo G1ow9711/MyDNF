@@ -60,6 +60,8 @@ export type SystemId = "smith" | "trade" | "auction" | "amplification" | "costum
 
 export type CurrencyId = "gold" | "ironDust" | "arcShard" | "valorToken" | "tradeCredit" | "protectionTicket";
 
+export type ConsumableId = "healing-potion" | "revival-token";
+
 export interface StatBlock {
   attack?: number;
   defense?: number;
@@ -326,6 +328,7 @@ export interface PlayerState {
   heat: number;
   classResources: Partial<Record<ClassId, number>>;
   currencies: CurrencyState;
+  consumables: Record<ConsumableId, number>;
   inventory: OwnedGearItem[];
   equipment: Partial<Record<GearSlot, string>>;
   loadouts: Array<Partial<Record<GearSlot, string>>>;

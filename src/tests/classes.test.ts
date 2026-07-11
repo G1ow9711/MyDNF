@@ -220,6 +220,19 @@ describe("class save validation", () => {
     });
   });
 
+  it("migrates legacy saves with the default consumable quickbar inventory", () => {
+    const storage = new MemoryStorage();
+    const legacySave = cloneSave(createInitialState());
+
+    delete (legacySave.player as Record<string, unknown>).consumables;
+    writeSave(storage, legacySave);
+
+    expect((loadGame(storage)?.player as { consumables?: unknown }).consumables).toEqual({
+      "healing-potion": 3,
+      "revival-token": 1
+    });
+  });
+
   it("rejects malformed class resource save data", () => {
     const storage = new MemoryStorage();
     const save = cloneSave(createInitialState());

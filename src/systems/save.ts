@@ -1,10 +1,12 @@
 import { catalog } from "../data/catalog";
+import { defaultConsumables } from "../game/state";
 import type {
   AmplifyStat,
   AuctionPriceRecord,
   AdvancementId,
   AuctionStatus,
   ClassId,
+  ConsumableId,
   CurrencyId,
   DungeonId,
   GameState,
@@ -29,6 +31,7 @@ export function saveGame(storage: SaveStorage, state: GameState): void {
 }
 
 const currencyIds: readonly CurrencyId[] = ["gold", "ironDust", "arcShard", "valorToken", "tradeCredit", "protectionTicket"];
+const consumableIds: readonly ConsumableId[] = ["healing-potion", "revival-token"];
 const gearSlots: readonly GearSlot[] = [
   "weapon",
   "core",
@@ -145,6 +148,29 @@ function validateCurrencies(value: unknown): void {
       throw new Error(`Malformed save data: player.currencies.${currencyId} must be numeric`);
     }
   }
+}
+
+function validateConsumables(value: unknown): Record<ConsumableId, number> {
+  if (value === undefined) {
+    return { ...defaultConsumables };
+  }
+
+  const consumables = requireRecord(value, "player.consumables");
+  const normalized = {} as Record<ConsumableId, number>;
+
+  for (const consumableId of consumableIds) {
+    const amount = consumables[consumableId];
+    normalized[consumableId] =
+      amount === undefined ? defaultConsumables[consumableId] : requireFiniteNumber(amount, `player.consumables.${consumableId}`, 0);
+  }
+
+  for (const consumableId of Object.keys(consumables)) {
+    if (!consumableIds.includes(consumableId as ConsumableId)) {
+      throw new Error(`Malformed save data: player.consumables contains unknown consumable ${consumableId}`);
+    }
+  }
+
+  return normalized;
 }
 
 function validateOwnedGearItem(value: unknown, path: string): string {
@@ -457,6 +483,7 @@ function validateSave(value: unknown): GameState {
   const classResources = validateClassResources(player.classResources, classId, playerHeat);
   const currentHeat = classResources[classId] ?? normalizeClassResourceValue(classId, playerHeat);
   validateCurrencies(player.currencies);
+  const consumables = validateConsumables(player.consumables);
   const ownedInstanceIds = validateInventory(player.inventory);
   validateEquipmentRefs(player.equipment, "player.equipment", ownedInstanceIds);
   validateLoadouts(player.loadouts, ownedInstanceIds);
@@ -472,7 +499,8 @@ function validateSave(value: unknown): GameState {
     player: {
       ...player,
       heat: currentHeat,
-      classResources
+      classResources,
+      consumables
     },
     market: {
       ...market,

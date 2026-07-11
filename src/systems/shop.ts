@@ -1,5 +1,5 @@
 import { addOwnedGear } from "../game/state";
-import type { CurrencyId, CurrencyState, GameState, Rarity, ShopState } from "../game/types";
+import type { ConsumableId, CurrencyId, CurrencyState, GameState, Rarity, ShopState } from "../game/types";
 
 interface ShopSkuDefinition {
   sku: string;
@@ -9,6 +9,7 @@ interface ShopSkuDefinition {
     gear?: string[];
     cosmetics?: string[];
     boxes?: Record<string, number>;
+    consumables?: Partial<Record<ConsumableId, number>>;
   };
 }
 
@@ -51,7 +52,8 @@ const shopSkus: ShopSkuDefinition[] = [
       currencies: { ironDust: 80, arcShard: 4, protectionTicket: 2 },
       gear: ["epic-liuli-flow-ring"],
       cosmetics: ["liuli-market-coat"],
-      boxes: { "ember-mythic-box": 3 }
+      boxes: { "ember-mythic-box": 3 },
+      consumables: { "healing-potion": 2, "revival-token": 1 }
     }
   },
   {
@@ -67,6 +69,20 @@ const shopSkus: ShopSkuDefinition[] = [
     contents: {
       cosmetics: ["forge-market-formal"],
       boxes: { "ember-mythic-box": 1 }
+    }
+  },
+  {
+    sku: "healing-potion-bundle",
+    cost: { gold: 180 },
+    contents: {
+      consumables: { "healing-potion": 3 }
+    }
+  },
+  {
+    sku: "revival-token",
+    cost: { valorToken: 1 },
+    contents: {
+      consumables: { "revival-token": 1 }
     }
   }
 ];
@@ -205,7 +221,14 @@ export function buyShopItem(state: GameState, sku: string): GameState {
     },
     player: {
       ...state.player,
-      currencies: applyCurrencyContents(state.player.currencies, item.cost, item.contents.currencies)
+      currencies: applyCurrencyContents(state.player.currencies, item.cost, item.contents.currencies),
+      consumables: Object.entries(item.contents.consumables ?? {}).reduce(
+        (consumables, [consumableId, amount]) => ({
+          ...consumables,
+          [consumableId]: (consumables[consumableId as ConsumableId] ?? 0) + amount
+        }),
+        state.player.consumables
+      ) as Record<ConsumableId, number>
     }
   };
 

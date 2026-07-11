@@ -302,7 +302,60 @@ function withPlayerAndEnemies(
 }
 
 describe("combat run setup and movement", () => {
-  it("creates a dungeon run and clamps belt-scroll movement from keyboard input", () => {
+it("consumes a healing potion during combat and caps the recovered health", () => {
+const state = createInitialState();
+const run = createCombatRun(state, "cinder-kiln-alley");
+const woundedRun: CombatRun = {
+...run,
+player: {
+...run.player,
+hp: run.player.maxHp - 10
+}
+};
+
+const healed = performAction(woundedRun, { type: "consume", consumableId: "healing-potion" });
+
+expect(healed.player.hp).toBe(woundedRun.player.maxHp);
+expect(healed.state.player.consumables["healing-potion"]).toBe(state.player.consumables["healing-potion"] - 1);
+expect(healed.events.at(-1)).toMatchObject({ kind: "player-status", action: "consumable", skillId: "healing-potion", vfxCue: "healing-potion-use" });
+});
+
+it("uses a revival token to restore a defeated player without resetting current enemies", () => {
+const state = createInitialState();
+const run = createCombatRun(state, "cinder-kiln-alley");
+const defeatedRun: CombatRun = {
+...run,
+failed: true,
+enemies: run.enemies.map((enemy, index) => (index === 0 ? { ...enemy, hp: Math.max(1, enemy.hp - 17) } : enemy)),
+player: {
+...run.player,
+hp: 0,
+defeated: true
+}
+};
+
+const revived = performAction(defeatedRun, { type: "consume", consumableId: "revival-token" });
+
+expect(revived.failed).toBe(false);
+expect(revived.player.defeated).toBe(false);
+expect(revived.player.hp).toBe(Math.ceil(revived.player.maxHp * 0.35));
+expect(revived.player.invulnerableUntilMs).toBeGreaterThan(revived.elapsedMs);
+expect(revived.enemies[0]?.hp).toBe(defeatedRun.enemies[0]?.hp);
+expect(revived.state.player.consumables["revival-token"]).toBe(state.player.consumables["revival-token"] - 1);
+expect(revived.events.at(-1)).toMatchObject({ kind: "player-status", action: "consumable", skillId: "revival-token", vfxCue: "revival-token-use" });
+});
+
+it("awards combat consumables through room loot", () => {
+const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
+const cleared = finishRoom({
+...run,
+enemies: run.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
+});
+
+expect(cleared.lootEvents.at(-1)?.consumables).toEqual({ "healing-potion": 1 });
+});
+
+it("creates a dungeon run and clamps belt-scroll movement from keyboard input", () => {
     const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
     const input = mapKeyboardToCombatInput(new Set(["ArrowRight", "ArrowUp"]));
     const moved = stepCombat(run, input, 100);

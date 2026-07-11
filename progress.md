@@ -4165,3 +4165,9 @@
 - RED/GREEN: phase-three threshold moved from 20% to 30%; new reducer test failed at 30% before the transition condition changed, then passed. Added RED/GREEN coverage for one completed Ash Summon per encounter and for 30% max-HP room recovery.
 - Fixed real-control route state handling: waited for hurt-lock release, used boss windup lane movement plus `C` jump, aligned exit lanes after vertical dodge, and treated a gate transition triggered during alignment as a successful town return. CDP economy checks retry only genuine clicks when the expected persisted state did not change.
 - Final verification: serial combat/app/UI regression 447/447; `npm run build` passed; serial browser suite 22/22 passed in 536.08 seconds.
+
+## Task 178 Consumable Combat Loop
+- Implemented `healing-potion` and `revival-token` as stackable player consumables with migration-safe defaults (`3` and `1`).
+- Added combat-state handling, 35% recovery, defeated-state revive, 1.2 s revive invulnerability, consumable VFX, room drops, gift-pack contents, standalone shop SKUs, combat quickbar UI, click handling, and real `Digit1`/`Digit2` browser input support.
+- Added focused reducer/UI/economy/save/browser coverage. During the final browser regression, fixed interrupted movement handling in the shared boss helper and used the existing focused keyboard dungeon-entry helper for Liuli reload flow.
+- Verification: core `combat/app/ui/classes/economy` regression 474/474; `npm run build`; focused live potion test passed; final serial `browser-keyboard-control` passed 23/23 in 518.14 seconds.

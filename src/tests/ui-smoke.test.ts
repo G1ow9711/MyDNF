@@ -3129,6 +3129,24 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("content: attr(data-dnf-hotkey)");
   });
 
+  it("renders a separate consumable quickbar without replacing DNF skill hotkeys", () => {
+    const state = createInitialState();
+    const combatRun = createCombatRun(state, "cinder-kiln-alley");
+    const html = renderAppHtml({ state, mode: "combat", combatRun });
+
+    expect(html).toContain('data-consumable-hotbar="true"');
+    expect(html).toContain('data-consumable-id="healing-potion"');
+    expect(html).toContain('data-consumable-hotkey="1"');
+    expect(html).toContain('data-consumable-id="revival-token"');
+    expect(html).toContain('data-consumable-hotkey="2"');
+    expect(html).toContain('data-dnf-hotkey="H"');
+    expect(html).toContain('data-healing-potion-count="3"');
+    expect(stylesCss).toContain(".consumable-quickbar");
+    expect(stylesCss).toContain(".consumable-slot-revive");
+    expect(stylesCss).toContain('data-vfx-cue="healing-potion-use"');
+    expect(stylesCss).toContain("@keyframes consumable-revive-core");
+  });
+
   it("renders DNF-style jump state with dedicated player motion hooks", () => {
     const state = createInitialState();
     const combatRun = performAction(createCombatRun(state, "cinder-kiln-alley"), { type: "jump" });

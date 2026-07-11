@@ -293,6 +293,18 @@ type BrowserAudioSettingsState = {
   saved: { master: number; music: number; sfx: number } | null;
 };
 
+type BrowserConsumableState = {
+  objective: string;
+  hp: number;
+  maxHp: number;
+  healingPotionCount: number;
+  revivalTokenCount: number;
+  savedHealingPotionCount: number;
+  statusVfx: string;
+  statusVfxCue: string;
+  statusCoreAnimation: string;
+};
+
 type BrowserIronVanguardState = {
   appMode: string;
   classId: string;
@@ -623,6 +635,28 @@ const readAudioSettingsStateExpression = `
     music: Number(shell?.getAttribute("data-audio-music") || "0"),
     sfx: Number(shell?.getAttribute("data-audio-sfx") || "0"),
     saved: rawSettings ? JSON.parse(rawSettings) : null
+  };
+})()
+`;
+
+const readConsumableStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const hotbar = document.querySelector("[data-consumable-hotbar='true']");
+  const status = document.querySelector("[data-player-status-vfx]");
+  const core = status?.querySelector(".skill-impact-core");
+  const rawSave = localStorage.getItem(${JSON.stringify(SAVE_KEY)});
+  const saved = rawSave ? JSON.parse(rawSave) : null;
+  return {
+    objective: scene?.getAttribute("data-combat-objective") ?? "",
+    hp: Number(scene?.getAttribute("data-player-hp") || "0"),
+    maxHp: Number(scene?.getAttribute("data-player-max-hp") || "0"),
+    healingPotionCount: Number(hotbar?.getAttribute("data-healing-potion-count") || "0"),
+    revivalTokenCount: Number(hotbar?.getAttribute("data-revival-token-count") || "0"),
+    savedHealingPotionCount: Number(saved?.player?.consumables?.["healing-potion"] || "0"),
+    statusVfx: status?.getAttribute("data-player-status-vfx") ?? "",
+    statusVfxCue: status?.getAttribute("data-vfx-cue") ?? "",
+    statusCoreAnimation: core ? getComputedStyle(core).animationName : "none"
   };
 })()
 `;
@@ -1025,6 +1059,49 @@ const readFlowingLightSafeCastWindowExpression = `
 `;
 
 describe("real browser keyboard control", () => {
+  it("uses a recovery potion through real Digit1 input and auto-saves the quickbar", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<BrowserConsumableState>(
+          readConsumableStateExpression,
+          (state) => state.objective === "active" && state.healingPotionCount === 3,
+          5000
+        );
+
+        await page.keyDown("ArrowRight");
+        await page.waitFor<BrowserCombatState>(readCombatStateExpression, (state) => state.playerX >= 27, 2500);
+        await page.keyUp("ArrowRight");
+
+        const wounded = await page.waitFor<BrowserConsumableState>(
+          readConsumableStateExpression,
+          (state) => state.objective === "active" && state.hp > 0 && state.hp < state.maxHp,
+          8000
+        );
+
+        await page.pressKey("Digit1");
+        const healed = await page.waitFor<BrowserConsumableState>(
+          readConsumableStateExpression,
+          (state) =>
+            state.hp > wounded.hp &&
+            state.healingPotionCount === 2 &&
+            state.savedHealingPotionCount === 2 &&
+            state.statusVfx === "healing-potion" &&
+            state.statusVfxCue === "healing-potion-use" &&
+            state.statusCoreAnimation === "consumable-healing-core",
+          3000
+        );
+
+        expect(healed.revivalTokenCount).toBe(1);
+        expect(healed.hp).toBeLessThanOrEqual(healed.maxHp);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
   it("moves continuously and lands a heavy attack through real keyboard events", async () => {
     const server = await startViteServer();
 
@@ -2317,7 +2394,7 @@ describe("real browser keyboard control", () => {
     try {
       await runAppInRealBrowser(server.url, async (page) => {
         await seedSaveAndReload(page, createLiuliUnlockedState());
-        await page.click('[data-enter-dungeon="liuli-furnace"]');
+        await enterDungeonWithKeyboard(page, "Enter", "liuli-furnace");
         await page.waitFor<BrowserLiuliEnemyState>(
           readLiuliEnemyStateExpression,
           (state) => state.dungeonId === "liuli-furnace" && state.roomIndex === "0" && state.enemies.length === 2,
@@ -2708,6 +2785,8 @@ async function moveIntoLiveEnemyRange(page: RealBrowserAppPage): Promise<void> {
           const nextTarget = nextState.enemies.find((enemy) => enemy.id === target.id);
           return (
             nextState.liveEnemyCount === "0" ||
+            nextState.objective === "failed" ||
+            nextState.playerHurtLockActive === "true" ||
             !nextTarget ||
             nextTarget.hp <= 0 ||
             Math.abs(nextTarget.x - nextPlayerX) <= 108

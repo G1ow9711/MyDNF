@@ -28,7 +28,7 @@ import {
   type CombatVector
 } from "../game/combat";
 import { addOwnedGear, createInitialState } from "../game/state";
-import type { AdvancementId, ClassId, ClassSkillDefinition, DungeonId, GameState, SkillAnimationDefinition } from "../game/types";
+import type { AdvancementId, ClassId, ClassSkillDefinition, ConsumableId, DungeonId, GameState, SkillAnimationDefinition } from "../game/types";
 import { createRenderPlan } from "../game/render";
 import {
   chooseMusicLayer,
@@ -88,6 +88,7 @@ export type AppAction =
   | { type: "combatMove"; moveX: number; moveY: number; dash: boolean }
   | { type: "combatAction"; action: "light" | "heavy" | "jump" | "backstep" | "finish" }
   | { type: "combatAction"; action: "skill"; skillId: string; inputMethod?: CombatSkillInputMethod }
+  | { type: "useConsumable"; consumableId: ConsumableId }
   | { type: "claimQuest"; questId: string }
   | { type: "selectBaseClass"; classId: ClassId }
   | { type: "advanceClass"; advancementId: AdvancementId }
@@ -320,6 +321,14 @@ export function combatActionForKeyCode(
 
   if (code === "KeyC") {
     return { type: "combatAction", action: "jump" };
+  }
+
+  if (code === "Digit1") {
+    return { type: "useConsumable", consumableId: "healing-potion" };
+  }
+
+  if (code === "Digit2") {
+    return { type: "useConsumable", consumableId: "revival-token" };
   }
 
   const dnfKeyByCode: Record<string, string> = {
@@ -1999,9 +2008,19 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const latestCast = latestSkillCastEvent(run);
   const commandReleaseSource = latestSkillReleaseSource(run);
   const commandReductionApplied = latestCast?.inputMethod === "command";
+  const healingPotionCount = state.player.consumables["healing-potion"] ?? 0;
+  const revivalTokenCount = state.player.consumables["revival-token"] ?? 0;
+  const healingPotionDisabled = roomCleared || roomFailed || healingPotionCount <= 0 || run.player.hp >= run.player.maxHp;
+  const revivalTokenDisabled = !roomFailed || revivalTokenCount <= 0;
+  const consumableQuickbar = `
+    <div class="consumable-quickbar" data-consumable-hotbar="true" data-healing-potion-count="${healingPotionCount}" data-revival-token-count="${revivalTokenCount}">
+      <button class="consumable-slot consumable-slot-healing" data-consumable-id="healing-potion" data-consumable-hotkey="1" ${healingPotionDisabled ? "disabled" : ""}><span class="consumable-keycap">1</span><span class="consumable-name">恢复药剂</span><strong>${healingPotionCount}</strong></button>
+      <button class="consumable-slot consumable-slot-revive" data-consumable-id="revival-token" data-consumable-hotkey="2" ${revivalTokenDisabled ? "disabled" : ""}><span class="consumable-keycap">2</span><span class="consumable-name">复活令</span><strong>${revivalTokenCount}</strong></button>
+    </div>
+  `;
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
+    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-hp="${run.player.hp}" data-player-max-hp="${run.player.maxHp}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
@@ -2024,12 +2043,13 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
           : ""
       }
       <div class="combat-actions">
-        <div class="combat-control-hint">方向键移动 · Shift 冲刺 · X/J 轻击 · Z/K 重击 · C 跳跃/受身 · A/S/D/F/G/H 技能</div>
+        <div class="combat-control-hint">方向键移动 · Shift 冲刺 · X/J 轻击 · Z/K 重击 · C 跳跃/受身 · A/S/D/F/G/H 技能 · 1 药剂 · 2 复活</div>
         <button data-combat-action="light" data-hotkey="J" ${roomCleared || roomFailed ? "disabled" : ""}>轻击<span>X/J</span></button>
         <button data-combat-action="heavy" data-hotkey="K" ${roomCleared || roomFailed ? "disabled" : ""}>重击<span>Z/K</span></button>
         <button data-combat-action="jump" data-hotkey="C" data-player-recovery-available="${playerQuickRecoverReady(run) ? "true" : "false"}" ${roomCleared || roomFailed ? "disabled" : ""}>${playerQuickRecoverReady(run) ? "受身" : "跳跃"}<span>C</span></button>
         <button data-combat-action="backstep" ${roomCleared || roomFailed ? "disabled" : ""}>后跳<span>鼠标</span></button>
         ${skillButtons}
+        ${consumableQuickbar}
         ${doorStatus}
         <button data-mode="town">返回</button>
       </div>
@@ -2125,6 +2145,13 @@ function applyCombatLoot(state: GameState, loot: CombatLootEvent): GameState {
     ...state,
     player: {
       ...playerWithExperience,
+      consumables: Object.entries(loot.consumables ?? {}).reduce(
+        (consumables, [consumableId, amount]) => ({
+          ...consumables,
+          [consumableId]: (consumables[consumableId as ConsumableId] ?? 0) + amount
+        }),
+        playerWithExperience.consumables
+      ) as Record<ConsumableId, number>,
       currencies: {
         ...playerWithExperience.currencies,
         gold: playerWithExperience.currencies.gold + loot.gold,
@@ -2144,6 +2171,18 @@ function applyCombatLoot(state: GameState, loot: CombatLootEvent): GameState {
 
 function syncCombatResourceToState(state: GameState, run: CombatRun): GameState {
   return syncCurrentClassResource(state, run.player.resource.current);
+}
+
+function syncCombatConsumablesToState(state: GameState, run: CombatRun): GameState {
+  const resourceState = syncCombatResourceToState(state, run);
+
+  return {
+    ...resourceState,
+    player: {
+      ...resourceState.player,
+      consumables: { ...run.state.player.consumables }
+    }
+  };
 }
 
 function applyFinishedRoom(model: AppModel, finishedRun: CombatRun, roomMessage: string): AppModel {
@@ -2425,6 +2464,34 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         combatRun,
         message: undefined,
         audio: playSfx(model.audio, action.action === "skill" ? "skill-burst" : "hit-light")
+      };
+    }
+    case "useConsumable": {
+      if (!model.combatRun) {
+        return model;
+      }
+
+      const combatRun = performAction(model.combatRun, { type: "consume", consumableId: action.consumableId });
+
+      if (combatRun === model.combatRun) {
+        return {
+          ...model,
+          message: action.consumableId === "healing-potion" ? "恢复药剂当前无法使用" : "复活令当前无法使用",
+          audio: playSfx(model.audio, "ui-select")
+        };
+      }
+
+      const nextState = syncCombatConsumablesToState(model.state, combatRun);
+
+      return {
+        ...model,
+        state: nextState,
+        combatRun: {
+          ...combatRun,
+          state: nextState
+        },
+        message: action.consumableId === "healing-potion" ? "恢复药剂已使用" : "复活令已激活",
+        audio: playSfx(model.audio, "skill-burst")
       };
     }
     case "claimQuest":
@@ -2716,6 +2783,7 @@ export function mountApp(root: HTMLDivElement): () => void {
       const appAction = target.dataset.appAction;
       const gearId = target.dataset.gearId;
       const sku = target.dataset.shopSku;
+      const consumableId = target.dataset.consumableId as ConsumableId | undefined;
       const boxId = target.dataset.boxId;
       const questId = target.dataset.questId;
       const tradeOfferId = target.dataset.tradeOfferId;
@@ -2741,6 +2809,10 @@ export function mountApp(root: HTMLDivElement): () => void {
         } else {
           dispatch({ type: "combatAction", action: combatAction });
         }
+      }
+
+      if (consumableId) {
+        dispatch({ type: "useConsumable", consumableId });
       }
 
       if (appAction === "reinforce") {

@@ -545,6 +545,22 @@ export function renderShopPanel(state: GameState): string {
       cost: "勇气币 2",
       buttonLabel: "购买",
       disabled: state.player.currencies.valorToken < 2
+    },
+    {
+      sku: "healing-potion-bundle",
+      label: "余烬恢复药剂",
+      detail: "战斗内按 1 恢复 35% 生命，包含 3 瓶",
+      cost: "金币 180",
+      buttonLabel: "购买药剂",
+      disabled: state.player.currencies.gold < 180
+    },
+    {
+      sku: "revival-token",
+      label: "炉心复活令",
+      detail: "倒地后按 2 原地复活并获得短暂无敌",
+      cost: "勇气币 1",
+      buttonLabel: "购买复活令",
+      disabled: state.player.currencies.valorToken < 1
     }
   ];
   const shopRows = shopOffers
@@ -571,6 +587,7 @@ export function renderShopPanel(state: GameState): string {
             ${shopRows}
           </div>
           <p>时装 ${state.shop.ownedCosmetics.length} 件</p>
+          <p data-shop-consumables="true">恢复药剂 ${state.player.consumables["healing-potion"]} 瓶 / 复活令 ${state.player.consumables["revival-token"]} 枚</p>
           <div class="action-row">
             <button data-box-id="ember-mythic-box" ${boxCount > 0 ? "" : "disabled"}>开启箱子 ${boxCount}</button>
           </div>

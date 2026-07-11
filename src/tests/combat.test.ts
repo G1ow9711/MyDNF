@@ -276,6 +276,34 @@ function withEnemyInRange(run: CombatRun, enemyPatch: Partial<CombatEnemy> = {})
   };
 }
 
+function resolveDifficultyMonsterImpact(run: CombatRun): CombatRun {
+  const prepared: CombatRun = {
+    ...run,
+    player: {
+      ...run.player,
+      hp: 500,
+      maxHp: 500,
+      shieldUntilMs: 1000,
+      shieldReduction: 0.25
+    },
+    enemies: [
+      {
+        ...run.enemies[0],
+        position: { x: run.player.x + 96, y: run.player.y },
+        attackSkillId: "ash-ember-spit",
+        attackStartedAtMs: 0,
+        attackImpactAtMs: 100,
+        attackRecoverUntilMs: 400,
+        attackHitResolved: false,
+        attackResolvedHits: 0,
+        nextAttackAtMs: 9999
+      }
+    ]
+  };
+
+  return stepCombat(prepared, {}, 100);
+}
+
 function withPlayerAndEnemies(
   run: CombatRun,
   playerPatch: Partial<CombatRun["player"]>,
@@ -435,6 +463,148 @@ it("creates a dungeon run and clamps belt-scroll movement from keyboard input", 
     expect(moved.player.x).toBeGreaterThan(run.player.x);
     expect(moved.player.x).toBeLessThan(run.player.x + 0.24 * 160);
     expect(moved.player.x).toBeCloseTo(run.player.x + 0.24 * 60, 5);
+  });
+});
+
+describe("combat difficulty scaling", () => {
+  it("difficulty scales first-room enemy HP and preserves normal values", () => {
+    const normal = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const adventure = createCombatRun(createInitialState(), "cinder-kiln-alley", "adventure");
+
+    expect(normal.difficultyId).toBe("normal");
+    expect(normal.enemies[0]).toMatchObject({ difficultyId: "normal", hp: 80, maxHp: 80 });
+    expect(adventure.difficultyId).toBe("adventure");
+    expect(adventure.enemies[0]).toMatchObject({ difficultyId: "adventure", hp: 108, maxHp: 108 });
+  });
+
+  it("difficulty scales each monster impact before the same defense flow", () => {
+    const normal = resolveDifficultyMonsterImpact(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const adventure = resolveDifficultyMonsterImpact(
+      createCombatRun(createInitialState(), "cinder-kiln-alley", "adventure")
+    );
+    const normalHit = normal.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+    const adventureHit = adventure.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-ember-spit"
+    );
+
+    expect(normalHit?.damage).toBe(Math.round(28 * 0.75));
+    expect(adventureHit?.damage).toBe(Math.round(Math.round(28 * 1.2) * 0.75));
+  });
+
+  it("difficulty scales multi-hit monster profile damage once per segment", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley", "adventure");
+    const run: CombatRun = {
+      ...baseRun,
+      player: { ...baseRun.player, hp: 500, maxHp: 500 },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          position: { x: baseRun.player.x + 96, y: baseRun.player.y },
+          attackSkillId: "liuli-crucible-shards",
+          attackStartedAtMs: 0,
+          attackImpactAtMs: 100,
+          attackRecoverUntilMs: 600,
+          attackHitResolved: false,
+          attackResolvedHits: 0,
+          nextAttackAtMs: 9999
+        }
+      ]
+    };
+    const firstImpact = stepCombat(run, {}, 100);
+    const secondImpact = stepCombat(
+      {
+        ...run,
+        enemies: [
+          {
+            ...run.enemies[0],
+            attackResolvedHits: 1,
+            attackConnectedHitIndexes: [1]
+          }
+        ]
+      },
+      {},
+      260
+    );
+    const hits = [...firstImpact.events, ...secondImpact.events].filter(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "liuli-crucible-shards"
+    );
+
+    expect(hits.map((hit) => hit.damage)).toEqual([
+      Math.round(46 * 0.75 * 1.2),
+      Math.round(46 * 1.25 * 1.2)
+    ]);
+  });
+
+  it("difficulty scales room currency rewards once without changing drop identity", () => {
+    const normal = finishRoom(defeatAll(createCombatRun(unlockLiuli(createInitialState()), "liuli-furnace")));
+    const adventure = finishRoom(
+      defeatAll(createCombatRun(unlockLiuli(createInitialState()), "liuli-furnace", "adventure"))
+    );
+    const normalLoot = normal.lootEvents[0];
+    const adventureLoot = adventure.lootEvents[0];
+
+    expect(adventureLoot).toMatchObject({
+      experience: Math.round(normalLoot.experience * 1.35),
+      gold: Math.round(normalLoot.gold * 1.35),
+      ironDust: Math.round(normalLoot.ironDust * 1.35),
+      arcShard: Math.round(normalLoot.arcShard * 1.35),
+      consumables: normalLoot.consumables,
+      gearDropId: normalLoot.gearDropId
+    });
+  });
+
+  it("difficulty persists through direct finish and gate entry into later rooms", () => {
+    const run = createCombatRun(createInitialState(), "cinder-kiln-alley", "adventure");
+    const directlyFinished = finishRoom(defeatAll(run));
+    const clearedAtGate: CombatRun = {
+      ...defeatAll(run),
+      player: {
+        ...run.player,
+        x: roomGateForRun(defeatAll(run)).x,
+        y: roomGateForRun(defeatAll(run)).y
+      }
+    };
+    const entered = completeRoomGateTransition(enterRoomGate(clearedAtGate));
+
+    expect(directlyFinished.enemies[0]).toMatchObject({ difficultyId: "adventure", maxHp: 243 });
+    expect(entered.enemies[0]).toMatchObject({ difficultyId: "adventure", maxHp: 243 });
+  });
+
+  it("difficulty persists on Taotie ash summons", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley", "adventure"));
+    const run: CombatRun = {
+      ...baseRun,
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          attackProfileId: "taotie-ash-summon",
+          attackPatternIds: ["taotie-ash-summon"],
+          nextAttackPatternIndex: 0,
+          position: { x: 520, y: 340 },
+          nextAttackAtMs: 1
+        }
+      ]
+    };
+    const telegraph = stepCombat(run, {}, 80);
+    const impactAtMs = telegraph.enemies[0].attackImpactAtMs;
+
+    if (impactAtMs === undefined) {
+      throw new Error("Expected difficulty Taotie summon impact frame");
+    }
+
+    const impacted = stepToElapsed(telegraph, impactAtMs);
+    const summoned = impacted.enemies.filter((enemy) => enemy.id !== telegraph.enemies[0].id);
+
+    expect(summoned).toHaveLength(2);
+    expect(summoned.every((enemy) => enemy.difficultyId === "adventure" && enemy.maxHp === 108)).toBe(true);
+  });
+
+  it("difficulty rejects unknown identifiers", () => {
+    expect(() => createCombatRun(createInitialState(), "cinder-kiln-alley", "nightmare" as never)).toThrow(
+      /unknown dungeon difficulty/i
+    );
   });
 });
 

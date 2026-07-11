@@ -1,8 +1,9 @@
 import { catalog } from "../data/catalog";
-import type { ClassSkillDefinition, ConsumableId, DungeonId, GameState } from "./types";
+import type { ClassSkillDefinition, ConsumableId, DungeonDifficultyId, DungeonId, GameState } from "./types";
 import type { CombatInput } from "./input";
 import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
 import { classResourceValue, skillCooldownMultiplier, skillDamageMultiplier } from "../systems/classes";
+import { getDungeonDifficulty } from "../systems/dungeons";
 
 export type EnemyKind = "trash" | "elite" | "boss";
 export type EnemyAttackProfileId =
@@ -198,6 +199,7 @@ export interface CombatHurtboxSize {
 
 export interface CombatEnemy {
   id: string;
+  difficultyId: DungeonDifficultyId;
   displayName: string;
   kind: EnemyKind;
   attackProfileId: EnemyAttackProfileId;
@@ -517,6 +519,7 @@ export interface CombatLootEvent {
 export interface CombatRun {
   state: GameState;
   dungeonId: DungeonId;
+  difficultyId: DungeonDifficultyId;
   roomIndex: number;
   elapsedMs: number;
   comboCount: number;
@@ -2023,9 +2026,12 @@ function createEnemy(
   roomIndex: number,
   enemyIndex: number,
   kind: EnemyKind,
-  attackProfileId = defaultEnemyAttackProfile(kind)
+  attackProfileId = defaultEnemyAttackProfile(kind),
+  difficultyId: DungeonDifficultyId = "normal"
 ): CombatEnemy {
   const stats = enemyStats(kind);
+  const difficulty = getDungeonDifficulty(difficultyId);
+  const scaledHp = Math.round(stats.maxHp * difficulty.hpMultiplier);
   const attackPatternIds: EnemyAttackProfileId[] | undefined =
     kind === "boss" ? (dungeonId === "liuli-furnace" ? liuliBossPattern : taotieBossPhaseOnePattern) : undefined;
   const nextAttackPatternIndex = attackPatternIds
@@ -2036,8 +2042,11 @@ function createEnemy(
 
   return {
     id: `${dungeonId}-room-${roomIndex}-enemy-${enemyIndex}`,
+    difficultyId,
     kind,
     ...stats,
+    hp: scaledHp,
+    maxHp: scaledHp,
     displayName:
       attackProfileId === "ash-crawler-burst"
         ? "灰烬爬妖"
@@ -2058,7 +2067,7 @@ function createEnemy(
   };
 }
 
-function createRoomEnemies(dungeonId: DungeonId, roomIndex: number): CombatEnemy[] {
+function createRoomEnemies(dungeonId: DungeonId, roomIndex: number, difficultyId: DungeonDifficultyId): CombatEnemy[] {
   const dungeon = getDungeon(dungeonId);
 
   if (!dungeon) {
@@ -2072,7 +2081,8 @@ function createRoomEnemies(dungeonId: DungeonId, roomIndex: number): CombatEnemy
         roomIndex,
         0,
         "boss",
-        dungeonId === "liuli-furnace" ? "liuli-prism-barrage" : "taotie-flame-breath"
+        dungeonId === "liuli-furnace" ? "liuli-prism-barrage" : "taotie-flame-breath",
+        difficultyId
       )
     ];
   }
@@ -2080,34 +2090,34 @@ function createRoomEnemies(dungeonId: DungeonId, roomIndex: number): CombatEnemy
   if (roomIndex === dungeon.rooms - 2) {
     if (dungeonId === "liuli-furnace") {
       return [
-        createEnemy(dungeonId, roomIndex, 0, "elite", "liuli-crucible-wave"),
-        createEnemy(dungeonId, roomIndex, 1, "elite", "liuli-prism-charge"),
-        createEnemy(dungeonId, roomIndex, 2, "trash", "liuli-glass-spray")
+        createEnemy(dungeonId, roomIndex, 0, "elite", "liuli-crucible-wave", difficultyId),
+        createEnemy(dungeonId, roomIndex, 1, "elite", "liuli-prism-charge", difficultyId),
+        createEnemy(dungeonId, roomIndex, 2, "trash", "liuli-glass-spray", difficultyId)
       ];
     }
 
     return [
-      createEnemy(dungeonId, roomIndex, 0, "elite", "zheng-shockwave"),
-      createEnemy(dungeonId, roomIndex, 1, "elite", "zheng-horn-charge"),
-      createEnemy(dungeonId, roomIndex, 2, "trash", "ash-ember-spit")
+      createEnemy(dungeonId, roomIndex, 0, "elite", "zheng-shockwave", difficultyId),
+      createEnemy(dungeonId, roomIndex, 1, "elite", "zheng-horn-charge", difficultyId),
+      createEnemy(dungeonId, roomIndex, 2, "trash", "ash-ember-spit", difficultyId)
     ];
   }
 
   if (dungeonId === "liuli-furnace") {
     return [
-      createEnemy(dungeonId, roomIndex, 0, "trash", "liuli-glass-spray"),
-      createEnemy(dungeonId, roomIndex, 1, "trash", "liuli-splinter-rush")
+      createEnemy(dungeonId, roomIndex, 0, "trash", "liuli-glass-spray", difficultyId),
+      createEnemy(dungeonId, roomIndex, 1, "trash", "liuli-splinter-rush", difficultyId)
     ];
   }
 
   return [
-    createEnemy(dungeonId, roomIndex, 0, "trash", "ash-ember-spit"),
-    createEnemy(dungeonId, roomIndex, 1, "trash", "ash-crawler-burst")
+    createEnemy(dungeonId, roomIndex, 0, "trash", "ash-ember-spit", difficultyId),
+    createEnemy(dungeonId, roomIndex, 1, "trash", "ash-crawler-burst", difficultyId)
   ];
 }
 
 function createTaotieAshSummons(
-  run: Pick<CombatRun, "dungeonId" | "roomIndex" | "arena" | "enemies">,
+  run: Pick<CombatRun, "dungeonId" | "difficultyId" | "roomIndex" | "arena" | "enemies">,
   boss: CombatEnemy,
   profileIds: EnemyAttackProfileId[],
   occurredAtMs: number
@@ -2115,7 +2125,7 @@ function createTaotieAshSummons(
   const offsets = [-128, 128];
 
   return profileIds.map((profileId, index) => {
-    const base = createEnemy(run.dungeonId, run.roomIndex, run.enemies.length + index, "trash", profileId);
+    const base = createEnemy(run.dungeonId, run.roomIndex, run.enemies.length + index, "trash", profileId, run.difficultyId);
     const x = clamp(boss.position.x + (offsets[index] ?? 128 * (index + 1)), 72, run.arena.width - 72);
     const yOffset = index % 2 === 0 ? -34 : 34;
     const y = clamp(boss.position.y + yOffset, run.arena.minY, run.arena.maxY);
@@ -4460,8 +4470,13 @@ function updateEnemyAirStates(run: CombatRun): CombatRun {
   };
 }
 
-export function createCombatRun(state: GameState, dungeonId: string): CombatRun {
+export function createCombatRun(
+  state: GameState,
+  dungeonId: string,
+  difficultyId: DungeonDifficultyId = "normal"
+): CombatRun {
   const dungeon = getDungeon(dungeonId);
+  const difficulty = getDungeonDifficulty(difficultyId);
   const combatProfile = evaluateCombatProfile(state);
   const resource = createCombatResource(state);
 
@@ -4476,6 +4491,7 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
   return {
     state,
     dungeonId: dungeon.id,
+    difficultyId: difficulty.id,
     roomIndex: 0,
     elapsedMs: 0,
     comboCount: 0,
@@ -4526,7 +4542,7 @@ export function createCombatRun(state: GameState, dungeonId: string): CombatRun 
       skillCooldowns: {},
       prismChain: 0
     },
-    enemies: createRoomEnemies(dungeon.id, 0),
+    enemies: createRoomEnemies(dungeon.id, 0, difficulty.id),
     events: [],
     lootEvents: [],
     scheduledEnemyHitEffects: [],
@@ -4911,7 +4927,7 @@ function applyEnemyImpact(
   player: CombatPlayer,
   elapsedMs: number,
   combatProfile: CombatProfile,
-  runContext: Pick<CombatRun, "dungeonId" | "roomIndex" | "arena" | "enemies">
+  runContext: Pick<CombatRun, "dungeonId" | "difficultyId" | "roomIndex" | "arena" | "enemies">
 ): { enemy: CombatEnemy; player: CombatPlayer; events: CombatEvent[]; failed: boolean; phaseTransitionAtMs?: number; spawnedEnemies?: CombatEnemy[] } {
   if (
     enemy.hp <= 0 ||
@@ -4943,7 +4959,8 @@ function applyEnemyImpact(
     const summonProfileIds = attack.summonProfileIds;
     const hitVfxCue = attack.hitVfxCues?.[resolvedHits] ?? attack.vfxCue;
     const hitFeedbackCue = attack.feedbackCues?.[resolvedHits] ?? attack.feedbackCue;
-    const hitDamage = Math.max(1, Math.round(attack.damage * (attack.damageMultipliers?.[resolvedHits] ?? 1)));
+    const hitDamageMultiplier = attack.damageMultipliers?.[resolvedHits] ?? 1;
+    const hitDamage = Math.max(1, Math.round(attack.damage * hitDamageMultiplier));
     const hitKnockback = attack.knockbackByHit?.[resolvedHits] ?? attack.knockback;
     const hitInvulnerabilityMs = attack.invulnerabilityMsByHit?.[resolvedHits] ?? attack.invulnerabilityMs;
     const hitHurtLockMs = attack.hurtLockMsByHit?.[resolvedHits] ?? attack.hurtLockMs;
@@ -5091,7 +5108,11 @@ function applyEnemyImpact(
     const shieldActive = hitTime < nextPlayer.shieldUntilMs;
     const mitigation = shieldActive ? clamp(nextPlayer.shieldReduction, 0, 0.85) : 0;
     const shieldAbsorbedImpact = shieldActive && mitigation > 0;
-    const damage = Math.max(1, Math.round(hitDamage * combatProfile.damageTakenMultiplier * (1 - mitigation)));
+    const difficultyDamage = Math.max(
+      1,
+      Math.round(attack.damage * hitDamageMultiplier * getDungeonDifficulty(runContext.difficultyId).damageMultiplier)
+    );
+    const damage = Math.max(1, Math.round(difficultyDamage * combatProfile.damageTakenMultiplier * (1 - mitigation)));
     const nextHp = Math.max(0, nextPlayer.hp - damage);
     const nextFacing: 1 | -1 = nextEnemy.position.x >= nextPlayer.x ? 1 : -1;
     const quickRecoverReadyUntilMs =
@@ -7134,15 +7155,16 @@ export function skillCooldownRemaining(run: CombatRun, skillId: string): number 
 function createLootEvent(run: CombatRun): CombatLootEvent {
   const dungeonBonus = run.dungeonId === "liuli-furnace" ? 1 : 0;
   const dungeon = getDungeon(run.dungeonId);
+  const rewardMultiplier = getDungeonDifficulty(run.difficultyId).rewardMultiplier;
   const bossRoom = dungeon !== undefined && run.roomIndex === dungeon.rooms - 1;
 
   return {
     dungeonId: run.dungeonId,
     roomIndex: run.roomIndex,
-    experience: 110 + run.roomIndex * 20 + dungeonBonus * 60,
-    gold: 120 + run.roomIndex * 30 + dungeonBonus * 80,
-    ironDust: 6 + run.roomIndex * 2,
-    arcShard: dungeonBonus,
+    experience: Math.round((110 + run.roomIndex * 20 + dungeonBonus * 60) * rewardMultiplier),
+    gold: Math.round((120 + run.roomIndex * 30 + dungeonBonus * 80) * rewardMultiplier),
+    ironDust: Math.round((6 + run.roomIndex * 2) * rewardMultiplier),
+    arcShard: Math.round(dungeonBonus * rewardMultiplier),
     consumables: bossRoom ? { "revival-token": 1 } : { "healing-potion": 1 },
     gearDropId: run.roomIndex % 2 === 0 ? catalog.gear[run.roomIndex % catalog.gear.length]?.id : undefined
   };
@@ -7301,7 +7323,7 @@ export function finishRoom(run: CombatRun): CombatRun {
       bufferedActionQueuedAtMs: undefined,
       bufferedActionExecuteAtMs: undefined
     },
-    enemies: completed ? [] : createRoomEnemies(run.dungeonId, nextRoomIndex),
+    enemies: completed ? [] : createRoomEnemies(run.dungeonId, nextRoomIndex, run.difficultyId),
     events: [clearedEvent],
     lootEvents: [...run.lootEvents, lootEvent],
     scheduledEnemyHitEffects: [],

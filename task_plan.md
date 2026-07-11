@@ -317,7 +317,19 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Render concrete room and final-clear loot results, including rarity, set, slot, and reward totals.
 - [x] Verify a real keyboard clear obtains the expected targeted set drop, persists it after reload, then commit and push with Chinese messages.
 
+## Task 185 Discrete Critical Hits and Damage Feedback
+- [x] Replace averaged critical damage with an explicit capped critical chance and deterministic offline accumulator.
+- [x] Apply critical resolution once to direct and scheduled player hit frames without affecting monster damage or misses.
+- [x] Emit critical metadata, stronger impact feedback, and model-following damage-number/VFX presentation.
+- [x] Prove crit-focused gear materially changes hit outcomes while zero-crit builds never crit.
+- [x] Verify critical hits through real keyboard combat and run full regression/build; Chinese commit and push are the final repository action.
+
 ### Errors Encountered
+- A combined Task 185 evidence patch targeted `progress.md` with “move an initially valid target before” while the file contained “move an initially valid target out before”; patch verification rejected the entire edit. Re-read the tail and reapplied against the exact text; no partial file changes occurred.
+- Task 185 first production build stopped on the manual reflect hit event missing required critical metadata. Classified fixed monster-derived reflect damage as non-critical, added explicit fields, and documented the accumulator exception.
+- Task 185 first UI GREEN run passed the CSS smoke check but the app integration test errored before rendering because its new `createCombatRun` call was not added to the existing combat import. Added the missing test import; production behavior was not involved.
+- Task 185 first RED run had three expected missing-feature failures plus one test-setup error: a completely out-of-range grounded light does not schedule a delayed miss. Reused the established live recheck setup by moving an initially valid target before the hit frame.
+- A Task 185 RTK search for exact `kind: "hit"` literals returned an empty nonzero result despite the known production literal. No files were affected; subsequent work uses the authoritative interface and constructor ranges already read directly.
 - The staged Task 184 diff check found one extra blank line at the end of the new design document. Removed it, re-staged the two touched records, and re-ran the authoritative raw Git check after RTK returned an empty nonzero result for the cached mode.
 - Task 184 second full browser run again passed 29/30; the failure moved to the previously green town-ecosystem scenario. A real reinforcement click produced no toast or state change, and the helper's uncaught wait timeout bypassed its advertised four-attempt retry loop. Fix the helper to retry only this proven no-state-change timeout.
 - Task 184 first full 30-scenario browser run passed 29/30. The default Cinder-to-Liuli campaign still expected the old every-other-room inventory totals (4 after Cinder, 7 after Liuli); the new explicit every-room matrix correctly yields 5 and 10. Updated all four exact progression assertions, leaving production behavior unchanged.

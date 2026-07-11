@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { performAction, stepCombat, type CombatEnemy, type CombatEnemySummonEvent, type CombatHitEvent, type CombatPlayerHitEvent, type CombatRun } from "../game/combat";
+import { applyHit, createCombatRun, performAction, stepCombat, type CombatEnemy, type CombatEnemySummonEvent, type CombatHitEvent, type CombatPlayerHitEvent, type CombatRun } from "../game/combat";
 import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
 import { advanceClass, selectBaseClass } from "../systems/classes";
@@ -730,6 +730,73 @@ describe("playable app integration actions", () => {
 
     expect(moved.combatRun?.player.x).toBeGreaterThan(beforeX);
     expect(renderAppHtml(moved)).toContain('data-player-facing="1"');
+  });
+
+  it("renders critical hit metadata, stronger screen feedback, and a critical damage number", () => {
+    const state = createInitialState();
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const criticalRun = applyHit(
+      {
+        ...baseRun,
+        combatProfile: {
+          ...baseRun.combatProfile,
+          stats: { ...baseRun.combatProfile.stats, crit: 100 },
+          criticalChance: 100,
+          criticalDamageMultiplier: 1.5
+        },
+        enemies: baseRun.enemies.map((enemy, index) =>
+          index === 0 ? { ...enemy, hp: 500, maxHp: 500, armor: 0, maxArmor: 0 } : enemy
+        )
+      },
+      {
+        id: "critical-render-hit",
+        action: "heavy",
+        targetId: baseRun.enemies[0].id,
+        damage: 20,
+        hitstopMs: 40,
+        knockback: 0,
+        juggle: false
+      }
+    );
+    const html = renderAppHtml({ state, mode: "combat", combatRun: criticalRun });
+
+    expect(html).toContain('data-critical-chance="100"');
+    expect(html).toContain('data-critical-accumulator="0"');
+    expect(html).toContain('data-critical-hit="true"');
+    expect(html).toContain('data-screen-shake="critical"');
+    expect(html).toContain('data-screen-flash="critical"');
+    expect(html).toContain('class="hit-impact hit-impact-heavy is-critical"');
+    expect(html).toContain('data-impact-spark="true" data-critical="true"');
+    expect(html).toContain('class="damage-number is-critical"');
+    expect(html).toContain('data-damage-number="true" data-critical="true"');
+    expect(html).toContain("暴击 -30");
+
+    const criticalUltimate = applyHit(
+      {
+        ...baseRun,
+        combatProfile: criticalRun.combatProfile,
+        enemies: baseRun.enemies.map((enemy, index) =>
+          index === 0 ? { ...enemy, hp: 500, maxHp: 500, armor: 0, maxArmor: 0 } : enemy
+        )
+      },
+      {
+        id: "critical-ultimate-hit",
+        action: "skill",
+        skillId: "meteor-knuckle",
+        targetId: baseRun.enemies[0].id,
+        damage: 40,
+        hitstopMs: 80,
+        knockback: 0,
+        juggle: false,
+        vfxCue: "meteor-impact"
+      }
+    );
+    const ultimateHtml = renderAppHtml({ state, mode: "combat", combatRun: criticalUltimate });
+
+    expect(ultimateHtml).toContain('data-critical-hit="true"');
+    expect(ultimateHtml).toContain('data-screen-shake="ultimate"');
+    expect(ultimateHtml).toContain('data-screen-flash="meteor"');
+    expect(ultimateHtml).toContain('data-damage-number="true" data-critical="true"');
   });
 
   it("keeps repeated arrow key movement while excluding repeats from command buffering", () => {

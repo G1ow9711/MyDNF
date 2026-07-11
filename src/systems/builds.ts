@@ -22,6 +22,8 @@ export interface CombatProfile {
   stats: StatBlock;
   maxHp: number;
   damageMultiplier: number;
+  criticalChance: number;
+  criticalDamageMultiplier: number;
   cooldownMultiplier: number;
   resourceGainMultiplier: number;
   damageTakenMultiplier: number;
@@ -150,7 +152,9 @@ export function evaluateCombatProfile(state: GameState): CombatProfile {
   return {
     stats,
     maxHp: 1000 + Math.round(defense * 8),
-    damageMultiplier: Math.max(1, 1 + attack / 100 + element / 200 + crit / 250),
+    damageMultiplier: Math.max(1, 1 + attack / 100 + element / 200),
+    criticalChance: clamp(crit, 0, 100),
+    criticalDamageMultiplier: 1.5,
     cooldownMultiplier: clamp(1 - cooldown / 100, 0.55, 1),
     resourceGainMultiplier: Math.max(1, 1 + heatGain / 100),
     damageTakenMultiplier: clamp(100 / (100 + defense), 0.35, 1)

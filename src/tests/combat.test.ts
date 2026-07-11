@@ -227,6 +227,31 @@ function defeatAll(run: CombatRun): CombatRun {
   );
 }
 
+function withCriticalChance(run: CombatRun, criticalChance: number): CombatRun {
+  return {
+    ...run,
+    criticalAccumulator: 0,
+    combatProfile: {
+      ...run.combatProfile,
+      stats: { ...run.combatProfile.stats, crit: criticalChance },
+      criticalChance,
+      criticalDamageMultiplier: 1.5
+    }
+  };
+}
+
+function applyCriticalTestHit(run: CombatRun, sequence: number, damage = 20): CombatRun {
+  return applyHit(run, {
+    id: `critical-test-${sequence}`,
+    action: "light",
+    targetId: run.enemies[0].id,
+    damage,
+    hitstopMs: 40,
+    knockback: 0,
+    juggle: false
+  });
+}
+
 function lootForRoom(
   state: GameState,
   dungeonId: CombatRun["dungeonId"],
@@ -823,6 +848,95 @@ describe("combat difficulty scaling", () => {
 });
 
 describe("combat actions and impact feel", () => {
+  it("turns a 40 percent crit build into a bounded third-hit critical sequence", () => {
+    const base = withCriticalChance(
+      withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+        hp: 1000,
+        maxHp: 1000,
+        armor: 0,
+        maxArmor: 0,
+        nextAttackAtMs: 9999
+      }),
+      40
+    );
+    const first = applyCriticalTestHit(base, 1);
+    const second = applyCriticalTestHit(first, 2);
+    const third = applyCriticalTestHit(second, 3);
+    const hits = third.events.filter(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.id.startsWith("critical-test-")
+    );
+
+    expect(hits.map((event) => event.critical)).toEqual([false, false, true]);
+    expect(hits.map((event) => event.damage)).toEqual([20, 20, 30]);
+    expect(hits.map((event) => event.criticalMultiplier)).toEqual([1, 1, 1.5]);
+    expect(hits.map((event) => event.hitstopMs)).toEqual([40, 40, 50]);
+    expect(third.criticalAccumulator).toBe(20);
+    expect(third.enemies[0].hp).toBe(930);
+
+    const nextRoom = finishRoom({
+      ...third,
+      enemies: third.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
+    });
+    const newRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+
+    expect(nextRoom.criticalAccumulator).toBe(20);
+    expect(newRun.criticalAccumulator).toBe(0);
+  });
+
+  it("never crits at zero chance and crits every landed hit at one hundred percent", () => {
+    const base = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 1000,
+      maxHp: 1000,
+      armor: 0,
+      maxArmor: 0,
+      nextAttackAtMs: 9999
+    });
+    const zero = applyCriticalTestHit(withCriticalChance(base, 0), 1);
+    const guaranteed = applyCriticalTestHit(withCriticalChance(base, 100), 2);
+
+    expect(lastHitEvent(zero)).toMatchObject({ critical: false, criticalMultiplier: 1, damage: 20, hitstopMs: 40 });
+    expect(zero.criticalAccumulator).toBe(0);
+    expect(lastHitEvent(guaranteed)).toMatchObject({ critical: true, criticalMultiplier: 1.5, damage: 30, hitstopMs: 50 });
+    expect(guaranteed.criticalAccumulator).toBe(0);
+  });
+
+  it("resolves scheduled hits as critical but does not advance the meter on a miss", () => {
+    const hitRun = withCriticalChance(
+      withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+        hp: 500,
+        maxHp: 500,
+        armor: 0,
+        maxArmor: 0,
+        nextAttackAtMs: 9999
+      }),
+      100
+    );
+    const landed = resolveGroundLight(performAction(hitRun, { type: "light" }));
+    const missRun = withCriticalChance(
+      withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+        hp: 500,
+        maxHp: 500,
+        nextAttackAtMs: 9999
+      }),
+      100
+    );
+    const missedCast = performAction(missRun, { type: "light" });
+    const [missAtMs] = scheduledGroundLightTimes(missedCast);
+    const missed = stepToElapsed(
+      {
+        ...missedCast,
+        enemies: missedCast.enemies.map((enemy, index) =>
+          index === 0 ? { ...enemy, position: { x: missRun.player.x - 240, y: missRun.player.y + 120 } } : enemy
+        )
+      },
+      missAtMs
+    );
+
+    expect(lastHitEvent(landed).critical).toBe(true);
+    expect(landed.criticalAccumulator).toBe(0);
+    expect(missed.events.some((event) => event.kind === "miss")).toBe(true);
+    expect(missed.criticalAccumulator).toBe(0);
+  });
   it("resolves grounded light damage, resource, and cancel window only on the real hit frame", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       hp: 180,

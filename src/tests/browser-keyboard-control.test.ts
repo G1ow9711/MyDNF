@@ -51,6 +51,20 @@ type BrowserBackstepReactionState = {
   }>;
 };
 
+type BrowserCriticalEvidence = {
+  criticalChance: number;
+  criticalAccumulator: number;
+  criticalHit: string;
+  hitstopActive: string;
+  screenShake: string;
+  screenFlash: string;
+  damageText: string;
+  impactAnimation: string;
+  damageAnimation: string;
+  playerAnimation: string;
+  weaponAnimation: string;
+};
+
 type BrowserSkillState = {
   activeSkill: string;
   playerMotion: string;
@@ -1277,6 +1291,58 @@ const readTrashHitstunEvidenceExpression = `
 (() => globalThis.__browserTrashHitstunEvidence ?? null)()
 `;
 
+const installCriticalHitRecorderExpression = `
+(() => {
+  globalThis.__browserCriticalEvidence = null;
+  globalThis.__browserCriticalRecorder?.disconnect?.();
+  if (globalThis.__browserCriticalFrame) {
+    cancelAnimationFrame(globalThis.__browserCriticalFrame);
+  }
+  const sample = () => {
+    if (globalThis.__browserCriticalEvidence) {
+      return;
+    }
+    const scene = document.querySelector('.combat-scene[data-critical-hit="true"]');
+    const impact = document.querySelector('.hit-impact[data-critical="true"]');
+    const damage = document.querySelector('.damage-number[data-critical="true"]');
+    const playerArt = document.querySelector('.combat-player-art');
+    const weapon = document.querySelector('.combat-weapon');
+    if (!scene || !impact || !damage || !playerArt || !weapon) {
+      return;
+    }
+    globalThis.__browserCriticalEvidence = {
+      criticalChance: Number(scene.getAttribute('data-critical-chance') || '0'),
+      criticalAccumulator: Number(scene.getAttribute('data-critical-accumulator') || '0'),
+      criticalHit: scene.getAttribute('data-critical-hit') ?? '',
+      hitstopActive: scene.getAttribute('data-hitstop-active') ?? '',
+      screenShake: scene.getAttribute('data-screen-shake') ?? '',
+      screenFlash: scene.getAttribute('data-screen-flash') ?? '',
+      damageText: damage.textContent?.trim() ?? '',
+      impactAnimation: getComputedStyle(impact).animationName,
+      damageAnimation: getComputedStyle(damage).animationName,
+      playerAnimation: getComputedStyle(playerArt).animationName,
+      weaponAnimation: getComputedStyle(weapon).animationName
+    };
+  };
+  const observer = new MutationObserver(sample);
+  observer.observe(document.documentElement, { attributes: true, childList: true, subtree: true });
+  globalThis.__browserCriticalRecorder = observer;
+  const startedAt = performance.now();
+  const tick = () => {
+    sample();
+    if (!globalThis.__browserCriticalEvidence && performance.now() - startedAt < 30000) {
+      globalThis.__browserCriticalFrame = requestAnimationFrame(tick);
+    }
+  };
+  globalThis.__browserCriticalFrame = requestAnimationFrame(tick);
+  return true;
+})()
+`;
+
+const readCriticalHitEvidenceExpression = `
+(() => globalThis.__browserCriticalEvidence ?? null)()
+`;
+
 describe("real browser keyboard control", () => {
   it("uses a recovery potion through real Digit1 input and auto-saves the quickbar", async () => {
     const server = await startViteServer();
@@ -1320,6 +1386,55 @@ describe("real browser keyboard control", () => {
       await server.close();
     }
   }, 60000);
+
+  it("triggers a deterministic critical hit with real keyboard attacks and mounted feedback", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, createReadyCriticalBuildState());
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<{ criticalChance: number; classId: string; advancementId: string }>(
+          `(() => {
+            const scene = document.querySelector('.combat-scene');
+            return {
+              criticalChance: Number(scene?.getAttribute('data-critical-chance') || '0'),
+              classId: scene?.getAttribute('data-class-id') ?? '',
+              advancementId: scene?.getAttribute('data-advancement-id') ?? ''
+            };
+          })()`,
+          (state) =>
+            state.classId === "ink-shadow-ranger" &&
+            state.advancementId === "night-contract-hunter" &&
+            state.criticalChance === 22,
+          5000
+        );
+        await page.evaluate<boolean>(installCriticalHitRecorderExpression);
+        await clearCurrentRoomWithKeyboard(page, 28);
+
+        const critical = await page.waitFor<BrowserCriticalEvidence | null>(
+          readCriticalHitEvidenceExpression,
+          (state): state is BrowserCriticalEvidence => state !== null,
+          5000
+        );
+
+        expect(critical.criticalChance).toBe(22);
+        expect(critical.criticalAccumulator).toBeGreaterThanOrEqual(0);
+        expect(critical.criticalAccumulator).toBeLessThan(22);
+        expect(critical.criticalHit).toBe("true");
+        expect(critical.hitstopActive).toBe("true");
+        expect(critical.screenShake).toBe("critical");
+        expect(critical.screenFlash).toBe("critical");
+        expect(critical.damageText).toMatch(/^暴击 -\d+$/);
+        expect(critical.impactAnimation).toBe("critical-impact-pulse");
+        expect(critical.damageAnimation).toBe("critical-damage-float");
+        expect(critical.playerAnimation).not.toBe("none");
+        expect(critical.weaponAnimation).not.toBe("none");
+      });
+    } finally {
+      await server.close();
+    }
+  }, 90000);
 
   it("moves continuously and lands a heavy attack through real keyboard events", async () => {
     const server = await startViteServer();
@@ -3668,6 +3783,33 @@ function createReadyInkContractState(): GameState {
       quests: {
         ...baseState.player.quests,
         "prologue-ember-warden": "ready"
+      }
+    }
+  };
+}
+
+function createReadyCriticalBuildState(): GameState {
+  const selected = selectBaseClass(createReadyInkContractState(), "ink-shadow-ranger");
+  const advanced = advanceClass(selected, "night-contract-hunter");
+  const accessories = ["bracelet", "ring"].map((slot) => {
+    const gear = catalog.gear.find((item) => item.rarity === "rare" && item.setId === undefined && item.slot === slot);
+
+    if (!gear) {
+      throw new Error(`Expected rare ${slot} gear for critical browser acceptance`);
+    }
+
+    return createOwnedGear(gear.id, `critical-${slot}`);
+  });
+
+  return {
+    ...advanced,
+    player: {
+      ...advanced.player,
+      inventory: [...advanced.player.inventory, ...accessories],
+      equipment: {
+        ...advanced.player.equipment,
+        bracelet: accessories[0].instanceId,
+        ring: accessories[1].instanceId
       }
     }
   };

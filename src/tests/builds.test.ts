@@ -96,4 +96,24 @@ describe("equipment build evaluation", () => {
     expect(profile.damageMultiplier).toBeGreaterThan(1);
     expect(profile.cooldownMultiplier).toBeLessThan(1);
   });
+
+  it("exposes discrete critical chance without averaging crit into stable damage", () => {
+    const initialProfile = evaluateCombatProfile(createInitialState());
+    const critState = equipSetPieces(
+      createInitialState(),
+      "kiln-shadow",
+      ["weapon", "core", "head", "body", "ring"]
+    );
+    const profile = evaluateCombatProfile(critState);
+    const stableDamageMultiplier = Math.max(
+      1,
+      1 + (profile.stats.attack ?? 0) / 100 + (profile.stats.element ?? 0) / 200
+    );
+
+    expect(initialProfile.criticalChance).toBe(0);
+    expect(profile.stats.crit).toBeGreaterThan(0);
+    expect(profile.criticalChance).toBe(profile.stats.crit);
+    expect(profile.criticalDamageMultiplier).toBe(1.5);
+    expect(profile.damageMultiplier).toBeCloseTo(stableDamageMultiplier, 8);
+  });
 });

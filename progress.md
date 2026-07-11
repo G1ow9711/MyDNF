@@ -4225,3 +4225,14 @@
 - Diagnosed a later full-suite transient reinforcement click: its helper bypassed all remaining attempts when a genuine click caused no state change. Added state-aware timeout retry matching the existing trade helper; the focused ecosystem route passed.
 - Final verification passed: 649/649 non-keyboard tests, production build, `git diff --check`, HTTP 200 on `http://127.0.0.1:5174/`, and all 30/30 serial real-browser keyboard scenarios in 637.41 seconds.
 - Task 184 implementation, tests, design, and acceptance evidence were committed as `c483c0c 完善副本定向掉落与战利品结算` and pushed to `origin/feature/vertical-slice`.
+
+## Task 185 Discrete Critical Hits and Damage Feedback
+- Confirmed a clean zero-divergence branch at `7b7b6e3`. Started a no-subagent audit of critical stats, hit resolution, event rendering, and live-browser control paths.
+- Selected explicit deterministic critical hits because current crit gear only raises an averaged damage multiplier and has no observable combat proc, event, number, sound, or VFX identity.
+- Added the Task 185 design and inline-only implementation plan. Locked 0-100 chance, 1.5x damage, per-run deterministic accumulation, cross-room preservation, central `applyHit()` resolution, and ultimate-feedback precedence.
+- Added construct/profile and combat RED coverage. Three behavior tests failed on missing critical fields/resolution as intended; the first miss test assumed an out-of-range input scheduled a miss, then was corrected to move an initially valid target out before the real delayed hit frame.
+- Implemented explicit combat-profile crit parameters, per-run accumulation, direct and scheduled/multi-target critical resolution, 1.5x damage, and 1.25x hitstop. Focused build/combat tests pass.
+- Added mounted scene/impact/damage hooks plus gold-white impact, critical number, shake, and flash animations. Focused app/UI tests pass, and ultimate feedback retains priority.
+- Added a real-browser Night Contract Hunter route with 22% legal crit gear. Real keyboard combat triggered and recorded mounted critical damage, hitstop, scene feedback, and non-idle player/weapon animations; focused acceptance passed in 14.34 seconds.
+- Broad non-keyboard regression passed 655/655 across 15 files, including all 25 real-browser computed-style scenarios. TypeScript and Vite production build passed.
+- Final serial real-browser keyboard regression passed 31/31 in 650.89 seconds, including the new deterministic critical route and all existing story, Boss, economy, save, class, control, and VFX scenarios.

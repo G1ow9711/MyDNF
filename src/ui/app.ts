@@ -1623,6 +1623,10 @@ function combatScreenShake(hit: CombatHitEvent | undefined, playerHit: CombatPla
     return "ultimate";
   }
 
+  if (hit?.critical) {
+    return "critical";
+  }
+
   return hit ? hit.action ?? "test" : playerHit ? "enemy" : "none";
 }
 
@@ -1637,6 +1641,10 @@ function combatScreenFlash(hit: CombatHitEvent | undefined): string {
 
   if (hit?.vfxCue === "earth-furnace-eruption") {
     return "forge-quake";
+  }
+
+  if (hit?.critical) {
+    return "critical";
   }
 
   return "none";
@@ -1699,14 +1707,15 @@ function renderCombatVfx(run: CombatRun): string {
       const dashImpactClass = dashImpactAction ? ` hit-impact-dash-${dashImpactAction}` : "";
       const groundLightImpactStep = groundLightStepForHitPhase(hitEvent.hitPhase);
       const groundLightImpactClass = groundLightImpactStep ? ` hit-impact-ground-light-${groundLightImpactStep}` : "";
+      const criticalClass = hitEvent.critical ? " is-critical" : "";
 
       return `
         ${skillImpactVfx}
-        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}${airImpactClass}${dashImpactClass}${groundLightImpactClass}" data-impact-spark="true" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" data-impact-air-action="${airImpactAction}" data-impact-dash-action="${dashImpactAction}" data-impact-ground-light-step="${groundLightImpactStep}" data-impact-origin-x="${Math.round(impactPosition.x)}" data-impact-origin-y="${Math.round(impactPosition.y)}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">
+        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}${airImpactClass}${dashImpactClass}${groundLightImpactClass}${criticalClass}" data-impact-spark="true" data-critical="${hitEvent.critical ? "true" : "false"}" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" data-impact-air-action="${airImpactAction}" data-impact-dash-action="${dashImpactAction}" data-impact-ground-light-step="${groundLightImpactStep}" data-impact-origin-x="${Math.round(impactPosition.x)}" data-impact-origin-y="${Math.round(impactPosition.y)}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">
           <span class="hit-ring"></span>
           <span class="hit-slash"></span>
         </div>
-        <div class="damage-number" data-damage-number="true" data-hit-event-id="${hitEvent.id}" data-damage-origin-x="${Math.round(impactPosition.x)}" data-damage-origin-y="${Math.round(impactPosition.y)}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">-${hitEvent.damage}</div>
+        <div class="damage-number${criticalClass}" data-damage-number="true" data-critical="${hitEvent.critical ? "true" : "false"}" data-hit-event-id="${hitEvent.id}" data-damage-origin-x="${Math.round(impactPosition.x)}" data-damage-origin-y="${Math.round(impactPosition.y)}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">${hitEvent.critical ? "暴击 " : ""}-${hitEvent.damage}</div>
       `;
     })
     .join("");
@@ -1805,7 +1814,7 @@ function renderCombatVfx(run: CombatRun): string {
     : "";
 
   return `
-    <div class="combat-vfx-layer" data-hitstop-active="${hitstopActive ? "true" : "false"}" data-screen-shake="${screenShake}" data-screen-flash="${screenFlash}" data-impact-skill-id="${impactSkillId}">
+    <div class="combat-vfx-layer" data-hitstop-active="${hitstopActive ? "true" : "false"}" data-critical-hit="${hit?.critical ? "true" : "false"}" data-screen-shake="${screenShake}" data-screen-flash="${screenFlash}" data-impact-skill-id="${impactSkillId}">
       ${bossPhaseVfx}
       ${recoveryVfx}
       ${enemyVfx}
@@ -2084,6 +2093,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const attackValue = Math.round(combatStats.attack ?? 0);
   const defenseValue = Math.round(combatStats.defense ?? 0);
   const cooldownValue = Math.round(combatStats.cooldown ?? 0);
+  const criticalChance = Math.round(run.combatProfile.criticalChance);
   const comboActive = run.comboCount > 0 && run.elapsedMs <= run.comboExpiresAtMs;
   const comboMeter = comboActive
     ? `<div class="combo-meter" data-combo-active="true" data-combo-count="${run.comboCount}"><strong>${run.comboCount}</strong><span>CHAIN</span></div>`
@@ -2123,7 +2133,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   `;
 
   return `
-    <section class="combat-scene" aria-label="战斗 · ${combatDifficulty.displayName}" data-combat-difficulty="${run.difficultyId}" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-hp="${run.player.hp}" data-player-max-hp="${run.player.maxHp}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
+    <section class="combat-scene" aria-label="战斗 · ${combatDifficulty.displayName}" data-combat-difficulty="${run.difficultyId}" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-hp="${run.player.hp}" data-player-max-hp="${run.player.maxHp}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-critical-chance="${criticalChance}" data-critical-accumulator="${Math.round(run.criticalAccumulator * 100) / 100}" data-critical-hit="${sceneHit?.critical ? "true" : "false"}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
@@ -2157,7 +2167,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         <button data-mode="town">返回</button>
       </div>
       <div class="combat-status">
-        <p>${combatDifficulty.displayName} · 房间 ${run.roomIndex + 1} · HP ${run.player.hp}/${run.player.maxHp} · ${run.player.resource.displayName} ${run.player.resource.current}/${run.player.resource.max} · 连段 ${run.player.comboStep} · 攻击 ${attackValue} · 防御 ${defenseValue} · 冷却 ${cooldownValue}%</p>
+        <p>${combatDifficulty.displayName} · 房间 ${run.roomIndex + 1} · HP ${run.player.hp}/${run.player.maxHp} · ${run.player.resource.displayName} ${run.player.resource.current}/${run.player.resource.max} · 连段 ${run.player.comboStep} · 攻击 ${attackValue} · 防御 ${defenseValue} · 暴击 ${criticalChance}% · 冷却 ${cooldownValue}%</p>
         <ul>${enemies}</ul>
       </div>
       <aside class="quest-tracker quest-tracker-prominent" aria-label="任务追踪">

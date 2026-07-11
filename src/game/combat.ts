@@ -341,6 +341,8 @@ export interface CombatHitEvent {
   skillId?: string;
   targetId: string;
   damage: number;
+  critical: boolean;
+  criticalMultiplier: number;
   occurredAtMs: number;
   inputToHitMs: number;
   hitstopMs: number;
@@ -524,6 +526,7 @@ export interface CombatRun {
   elapsedMs: number;
   comboCount: number;
   comboExpiresAtMs: number;
+  criticalAccumulator: number;
   arena: CombatArena;
   player: CombatPlayer;
   combatProfile: CombatProfile;
@@ -2445,6 +2448,27 @@ function resolveEnemyHitReaction(
 
 function playerDamage(run: CombatRun, baseDamage: number): number {
   return Math.max(1, Math.round(baseDamage * run.combatProfile.damageMultiplier));
+}
+
+interface CriticalHitResolution {
+  damage: number;
+  critical: boolean;
+  multiplier: number;
+  accumulator: number;
+}
+
+function resolvePlayerCritical(run: CombatRun, damage: number): CriticalHitResolution {
+  const chance = clamp(run.combatProfile.criticalChance, 0, 100);
+  const charged = clamp(run.criticalAccumulator, 0, 99.999999) + chance;
+  const critical = damage > 0 && chance > 0 && charged >= 100;
+  const multiplier = critical ? run.combatProfile.criticalDamageMultiplier : 1;
+
+  return {
+    damage: critical ? Math.max(1, Math.round(damage * multiplier)) : damage,
+    critical,
+    multiplier,
+    accumulator: critical ? charged - 100 : charged
+  };
 }
 
 function playerResourceGain(run: CombatRun, baseGain: number): number {
@@ -4585,6 +4609,7 @@ export function createCombatRun(
     elapsedMs: 0,
     comboCount: 0,
     comboExpiresAtMs: 0,
+    criticalAccumulator: 0,
     arena,
     combatProfile,
     player: {
@@ -5170,6 +5195,8 @@ function applyEnemyImpact(
         skillId: reflectSkillId,
         targetId: enemy.id,
         damage: reflectDamage,
+        critical: false,
+        criticalMultiplier: 1,
         occurredAtMs: hitTime,
         inputToHitMs: 0,
         hitstopMs: attack.hitstopMs,
@@ -5325,10 +5352,15 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
   }
 
   const bonusDamage = hit.consumeMarks ? target.marks * (hit.bonusDamagePerMark ?? 0) : 0;
-  const effectiveDamage = hit.damage + bonusDamage;
+  const preCriticalDamage = hit.damage + bonusDamage;
+  const criticalResolution = target.hp > 0
+    ? resolvePlayerCritical(run, preCriticalDamage)
+    : { damage: preCriticalDamage, critical: false, multiplier: 1, accumulator: run.criticalAccumulator };
+  const effectiveDamage = criticalResolution.damage;
   const statusTags = hit.statusTags ?? [];
   const actionTags = hit.actionTags ?? [];
-  const hitstopMs = eventHitstop(target, hit.hitstopMs);
+  const baseHitstopMs = eventHitstop(target, hit.hitstopMs);
+  const hitstopMs = criticalResolution.critical ? Math.round(baseHitstopMs * 1.25) : baseHitstopMs;
   const impactAtMs = run.elapsedMs + (hit.inputToHitMs ?? 0);
   const impactPosition = { x: target.position.x, y: target.position.y };
   const comboCount = run.comboCount > 0 && run.elapsedMs <= run.comboExpiresAtMs ? run.comboCount + 1 : 1;
@@ -5386,6 +5418,8 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     skillId: hit.skillId,
     targetId: hit.targetId,
     damage: effectiveDamage,
+    critical: criticalResolution.critical,
+    criticalMultiplier: criticalResolution.multiplier,
     occurredAtMs: impactAtMs,
     inputToHitMs: hit.inputToHitMs ?? 0,
     hitstopMs,
@@ -5406,6 +5440,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     ...run,
     comboCount,
     comboExpiresAtMs,
+    criticalAccumulator: criticalResolution.accumulator,
     enemies: nextEnemies,
     events: [...run.events, event],
     player: {
@@ -5700,7 +5735,9 @@ function applyScheduledEnemyHitEffect(
 
   const consumedMarks = effect.consumeMarks ? target.marks : 0;
   const bonusDamage = consumedMarks * (effect.bonusDamagePerMark ?? 0);
-  const effectiveDamage = effect.damage + bonusDamage;
+  const criticalResolution = resolvePlayerCritical(impactResolvedRun, effect.damage + bonusDamage);
+  const effectiveDamage = criticalResolution.damage;
+  const hitstopMs = criticalResolution.critical ? Math.round(effect.hitstopMs * 1.25) : effect.hitstopMs;
   const statusTags = effect.statusTags ?? [];
   const actionTags = effect.actionTags ?? [];
   const comboCount =
@@ -5715,9 +5752,11 @@ function applyScheduledEnemyHitEffect(
     skillId: effect.skillId,
     targetId,
     damage: effectiveDamage,
+    critical: criticalResolution.critical,
+    criticalMultiplier: criticalResolution.multiplier,
     occurredAtMs: effect.applyAtMs,
     inputToHitMs: effect.inputToHitMs,
-    hitstopMs: effect.hitstopMs,
+    hitstopMs,
     canceledFromCombo: effect.canceledFromCombo,
     comboCount,
     statusTags: effect.statusTags,
@@ -5792,6 +5831,7 @@ function applyScheduledEnemyHitEffect(
       ...impactResolvedRun,
       comboCount,
       comboExpiresAtMs,
+      criticalAccumulator: criticalResolution.accumulator,
       enemies: nextEnemies,
       events: [...impactResolvedRun.events, event],
       player: {
@@ -5801,7 +5841,7 @@ function applyScheduledEnemyHitEffect(
           effect.cancelWindowUntilMsOnHit !== undefined
             ? Math.max(nextPlayerWithResource.cancelWindowUntilMs, effect.cancelWindowUntilMsOnHit)
             : nextPlayerWithResource.cancelWindowUntilMs,
-        hitstopUntilMs: Math.max(impactResolvedRun.player.hitstopUntilMs, effect.applyAtMs + effect.hitstopMs)
+        hitstopUntilMs: Math.max(impactResolvedRun.player.hitstopUntilMs, effect.applyAtMs + hitstopMs)
       }
     },
     effect.applyAtMs

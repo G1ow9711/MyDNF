@@ -3444,6 +3444,17 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes ground-light-launch-impact-slash");
   });
 
+  it("defines dedicated critical impact, damage number, shake, and flash animations", () => {
+    expect(stylesCss).toContain('.hit-impact.is-critical');
+    expect(stylesCss).toContain('.damage-number.is-critical');
+    expect(stylesCss).toContain('[data-screen-shake="critical"]');
+    expect(stylesCss).toContain('[data-screen-flash="critical"]::after');
+    expect(stylesCss).toContain('@keyframes critical-impact-pulse');
+    expect(stylesCss).toContain('@keyframes critical-damage-float');
+    expect(stylesCss).toContain('@keyframes critical-screen-shake');
+    expect(stylesCss).toContain('@keyframes critical-screen-flash');
+  });
+
   it("renders DNF-style dash-light with player, weapon, target, and impact hooks", () => {
     const state = createInitialState();
     const baseRun = createCombatRun(state, "cinder-kiln-alley");

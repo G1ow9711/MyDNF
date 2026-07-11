@@ -4325,3 +4325,11 @@
 - Real browser acceptance proves one tap stays walk, the second right press within 90 ms activates the 280 ms double-tap contract, opens the 220 ms dash window, shows run/dust, and real X produces dash-light body motion, `dash-light-slash`, and enemy HP 80 to 43 before release exits run.
 - Compatibility acceptance passed for direction-plus-Z command priority and Shift-driven Liuli Flowing Light movement. Fast mount coverage proves the second press moves over 1.5x the first press delta and stops on release.
 - Final verification passed: focused double-tap route in 12.32 seconds, command/Liuli routes in 23.42 seconds, 671/671 non-keyboard and computed-style tests, production build, HTTP 200, and Git whitespace validation.
+
+## Task 195 Three-Step Normal Combo Frame Choreography
+- Audited existing combat, DOM, sprite-stage, CSS, and test coverage. Selected a presentation-only correction that preserves the proven three-step damage and control rules.
+- Added design and implementation records. No subagent was started.
+- Frame-stage normal attacks now use the full authoritative action window and expose combo step plus `windup / impact / recovery`. Contact frames are 9, 10, and 11 instead of three generic 8-11 loops.
+- Added narrow horizontal, cross-cut, and rising finisher arcs tied to impact phase. Enemy frame reactions now select 12, 13, and 14 with increasing lighting and preserve step 3 through lethal finishers.
+- Real browser X-X-X acceptance proves player frames 9/10/11, enemy frames 12/13/14, cues `ground-light-slash-1/2/3`, 3 CHAIN, target airborne state, and a computed 9 px glowing finisher arc. Screenshot: `normal-combo-finisher.png`.
+- Compatibility routes passed for base frame rendering, double-tap dash-light, and light-hit skill cancel. Final verification passed: focused combo route in 13.68 seconds, three compatibility routes in 43.10 seconds, 671/671 non-keyboard and computed-style tests, production build, HTTP 200, and Git whitespace validation.

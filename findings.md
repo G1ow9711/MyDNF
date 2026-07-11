@@ -1519,3 +1519,10 @@
 - The missing behavior belongs in the browser input adapter. Feeding its result into existing `combatTick` preserves one movement/attack authority and avoids duplicate speed or damage rules.
 - Player hit presentation had a longer event lifetime than the actual hurt lock. A new dash-light could resolve while the body still showed the stale hit pose; hit presentation now owns the body only while `hurtLockUntilMs` is active.
 - Double-tap and command input can coexist because the run detector requires release then press, while the command buffer still collapses adjacent duplicate direction tokens before terminal Z/Space matching.
+
+## Task 195 Normal Combo Frame Audit
+- Core combat already defines three strict light steps with damage 26/33/41 after profile scaling, hit frames 55/65/78 ms, increasing lunge/knockback, separate VFX cues, and a launcher third hit.
+- Mounted actor data already exposes `normalAttackComboStep`, full attack start/end timestamps, hit phases, enemy reaction step, and airborne state.
+- The frame stage currently reads only `normalAttackMoveProgress`, which ends at the hit frame, then generic action mapping falls back to frame 8 for the rest of recovery. It also ignores combo step, so all three X attacks reuse one visual sequence.
+- Full attack-window progress is sufficient for deterministic `windup / impact / recovery` presentation and stays frozen by the same combat elapsed clock during hitstop; no CSS timer or additional gameplay state is required.
+- Normal-room HP makes the third 41-damage hit lethal after 26 and 33 damage. Keeping `spriteReactionStep=3` on the defeated frame is necessary to show the launcher contact without altering death settlement.

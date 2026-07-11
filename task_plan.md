@@ -392,7 +392,16 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify single-tap walk, double-tap run, real X dash-light, and release exit through browser keyboard events.
 - [x] Run broad regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 195 Three-Step Normal Combo Frame Choreography
+- [x] Audit the existing three-step damage, timing, movement, knockback, launcher, and UI contracts.
+- [x] Lock atlas frame 9/10/11 contact poses and monster reaction frame 12/13/14 mapping.
+- [x] Drive player combo frames from the full action window and render phase-specific attack arcs.
+- [x] Verify real X-X-X input, distinct player/enemy frames, three hit cues, combo count, and finisher airborne state.
+- [x] Run broad regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 195 RED recorded the first real X hit and 26 damage but no player combo frame or enemy reaction metadata, proving the atlas layer repeated its generic attack sequence.
+- Task 195 third hit kills the normal target, so defeated-state priority could hide the launcher reaction. The frame stage preserves reaction step 3 on the defeated actor and selects frame 14 while authoritative HP/airborne state remains unchanged.
 - Task 194 first browser GREEN held the second direction through the monster pack before pressing X, so a natural monster hit could preempt the action. The route now uses an observed post-attack safe window and presses X on the first confirmed run frame without changing combat timing.
 - Task 194 polling saw real dash-light damage but missed its short motion window. Added a MutationObserver plus animation-frame recorder that proves body motion, impact cue, and HP loss from the same real key press.
 - Task 194 recorder initially required `data-player-normal-attack-move="dash-light"`, but the existing authoritative movement is exposed as `data-player-skill-move="dash-light"`. Corrected the reader after capturing all mounted motion fields; production behavior was already correct.

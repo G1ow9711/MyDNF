@@ -2708,6 +2708,61 @@ p {
   animation: sprite-double-tap-dust 360ms ease-out infinite;
 }
 
+.player-frame-sprite[data-sprite-state="attack"][data-sprite-combo-phase="impact"]::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.player-frame-sprite[data-sprite-combo-step="1"][data-sprite-combo-phase="impact"]::after {
+  left: 34%;
+  top: 42%;
+  width: 82%;
+  height: 28%;
+  border-top: 6px solid rgba(255, 247, 237, 0.94);
+  border-radius: 50%;
+  box-shadow: 0 -5px 18px rgba(251, 146, 60, 0.84);
+  transform: rotate(-8deg);
+}
+
+.player-frame-sprite[data-sprite-combo-step="2"][data-sprite-combo-phase="impact"]::after {
+  left: 28%;
+  top: 34%;
+  width: 94%;
+  height: 44%;
+  border-top: 7px solid rgba(254, 240, 138, 0.96);
+  border-bottom: 5px solid rgba(251, 146, 60, 0.72);
+  border-radius: 50%;
+  box-shadow: 0 -6px 22px rgba(250, 204, 21, 0.8), inset 0 5px 16px rgba(251, 146, 60, 0.5);
+  transform: rotate(17deg);
+}
+
+.player-frame-sprite[data-sprite-combo-step="3"][data-sprite-combo-phase="impact"]::after {
+  left: 48%;
+  top: 6%;
+  width: 54%;
+  height: 88%;
+  border-right: 9px solid rgba(255, 251, 235, 0.98);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 68% 72%, rgba(251, 146, 60, 0.34), transparent 64%);
+  box-shadow: 8px 0 28px rgba(250, 204, 21, 0.9), inset -6px 0 20px rgba(251, 146, 60, 0.54);
+  transform: rotate(-24deg);
+}
+
+.enemy-frame-sprite[data-sprite-reaction-step="1"] {
+  filter: drop-shadow(0 12px 10px rgba(2, 6, 23, 0.82)) drop-shadow(0 0 16px rgba(251, 191, 36, 0.54)) brightness(1.12);
+}
+
+.enemy-frame-sprite[data-sprite-reaction-step="2"] {
+  filter: drop-shadow(0 14px 11px rgba(2, 6, 23, 0.84)) drop-shadow(0 0 20px rgba(251, 146, 60, 0.66)) brightness(1.18);
+}
+
+.enemy-frame-sprite[data-sprite-reaction-step="3"] {
+  filter: drop-shadow(0 18px 13px rgba(2, 6, 23, 0.86)) drop-shadow(0 0 26px rgba(254, 240, 138, 0.82)) brightness(1.26);
+}
+
 .combat-actor {
   position: absolute;
   left: var(--actor-x);

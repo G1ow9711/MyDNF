@@ -11,6 +11,8 @@ type FrameActor = {
   skillPhase?: string;
   skillStage?: string;
   atlas?: string;
+  comboStep?: number;
+  reactionStep?: number;
 };
 
 function clamp01(value: number): number {
@@ -30,6 +32,11 @@ function framePosition(index: number): string {
 
 function actionFrame(progressValue: number): number {
   return 8 + Math.min(3, Math.floor(clamp01(progressValue) * 4));
+}
+
+function intervalProgress(startAtMs: number, endAtMs: number, elapsedMs: number): number {
+  if (endAtMs <= startAtMs) return 0;
+  return clamp01((elapsedMs - startAtMs) / (endAtMs - startAtMs));
 }
 
 export class CombatSpriteStage {
@@ -87,7 +94,11 @@ export class CombatSpriteStage {
 
     if (playerElement && playerSprite && ["ember-warden", "liuli-blademage"].includes(playerSprite.dataset.frameClassId ?? "")) {
       const skillProgress = progress(playerElement.dataset.playerSkillStageProgress);
-      const normalProgress = progress(playerElement.dataset.playerNormalAttackMoveProgress);
+      const normalAttackStartedAtMs = Number(playerElement.dataset.playerNormalAttackStartedAtMs ?? "0");
+      const normalAttackUntilMs = Number(playerElement.dataset.playerNormalAttackUntilMs ?? "0");
+      const normalProgress = normalAttackUntilMs > normalAttackStartedAtMs
+        ? intervalProgress(normalAttackStartedAtMs, normalAttackUntilMs, elapsedMs)
+        : progress(playerElement.dataset.playerNormalAttackMoveProgress);
       this.applyFrame({
         element: playerElement,
         sprite: playerSprite,
@@ -99,7 +110,8 @@ export class CombatSpriteStage {
         defeated: playerElement.dataset.playerState === "defeated",
         skillId: playerElement.dataset.activeSkillId,
         skillPhase: playerElement.dataset.playerSkillHitPhase,
-        skillStage: playerElement.dataset.playerSkillStage
+        skillStage: playerElement.dataset.playerSkillStage,
+        comboStep: Number(playerElement.dataset.playerNormalComboStep ?? "0")
       }, elapsedMs, hitstop);
     }
 
@@ -118,7 +130,8 @@ export class CombatSpriteStage {
         defeated: enemy.dataset.enemyState === "defeated",
         skillId: enemy.dataset.enemyAttackSkillId || enemy.dataset.bossPhaseSkillId,
         skillStage: enemy.dataset.enemyAttackStage,
-        atlas: sprite.dataset.frameAtlas ?? "ash-cinder-imp"
+        atlas: sprite.dataset.frameAtlas ?? "ash-cinder-imp",
+        reactionStep: Number(enemy.dataset.enemyHitGroundLightStep ?? "0")
       }, elapsedMs, hitstop);
     }
 
@@ -136,6 +149,10 @@ export class CombatSpriteStage {
     let frame = Math.floor(elapsedMs / 180) % 4;
     let state = "idle";
     const flowingLightSkill = actor.id === "player" && actor.skillId === "flowing-light-chain";
+
+    actor.sprite.dataset.spriteComboStep = "";
+    actor.sprite.dataset.spriteComboPhase = "";
+    actor.sprite.dataset.spriteReactionStep = "";
 
     if (actor.id === "player") {
       const classId = actor.sprite.dataset.frameClassId ?? "ember-warden";
@@ -169,10 +186,12 @@ export class CombatSpriteStage {
       }
       state = "skill-dance";
     } else if (actor.defeated || actor.motion === "defeated" || actor.motion === "knockdown") {
-      frame = 14 + Math.min(1, Math.floor((elapsedMs % 360) / 180));
+      frame = actor.reactionStep === 3 ? 14 : 14 + Math.min(1, Math.floor((elapsedMs % 360) / 180));
+      if (actor.reactionStep) actor.sprite.dataset.spriteReactionStep = String(actor.reactionStep);
       state = "knockdown";
     } else if (["hit", "hitstun", "guard-break", "bound", "controlled"].includes(actor.motion)) {
-      frame = 12 + Math.min(1, Math.floor((elapsedMs % 240) / 120));
+      frame = actor.reactionStep ? 11 + Math.min(3, actor.reactionStep) : 12 + Math.min(1, Math.floor((elapsedMs % 240) / 120));
+      if (actor.reactionStep) actor.sprite.dataset.spriteReactionStep = String(actor.reactionStep);
       state = "hit";
     } else if (actor.id !== "player" && actor.motion === "attack") {
       if (actor.skillStage === "windup") {
@@ -193,6 +212,15 @@ export class CombatSpriteStage {
         frame = actionFrame(actor.progress || ((elapsedMs % 420) / 420));
       }
       state = `monster-skill-${actor.skillId || "attack"}`;
+    } else if (actor.id === "player" && actor.motion === "light" && actor.comboStep && actor.comboStep >= 1 && actor.comboStep <= 3) {
+      const p = clamp01(actor.progress);
+      const comboPhase = p < 0.24 ? "windup" : p < 0.72 ? "impact" : "recovery";
+      const windupFrame = 7 + actor.comboStep;
+      const contactFrame = 8 + actor.comboStep;
+      frame = comboPhase === "impact" ? contactFrame : windupFrame;
+      state = "attack";
+      actor.sprite.dataset.spriteComboStep = String(actor.comboStep);
+      actor.sprite.dataset.spriteComboPhase = comboPhase;
     } else if (["light", "heavy", "skill", "air-light", "air-heavy", "dash-light", "attack", "counter", "shield"].includes(actor.motion)) {
       frame = actionFrame(actor.progress || ((elapsedMs % 420) / 420));
       state = "attack";

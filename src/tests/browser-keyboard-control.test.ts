@@ -193,6 +193,32 @@ type BrowserDoubleTapRunEvidence = {
   lowestEnemyHp: number;
 };
 
+type BrowserNormalComboState = {
+  objective: string;
+  normalAttackActive: string;
+  playerHurtLockActive: string;
+  comboStep: number;
+  comboCount: number;
+  spriteComboStep: number;
+  spriteComboPhase: string;
+  spriteFrame: number;
+  impactStep: string;
+  enemyAirborne: string[];
+  comboArcContent: string;
+  comboArcBorderRightWidth: string;
+  comboArcBoxShadow: string;
+};
+
+type BrowserNormalComboEvidence = {
+  playerContactFrames: Array<{ step: number; frame: number }>;
+  hitSteps: number[];
+  hitCues: string[];
+  enemyReactionFrames: Array<{ step: number; frame: number }>;
+  maxComboCount: number;
+  sawFinisherAirborne: boolean;
+  lowestEnemyHp: number;
+};
+
 type BrowserComboCancelState = {
   objective: string;
   playerX: number;
@@ -1389,6 +1415,87 @@ const readDoubleTapRunEvidenceExpression = `
 (() => globalThis.__doubleTapRunEvidence)()
 `;
 
+const readNormalComboStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const player = document.querySelector(".combat-player");
+  const sprite = document.querySelector(".player-frame-sprite");
+  const impact = document.querySelector("[data-impact-ground-light-step]");
+  const comboArc = sprite ? getComputedStyle(sprite, "::after") : null;
+  return {
+    objective: scene?.getAttribute("data-combat-objective") ?? "",
+    normalAttackActive: player?.getAttribute("data-player-normal-attack-active") ?? "",
+    playerHurtLockActive: player?.getAttribute("data-player-hurt-lock-active") ?? "",
+    comboStep: Number(player?.getAttribute("data-player-normal-combo-step") ?? "0"),
+    comboCount: Number(scene?.getAttribute("data-combo-count") ?? "0"),
+    spriteComboStep: Number(sprite?.getAttribute("data-sprite-combo-step") ?? "0"),
+    spriteComboPhase: sprite?.getAttribute("data-sprite-combo-phase") ?? "",
+    spriteFrame: Number(sprite?.getAttribute("data-sprite-frame") ?? "-1"),
+    impactStep: impact?.getAttribute("data-impact-ground-light-step") ?? "",
+    enemyAirborne: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => enemy.getAttribute("data-enemy-airborne") ?? ""),
+    comboArcContent: comboArc?.content ?? "",
+    comboArcBorderRightWidth: comboArc?.borderRightWidth ?? "",
+    comboArcBoxShadow: comboArc?.boxShadow ?? ""
+  };
+})()
+`;
+
+const installNormalComboRecorderExpression = `
+(() => {
+  globalThis.__normalComboEvidence = {
+    playerContactFrames: [],
+    hitSteps: [],
+    hitCues: [],
+    enemyReactionFrames: [],
+    maxComboCount: 0,
+    sawFinisherAirborne: false,
+    lowestEnemyHp: Number.POSITIVE_INFINITY
+  };
+  const addFrame = (items, step, frame) => {
+    if (step > 0 && frame >= 0 && !items.some((item) => item.step === step)) items.push({ step, frame });
+  };
+  const addUnique = (items, value) => {
+    if (value && !items.includes(value)) items.push(value);
+  };
+  const sample = () => {
+    const scene = document.querySelector(".combat-scene");
+    const playerSprite = document.querySelector(".player-frame-sprite");
+    const evidence = globalThis.__normalComboEvidence;
+    const playerStep = Number(playerSprite?.getAttribute("data-sprite-combo-step") ?? "0");
+    const playerFrame = Number(playerSprite?.getAttribute("data-sprite-frame") ?? "-1");
+    const playerPhase = playerSprite?.getAttribute("data-sprite-combo-phase") ?? "";
+    if (playerPhase === "impact") addFrame(evidence.playerContactFrames, playerStep, playerFrame);
+    for (const impact of document.querySelectorAll("[data-impact-ground-light-step]")) {
+      addUnique(evidence.hitSteps, Number(impact.getAttribute("data-impact-ground-light-step") ?? "0"));
+      addUnique(evidence.hitCues, impact.getAttribute("data-vfx-cue") ?? "");
+    }
+    for (const enemy of document.querySelectorAll(".combat-enemy")) {
+      const sprite = enemy.querySelector(".enemy-frame-sprite");
+      const reactionStep = Number(sprite?.getAttribute("data-sprite-reaction-step") ?? "0");
+      const reactionFrame = Number(sprite?.getAttribute("data-sprite-frame") ?? "-1");
+      addFrame(evidence.enemyReactionFrames, reactionStep, reactionFrame);
+      evidence.sawFinisherAirborne ||= reactionStep === 3 && enemy.getAttribute("data-enemy-airborne") === "true";
+      evidence.lowestEnemyHp = Math.min(evidence.lowestEnemyHp, Number(enemy.getAttribute("data-enemy-hp-current") ?? "0"));
+    }
+    evidence.maxComboCount = Math.max(evidence.maxComboCount, Number(scene?.getAttribute("data-combo-count") ?? "0"));
+  };
+  const observer = new MutationObserver(sample);
+  observer.observe(document.documentElement, { attributes: true, childList: true, subtree: true });
+  globalThis.__normalComboObserver = observer;
+  const startedAt = performance.now();
+  const tick = () => {
+    sample();
+    if (performance.now() - startedAt < 6000) globalThis.__normalComboFrame = requestAnimationFrame(tick);
+  };
+  globalThis.__normalComboFrame = requestAnimationFrame(tick);
+  return true;
+})()
+`;
+
+const readNormalComboEvidenceExpression = `
+(() => globalThis.__normalComboEvidence)()
+`;
+
 const readComboCancelStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
@@ -2124,6 +2231,78 @@ describe("real browser keyboard control", () => {
           (state) => state.dashSource === "none" && state.doubleTapActive === "false",
           1000
         );
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
+  it("chains three real X attacks through distinct contact frames into an airborne finisher", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
+        await enterDungeonWithKeyboard(page);
+        await moveIntoLiveEnemyRange(page);
+        await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
+          readFlowingLightSafeCastWindowExpression,
+          (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
+          5000
+        );
+        await page.waitFor<BrowserNormalComboState>(
+          readNormalComboStateExpression,
+          (state) => state.objective === "active" && state.playerHurtLockActive !== "true",
+          1500
+        );
+        await page.evaluate<boolean>(installNormalComboRecorderExpression);
+
+        for (const step of [1, 2, 3]) {
+          await page.pressKey("KeyX");
+          await page.waitFor<BrowserNormalComboEvidence>(
+            readNormalComboEvidenceExpression,
+            (evidence) =>
+              evidence.hitSteps.includes(step) &&
+              evidence.playerContactFrames.some((item) => item.step === step) &&
+              evidence.enemyReactionFrames.some((item) => item.step === step),
+            1400
+          );
+          if (step < 3) {
+            await page.waitFor<BrowserNormalComboState>(
+              readNormalComboStateExpression,
+              (state) => state.normalAttackActive === "false" && state.playerHurtLockActive !== "true",
+              900
+            );
+          }
+        }
+
+        const finisher = await page.waitFor<BrowserNormalComboState>(
+          readNormalComboStateExpression,
+          (state) => state.impactStep === "3" && state.spriteComboStep === 3 && state.spriteComboPhase === "impact" && state.spriteFrame === 11,
+          700
+        );
+        expect(finisher.enemyAirborne).toContain("true");
+        expect(finisher.comboArcContent).toBe('\"\"');
+        expect(finisher.comboArcBorderRightWidth).toBe("9px");
+        expect(finisher.comboArcBoxShadow).not.toBe("none");
+        await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/normal-combo-finisher.png`);
+
+        const evidence = await page.evaluate<BrowserNormalComboEvidence>(readNormalComboEvidenceExpression);
+        expect(evidence.playerContactFrames).toEqual([
+          { step: 1, frame: 9 },
+          { step: 2, frame: 10 },
+          { step: 3, frame: 11 }
+        ]);
+        expect(evidence.enemyReactionFrames).toEqual([
+          { step: 1, frame: 12 },
+          { step: 2, frame: 13 },
+          { step: 3, frame: 14 }
+        ]);
+        expect(evidence.hitSteps).toEqual([1, 2, 3]);
+        expect(evidence.hitCues).toEqual(["ground-light-slash-1", "ground-light-slash-2", "ground-light-slash-3"]);
+        expect(evidence.maxComboCount).toBe(3);
+        expect(evidence.sawFinisherAirborne).toBe(true);
+        expect(evidence.lowestEnemyHp).toBeLessThan(80);
       });
     } finally {
       await server.close();

@@ -4262,3 +4262,4 @@
 - The Boss route then passed focused. The second full keyboard run again passed the new functionality and 31/32 overall; a separate legacy focused-prep scenario lost one real town-button click. Unified its three openings on the already-proven state-aware real-click helper without synthetic activation.
 - The focused-prep route passed after hardening. Because two PTY runs dropped their final output tail, the final authoritative full run wrote to a project-local runtime log and passed 32/32 in 770.60 seconds with `EXIT_CODE=0`.
 - Final verification before commit: 664/664 non-keyboard tests across 16 files, 32/32 true-browser keyboard scenarios, production build, HTTP 200, and no subagent launch.
+- Task 187 implementation, tests, design, and acceptance evidence were committed as `5a60510 实现地下城连续再战刷装循环`.

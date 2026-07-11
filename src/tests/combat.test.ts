@@ -304,6 +304,39 @@ function resolveDifficultyMonsterImpact(run: CombatRun): CombatRun {
   return stepCombat(prepared, {}, 100);
 }
 
+function resolveDifficultyArenaHazard(run: CombatRun, inRange = true): CombatRun {
+  const prepared: CombatRun = {
+    ...run,
+    player: {
+      ...run.player,
+      x: 240,
+      y: inRange ? 340 : run.arena.maxY,
+      hp: 500,
+      maxHp: 500,
+      shieldUntilMs: 1000,
+      shieldReduction: 0.25
+    },
+    scheduledArenaHazards: [
+      {
+        hazardId: "difficulty-forge-collapse",
+        enemyId: run.enemies[0].id,
+        skillId: "taotie-forge-collapse",
+        x: 240,
+        y: 340,
+        radiusX: 72,
+        laneRange: 28,
+        impactAtMs: 100,
+        damage: 51,
+        hitstopMs: 90,
+        knockback: 84,
+        vfxWindowMs: 420
+      }
+    ]
+  };
+
+  return stepCombat(prepared, {}, 100);
+}
+
 function withPlayerAndEnemies(
   run: CombatRun,
   playerPatch: Partial<CombatRun["player"]>,
@@ -472,9 +505,9 @@ describe("combat difficulty scaling", () => {
     const adventure = createCombatRun(createInitialState(), "cinder-kiln-alley", "adventure");
 
     expect(normal.difficultyId).toBe("normal");
-    expect(normal.enemies[0]).toMatchObject({ difficultyId: "normal", hp: 80, maxHp: 80 });
+    expect(normal.enemies[0]).toMatchObject({ hp: 80, maxHp: 80 });
     expect(adventure.difficultyId).toBe("adventure");
-    expect(adventure.enemies[0]).toMatchObject({ difficultyId: "adventure", hp: 108, maxHp: 108 });
+    expect(adventure.enemies[0]).toMatchObject({ hp: 108, maxHp: 108 });
   });
 
   it("difficulty scales each monster impact before the same defense flow", () => {
@@ -537,6 +570,37 @@ describe("combat difficulty scaling", () => {
     ]);
   });
 
+  it("difficulty scales arena hazard damage once before the same shield flow", () => {
+    const normal = resolveDifficultyArenaHazard(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const adventure = resolveDifficultyArenaHazard(
+      createCombatRun(createInitialState(), "cinder-kiln-alley", "adventure")
+    );
+    const normalHit = normal.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-forge-collapse"
+    );
+    const adventureHit = adventure.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-forge-collapse"
+    );
+
+    expect(normalHit?.damage).toBe(Math.round(Math.round(51 * 1) * 0.75));
+    expect(adventureHit?.damage).toBe(Math.round(Math.round(51 * 1.2) * 0.75));
+  });
+
+  it("difficulty does not damage the player when an arena hazard misses", () => {
+    const missed = resolveDifficultyArenaHazard(
+      createCombatRun(createInitialState(), "cinder-kiln-alley", "adventure"),
+      false
+    );
+
+    expect(missed.player.hp).toBe(500);
+    expect(missed.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "arena-hazard", skillId: "taotie-forge-collapse", phase: "miss" })
+      ])
+    );
+    expect(missed.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-forge-collapse")).toBe(false);
+  });
+
   it("difficulty scales room currency rewards once without changing drop identity", () => {
     const normal = finishRoom(defeatAll(createCombatRun(unlockLiuli(createInitialState()), "liuli-furnace")));
     const adventure = finishRoom(
@@ -568,8 +632,8 @@ describe("combat difficulty scaling", () => {
     };
     const entered = completeRoomGateTransition(enterRoomGate(clearedAtGate));
 
-    expect(directlyFinished.enemies[0]).toMatchObject({ difficultyId: "adventure", maxHp: 243 });
-    expect(entered.enemies[0]).toMatchObject({ difficultyId: "adventure", maxHp: 243 });
+    expect(directlyFinished.enemies[0].maxHp).toBe(243);
+    expect(entered.enemies[0].maxHp).toBe(243);
   });
 
   it("difficulty persists on Taotie ash summons", () => {
@@ -598,7 +662,7 @@ describe("combat difficulty scaling", () => {
     const summoned = impacted.enemies.filter((enemy) => enemy.id !== telegraph.enemies[0].id);
 
     expect(summoned).toHaveLength(2);
-    expect(summoned.every((enemy) => enemy.difficultyId === "adventure" && enemy.maxHp === 108)).toBe(true);
+    expect(summoned.every((enemy) => enemy.maxHp === 108)).toBe(true);
   });
 
   it("difficulty rejects unknown identifiers", () => {

@@ -352,10 +352,53 @@ p {
   font-size: 12px;
 }
 
-.dungeon-result-confirm {
+.dungeon-result-actions {
   grid-column: 2;
-  justify-self: end;
-  min-width: 210px;
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.dungeon-result-fatigue {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 12px;
+  min-width: 0;
+}
+
+.dungeon-result-fatigue span,
+.dungeon-result-fatigue strong,
+.dungeon-result-fatigue small {
+  font-size: 11px;
+}
+
+.dungeon-result-fatigue span {
+  color: #cbd5e1;
+}
+
+.dungeon-result-fatigue strong {
+  color: var(--result-accent);
+}
+
+.dungeon-result-fatigue small {
+  grid-column: 1 / -1;
+  color: #94a3b8;
+}
+
+.dungeon-result-fatigue small[data-rechallenge-reason] {
+  color: #fca5a5;
+}
+
+.dungeon-result-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.dungeon-result-confirm,
+.dungeon-result-rechallenge {
+  min-width: 190px;
   padding: 10px 18px;
   border-color: var(--result-accent);
   color: #fff;
@@ -363,10 +406,27 @@ p {
   box-shadow: 0 0 22px var(--result-glow);
 }
 
-.dungeon-result-confirm span {
+.dungeon-result-confirm span,
+.dungeon-result-rechallenge span {
   margin-left: 14px;
   color: #a8b3c4;
   font-size: 11px;
+}
+
+.dungeon-result-rechallenge {
+  color: #07090d;
+  background: var(--result-accent);
+}
+
+.dungeon-result-rechallenge span {
+  color: rgba(7, 9, 13, 0.68);
+}
+
+.dungeon-result-rechallenge:disabled {
+  border-color: rgba(148, 163, 184, 0.26);
+  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.74);
+  box-shadow: none;
 }
 
 .dungeon-result[data-result-rank="C"] { --result-accent: #a3a3a3; --result-glow: rgba(163, 163, 163, 0.3); }
@@ -11368,7 +11428,7 @@ p {
   .dungeon-result-grade,
   .dungeon-result-statistics,
   .dungeon-result-details,
-  .dungeon-result-confirm {
+  .dungeon-result-actions {
     grid-column: 1;
     grid-row: auto;
   }
@@ -11397,8 +11457,15 @@ p {
     border-left: 0;
   }
 
-  .dungeon-result-confirm {
-    justify-self: stretch;
+  .dungeon-result-actions,
+  .dungeon-result-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .dungeon-result-confirm,
+  .dungeon-result-rechallenge {
+    width: 100%;
   }
 
   .top-nav {

@@ -4251,3 +4251,14 @@
 - Added explicit reload recovery coverage: a saved result-phase reward state restarts in town with no runtime result/combat state and no duplicate currency grant.
 - Final pre-commit evidence: 661/661 non-keyboard tests passed across 16 files, production build passed, `git diff --check` passed, the live Vite endpoint returned HTTP 200, and the authoritative keyboard suite passed 31/31. No subagent was started.
 - Task 186 implementation, tests, design, and acceptance evidence were committed as `2ac23ed 实现副本通关评级与结算流程`.
+
+## Task 187 DNF Dungeon Rechallenge Farming Loop
+- Confirmed a clean zero-divergence branch at `9b3c1ed`. Started a no-subagent audit of result controls, dungeon entry legality, fatigue persistence, and continuous farming flow.
+- Selected result-screen rechallenge because the existing targeted-loot and set-farming systems are mechanically ready but every clear currently forces a town round trip.
+- Added reducer and result-UI RED coverage, then implemented same-dungeon/same-difficulty re-entry through the authoritative entry rules, exact fatigue deduction, fresh combat runtime, no repeated rewards, disabled insufficient-fatigue state, dual result actions, button routing, and `R` input.
+- Focused reducer/UI checks pass and production build passes. The first true-browser attempt exposed missing CDP `KeyR` support; after adding the real key mapping, the route proved successful re-entry and persistence and identified only missing fresh-run event-count hooks.
+- Added mounted combat event/loot counts and strengthened acceptance into a 97.85-second continuous farming route: clear run one, click the real rechallenge button, clear run two, then press real `R` into run three. It proves fatigue 58→52→46, legitimate second-run rewards, no retry-time duplicate rewards, same difficulty, live room-zero enemies, and fresh event/loot histories.
+- Broad verification passed 664/664 non-keyboard tests and the production build. The first full keyboard suite passed 31/32; the new route passed, while an older Boss route used no available revival after a full-load defeat. Hardened only the real-control helper to press `Digit2` after an observed failed state.
+- The Boss route then passed focused. The second full keyboard run again passed the new functionality and 31/32 overall; a separate legacy focused-prep scenario lost one real town-button click. Unified its three openings on the already-proven state-aware real-click helper without synthetic activation.
+- The focused-prep route passed after hardening. Because two PTY runs dropped their final output tail, the final authoritative full run wrote to a project-local runtime log and passed 32/32 in 770.60 seconds with `EXIT_CODE=0`.
+- Final verification before commit: 664/664 non-keyboard tests across 16 files, 32/32 true-browser keyboard scenarios, production build, HTTP 200, and no subagent launch.

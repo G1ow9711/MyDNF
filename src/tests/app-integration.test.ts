@@ -511,6 +511,75 @@ describe("playable app integration actions", () => {
     expect(reloaded.state.player.currencies).toEqual(savedCurrencies);
   });
 
+  it("rechallenges the cleared dungeon at the same difficulty with a fresh fatigue-paid run", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, {
+      type: "enterDungeon",
+      dungeonId: "cinder-kiln-alley",
+      difficultyId: "normal"
+    });
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+
+    expect(model.mode).toBe("dungeon-result");
+    expect(model.state.player.fatigue.current).toBe(58);
+
+    const rewardedState = model.state;
+    const result = model.dungeonResult;
+    model = reduceAppAction(model, { type: "rechallengeDungeon" });
+
+    expect(model.mode).toBe("combat");
+    expect(model.state.player.fatigue.current).toBe(52);
+    expect(model.state.player.currencies).toEqual(rewardedState.player.currencies);
+    expect(model.state.player.inventory).toEqual(rewardedState.player.inventory);
+    expect(model.state.player.quests).toEqual(rewardedState.player.quests);
+    expect(model.combatRun).toMatchObject({
+      dungeonId: result?.dungeonId,
+      difficultyId: result?.difficultyId,
+      roomIndex: 0,
+      elapsedMs: 0,
+      completed: false,
+      failed: false,
+      events: [],
+      lootEvents: []
+    });
+    expect(model.combatRun?.enemies.some((enemy) => enemy.hp > 0)).toBe(true);
+    expect(model.dungeonResult).toBeUndefined();
+    expect(model.lastLoot).toBeUndefined();
+    expect(model.audio.currentBgm).toBe("dungeon-cinder-kiln");
+  });
+
+  it("keeps the dungeon result and state unchanged when rechallenge fatigue is insufficient", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+    model = {
+      ...model,
+      state: {
+        ...model.state,
+        player: {
+          ...model.state.player,
+          fatigue: { current: 5, max: 64 }
+        }
+      }
+    };
+
+    const result = model.dungeonResult;
+    const state = model.state;
+    const rejected = reduceAppAction(model, { type: "rechallengeDungeon" });
+
+    expect(rejected.mode).toBe("dungeon-result");
+    expect(rejected.state).toBe(state);
+    expect(rejected.dungeonResult).toBe(result);
+    expect(rejected.combatRun).toBeUndefined();
+    expect(rejected.message).toContain("疲劳");
+  });
+
   it("awards room experience so advancement can be reached through normal dungeon play", () => {
     const baseState = withQuestReady(createInitialState(), "prologue-ember-warden");
     let model = createAppModel({

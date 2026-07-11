@@ -98,6 +98,7 @@ export type AppAction =
   | { type: "openDungeonPrep"; dungeonId: DungeonId }
   | { type: "selectDungeonDifficulty"; difficultyId: DungeonDifficultyId }
   | { type: "enterDungeon"; dungeonId: DungeonId; difficultyId?: DungeonDifficultyId }
+  | { type: "rechallengeDungeon" }
   | { type: "confirmDungeonResult" }
   | { type: "combatTick"; moveX?: number; moveY?: number; dash?: boolean }
   | { type: "combatMove"; moveX: number; moveY: number; dash: boolean }
@@ -2142,7 +2143,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   `;
 
   return `
-    <section class="combat-scene" aria-label="战斗 · ${combatDifficulty.displayName}" data-combat-difficulty="${run.difficultyId}" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-hp="${run.player.hp}" data-player-max-hp="${run.player.maxHp}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-critical-chance="${criticalChance}" data-critical-accumulator="${Math.round(run.criticalAccumulator * 100) / 100}" data-critical-hit="${sceneHit?.critical ? "true" : "false"}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
+    <section class="combat-scene" aria-label="战斗 · ${combatDifficulty.displayName}" data-combat-difficulty="${run.difficultyId}" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-combat-event-count="${run.events.length}" data-combat-loot-event-count="${run.lootEvents.length}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-hp="${run.player.hp}" data-player-max-hp="${run.player.maxHp}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-critical-chance="${criticalChance}" data-critical-accumulator="${Math.round(run.criticalAccumulator * 100) / 100}" data-critical-hit="${sceneHit?.critical ? "true" : "false"}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
@@ -2282,9 +2283,12 @@ function formatDungeonClearTime(clearTimeMs: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(centiseconds).padStart(2, "0")}`;
 }
 
-function renderDungeonResult(result: DungeonClearResult): string {
+function renderDungeonResult(result: DungeonClearResult, state: GameState): string {
   const dungeon = catalog.dungeons.find((item) => item.id === result.dungeonId);
   const difficulty = getDungeonDifficulty(result.difficultyId);
+  const rechallengeEntry = canEnterDungeon(state, result.dungeonId, result.difficultyId);
+  const fatigueCurrent = state.player.fatigue.current;
+  const fatigueAfterRetry = fatigueCurrent - difficulty.fatigueCost;
   const loot = result.loot;
   const gear = catalog.gear.find((item) => item.id === loot?.gearDropId);
   const set = catalog.epicSets.find((item) => item.id === gear?.setId);
@@ -2311,7 +2315,7 @@ function renderDungeonResult(result: DungeonClearResult): string {
   ];
 
   return `
-    <section class="dungeon-result" data-dungeon-result="true" data-result-dungeon-id="${result.dungeonId}" data-result-difficulty-id="${result.difficultyId}" data-result-rank="${result.rank}" data-result-score="${result.score}" data-result-max-combo="${result.stats.maxCombo}" data-result-accuracy="${result.stats.accuracyPercent}" data-result-critical-hits="${result.stats.criticalHits}" data-result-hits-taken="${result.stats.hitsTaken}" data-result-clear-time-ms="${result.stats.clearTimeMs}" data-result-damage-dealt="${result.stats.damageDealt}" data-result-gear-id="${gear?.id ?? ""}" data-result-rank-bonus-gold="${result.rankBonus.gold}" data-result-rank-bonus-iron-dust="${result.rankBonus.ironDust}" aria-label="地下城通关结算">
+    <section class="dungeon-result" data-dungeon-result="true" data-result-dungeon-id="${result.dungeonId}" data-result-difficulty-id="${result.difficultyId}" data-result-rank="${result.rank}" data-result-score="${result.score}" data-result-max-combo="${result.stats.maxCombo}" data-result-accuracy="${result.stats.accuracyPercent}" data-result-critical-hits="${result.stats.criticalHits}" data-result-hits-taken="${result.stats.hitsTaken}" data-result-clear-time-ms="${result.stats.clearTimeMs}" data-result-damage-dealt="${result.stats.damageDealt}" data-result-gear-id="${gear?.id ?? ""}" data-result-rank-bonus-gold="${result.rankBonus.gold}" data-result-rank-bonus-iron-dust="${result.rankBonus.ironDust}" data-rechallenge-available="${rechallengeEntry.canEnter ? "true" : "false"}" data-result-fatigue-current="${fatigueCurrent}" data-result-fatigue-cost="${difficulty.fatigueCost}" data-result-fatigue-after-retry="${fatigueAfterRetry}" aria-label="地下城通关结算">
       <img class="dungeon-result-background" src="${dungeonBackgroundAsset(result.dungeonId)}" alt="" aria-hidden="true" />
       <div class="dungeon-result-shade" aria-hidden="true"></div>
       <div class="dungeon-result-content">
@@ -2350,7 +2354,17 @@ function renderDungeonResult(result: DungeonClearResult): string {
           </div>
         </section>
 
-        <button class="dungeon-result-confirm" data-confirm-dungeon-result="true">返回城镇 <span>Enter / Space</span></button>
+        <div class="dungeon-result-actions">
+          <div class="dungeon-result-fatigue">
+            <span>疲劳 ${fatigueCurrent}/${state.player.fatigue.max}</span>
+            <strong>再次挑战消耗 ${difficulty.fatigueCost}</strong>
+            ${rechallengeEntry.canEnter ? `<small>挑战后剩余 ${fatigueAfterRetry}</small>` : `<small data-rechallenge-reason="${rechallengeEntry.reason}">疲劳值不足，无法再次挑战</small>`}
+          </div>
+          <div class="dungeon-result-buttons">
+            <button class="dungeon-result-rechallenge" data-rechallenge-dungeon="true"${rechallengeEntry.canEnter ? "" : " disabled"}>再次挑战 <span>快捷键 R</span></button>
+            <button class="dungeon-result-confirm" data-confirm-dungeon-result="true">返回城镇 <span>Enter / Space</span></button>
+          </div>
+        </div>
       </div>
     </section>
   `;
@@ -2362,7 +2376,7 @@ export function renderAppHtml(model: AppViewModel): string {
     : model.mode === "dungeon-prep"
       ? renderDungeonPrep(model)
       : model.mode === "dungeon-result" && model.dungeonResult
-        ? renderDungeonResult(model.dungeonResult)
+        ? renderDungeonResult(model.dungeonResult, model.state)
       : renderTownScene(model);
   const currencies = model.state.player.currencies;
   const audioVolumes = model.audio?.volumes ?? createAudioState().volumes;
@@ -2567,6 +2581,37 @@ export function createAppModel(options: CreateAppModelOptions = {}): AppModel {
 
 export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
   switch (action.type) {
+    case "rechallengeDungeon": {
+      if (model.mode !== "dungeon-result" || !model.dungeonResult) {
+        return model;
+      }
+
+      const { dungeonId, difficultyId } = model.dungeonResult;
+      const entry = canEnterDungeon(model.state, dungeonId, difficultyId);
+
+      if (!entry.canEnter) {
+        return {
+          ...model,
+          message: entry.reason === "insufficient-fatigue" || entry.reason === "invalid-fatigue"
+            ? "疲劳值不足，无法再次挑战"
+            : "当前无法再次挑战该地下城"
+        };
+      }
+
+      const state = consumeDungeonEntry(model.state, dungeonId, difficultyId);
+
+      return {
+        ...model,
+        state,
+        mode: "combat",
+        dungeonPrep: undefined,
+        combatRun: createCombatRun(state, dungeonId, difficultyId),
+        dungeonResult: undefined,
+        lastLoot: undefined,
+        message: undefined,
+        audio: playBgm(model.audio, chooseMusicLayer({ mode: "dungeon", dungeonId, danger: 0.2 }).trackId)
+      };
+    }
     case "confirmDungeonResult":
       if (model.mode !== "dungeon-result" || !model.dungeonResult) {
         return model;
@@ -3199,6 +3244,10 @@ export function mountApp(root: HTMLDivElement): () => void {
         dispatch({ type: "confirmDungeonResult" });
       }
 
+      if (target.dataset.rechallengeDungeon) {
+        dispatch({ type: "rechallengeDungeon" });
+      }
+
       if (combatAction) {
         if (combatAction === "skill") {
           if (combatSkillId) {
@@ -3328,11 +3377,20 @@ export function mountApp(root: HTMLDivElement): () => void {
         commandBuffer = [];
         heldCombatKeys.clear();
 
-        if (model.mode === "dungeon-result" && (event.code === "Enter" || event.code === "Space")) {
-          event.preventDefault();
-          dispatch({ type: "confirmDungeonResult" });
-          render();
-          return;
+        if (model.mode === "dungeon-result") {
+          if (event.code === "KeyR") {
+            event.preventDefault();
+            dispatch({ type: "rechallengeDungeon" });
+            render();
+            return;
+          }
+
+          if (event.code === "Enter" || event.code === "Space") {
+            event.preventDefault();
+            dispatch({ type: "confirmDungeonResult" });
+            render();
+            return;
+          }
         }
 
         if (model.mode === "dungeon-prep" && model.dungeonPrep) {

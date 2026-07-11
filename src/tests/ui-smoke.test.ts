@@ -433,6 +433,13 @@ describe("town app shell", () => {
     expect(html).toContain('data-result-clear-time-ms="60000"');
     expect(html).toContain('data-result-gear-id="epic-ember-artisan-head"');
     expect(html).toContain('data-result-rank-bonus-gold="360"');
+    expect(html).toContain('data-rechallenge-available="true"');
+    expect(html).toContain('data-result-fatigue-current="64"');
+    expect(html).toContain('data-result-fatigue-cost="6"');
+    expect(html).toContain('data-result-fatigue-after-retry="58"');
+    expect(html).toContain('data-rechallenge-dungeon="true"');
+    expect(html).toContain("再次挑战");
+    expect(html).toContain("快捷键 R");
     expect(html).toContain('data-confirm-dungeon-result="true"');
     expect(html).toContain("史诗烬火宗匠战冠");
     expect(html).toContain("评级奖励");
@@ -440,6 +447,49 @@ describe("town app shell", () => {
     expect(html).not.toContain('data-town-scene="true"');
     expect(stylesCss).toContain('.dungeon-result[data-result-rank="SS"]');
     expect(stylesCss).toContain('@keyframes dungeon-result-rank-enter');
+  });
+
+  it("disables dungeon rechallenge and explains insufficient fatigue on the result screen", () => {
+    const initial = createInitialState();
+    const state = {
+      ...initial,
+      player: {
+        ...initial.player,
+        fatigue: { current: 5, max: 64 }
+      }
+    };
+    const html = renderAppHtml({
+      state,
+      mode: "dungeon-result",
+      dungeonResult: {
+        dungeonId: "cinder-kiln-alley",
+        difficultyId: "normal",
+        rank: "C",
+        score: 3200,
+        breakdown: { base: 1400, combo: 0, accuracy: 0, survival: 1800, time: 0, critical: 0 },
+        stats: {
+          hitsLanded: 0,
+          misses: 0,
+          criticalHits: 0,
+          maxCombo: 0,
+          damageDealt: 0,
+          damageTaken: 0,
+          hitsTaken: 0,
+          accuracyPercent: 0,
+          clearTimeMs: 300000
+        },
+        rankBonus: { gold: 0, ironDust: 0 }
+      }
+    });
+
+    expect(html).toContain('data-rechallenge-available="false"');
+    expect(html).toContain('data-result-fatigue-current="5"');
+    expect(html).toContain('data-result-fatigue-cost="6"');
+    expect(html).toContain('data-result-fatigue-after-retry="-1"');
+    expect(html).toContain('data-rechallenge-dungeon="true" disabled');
+    expect(html).toContain('data-rechallenge-reason="insufficient-fatigue"');
+    expect(html).toContain("疲劳值不足");
+    expect(html).toContain('data-confirm-dungeon-result="true"');
   });
 
   it("uses generated bitmap assets for detailed character and realistic Chinese-style environments", () => {

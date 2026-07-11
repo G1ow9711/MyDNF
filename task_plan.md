@@ -331,7 +331,17 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Support Enter/Space and mounted button confirmation while keeping reload recovery safe.
 - [x] Verify a full real-keyboard dungeon clear reaches the result screen, confirms to town, and persists rewards before Chinese commit/push.
 
+## Task 187 DNF Dungeon Rechallenge Farming Loop
+- [x] Add a result-only rechallenge action that reuses the cleared dungeon and difficulty while consuming a fresh fatigue entry cost.
+- [x] Reset combat runtime, event history, loot presentation, and result state without granting the previous clear rewards again.
+- [x] Render current fatigue, exact retry cost, availability, disabled reason, mounted button, and `R` shortcut on the result screen.
+- [x] Prove insufficient fatigue cannot leave the result screen or mutate the save.
+- [x] Verify a true-keyboard Boss clear presses `R`, starts room 1 of a fresh run, persists the second fatigue deduction, then run full regressions and push Chinese commits.
+
 ### Errors Encountered
+- Task 187 second full 32-scenario run again passed 31/32; all combat, Boss, and rechallenge routes passed. A different legacy focused-prep scenario lost one mounted town-button click. Replaced its three direct clicks with the existing real-click/state-confirmation retry helper; native focused Enter behavior remains unchanged and no synthetic click was introduced.
+- Task 187 first full 32-scenario browser run passed 31/32. The new rechallenge scenario passed; an older Boss-clear route was defeated under full-suite load with one revival token still available because the shared clear helper only handled hurt/quick-recovery states. It now presses real `Digit2` only after observing `failed`, waits for active revival, and otherwise retains the existing timeout failure.
+- Task 187 first focused browser run never sent `KeyR` because the CDP key map did not contain that code and failed in test infrastructure. Added the real `R`/virtual-key-82 mapping, then reran. The second RED reached a fresh combat run with saved fatigue 52 and unchanged rewards, failing only on absent event/loot-count hooks as intended.
 - Task 186 first full 31-scenario browser run passed 29/31. One preparation-page real click produced no state change; it now retries only after an observed timeout. The campaign also retained fixed pre-grade currency totals; those assertions now use mounted, persisted rank-result currency as their baseline before checking quest deltas.
 - A combined Task 185 evidence patch targeted `progress.md` with “move an initially valid target before” while the file contained “move an initially valid target out before”; patch verification rejected the entire edit. Re-read the tail and reapplied against the exact text; no partial file changes occurred.
 - Task 185 first production build stopped on the manual reflect hit event missing required critical metadata. Classified fixed monster-derived reflect damage as non-critical, added explicit fields, and documented the accumulator exception.

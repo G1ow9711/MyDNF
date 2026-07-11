@@ -174,6 +174,7 @@ export type RealBrowserKeyCode =
   | "KeyH"
   | "KeyJ"
   | "KeyK"
+  | "KeyR"
   | "KeyS"
   | "KeyU"
   | "KeyX"
@@ -986,6 +987,7 @@ function keyInfoForCode(code: RealBrowserKeyCode): { key: string; text: string; 
     KeyH: { key: "h", text: "h", windowsVirtualKeyCode: 72 },
     KeyJ: { key: "j", text: "j", windowsVirtualKeyCode: 74 },
     KeyK: { key: "k", text: "k", windowsVirtualKeyCode: 75 },
+    KeyR: { key: "r", text: "r", windowsVirtualKeyCode: 82 },
     KeyS: { key: "s", text: "s", windowsVirtualKeyCode: 83 },
     KeyU: { key: "u", text: "u", windowsVirtualKeyCode: 85 },
     KeyX: { key: "x", text: "x", windowsVirtualKeyCode: 88 },

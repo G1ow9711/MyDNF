@@ -196,8 +196,10 @@ type BrowserComboCancelState = {
 };
 
 type BrowserRoomFlowState = {
+  appMode: string;
   objective: string;
   dungeonId: string;
+  difficultyId: string;
   roomIndex: string;
   roomCount: string;
   liveEnemyCount: string;
@@ -214,6 +216,12 @@ type BrowserRoomFlowState = {
   transitionState: string;
   transitionFromRoom: string;
   transitionTargetRoom: string;
+  combatEventCount: number;
+  combatLootEventCount: number;
+  resultVisible: boolean;
+  savedFatigue: number;
+  savedGold: number;
+  savedIronDust: number;
   enemies: Array<{
     id: string;
     kind: string;
@@ -327,6 +335,10 @@ type BrowserDungeonResultState = {
   saveExists: boolean;
   confirmButton: boolean;
   topNav: boolean;
+  rechallengeAvailable: boolean;
+  fatigueCurrent: number;
+  fatigueCost: number;
+  fatigueAfterRetry: number;
 };
 
 type BrowserDungeonDifficultyState = {
@@ -448,6 +460,7 @@ const readCombatStateExpression = `
 
 const readRoomFlowStateExpression = `
 (() => {
+  const shell = document.querySelector(".app-shell");
   const scene = document.querySelector(".combat-scene");
   const gate = document.querySelector("[data-room-gate='true']");
   const player = document.querySelector(".combat-player");
@@ -458,10 +471,14 @@ const readRoomFlowStateExpression = `
     x: Number(enemy.getAttribute("data-enemy-x") || "0"),
     y: Number(enemy.getAttribute("data-enemy-y") || "0")
   }));
+  const rawSave = localStorage.getItem(${JSON.stringify(SAVE_KEY)});
+  const saved = rawSave ? JSON.parse(rawSave) : null;
 
   return {
+    appMode: shell?.getAttribute("data-app-mode") ?? "",
     objective: scene?.getAttribute("data-combat-objective") ?? "",
     dungeonId: scene?.getAttribute("data-dungeon-id") ?? "",
+    difficultyId: scene?.getAttribute("data-combat-difficulty") ?? "",
     roomIndex: scene?.getAttribute("data-room-index") ?? "",
     roomCount: scene?.getAttribute("data-room-count") ?? "",
     liveEnemyCount: scene?.getAttribute("data-live-enemy-count") ?? "",
@@ -478,6 +495,12 @@ const readRoomFlowStateExpression = `
     transitionState: scene?.getAttribute("data-room-transition-state") ?? "",
     transitionFromRoom: scene?.getAttribute("data-room-transition-from-room") ?? "",
     transitionTargetRoom: scene?.getAttribute("data-room-transition-target-room") ?? "",
+    combatEventCount: Number(scene?.getAttribute("data-combat-event-count") ?? "-1"),
+    combatLootEventCount: Number(scene?.getAttribute("data-combat-loot-event-count") ?? "-1"),
+    resultVisible: Boolean(document.querySelector("[data-dungeon-result='true']")),
+    savedFatigue: Number(saved?.player?.fatigue?.current ?? -1),
+    savedGold: Number(saved?.player?.currencies?.gold ?? -1),
+    savedIronDust: Number(saved?.player?.currencies?.ironDust ?? -1),
     enemies
   };
 })()
@@ -743,7 +766,11 @@ const readDungeonResultStateExpression = `
     savedIronDust: Number(saved?.player?.currencies?.ironDust ?? -1),
     saveExists: Boolean(rawSave),
     confirmButton: Boolean(document.querySelector("[data-confirm-dungeon-result='true']")),
-    topNav: Boolean(document.querySelector(".top-nav"))
+    topNav: Boolean(document.querySelector(".top-nav")),
+    rechallengeAvailable: result?.getAttribute("data-rechallenge-available") === "true",
+    fatigueCurrent: Number(result?.getAttribute("data-result-fatigue-current") ?? "-1"),
+    fatigueCost: Number(result?.getAttribute("data-result-fatigue-cost") ?? "-1"),
+    fatigueAfterRetry: Number(result?.getAttribute("data-result-fatigue-after-retry") ?? "-1")
   };
 })()
 `;
@@ -2081,12 +2108,12 @@ describe("real browser keyboard control", () => {
     try {
       await runAppInRealBrowser(server.url, async (page) => {
         await seedSaveAndReload(page, createInitialState());
-        await page.click('[data-prepare-dungeon="cinder-kiln-alley"]');
+        await openDungeonPrepThroughRealClick(page, "cinder-kiln-alley");
         await page.evaluate<void>(`document.querySelector('[data-dungeon-prep-back]')?.focus()`);
         await page.pressKey("Enter");
         await page.waitFor<BrowserAppModeState>(readAppModeStateExpression, (state) => state.appMode === "town", 5000);
 
-        await page.click('[data-prepare-dungeon="cinder-kiln-alley"]');
+        await openDungeonPrepThroughRealClick(page, "cinder-kiln-alley");
         await page.evaluate<void>(`document.querySelector('[data-dungeon-difficulty="adventure"]')?.focus()`);
         await page.pressKey("Enter");
         const selected = await page.waitFor<BrowserDungeonDifficultyState>(
@@ -2099,7 +2126,7 @@ describe("real browser keyboard control", () => {
         const lowFatigueState = createInitialState();
         lowFatigueState.player.fatigue = { current: 5, max: 64 };
         await seedSaveAndReload(page, lowFatigueState);
-        await page.click('[data-prepare-dungeon="cinder-kiln-alley"]');
+        await openDungeonPrepThroughRealClick(page, "cinder-kiln-alley");
         await page.evaluate<void>(`document.querySelector('[data-dungeon-prep-back]')?.focus()`);
         await page.pressKey("Enter");
         const returned = await page.waitFor<BrowserDungeonDifficultyState>(
@@ -2307,6 +2334,87 @@ describe("real browser keyboard control", () => {
         expect(evidence.sawBossPhase).toBe(true);
         expect(evidence.sawArenaHazard).toBe(true);
         expect(evidence.sawBossSkillVfx).toBe(true);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 240000);
+
+  it("chains mounted-button and real-R dungeon rechallenges with fresh saved runs", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        await clearCurrentRoomWithKeyboard(page);
+        await walkThroughOpenGate(page);
+        await clearCurrentRoomWithKeyboard(page, 28);
+        await walkThroughOpenGate(page);
+        await clearCurrentRoomWithKeyboard(page, 80);
+
+        const result = await reachDungeonResult(page);
+
+        expect(result.dungeonId).toBe("cinder-kiln-alley");
+        expect(result.difficultyId).toBe("normal");
+        expect(result.rechallengeAvailable).toBe(true);
+        expect(result.fatigueCurrent).toBe(58);
+        expect(result.fatigueCost).toBe(6);
+        expect(result.fatigueAfterRetry).toBe(52);
+
+        await page.click("[data-rechallenge-dungeon='true']");
+        const buttonRechallenged = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) =>
+            state.appMode === "combat" &&
+            state.objective === "active" &&
+            state.dungeonId === "cinder-kiln-alley" &&
+            state.difficultyId === "normal" &&
+            state.roomIndex === "0" &&
+            state.liveEnemyCount === "2" &&
+            state.combatEventCount === 0 &&
+            state.combatLootEventCount === 0 &&
+            !state.resultVisible &&
+            state.savedFatigue === 52,
+          8000
+        );
+
+        expect(buttonRechallenged.defeatedEnemyCount).toBe("0");
+        expect(buttonRechallenged.savedGold).toBe(result.savedGold);
+        expect(buttonRechallenged.savedIronDust).toBe(result.savedIronDust);
+
+        await clearCurrentRoomWithKeyboard(page);
+        await walkThroughOpenGate(page);
+        await clearCurrentRoomWithKeyboard(page, 28);
+        await walkThroughOpenGate(page);
+        await clearCurrentRoomWithKeyboard(page, 80);
+
+        const secondResult = await reachDungeonResult(page);
+
+        expect(secondResult.fatigueCurrent).toBe(52);
+        expect(secondResult.fatigueAfterRetry).toBe(46);
+        expect(secondResult.savedGold).toBeGreaterThan(result.savedGold);
+        expect(secondResult.savedIronDust).toBeGreaterThan(result.savedIronDust);
+
+        await page.pressKey("KeyR");
+        const keyRechallenged = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) =>
+            state.appMode === "combat" &&
+            state.objective === "active" &&
+            state.dungeonId === "cinder-kiln-alley" &&
+            state.difficultyId === "normal" &&
+            state.roomIndex === "0" &&
+            state.liveEnemyCount === "2" &&
+            state.combatEventCount === 0 &&
+            state.combatLootEventCount === 0 &&
+            !state.resultVisible &&
+            state.savedFatigue === 46,
+          8000
+        );
+
+        expect(keyRechallenged.defeatedEnemyCount).toBe("0");
+        expect(keyRechallenged.savedGold).toBe(secondResult.savedGold);
+        expect(keyRechallenged.savedIronDust).toBe(secondResult.savedIronDust);
       });
     } finally {
       await server.close();
@@ -3458,6 +3566,16 @@ async function clearCurrentRoomWithKeyboard(page: RealBrowserAppPage, maxAttempt
       break;
     }
 
+    if (state.objective === "failed") {
+      await page.pressKey("Digit2");
+      await page.waitFor<BrowserRoomFlowState>(
+        readRoomFlowStateExpression,
+        (next) => next.objective === "active" && next.playerHurtLockActive === "false",
+        3000
+      );
+      continue;
+    }
+
     if (state.playerRecoveryAvailable === "true") {
       await page.pressKey("KeyC");
       await waitInBrowser(page, 280);
@@ -3606,6 +3724,23 @@ async function walkThroughCompletionGateToTown(
   page: RealBrowserAppPage,
   confirmation: "Enter" | "Space" | "button" = "Enter"
 ): Promise<BrowserDungeonResultState> {
+  const result = await reachDungeonResult(page);
+
+  if (confirmation === "button") {
+    await page.click("[data-confirm-dungeon-result='true']");
+  } else {
+    await page.pressKey(confirmation);
+  }
+  await page.waitFor<BrowserAppModeState>(
+    readAppModeStateExpression,
+    (state) => state.appMode === "town" && state.townScene === "true",
+    8000
+  );
+
+  return result;
+}
+
+async function reachDungeonResult(page: RealBrowserAppPage): Promise<BrowserDungeonResultState> {
   await alignWithExitGateLane(page);
   const currentMode = await page.evaluate<BrowserAppModeState>(readAppModeStateExpression);
 
@@ -3622,24 +3757,11 @@ async function walkThroughCompletionGateToTown(
     }
   }
 
-  const result = await page.waitFor<BrowserDungeonResultState>(
+  return page.waitFor<BrowserDungeonResultState>(
     readDungeonResultStateExpression,
     (state) => state.appMode === "dungeon-result" && state.confirmButton && !state.topNav && state.saveExists,
     8000
   );
-
-  if (confirmation === "button") {
-    await page.click("[data-confirm-dungeon-result='true']");
-  } else {
-    await page.pressKey(confirmation);
-  }
-  await page.waitFor<BrowserAppModeState>(
-    readAppModeStateExpression,
-    (state) => state.appMode === "town" && state.townScene === "true",
-    8000
-  );
-
-  return result;
 }
 
 async function alignWithExitGateLane(page: RealBrowserAppPage): Promise<void> {

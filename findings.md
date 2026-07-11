@@ -1444,3 +1444,12 @@
 - The focused real-browser RED route reached the mounted result screen and exposed the saved rewards, then timed out only after a real Enter press; this proved the new acceptance path was not passing through the old direct-town behavior.
 - The mounted result now exposes dungeon, difficulty, rank, score, combo, accuracy, critical, hit-taken, time, damage, gear, rank-bonus, and save-backed currency evidence while suppressing town navigation and the duplicate floating loot banner.
 - Shared completion-gate acceptance now uses Enter in the dedicated Boss route, a mounted button click in the Cinder campaign, and Space in the Liuli campaign, so all three confirmation paths are exercised without test-only state mutation.
+
+## Task 187 Dungeon-Rechallenge Audit
+- Targeted dungeon drops, set completion, difficulty scaling, and fatigue already support repeat farming, but the result screen currently exposes only return-to-town. Every clear therefore breaks the farming loop and forces redundant town navigation.
+- Existing `canEnterDungeon()` and `consumeDungeonEntry()` are the authoritative legality and fatigue boundaries. Rechallenge should call them with `dungeonResult.dungeonId` and `difficultyId`; no second retry-specific fatigue implementation is needed.
+- Result rewards are already applied and saved before the result phase. A legal retry must consume only the next entry cost, construct a fresh `CombatRun`, and clear `dungeonResult`/`lastLoot`; it must not replay Boss settlement or quest events.
+- Enter and Space already mean return to town. Preserve that compatibility and reserve `R` for immediate rechallenge. The mounted button uses the same reducer action.
+- Retry availability can be derived at render time from the current post-reward state. Expose current fatigue, cost, legal state, and reason as stable `data-*` hooks; disable only the retry button, never the return button.
+- A true browser proof must clear the actual Boss, observe the result, press real `R`, and land in fresh room zero with live enemies, empty run events/loot, the same difficulty, and the second fatigue deduction already present in `localStorage`.
+- An official-site search for explicit current DNF result-screen shortcut documentation returned no usable results. The implementation therefore does not invent an official key claim; `R` is a project-local explicit shortcut shown in the mounted control.

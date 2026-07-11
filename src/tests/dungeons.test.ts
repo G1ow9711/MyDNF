@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "../game/state";
-import type { DungeonDifficultyId, DungeonId, GameState } from "../game/types";
+import type { GameState } from "../game/types";
 import {
   DUNGEON_DIFFICULTY_ORDER,
   canEnterDungeon,
@@ -38,6 +38,19 @@ describe("dungeon difficulty rules", () => {
         fatigueCost: 10
       }
     ]);
+  });
+
+  it("freezes the public difficulty order and returned rules at runtime", () => {
+    const normal = getDungeonDifficulty("normal");
+
+    expect(Object.isFrozen(DUNGEON_DIFFICULTY_ORDER)).toBe(true);
+    for (const difficultyId of DUNGEON_DIFFICULTY_ORDER) {
+      expect(Object.isFrozen(getDungeonDifficulty(difficultyId))).toBe(true);
+    }
+    expect(Reflect.set(DUNGEON_DIFFICULTY_ORDER, "0", "warrior")).toBe(false);
+    expect(Reflect.set(normal, "fatigueCost", 999)).toBe(false);
+    expect(DUNGEON_DIFFICULTY_ORDER).toEqual(["normal", "adventure", "warrior"]);
+    expect(getDungeonDifficulty("normal").fatigueCost).toBe(6);
   });
 
   it("uses normal when no dungeon preference has been recorded", () => {
@@ -81,15 +94,15 @@ describe("dungeon entry", () => {
     {
       name: "unknown dungeon",
       state: createInitialState(),
-      dungeonId: "missing-dungeon" as DungeonId,
-      difficultyId: "normal" as DungeonDifficultyId,
+      dungeonId: "missing-dungeon",
+      difficultyId: "normal",
       reason: "unknown-dungeon"
     },
     {
       name: "unknown difficulty",
       state: createInitialState(),
-      dungeonId: "cinder-kiln-alley" as DungeonId,
-      difficultyId: "nightmare" as DungeonDifficultyId,
+      dungeonId: "cinder-kiln-alley",
+      difficultyId: "nightmare",
       reason: "unknown-difficulty"
     },
     {
@@ -98,8 +111,8 @@ describe("dungeon entry", () => {
         ...createInitialState(),
         player: { ...createInitialState().player, unlockedDungeons: [] }
       },
-      dungeonId: "cinder-kiln-alley" as DungeonId,
-      difficultyId: "normal" as DungeonDifficultyId,
+      dungeonId: "cinder-kiln-alley",
+      difficultyId: "normal",
       reason: "locked"
     },
     {
@@ -111,8 +124,8 @@ describe("dungeon entry", () => {
           unlockedDungeons: ["cinder-kiln-alley", "liuli-furnace"]
         }
       } as GameState,
-      dungeonId: "liuli-furnace" as DungeonId,
-      difficultyId: "normal" as DungeonDifficultyId,
+      dungeonId: "liuli-furnace",
+      difficultyId: "normal",
       reason: "level-too-low"
     },
     {
@@ -124,8 +137,8 @@ describe("dungeon entry", () => {
           fatigue: { current: 7, max: 64 }
         }
       },
-      dungeonId: "cinder-kiln-alley" as DungeonId,
-      difficultyId: "adventure" as DungeonDifficultyId,
+      dungeonId: "cinder-kiln-alley",
+      difficultyId: "adventure",
       reason: "insufficient-fatigue"
     }
   ])("rejects $name with a stable reason", ({ state, dungeonId, difficultyId, reason }) => {
@@ -159,5 +172,34 @@ describe("dungeon entry", () => {
     expect(
       consumeDungeonEntry(state, "cinder-kiln-alley", "adventure").player.fatigue.current
     ).toBe(0);
+  });
+
+  it.each([
+    { name: "NaN current", fatigue: { current: Number.NaN, max: 64 } },
+    { name: "infinite current", fatigue: { current: Number.POSITIVE_INFINITY, max: 64 } },
+    { name: "fractional current", fatigue: { current: 8.5, max: 64 } },
+    { name: "negative current", fatigue: { current: -1, max: 64 } },
+    { name: "current above max", fatigue: { current: 65, max: 64 } },
+    { name: "NaN max", fatigue: { current: 8, max: Number.NaN } },
+    { name: "infinite max", fatigue: { current: 8, max: Number.POSITIVE_INFINITY } },
+    { name: "fractional max", fatigue: { current: 8, max: 64.5 } },
+    { name: "zero max", fatigue: { current: 0, max: 0 } }
+  ])("rejects invalid in-memory fatigue: $name", ({ fatigue }) => {
+    const state: GameState = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        fatigue
+      }
+    };
+
+    expect(canEnterDungeon(state, "cinder-kiln-alley", "normal")).toEqual({
+      canEnter: false,
+      reason: "invalid-fatigue"
+    });
+    expect(() => consumeDungeonEntry(state, "cinder-kiln-alley", "normal")).toThrow(
+      "invalid-fatigue"
+    );
+    expect(state.player.fatigue).toEqual(fatigue);
   });
 });

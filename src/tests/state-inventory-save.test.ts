@@ -382,7 +382,8 @@ describe("save system", () => {
     { fatigue: { current: -1, max: 64 }, name: "negative current fatigue" },
     { fatigue: { current: 65, max: 64 }, name: "current fatigue above max" },
     { fatigue: { current: 0, max: 0 }, name: "non-positive max fatigue" },
-    { fatigue: { current: 0, max: 64.5 }, name: "fractional max fatigue" }
+    { fatigue: { current: 0, max: 64.5 }, name: "fractional max fatigue" },
+    { fatigue: { current: 64, max: 64, bonus: 1 }, name: "unknown fatigue field" }
   ])("rejects invalid save: $name", ({ fatigue }) => {
     const storage = new MemoryStorage();
     const save = cloneSave(createInitialState());

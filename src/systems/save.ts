@@ -16,7 +16,6 @@ import type {
   TownId
 } from "../game/types";
 import { isKnownAdvancementId, isKnownClassId, skillMaxLevel } from "./classes";
-import { DUNGEON_DIFFICULTY_ORDER } from "./dungeons";
 import { normalizeAuctionPriceRecords } from "./market";
 import { isKnownBoxId } from "./shop";
 
@@ -59,6 +58,11 @@ const dungeonIds = new Set<DungeonId>(catalog.dungeons.map((dungeon) => dungeon.
 const townIds = new Set<TownId>(catalog.towns.map((town) => town.id));
 const gearSlotIds = new Set<GearSlot>(gearSlots);
 const amplifyStatIds = new Set<AmplifyStat>(amplifyStats);
+const dungeonDifficultyIds = new Set<string>(["normal", "adventure", "warrior"]);
+
+function isDungeonDifficultyId(value: unknown): value is DungeonDifficultyId {
+  return typeof value === "string" && dungeonDifficultyIds.has(value);
+}
 
 function parseSave(rawSave: string): unknown {
   try {
@@ -319,6 +323,12 @@ function validateFatigue(value: unknown): { current: number; max: number } {
   }
 
   const fatigue = requireRecord(value, "player.fatigue");
+  const unknownKey = Object.keys(fatigue).find((key) => key !== "current" && key !== "max");
+
+  if (unknownKey !== undefined) {
+    throw new Error(`Malformed save data: player.fatigue contains unknown field ${unknownKey}`);
+  }
+
   const current = fatigue.current;
   const max = fatigue.max;
 
@@ -356,13 +366,13 @@ function validateDungeonDifficultyPreferences(
       );
     }
 
-    if (!DUNGEON_DIFFICULTY_ORDER.includes(difficultyId as DungeonDifficultyId)) {
+    if (!isDungeonDifficultyId(difficultyId)) {
       throw new Error(
         `Malformed save data: player.dungeonDifficultyPreferences.${dungeonId} has unknown difficulty`
       );
     }
 
-    normalized[dungeonId as DungeonId] = difficultyId as DungeonDifficultyId;
+    normalized[dungeonId as DungeonId] = difficultyId;
   }
 
   return normalized;

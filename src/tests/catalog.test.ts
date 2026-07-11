@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
+import { questStoryScripts, storyNpcs } from "../data/story";
 import type { ClassId, DungeonDef, GearSlot, OwnedGearItem, PlayerState, QuestDef, SkillDef, TownDef } from "../game/types";
 
 const allSlots: GearSlot[] = [
@@ -76,6 +77,22 @@ describe("catalog", () => {
     for (const item of catalog.gear) {
       expect(item.id).toMatch(semanticGearIdPattern);
       expect(item.id).not.toMatch(/-\d+-/);
+    }
+  });
+
+  it("covers every quest with short briefing and turn-in dialogue across five named NPCs", () => {
+    expect(questStoryScripts.map((script) => script.questId).sort()).toEqual(catalog.quests.map((quest) => quest.id).sort());
+    expect(Object.keys(storyNpcs)).toHaveLength(5);
+
+    for (const script of questStoryScripts) {
+      expect(script.briefing).toHaveLength(3);
+      expect(script.turnIn).toHaveLength(3);
+
+      for (const line of [...script.briefing, ...script.turnIn]) {
+        expect(storyNpcs[line.npcId]).toBeDefined();
+        expect(line.text.length).toBeGreaterThanOrEqual(12);
+        expect(line.text).not.toMatch(mojibakePattern);
+      }
     }
   });
 

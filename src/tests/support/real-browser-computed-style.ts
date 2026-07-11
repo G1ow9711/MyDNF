@@ -164,6 +164,7 @@ export type RealBrowserKeyCode =
   | "ArrowUp"
   | "ArrowDown"
   | "Enter"
+  | "Escape"
   | "ShiftLeft"
   | "ShiftRight"
   | "KeyA"
@@ -977,6 +978,7 @@ function keyInfoForCode(code: RealBrowserKeyCode): { key: string; text: string; 
     ArrowUp: { key: "ArrowUp", text: "", windowsVirtualKeyCode: 38 },
     ArrowDown: { key: "ArrowDown", text: "", windowsVirtualKeyCode: 40 },
     Enter: { key: "Enter", text: "\r", windowsVirtualKeyCode: 13 },
+    Escape: { key: "Escape", text: "", windowsVirtualKeyCode: 27 },
     ShiftLeft: { key: "Shift", text: "", windowsVirtualKeyCode: 16 },
     ShiftRight: { key: "Shift", text: "", windowsVirtualKeyCode: 16 },
     KeyA: { key: "a", text: "a", windowsVirtualKeyCode: 65 },

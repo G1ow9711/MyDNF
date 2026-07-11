@@ -15,6 +15,7 @@ import {
   reduceAppAction,
   renderAppHtml
 } from "../ui/app";
+import type { AppAction } from "../ui/app";
 
 class MemoryStorage implements SaveStorage {
   readonly data = new Map<string, string>();
@@ -374,6 +375,70 @@ describe("playable app integration actions", () => {
     expect(claimed.state.player.quests["prologue-ember-warden"]).toBe("completed");
     expect(claimed.state.player.quests["smith-first-spark"]).toBe("active");
     expect(claimed.state.player.unlockedDungeons).toContain("liuli-furnace");
+  });
+
+  it("keeps active quest briefing runtime-only and returns without rewards", () => {
+    const model = createAppModel({ storage: new MemoryStorage(), initialState: createInitialState() });
+    const opened = reduceAppAction(model, {
+      type: "startQuestDialogue",
+      questId: "prologue-ember-warden"
+    } as unknown as AppAction);
+
+    expect(opened.mode).toBe("story-dialogue");
+    expect(opened.dialogue).toEqual({ questId: "prologue-ember-warden", phase: "briefing", stepIndex: 0 });
+    expect(opened.state).toBe(model.state);
+
+    const skipped = reduceAppAction(opened, { type: "skipQuestDialogue" } as unknown as AppAction);
+
+    expect(skipped.mode).toBe("quests");
+    expect(skipped.dialogue).toBeUndefined();
+    expect(skipped.state).toBe(model.state);
+    expect(skipped.state.player.quests["prologue-ember-warden"]).toBe("active");
+  });
+
+  it("claims a ready quest only after the final NPC turn-in line", () => {
+    const readyState = withQuestReady(createInitialState(), "prologue-ember-warden");
+    const model = createAppModel({ storage: new MemoryStorage(), initialState: readyState });
+    const opened = reduceAppAction(model, {
+      type: "startQuestDialogue",
+      questId: "prologue-ember-warden"
+    } as unknown as AppAction);
+    const secondLine = reduceAppAction(opened, { type: "advanceQuestDialogue" } as unknown as AppAction);
+    const finalLine = reduceAppAction(secondLine, { type: "advanceQuestDialogue" } as unknown as AppAction);
+
+    expect(opened.dialogue?.phase).toBe("turn-in");
+    expect(secondLine.dialogue?.stepIndex).toBe(1);
+    expect(finalLine.dialogue?.stepIndex).toBe(2);
+    expect(finalLine.state).toBe(readyState);
+
+    const claimed = reduceAppAction(finalLine, { type: "advanceQuestDialogue" } as unknown as AppAction);
+
+    expect(claimed.mode).toBe("quests");
+    expect(claimed.dialogue).toBeUndefined();
+    expect(claimed.state.player.quests["prologue-ember-warden"]).toBe("completed");
+    expect(claimed.state.player.quests["smith-first-spark"]).toBe("active");
+    expect(claimed.state.player.unlockedDungeons).toContain("liuli-furnace");
+    expect(claimed.state.player.currencies.gold).toBe(readyState.player.currencies.gold + 600);
+
+    const repeated = reduceAppAction(claimed, {
+      type: "startQuestDialogue",
+      questId: "prologue-ember-warden"
+    } as unknown as AppAction);
+    expect(repeated).toBe(claimed);
+  });
+
+  it("skips a ready turn-in through the same single quest settlement boundary", () => {
+    const readyState = withQuestReady(createInitialState(), "prologue-ember-warden");
+    const model = createAppModel({ storage: new MemoryStorage(), initialState: readyState });
+    const opened = reduceAppAction(model, {
+      type: "startQuestDialogue",
+      questId: "prologue-ember-warden"
+    } as unknown as AppAction);
+    const skipped = reduceAppAction(opened, { type: "skipQuestDialogue" } as unknown as AppAction);
+
+    expect(skipped.state.player.quests["prologue-ember-warden"]).toBe("completed");
+    expect(skipped.state.player.currencies.gold).toBe(readyState.player.currencies.gold + 600);
+    expect(skipped.message).toContain("任务奖励");
   });
 
   it("selects a base class and applies advancement through app actions", () => {

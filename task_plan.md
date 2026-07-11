@@ -345,7 +345,18 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Prove app-level revival restores combat, applies invulnerability, consumes exactly one token, and auto-saves.
 - [x] Verify a real monster defeat opens the overlay and a real mounted click revives the character before full regression and Chinese push.
 
+## Task 189 Story NPC Dialogue And Quest Turn-In
+- [x] Add data-driven briefing and turn-in dialogue for all seven existing quests and five named town NPC roles.
+- [x] Keep dialogue runtime-only while reusing the authoritative quest reward and unlock rules.
+- [x] Replace direct mounted reward claiming with short, skippable mouse/keyboard dialogue flow.
+- [x] Render a full story scene with environment, portrait, speaker, progress, next, and skip controls.
+- [ ] Verify active briefing and ready turn-in through real browser controls before full regression and Chinese push.
+
 ### Errors Encountered
+- Task 189 first 670-test non-keyboard regression passed 669 and failed only because the exact public bitmap manifest correctly detected the new NPC atlas as an unregistered extra asset. Added `story-npc-atlas.png` to the authoritative expected list.
+- Task 189 combined campaign regression passed the full new-save campaign, while the chapter-two route's final readiness probe selected the first quest row, now a disabled completed prologue. Narrowed the probe to the epilogue quest id; the production quest state and dialogue settlement were already correct.
+- Task 189 first focused browser route remained on the quest panel with an unchanged save after one CDP click, proving no mounted state change rather than a dialogue reducer failure. Added state-confirmed retries around only the real quest-entry click, matching existing town-control hardening and without synthetic activation.
+- Task 189 first production build caught a deliberate phase/data naming distinction: runtime phase `turn-in` cannot index the `turnIn` script field directly. Replaced dynamic indexing with an explicit phase mapping; no runtime behavior had executed yet.
 - Task 188 first UI GREEN reached the correct disabled no-token revive button, but the smoke assertion required `disabled` to be immediately adjacent to `data-defeat-revive`. Replaced the attribute-order assertion with a same-button-tag regex; production markup was already correct.
 - Task 187 second full 32-scenario run again passed 31/32; all combat, Boss, and rechallenge routes passed. A different legacy focused-prep scenario lost one mounted town-button click. Replaced its three direct clicks with the existing real-click/state-confirmation retry helper; native focused Enter behavior remains unchanged and no synthetic click was introduced.
 - Task 187 first full 32-scenario browser run passed 31/32. The new rechallenge scenario passed; an older Boss-clear route was defeated under full-suite load with one revival token still available because the shared clear helper only handled hurt/quick-recovery states. It now presses real `Digit2` only after observing `failed`, waits for active revival, and otherwise retains the existing timeout failure.

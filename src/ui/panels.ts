@@ -631,7 +631,27 @@ export function renderShopPanel(state: GameState): string {
 }
 
 export function renderQuestPanel(state: GameState): string {
-  const readyQuest = Object.entries(state.player.quests).find(([, status]) => status === "ready");
+  const questRows = catalog.quests
+    .filter((quest) => state.player.quests[quest.id] !== "locked")
+    .map((quest) => {
+      const status = state.player.quests[quest.id];
+      const phase = status === "active" ? "briefing" : status === "ready" ? "turn-in" : "completed";
+      const statusLabel = status === "active" ? "进行中" : status === "ready" ? "可交付" : "已完成";
+      const actionLabel = status === "active" ? "查看简报" : status === "ready" ? "交付任务" : "已完成";
+      const interactive = status === "active" || status === "ready";
+
+      return `
+        <li class="quest-entry quest-entry-${status}" data-quest-entry="${quest.id}" data-quest-status="${status}">
+          <div>
+            <span>${quest.chapter} · ${statusLabel}</span>
+            <strong>${quest.displayName}</strong>
+            <p>${quest.objective}</p>
+          </div>
+          <button data-quest-id="${quest.id}" data-story-quest-id="${quest.id}" data-quest-dialogue-phase="${phase}" ${interactive ? "" : "disabled"}>${actionLabel}</button>
+        </li>
+      `;
+    })
+    .join("");
 
   return panel(
     "任务",
@@ -641,7 +661,7 @@ export function renderQuestPanel(state: GameState): string {
         <p>锻造 ${isSystemUnlocked(state, "smith") ? "已解锁" : "未解锁"} · 拍卖 ${
           isSystemUnlocked(state, "auction") ? "已解锁" : "未解锁"
         } · 增幅 ${isSystemUnlocked(state, "amplification") ? "已解锁" : "未解锁"}</p>
-        <button data-quest-id="${readyQuest?.[0] ?? ""}" ${readyQuest ? "" : "disabled"}>领取奖励</button>
+        <ul class="quest-entry-list">${questRows}</ul>
       </div>
       ${renderSystemFlowChecklist(state)}
     `

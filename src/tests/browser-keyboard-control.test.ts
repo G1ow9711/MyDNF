@@ -396,6 +396,21 @@ type BrowserAudioSettingsState = {
   saved: { master: number; music: number; sfx: number } | null;
 };
 
+type BrowserStoryDialogueState = {
+  appMode: string;
+  questId: string;
+  phase: string;
+  step: number;
+  stepCount: number;
+  npcId: string;
+  dialogueText: string;
+  topNavVisible: boolean;
+  portraitBackground: string;
+  portraitAnimation: string;
+  dialogueAnimation: string;
+  saved: GameState | null;
+};
+
 type BrowserConsumableState = {
   objective: string;
   hp: number;
@@ -843,6 +858,30 @@ const readAudioSettingsStateExpression = `
     music: Number(shell?.getAttribute("data-audio-music") || "0"),
     sfx: Number(shell?.getAttribute("data-audio-sfx") || "0"),
     saved: rawSettings ? JSON.parse(rawSettings) : null
+  };
+})()
+`;
+
+const readStoryDialogueStateExpression = `
+(() => {
+  const shell = document.querySelector(".app-shell");
+  const dialogue = document.querySelector("[data-story-dialogue='true']");
+  const portrait = document.querySelector(".story-npc-portrait");
+  const box = document.querySelector(".story-dialogue-box");
+  const rawSave = localStorage.getItem(${JSON.stringify(SAVE_KEY)});
+  return {
+    appMode: shell?.getAttribute("data-app-mode") ?? "",
+    questId: dialogue?.getAttribute("data-story-quest-id") ?? "",
+    phase: dialogue?.getAttribute("data-story-phase") ?? "",
+    step: Number(dialogue?.getAttribute("data-story-step") ?? "-1"),
+    stepCount: Number(dialogue?.getAttribute("data-story-step-count") ?? "0"),
+    npcId: dialogue?.getAttribute("data-story-npc-id") ?? "",
+    dialogueText: document.querySelector(".story-dialogue-line")?.textContent ?? "",
+    topNavVisible: Boolean(document.querySelector(".top-nav")),
+    portraitBackground: portrait ? getComputedStyle(portrait).backgroundImage : "none",
+    portraitAnimation: portrait ? getComputedStyle(portrait).animationName : "none",
+    dialogueAnimation: box ? getComputedStyle(box).animationName : "none",
+    saved: rawSave ? JSON.parse(rawSave) : null
   };
 })()
 `;
@@ -2567,7 +2606,7 @@ describe("real browser keyboard control", () => {
         expect(goldBeforeClaim).toBe(cinderResult.savedGold);
         expect(ironDustBeforeClaim).toBe(cinderResult.savedIronDust);
 
-        await page.click('[data-quest-id="prologue-ember-warden"]');
+        await turnInQuestThroughRealKeys(page, "prologue-ember-warden");
         const unlocked = await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
           (state) =>
@@ -2654,7 +2693,7 @@ describe("real browser keyboard control", () => {
         });
         expect(liuliReady.saved?.player.inventory).toHaveLength(10);
 
-        await page.click('[data-quest-id="chapter-liuli-furnace"]');
+        await turnInQuestThroughRealKeys(page, "chapter-liuli-furnace");
         const chapterClaimed = await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
           (state) =>
@@ -2987,6 +3026,57 @@ describe("real browser keyboard control", () => {
     }
   }, 60000);
 
+  it("turns in a ready main quest and closes an active briefing through real keys", async () => {
+    const server = await startViteServer();
+    const readyState = createInitialState();
+    readyState.player.quests["prologue-ember-warden"] = "ready";
+    const goldBefore = readyState.player.currencies.gold;
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, readyState);
+        await page.click('[data-mode="quests"]');
+        const opened = await openQuestDialogueThroughRealClick(page, "prologue-ember-warden", "turn-in");
+
+        expect(opened.step).toBe(0);
+        expect(opened.stepCount).toBe(3);
+        expect(opened.npcId).toBe("guild-archivist");
+        expect(opened.dialogueText.length).toBeGreaterThan(12);
+        expect(opened.topNavVisible).toBe(false);
+        expect(opened.portraitBackground).toContain("story-npc-atlas.png");
+        expect(opened.portraitAnimation).toContain("story-portrait-enter");
+        expect(opened.dialogueAnimation).toContain("story-dialogue-enter");
+        expect(opened.saved?.player.quests["prologue-ember-warden"]).toBe("ready");
+
+        await completeOpenQuestDialogueWithKeyboard(page, "prologue-ember-warden");
+        const completed = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.appMode === "quests" &&
+            state.saved?.player.quests["prologue-ember-warden"] === "completed" &&
+            state.saved.player.quests["smith-first-spark"] === "active" &&
+            state.saved.player.unlockedDungeons.includes("liuli-furnace"),
+          4000
+        );
+
+        expect(completed.saved?.player.currencies.gold).toBe(goldBefore + 600);
+
+        const briefing = await openQuestDialogueThroughRealClick(page, "smith-first-spark", "briefing");
+        const goldBeforeBriefing = briefing.saved?.player.currencies.gold;
+        await page.pressKey("Escape");
+        const closed = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "quests" && state.saved?.player.quests["smith-first-spark"] === "active",
+          3000
+        );
+
+        expect(closed.saved?.player.currencies.gold).toBe(goldBeforeBriefing);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
   it("advances chapter two and the epilogue through real trade, amplify, shop, and quest clicks", async () => {
     const server = await startViteServer();
     const seededState = createChapterTwoQuestState();
@@ -3010,7 +3100,7 @@ describe("real browser keyboard control", () => {
           (state) => state.appMode === "quests",
           3000
         );
-        await page.click('[data-quest-id="chapter-two-trade-contract"]');
+        await turnInQuestThroughRealKeys(page, "chapter-two-trade-contract");
         await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
           (state) =>
@@ -3038,7 +3128,7 @@ describe("real browser keyboard control", () => {
           (state) => state.appMode === "quests",
           3000
         );
-        await page.click('[data-quest-id="chapter-two-resonance"]');
+        await turnInQuestThroughRealKeys(page, "chapter-two-resonance");
         await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
           (state) => state.saved?.player.quests["epilogue-market-oath"] === "active",
@@ -3061,7 +3151,7 @@ describe("real browser keyboard control", () => {
         await page.click('[data-mode="quests"]');
         await page.waitFor<{ appMode: string; disabled: boolean; questId: string }>(
           `(() => {
-            const button = document.querySelector("[data-quest-id]");
+            const button = document.querySelector('[data-quest-id="epilogue-market-oath"]');
             return {
               appMode: document.querySelector(".app-shell")?.getAttribute("data-app-mode") ?? "",
               disabled: Boolean(button?.hasAttribute("disabled")),
@@ -3071,7 +3161,7 @@ describe("real browser keyboard control", () => {
           (state) => state.appMode === "quests" && state.questId === "epilogue-market-oath" && !state.disabled,
           3000
         );
-        await page.click('[data-quest-id="epilogue-market-oath"]');
+        await turnInQuestThroughRealKeys(page, "epilogue-market-oath");
         await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
           (state) => state.saved?.player.quests["epilogue-market-oath"] === "completed",
@@ -4332,6 +4422,53 @@ async function seedSaveAndReload(page: RealBrowserAppPage, state: GameState): Pr
     readAppModeStateExpression,
     (mode) => mode.appMode === "town" && mode.townScene === "true",
     15000
+  );
+}
+
+async function openQuestDialogueThroughRealClick(
+  page: RealBrowserAppPage,
+  questId: string,
+  phase: "briefing" | "turn-in",
+  maxAttempts = 3
+): Promise<BrowserStoryDialogueState> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await page.click(`[data-story-quest-id="${questId}"]`);
+    try {
+      return await page.waitFor<BrowserStoryDialogueState>(
+        readStoryDialogueStateExpression,
+        (state) => state.appMode === "story-dialogue" && state.questId === questId && state.phase === phase && state.step === 0,
+        1800
+      );
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.startsWith("Timed out waiting for browser expression") || attempt === maxAttempts - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error(`Real browser quest dialogue did not open after ${maxAttempts} clicks for ${questId}`);
+}
+
+async function completeOpenQuestDialogueWithKeyboard(page: RealBrowserAppPage, questId: string): Promise<void> {
+  for (const expectedStep of [1, 2]) {
+    await page.pressKey("Enter");
+    await page.waitFor<BrowserStoryDialogueState>(
+      readStoryDialogueStateExpression,
+      (state) => state.questId === questId && state.step === expectedStep,
+      2000
+    );
+  }
+
+  await page.pressKey("Enter");
+}
+
+async function turnInQuestThroughRealKeys(page: RealBrowserAppPage, questId: string): Promise<void> {
+  await openQuestDialogueThroughRealClick(page, questId, "turn-in");
+  await completeOpenQuestDialogueWithKeyboard(page, questId);
+  await page.waitFor<BrowserTownEcosystemState>(
+    readTownEcosystemStateExpression,
+    (state) => state.appMode === "quests" && state.saved?.player.quests[questId] === "completed",
+    4000
   );
 }
 

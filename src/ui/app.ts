@@ -1,4 +1,5 @@
 import { catalog } from "../data/catalog";
+import { getStoryDialogueLines, storyNpcs, type StoryDialoguePhase } from "../data/story";
 import {
   actionBufferWindowMs,
   canEnterRoomGate,
@@ -63,7 +64,7 @@ import {
   renderSmithPanel
 } from "./panels";
 
-export type AppMode = "town" | "dungeon-prep" | "combat" | "dungeon-result" | "inventory" | "smith" | "auction" | "shop" | "quests" | "classes" | "settings";
+export type AppMode = "town" | "dungeon-prep" | "combat" | "dungeon-result" | "story-dialogue" | "inventory" | "smith" | "auction" | "shop" | "quests" | "classes" | "settings";
 
 export const AUDIO_SETTINGS_KEY = "mydnf-audio-settings-v1";
 
@@ -73,9 +74,16 @@ export interface AppViewModel {
   dungeonPrep?: { dungeonId: DungeonId; difficultyId: DungeonDifficultyId };
   combatRun?: CombatRun;
   dungeonResult?: DungeonClearResult;
+  dialogue?: StoryDialogueState;
   lastLoot?: CombatLootEvent;
   message?: string;
   audio?: AudioState;
+}
+
+export interface StoryDialogueState {
+  questId: string;
+  phase: StoryDialoguePhase;
+  stepIndex: number;
 }
 
 export interface DungeonClearResult extends DungeonClearEvaluation {
@@ -105,6 +113,9 @@ export type AppAction =
   | { type: "combatAction"; action: "light" | "heavy" | "jump" | "backstep" | "finish" }
   | { type: "combatAction"; action: "skill"; skillId: string; inputMethod?: CombatSkillInputMethod }
   | { type: "useConsumable"; consumableId: ConsumableId }
+  | { type: "startQuestDialogue"; questId: string }
+  | { type: "advanceQuestDialogue" }
+  | { type: "skipQuestDialogue" }
   | { type: "claimQuest"; questId: string }
   | { type: "selectBaseClass"; classId: ClassId }
   | { type: "advanceClass"; advancementId: AdvancementId }
@@ -2389,6 +2400,52 @@ function renderDungeonResult(result: DungeonClearResult, state: GameState): stri
   `;
 }
 
+function renderStoryDialogue(model: AppViewModel): string {
+  const dialogue = model.dialogue;
+
+  if (!dialogue) {
+    return renderTownScene(model);
+  }
+
+  const quest = catalog.quests.find((item) => item.id === dialogue.questId);
+  const lines = getStoryDialogueLines(dialogue.questId, dialogue.phase);
+  const safeStepIndex = Math.min(Math.max(0, dialogue.stepIndex), Math.max(0, lines.length - 1));
+  const line = lines[safeStepIndex];
+  const npc = line ? storyNpcs[line.npcId] : undefined;
+  const isLastLine = safeStepIndex >= lines.length - 1;
+  const nextLabel = isLastLine
+    ? dialogue.phase === "turn-in" ? "领取奖励" : "结束简报"
+    : "继续";
+
+  return `
+    <section class="story-dialogue-scene" data-story-dialogue="true" data-story-quest-id="${dialogue.questId}" data-story-phase="${dialogue.phase}" data-story-step="${safeStepIndex}" data-story-step-count="${lines.length}" data-story-npc-id="${npc?.id ?? ""}" aria-label="剧情对话">
+      <img class="story-dialogue-background" src="/assets/forge-market-bg.png" alt="" aria-hidden="true" />
+      <div class="story-dialogue-shade" aria-hidden="true"></div>
+      <div class="story-dialogue-content">
+        <div class="story-npc-portrait" data-story-portrait-index="${npc?.portraitIndex ?? 0}" style="background-image: url('/assets/story-npc-atlas.png');" role="img" aria-label="${npc?.displayName ?? "城镇居民"}"></div>
+        <div class="story-dialogue-box">
+          <header>
+            <div>
+              <span>${quest?.chapter ?? "剧情"}</span>
+              <h1>${quest?.displayName ?? dialogue.questId}</h1>
+            </div>
+            <strong>${safeStepIndex + 1} / ${lines.length}</strong>
+          </header>
+          <div class="story-speaker">
+            <strong>${npc?.displayName ?? "城镇居民"}</strong>
+            <span>${npc?.role ?? ""}</span>
+          </div>
+          <p class="story-dialogue-line">${line?.text ?? "剧情记录暂缺。"}</p>
+          <div class="story-dialogue-actions">
+            <button class="story-skip-button" data-story-skip="true">跳过 <span>Esc</span></button>
+            <button class="story-next-button" data-story-next="true">${nextLabel} <span>Enter / Space</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 export function renderAppHtml(model: AppViewModel): string {
   const scene = model.mode === "combat" && model.combatRun
     ? renderCombatScene(model.combatRun, model.state)
@@ -2396,19 +2453,22 @@ export function renderAppHtml(model: AppViewModel): string {
       ? renderDungeonPrep(model)
       : model.mode === "dungeon-result" && model.dungeonResult
         ? renderDungeonResult(model.dungeonResult, model.state)
+      : model.mode === "story-dialogue"
+        ? renderStoryDialogue(model)
       : renderTownScene(model);
   const currencies = model.state.player.currencies;
   const audioVolumes = model.audio?.volumes ?? createAudioState().volumes;
+  const immersiveMode = model.mode === "dungeon-result" || model.mode === "story-dialogue";
 
   return `
     <main class="app-shell" aria-label="烬璃纪元" data-app-mode="${model.mode}" data-save-key="${SAVE_KEY}" data-audio-settings-key="${AUDIO_SETTINGS_KEY}" data-audio-master="${audioVolumes.master}" data-audio-music="${audioVolumes.music}" data-audio-sfx="${audioVolumes.sfx}" data-player-gold="${currencies.gold}" data-player-iron-dust="${currencies.ironDust}" data-player-arc-shard="${currencies.arcShard}" data-player-skill-points="${model.state.player.skillPoints}" data-inventory-count="${model.state.player.inventory.length}">
-      ${model.mode === "dungeon-result" ? "" : renderNav(model.mode)}
+      ${immersiveMode ? "" : renderNav(model.mode)}
       <section class="game-layout">
         ${scene}
-        ${model.mode === "combat" || model.mode === "dungeon-result" ? "" : renderActivePanel(model)}
+        ${model.mode === "combat" || immersiveMode ? "" : renderActivePanel(model)}
       </section>
-      ${model.mode === "dungeon-result" ? "" : renderLootResult(model.lastLoot)}
-      ${model.mode !== "dungeon-result" && model.message ? `<div class="toast">${model.message}</div>` : ""}
+      ${immersiveMode ? "" : renderLootResult(model.lastLoot)}
+      ${!immersiveMode && model.message ? `<div class="toast">${model.message}</div>` : ""}
     </main>
   `;
 }
@@ -2581,6 +2641,42 @@ function enterGateIfReady(model: AppModel, run: CombatRun): AppModel | undefined
   return applyFinishedRoom(model, enteredRun, message);
 }
 
+function finishStoryDialogue(model: AppModel): AppModel {
+  const dialogue = model.dialogue;
+
+  if (!dialogue) {
+    return model;
+  }
+
+  if (dialogue.phase === "briefing") {
+    return {
+      ...model,
+      mode: "quests",
+      dialogue: undefined,
+      message: "任务简报已记录",
+      audio: playSfx(model.audio, "ui-select")
+    };
+  }
+
+  if (model.state.player.quests[dialogue.questId] !== "ready") {
+    return {
+      ...model,
+      mode: "quests",
+      dialogue: undefined,
+      message: "任务状态已变更"
+    };
+  }
+
+  return {
+    ...model,
+    state: claimQuestReward(model.state, dialogue.questId),
+    mode: "quests",
+    dialogue: undefined,
+    message: "任务奖励已领取",
+    audio: playSfx(model.audio, "quest-complete")
+  };
+}
+
 export function createAppModel(options: CreateAppModelOptions = {}): AppModel {
   const townMusic = chooseMusicLayer({ mode: "town" });
   const storage = options.storage ?? defaultStorage();
@@ -2647,6 +2743,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       return {
         ...model,
         mode: action.mode,
+        dialogue: undefined,
         dungeonPrep: action.mode === "town" ? undefined : model.dungeonPrep,
         message: undefined,
         audio: action.mode === "town" ? playBgm(model.audio, chooseMusicLayer({ mode: "town" }).trackId) : model.audio
@@ -2917,6 +3014,41 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         audio: playSfx(model.audio, "skill-burst")
       };
     }
+    case "startQuestDialogue": {
+      const status = model.state.player.quests[action.questId];
+      const phase: StoryDialoguePhase | undefined = status === "active" ? "briefing" : status === "ready" ? "turn-in" : undefined;
+
+      if (!phase || getStoryDialogueLines(action.questId, phase).length === 0) {
+        return model;
+      }
+
+      return {
+        ...model,
+        mode: "story-dialogue",
+        dialogue: { questId: action.questId, phase, stepIndex: 0 },
+        message: undefined,
+        audio: playSfx(model.audio, "ui-select")
+      };
+    }
+    case "advanceQuestDialogue": {
+      if (model.mode !== "story-dialogue" || !model.dialogue) {
+        return model;
+      }
+
+      const lines = getStoryDialogueLines(model.dialogue.questId, model.dialogue.phase);
+
+      if (model.dialogue.stepIndex < lines.length - 1) {
+        return {
+          ...model,
+          dialogue: { ...model.dialogue, stepIndex: model.dialogue.stepIndex + 1 },
+          audio: playSfx(model.audio, "ui-select")
+        };
+      }
+
+      return finishStoryDialogue(model);
+    }
+    case "skipQuestDialogue":
+      return model.mode === "story-dialogue" ? finishStoryDialogue(model) : model;
     case "claimQuest":
       return {
         ...model,
@@ -3227,6 +3359,7 @@ export function mountApp(root: HTMLDivElement): () => void {
       const consumableId = target.dataset.consumableId as ConsumableId | undefined;
       const boxId = target.dataset.boxId;
       const questId = target.dataset.questId;
+      const storyQuestId = target.dataset.storyQuestId;
       const tradeOfferId = target.dataset.tradeOfferId;
       const auctionGearId = target.dataset.auctionGearId;
       const auctionPrice = Number(target.dataset.auctionPrice);
@@ -3321,8 +3454,18 @@ export function mountApp(root: HTMLDivElement): () => void {
         dispatch({ type: "openBox", boxId });
       }
 
-      if (questId) {
+      if (storyQuestId) {
+        dispatch({ type: "startQuestDialogue", questId: storyQuestId });
+      } else if (questId) {
         dispatch({ type: "claimQuest", questId });
+      }
+
+      if (target.dataset.storyNext) {
+        dispatch({ type: "advanceQuestDialogue" });
+      }
+
+      if (target.dataset.storySkip) {
+        dispatch({ type: "skipQuestDialogue" });
       }
 
       if (classId) {
@@ -3395,6 +3538,24 @@ export function mountApp(root: HTMLDivElement): () => void {
       if (model.mode !== "combat") {
         commandBuffer = [];
         heldCombatKeys.clear();
+
+        if (model.mode === "story-dialogue") {
+          if (event.code === "Enter" || event.code === "Space") {
+            event.preventDefault();
+            dispatch({ type: "advanceQuestDialogue" });
+            render();
+            return;
+          }
+
+          if (event.code === "Escape") {
+            event.preventDefault();
+            dispatch({ type: "skipQuestDialogue" });
+            render();
+            return;
+          }
+
+          return;
+        }
 
         if (model.mode === "dungeon-result") {
           if (event.code === "KeyR") {

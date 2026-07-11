@@ -1469,3 +1469,17 @@
 - Zero-token defeat keeps return-to-town available and renders an actually disabled continue button with an explicit `no-revival-token` reason; the reducer also rejects repeated token use without mutating the run or save.
 - Real-browser acceptance proved natural monster defeat, live overlay state, real mouse activation, same-room continuation, exact enemy preservation, 35% HP restoration, active 1.2-second invulnerability, one authoritative status event, and immediate save-backed token consumption.
 - Final evidence is 664/664 non-keyboard tests, 33/33 true-browser scenarios, production build, HTTP 200, and clean Git whitespace validation. No subagent was started.
+
+## Task 189 Story-Dialogue Audit
+- The design baseline explicitly requires short skippable dialogue panels, portrait-backed story scenes, and a story-task mode. Current quest data and progression exist, but the mounted quest panel has one direct reward button and no dialogue runtime state or NPC presentation.
+- `claimQuestReward()` is already the authoritative completion boundary for rewards, dungeon/system unlocks, and next-quest activation. Dialogue must call it only at a valid `ready` turn-in endpoint instead of duplicating reward logic.
+- Runtime-only dialogue avoids a save-schema migration. Reload naturally returns to town while persistent quest state remains authoritative.
+- The existing seven quests can be covered by five stable NPC identities. Briefing and turn-in scripts should stay in a dedicated data module so quest rules remain separate from presentation text.
+- The project CDP key table previously omitted Escape. Adding the standard key/virtual-key-27 mapping allows a real browser to prove skippable dialogue without synthetic DOM activation.
+- Existing campaign selectors assumed the quest panel contained only one reward button. The new per-quest list requires exact quest-id selection and a shared real-key dialogue helper; broad routes now exercise the story flow instead of bypassing it.
+
+## Task 190 Articulated Combat Model Audit
+- Current player and monster visuals are whole PNG nodes animated by CSS translation, rotation, scale, and filters. This validates the user's complaint: movement is dynamic, but limbs and body parts do not articulate.
+- Mounted DOM already exposes enough authoritative animation state to drive a new renderer without changing combat rules: player facing/motion/combo step/normal attack timing/skill phase and progress/hurt/air state, plus enemy kind/motion/attack skill/stage/progress/hit/control/airborne/downed state and arena position.
+- GitHub research compared Phaser/Pixi frame animation, DragonBones skeletal animation, and Three.js. Phaser/Pixi still need complete frame atlases and would remain texture-frame based; DragonBones is MIT and supports Pixi/Phaser/Three but requires authored skeleton/slot assets; Three.js is MIT, supports persistent WebGL animation loops and glTF `AnimationMixer`, and can render original articulated procedural rigs immediately before later glTF replacement.
+- Selected direction: a persistent transparent Three.js combat canvas layered over the existing 2.5D environment and VFX. Build original joint hierarchies for the humanoid player and separate trash/elite/boss monster anatomies, attach class weapons to hand joints, and map existing combat phases to real joint poses. Keep old PNG actors only as an explicit fallback until each rig passes browser acceptance.

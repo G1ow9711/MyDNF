@@ -554,7 +554,8 @@ describe("town app shell", () => {
       "../../public/assets/liuli-furnace-bg.png",
       "../../public/assets/monster-ash-rat.png",
       "../../public/assets/monster-taotie-overseer.png",
-      "../../public/assets/monster-zheng-guard.png"
+      "../../public/assets/monster-zheng-guard.png",
+      "../../public/assets/story-npc-atlas.png"
     ]);
 
     for (const assetUrl of Object.values(publicAssetModules)) {
@@ -3702,6 +3703,54 @@ describe("town app shell", () => {
     expect(html).toContain("任务");
     expect(html).toContain("职业");
     expect(html).not.toContain("正在加载");
+  });
+
+  it("renders a full portrait-backed story dialogue without town navigation", () => {
+    const html = renderAppHtml({
+      state: createInitialState(),
+      mode: "story-dialogue",
+      dialogue: { questId: "prologue-ember-warden", phase: "briefing", stepIndex: 0 }
+    } as Parameters<typeof renderAppHtml>[0]);
+
+    expect(html).toContain('data-story-dialogue="true"');
+    expect(html).toContain('data-story-quest-id="prologue-ember-warden"');
+    expect(html).toContain('data-story-phase="briefing"');
+    expect(html).toContain('data-story-step="0"');
+    expect(html).toContain('data-story-step-count="3"');
+    expect(html).toContain('data-story-npc-id="guild-archivist"');
+    expect(html).toContain("沈砚");
+    expect(html).toContain("炉火未熄");
+    expect(html).toContain('data-story-next="true"');
+    expect(html).toContain('data-story-skip="true"');
+    expect(html).toContain("Enter / Space");
+    expect(html).toContain("story-npc-atlas.png");
+    expect(html).not.toContain('class="top-nav"');
+    expect(stylesCss).toContain(".story-dialogue-scene");
+    expect(stylesCss).toContain(".story-npc-portrait");
+    expect(stylesCss).toContain('@media (max-width: 720px)');
+  });
+
+  it("renders active and ready quests as dialogue entries instead of direct reward claims", () => {
+    const baseState = createInitialState();
+    const readyState = {
+      ...baseState,
+      player: {
+        ...baseState.player,
+        quests: {
+          ...baseState.player.quests,
+          "prologue-ember-warden": "ready" as const
+        }
+      }
+    };
+    const activeHtml = renderQuestPanel(baseState);
+    const readyHtml = renderQuestPanel(readyState);
+
+    expect(activeHtml).toContain('data-story-quest-id="prologue-ember-warden"');
+    expect(activeHtml).toContain('data-quest-dialogue-phase="briefing"');
+    expect(activeHtml).toContain("查看简报");
+    expect(readyHtml).toContain('data-quest-dialogue-phase="turn-in"');
+    expect(readyHtml).toContain("交付任务");
+    expect(readyHtml).not.toContain("领取奖励");
   });
 
   it("renders expected system panel text for repeated town workflows", () => {

@@ -4297,3 +4297,12 @@
 - Rebuilt desktop combat layout to full width with a compact top HUD. Updated screenshots show the fighter, two monsters, background, gate, task tracker, and attacks in one viewport instead of a large blank right column and overlapping panels.
 - Final screenshot review found one old PNG motion-trail rectangle behind the Liuli skill. Disabled the legacy trail for frame-atlas classes; focused rerun and broad regression remain.
 - Final verification: 646/646 non-keyboard tests across 15 files; production TypeScript/Vite build; HTTP 200 on `http://127.0.0.1:5174/`; full browser regression passed 34/35 in 879.25 seconds, with the sole detached-node click-helper failure subsequently fixed and the real defeat/revival click passing focused in 32.32 seconds. The Liuli three-phase skill route passed again after final trail cleanup.
+
+## Task 192 Shanhaijing Elite And Boss Skill Motion
+- Added original Zheng Guard and Taotie Overseer transparent frame atlases and registered them in the exact public sprite manifest.
+- Extended the deterministic sprite stage from trash monsters to every enemy kind. Windup uses a readable anticipation frame; active frames vary by skill family; recovery, hit, control, knockdown, and defeat remain authoritative.
+- Preserved existing monster telegraph/VFX roots and added atlas-specific cyan/orange skill lighting, so effects follow the same mounted skill id and phase as the monster pose.
+- Set elite/Boss visual acceptance to 1440x900 after the initial default headless viewport hid the stage behind the HUD.
+- Focused real-browser Zheng acceptance passed in 21.63 seconds and captured `zheng-elite-windup.png`.
+- Focused real-browser Taotie phase-three acceptance passed in 55.59 seconds and captured `taotie-world-devour-windup.png`; visual capture and live dodge use consecutive casts so screenshot work cannot consume the dodge window.
+- Final verification passed: 671/671 non-keyboard and computed-style tests; focused real-browser Zheng, Taotie, and Liuli routes; production build; HTTP 200 on `http://127.0.0.1:5174/`; and Git whitespace validation. Chinese commit and push follow this record update.

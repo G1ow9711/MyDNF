@@ -1973,7 +1973,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
             <img class="enemy-art actor-model actor-model-${motion}${enemySkillMotionClass ? ` ${enemySkillMotionClass}` : ""}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy, attackVisual, enemyMotionSkillId)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
-            <span class="combat-frame-sprite enemy-frame-sprite" data-frame-atlas="ash-cinder-imp" aria-hidden="true"></span>
+            <span class="combat-frame-sprite enemy-frame-sprite" data-frame-atlas="${enemy.kind === "boss" ? "taotie-overseer" : enemy.kind === "elite" ? "zheng-guard" : "ash-cinder-imp"}" aria-hidden="true"></span>
           </div>
           <div class="enemy-health" aria-label="${enemy.displayName} HP ${enemy.hp}/${enemy.maxHp}">
             <span class="enemy-health-fill" style="--hp: ${hpPercent}%;"></span>

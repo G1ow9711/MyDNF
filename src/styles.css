@@ -2582,14 +2582,39 @@ p {
   filter: drop-shadow(0 13px 10px rgba(2, 6, 23, 0.86)) drop-shadow(0 0 12px rgba(249, 115, 22, 0.3));
 }
 
+.enemy-frame-sprite[data-frame-atlas="zheng-guard"] {
+  bottom: -34px;
+  width: clamp(300px, 24vw, 390px);
+  height: clamp(200px, 16vw, 260px);
+  background-image: url("/assets/sprites/zheng-guard-atlas.png");
+  filter: drop-shadow(0 16px 12px rgba(2, 6, 23, 0.88)) drop-shadow(0 0 18px rgba(34, 211, 238, 0.4));
+}
+
+.enemy-frame-sprite[data-frame-atlas="taotie-overseer"] {
+  bottom: -46px;
+  width: clamp(390px, 30vw, 510px);
+  height: clamp(260px, 20vw, 340px);
+  background-image: url("/assets/sprites/taotie-overseer-atlas.png");
+  filter: drop-shadow(0 20px 16px rgba(2, 6, 23, 0.92)) drop-shadow(0 0 24px rgba(249, 115, 22, 0.46));
+}
+
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="ember-warden"] .combat-player-art,
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="liuli-blademage"] .combat-player-art,
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="ember-warden"] .combat-player .weapon-layer,
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="liuli-blademage"] .combat-player .weapon-layer,
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="ember-warden"] .player-motion-trail,
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="liuli-blademage"] .player-motion-trail,
-.combat-scene[data-frame-sprite-stage="ready"] .combat-enemy-trash .enemy-art {
+.combat-scene[data-frame-sprite-stage="ready"] .combat-enemy .enemy-art {
   opacity: 0;
+}
+
+.enemy-frame-sprite[data-sprite-skill="zheng-horn-charge"] {
+  filter: drop-shadow(0 18px 14px rgba(2, 6, 23, 0.9)) drop-shadow(0 0 26px rgba(103, 232, 249, 0.72));
+}
+
+.enemy-frame-sprite[data-sprite-skill="taotie-flame-breath"],
+.enemy-frame-sprite[data-sprite-skill="taotie-world-devour"] {
+  filter: drop-shadow(0 22px 16px rgba(2, 6, 23, 0.92)) drop-shadow(0 0 32px rgba(251, 146, 60, 0.7));
 }
 
 .player-frame-sprite[data-sprite-skill="flowing-light-chain"] {

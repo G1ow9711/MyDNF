@@ -494,6 +494,21 @@ type BrowserFrameSpriteState = {
   sceneHeight: number;
 };
 
+type BrowserMonsterSpriteState = {
+  enemies: Array<{
+    id: string;
+    kind: string;
+    atlas: string;
+    motion: string;
+    skill: string;
+    skillStage: string;
+    spriteState: string;
+    frame: number;
+    background: string;
+    oldArtOpacity: string;
+  }>;
+};
+
 const readFrameSpriteStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
@@ -518,6 +533,27 @@ const readFrameSpriteStateExpression = `
     sceneHeight: Math.round(rect?.height ?? 0)
   };
 })()
+`;
+
+const readMonsterSpriteStateExpression = `
+(() => ({
+  enemies: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => {
+    const sprite = enemy.querySelector(".enemy-frame-sprite");
+    const oldArt = enemy.querySelector(".enemy-art");
+    return {
+      id: enemy.getAttribute("data-enemy-id") ?? "",
+      kind: enemy.getAttribute("data-enemy-kind") ?? "",
+      atlas: sprite?.getAttribute("data-frame-atlas") ?? "",
+      motion: enemy.getAttribute("data-enemy-motion") ?? "",
+      skill: sprite?.getAttribute("data-sprite-skill") ?? "",
+      skillStage: sprite?.getAttribute("data-sprite-skill-phase") ?? "",
+      spriteState: sprite?.getAttribute("data-sprite-state") ?? "",
+      frame: Number(sprite?.getAttribute("data-sprite-frame") ?? "-1"),
+      background: sprite ? getComputedStyle(sprite).backgroundImage : "",
+      oldArtOpacity: oldArt ? getComputedStyle(oldArt).opacity : ""
+    };
+  })
+}))()
 `;
 
 const readCombatStateExpression = `
@@ -1861,6 +1897,7 @@ describe("real browser keyboard control", () => {
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
         await enterDungeonWithKeyboard(page);
         const start = await page.waitFor<BrowserBackstepReactionState>(
           readBackstepReactionStateExpression,
@@ -1931,6 +1968,22 @@ describe("real browser keyboard control", () => {
           5000
         );
         await moveIntoLiveEnemyRange(page);
+        const eliteWindup = await page.waitFor<BrowserMonsterSpriteState>(
+          readMonsterSpriteStateExpression,
+          (state) => state.enemies.some((enemy) =>
+            enemy.kind === "elite" &&
+            enemy.atlas === "zheng-guard" &&
+            enemy.motion === "attack" &&
+            enemy.skillStage === "windup" &&
+            enemy.frame === 8 &&
+            enemy.oldArtOpacity === "0"
+          ),
+          6000
+        );
+        const activeZheng = eliteWindup.enemies.find((enemy) => enemy.kind === "elite" && enemy.skillStage === "windup");
+        expect(activeZheng?.spriteState).toContain("monster-skill-zheng-");
+        expect(activeZheng?.background).toContain("zheng-guard-atlas.png");
+        await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/zheng-elite-windup.png`);
         await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
           readFlowingLightSafeCastWindowExpression,
           (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
@@ -3066,6 +3119,7 @@ describe("real browser keyboard control", () => {
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
         await enterDungeonWithKeyboard(page);
         await page.evaluate<boolean>(installStrictCombatRecorderExpression);
         await clearCurrentRoomWithKeyboard(page);
@@ -3099,13 +3153,34 @@ describe("real browser keyboard control", () => {
               ),
             9000
           );
+          const taotieWindup = await page.waitFor<BrowserMonsterSpriteState>(
+            readMonsterSpriteStateExpression,
+            (state) => state.enemies.some((enemy) =>
+              enemy.kind === "boss" &&
+              enemy.atlas === "taotie-overseer" &&
+              enemy.skill === "taotie-world-devour" &&
+              enemy.skillStage === "windup" &&
+              enemy.frame === 8 &&
+              enemy.oldArtOpacity === "0"
+            ),
+            1200
+          );
+          const activeTaotie = taotieWindup.enemies.find((enemy) => enemy.kind === "boss");
+          expect(activeTaotie?.spriteState).toBe("monster-skill-taotie-world-devour");
+          expect(activeTaotie?.background).toContain("taotie-overseer-atlas.png");
+          await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/taotie-world-devour-windup.png`);
+          await page.waitFor<BrowserStrictCombatState>(
+            readStrictCombatStateExpression,
+            (state) => state.enemies.every((enemy) => enemy.skill !== "taotie-world-devour" || enemy.stage === "none"),
+            3000
+          );
           await page.waitFor<BrowserStrictCombatState>(
             readStrictCombatStateExpression,
             (state) =>
               state.enemies.some(
                 (enemy) => enemy.skill === "taotie-world-devour" && enemy.stage === "windup" && enemy.progress >= 0.38
               ),
-            1600
+            12000
           );
           await page.pressKey("KeyC");
           const jumped = await page.waitFor<BrowserStrictCombatState>(

@@ -1498,3 +1498,10 @@
 - The Liuli Blade Mage has a separate normal-action atlas and a separate 16-frame Flowing Light skill atlas. The skill frame map prioritizes `chain-open`, `chain-cross`, and `chain-finish` over generic windup/active/recovery stages.
 - Skill presentation uses the same selected atlas frame for a cyan afterimage, phase-specific CSS sword arcs, existing three-part player VFX, target impacts, hitstop, and screen feedback. The runtime never uses copied DNF/KOF names or assets.
 - Combat now occupies the full grid width instead of leaving an empty second column. Desktop controls are compressed into a 194 px HUD band; the action field keeps player, monsters, VFX, room gate, and task tracker visible.
+
+## Task 192 Shanhaijing Monster Frame Audit
+- Elite and Boss actors already expose authoritative `windup`, `active`, and `recovery` stages plus exact skill ids. Reusing those hooks keeps body frames, telegraphs, damage timing, and player reactions on one combat clock.
+- Zheng needs distinct horn-charge and grounded shockwave silhouettes. Taotie needs separate chain-cleave, breath/devour, forge/shackle, and summon silhouettes; one generic attack frame would repeat the rejected pasted-image behavior.
+- Both new sheets are original transparent 4x4 atlases at 1536x1024. Their 3:2 cells require explicit 3:2 sprite boxes instead of the square trash-monster dimensions.
+- Atlas preload remains atomic. Old monster art stays visible while loading or on failure, then hides for trash, elite, and Boss actors together.
+- Real-browser evidence proves Zheng naturally reaches frame 8 during windup with old art at opacity zero. Taotie world-devour does the same, then a later live cycle accepts a real `C` jump and opens the armor-break window.

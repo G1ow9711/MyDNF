@@ -585,7 +585,9 @@ describe("town app shell", () => {
       "../../public/assets/sprites/ash-cinder-imp-atlas.png",
       "../../public/assets/sprites/ember-warden-atlas.png",
       "../../public/assets/sprites/liuli-blademage-atlas.png",
-      "../../public/assets/sprites/liuli-flowing-light-array-atlas.png"
+      "../../public/assets/sprites/liuli-flowing-light-array-atlas.png",
+      "../../public/assets/sprites/taotie-overseer-atlas.png",
+      "../../public/assets/sprites/zheng-guard-atlas.png"
     ]);
 
     for (const assetUrl of Object.values(publicSpriteAssetModules)) {

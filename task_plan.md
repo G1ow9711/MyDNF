@@ -370,7 +370,17 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Rebuild the combat layout to use the full game width and compact the HUD above the action field.
 - [x] Run full non-browser/browser regression, inspect final desktop/mobile screenshots, then commit and push in Chinese.
 
+## Task 192 Shanhaijing Elite And Boss Skill Motion
+- [x] Audit Zheng elite and Taotie Boss attack profiles, phase timing, telegraphs, and mounted runtime hooks.
+- [x] Add original transparent 4x4 Zheng Guard and Taotie Overseer action atlases.
+- [x] Map windup, active attack families, recovery, hit, and knockdown states to dedicated monster frames.
+- [x] Keep existing cue-specific monster telegraphs and effects synchronized with the new body frames.
+- [x] Verify natural Zheng windup/armor behavior and Taotie world-devour dodge/armor-break through real browser combat.
+- [x] Run broad regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 192 first Zheng screenshot used the headless browser's small default viewport, so the valid animated model was hidden behind the desktop HUD. Both elite and Boss visual acceptance routes now set 1440x900 explicitly; mobile remains covered by the separate responsive route.
+- Task 192 first Taotie route captured the correct world-devour windup frame but screenshot encoding consumed the remaining 1.6-second dodge window. Visual capture and live dodge now use consecutive world-devour cycles; the focused route passes without synthetic input or time manipulation.
 - Task 191 full browser regression passed 34/35; the only failure reached a valid defeat overlay but the real-click helper measured a detached button after waiting two animation frames across 50 ms DOM replacement. Reacquiring the same mounted selector after the wait preserved real CDP clicking and the focused revival route passed.
 - Task 191 visual review rejected the first procedural Three.js result as worse than a basic browser game. Removed the runtime stage and Three.js packages instead of polishing the rejected direction; replaced it with original KOF-style frame animation after the user's reference clarified the target.
 - Task 191 first frame-stage screenshots hid old actors before the new atlases finished decoding, producing an empty field for the first frames. Added a four-atlas preload gate; fallback art remains visible until every required atlas loads.

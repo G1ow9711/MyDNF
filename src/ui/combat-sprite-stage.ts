@@ -10,6 +10,7 @@ type FrameActor = {
   skillId?: string;
   skillPhase?: string;
   skillStage?: string;
+  atlas?: string;
 };
 
 function clamp01(value: number): number {
@@ -46,7 +47,9 @@ export class CombatSpriteStage {
       "/assets/sprites/ember-warden-atlas.png",
       "/assets/sprites/ash-cinder-imp-atlas.png",
       "/assets/sprites/liuli-blademage-atlas.png",
-      "/assets/sprites/liuli-flowing-light-array-atlas.png"
+      "/assets/sprites/liuli-flowing-light-array-atlas.png",
+      "/assets/sprites/zheng-guard-atlas.png",
+      "/assets/sprites/taotie-overseer-atlas.png"
     ];
     Promise.all(sources.map((source) => new Promise<void>((resolve, reject) => {
       const image = new globalThis.Image();
@@ -100,7 +103,7 @@ export class CombatSpriteStage {
       }, elapsedMs, hitstop);
     }
 
-    for (const enemy of root.querySelectorAll<HTMLElement>(".combat-enemy-trash")) {
+    for (const enemy of root.querySelectorAll<HTMLElement>(".combat-enemy")) {
       const sprite = enemy.querySelector<HTMLElement>(".enemy-frame-sprite");
       if (!sprite) continue;
       const x = Number(enemy.dataset.enemyX ?? "0");
@@ -112,7 +115,10 @@ export class CombatSpriteStage {
         motion: enemy.dataset.enemyMotion ?? "idle",
         progress: progress(enemy.dataset.enemyAttackProgress),
         facing: x >= playerX ? -1 : 1,
-        defeated: enemy.dataset.enemyState === "defeated"
+        defeated: enemy.dataset.enemyState === "defeated",
+        skillId: enemy.dataset.enemyAttackSkillId || enemy.dataset.bossPhaseSkillId,
+        skillStage: enemy.dataset.enemyAttackStage,
+        atlas: sprite.dataset.frameAtlas ?? "ash-cinder-imp"
       }, elapsedMs, hitstop);
     }
 
@@ -140,6 +146,10 @@ export class CombatSpriteStage {
           : 'url("/assets/sprites/ember-warden-atlas.png")';
       actor.sprite.dataset.spriteSkill = flowingLightSkill ? "flowing-light-chain" : "";
       actor.sprite.dataset.spriteSkillPhase = flowingLightSkill ? (actor.skillPhase || actor.skillStage || "windup") : "";
+    } else {
+      actor.sprite.style.backgroundImage = `url("/assets/sprites/${actor.atlas ?? "ash-cinder-imp"}-atlas.png")`;
+      actor.sprite.dataset.spriteSkill = actor.skillId ?? "";
+      actor.sprite.dataset.spriteSkillPhase = actor.skillStage ?? "none";
     }
 
     if (flowingLightSkill) {
@@ -161,9 +171,28 @@ export class CombatSpriteStage {
     } else if (actor.defeated || actor.motion === "defeated" || actor.motion === "knockdown") {
       frame = 14 + Math.min(1, Math.floor((elapsedMs % 360) / 180));
       state = "knockdown";
-    } else if (["hit", "hitstun", "guard-break", "bound"].includes(actor.motion)) {
+    } else if (["hit", "hitstun", "guard-break", "bound", "controlled"].includes(actor.motion)) {
       frame = 12 + Math.min(1, Math.floor((elapsedMs % 240) / 120));
       state = "hit";
+    } else if (actor.id !== "player" && actor.motion === "attack") {
+      if (actor.skillStage === "windup") {
+        frame = 8;
+      } else if (actor.skillStage === "recovery") {
+        frame = 11;
+      } else if (actor.atlas === "zheng-guard") {
+        frame = actor.skillId === "zheng-horn-charge" ? 9 : 10;
+      } else if (actor.atlas === "taotie-overseer") {
+        frame = actor.skillId === "taotie-chain-cleave"
+          ? 9
+          : ["taotie-flame-breath", "taotie-devour-pull", "taotie-world-devour"].includes(actor.skillId ?? "")
+            ? 10
+            : actor.skillId === "taotie-forge-shackle" || actor.skillId === "taotie-forge-collapse"
+              ? 11
+              : 8;
+      } else {
+        frame = actionFrame(actor.progress || ((elapsedMs % 420) / 420));
+      }
+      state = `monster-skill-${actor.skillId || "attack"}`;
     } else if (["light", "heavy", "skill", "air-light", "air-heavy", "dash-light", "attack", "counter", "shield"].includes(actor.motion)) {
       frame = actionFrame(actor.progress || ((elapsedMs % 420) / 420));
       state = "attack";

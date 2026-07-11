@@ -43,6 +43,18 @@ describe("dungeon difficulty rules", () => {
   it("uses normal when no dungeon preference has been recorded", () => {
     expect(preferredDungeonDifficulty(createInitialState(), "cinder-kiln-alley")).toBe("normal");
   });
+
+  it("returns the recorded dungeon difficulty preference", () => {
+    const state: GameState = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        dungeonDifficultyPreferences: { "cinder-kiln-alley": "adventure" }
+      }
+    };
+
+    expect(preferredDungeonDifficulty(state, "cinder-kiln-alley")).toBe("adventure");
+  });
 });
 
 describe("dungeon entry", () => {
@@ -72,6 +84,13 @@ describe("dungeon entry", () => {
       dungeonId: "missing-dungeon" as DungeonId,
       difficultyId: "normal" as DungeonDifficultyId,
       reason: "unknown-dungeon"
+    },
+    {
+      name: "unknown difficulty",
+      state: createInitialState(),
+      dungeonId: "cinder-kiln-alley" as DungeonId,
+      difficultyId: "nightmare" as DungeonDifficultyId,
+      reason: "unknown-difficulty"
     },
     {
       name: "locked dungeon",
@@ -122,5 +141,23 @@ describe("dungeon entry", () => {
       canEnter: true,
       reason: "ready"
     });
+  });
+
+  it("allows exact remaining fatigue cost and consumes it to zero", () => {
+    const state: GameState = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        fatigue: { current: 8, max: 64 }
+      }
+    };
+
+    expect(canEnterDungeon(state, "cinder-kiln-alley", "adventure")).toEqual({
+      canEnter: true,
+      reason: "ready"
+    });
+    expect(
+      consumeDungeonEntry(state, "cinder-kiln-alley", "adventure").player.fatigue.current
+    ).toBe(0);
   });
 });

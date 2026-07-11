@@ -315,7 +315,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Add RED/GREEN coverage for normal/adventure/warrior room and boss rarity rules plus dungeon-pool isolation.
 - [x] Apply active `goldFind` build stats to room gold/material rewards without double scaling difficulty.
 - [x] Render concrete room and final-clear loot results, including rarity, set, slot, and reward totals.
-- [x] Verify a real keyboard clear obtains the expected targeted set drop and persists it after reload; Chinese commit and push remain the final repository action.
+- [x] Verify a real keyboard clear obtains the expected targeted set drop, persists it after reload, then commit and push with Chinese messages.
 
 ### Errors Encountered
 - The staged Task 184 diff check found one extra blank line at the end of the new design document. Removed it, re-staged the two touched records, and re-ran the authoritative raw Git check after RTK returned an empty nonzero result for the cached mode.

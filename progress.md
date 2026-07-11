@@ -4224,3 +4224,4 @@
 - Updated the full campaign's exact inventory totals from the old every-other-room values to the new every-room matrix; its focused Cinder-to-Liuli route passed in 100.75 seconds.
 - Diagnosed a later full-suite transient reinforcement click: its helper bypassed all remaining attempts when a genuine click caused no state change. Added state-aware timeout retry matching the existing trade helper; the focused ecosystem route passed.
 - Final verification passed: 649/649 non-keyboard tests, production build, `git diff --check`, HTTP 200 on `http://127.0.0.1:5174/`, and all 30/30 serial real-browser keyboard scenarios in 637.41 seconds.
+- Task 184 implementation, tests, design, and acceptance evidence were committed as `c483c0c 完善副本定向掉落与战利品结算` and pushed to `origin/feature/vertical-slice`.

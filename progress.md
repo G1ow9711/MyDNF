@@ -4209,3 +4209,4 @@
 - Implemented real `ArrowDown` + `KeyC` mounted routing, 180 ms / 74 px model-following backstep, `↓C` UI help, and dedicated player/weapon animations.
 - Implemented mounted enemy hitstun/super-armor hooks and dedicated model/armor animations. Focused real-browser acceptance passed twice after replacing a flaky polling-only short-window assertion with an animation-frame plus mutation evidence recorder.
 - Verification complete: core and computed-style regression 642/642; production build passed; `git diff --check` passed with line-ending warnings only; serial mounted-browser acceptance passed 29/29 in 624.03 seconds.
+- Implementation, tests, design, and verification evidence were committed as `96dadd3 完善后跳硬直与怪物霸体`, pushed to `origin/feature/vertical-slice`, and confirmed at zero branch divergence.

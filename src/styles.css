@@ -314,6 +314,139 @@ p {
   padding: 0 14px;
 }
 
+[data-app-mode="dungeon-prep"] .game-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.dungeon-prep {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: center;
+  gap: 24px;
+  padding: clamp(24px, 5vw, 72px);
+  border: 1px solid rgba(226, 232, 240, 0.18);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(41, 37, 36, 0.92));
+}
+
+.dungeon-prep-header {
+  display: grid;
+  gap: 6px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.26);
+  padding-bottom: 18px;
+}
+
+.dungeon-prep-kicker,
+.dungeon-prep-summary dt,
+.dungeon-prep-fatigue span {
+  color: #a5b4c7;
+  font-size: 13px;
+}
+
+.dungeon-prep-header h2 {
+  font-size: 34px;
+}
+
+.dungeon-prep-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  background: rgba(148, 163, 184, 0.2);
+}
+
+.dungeon-prep-summary > div {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  background: #151d2c;
+}
+
+.dungeon-prep-summary dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.dungeon-prep-fatigue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.dungeon-prep-fatigue strong:last-child {
+  color: #fbbf24;
+}
+
+.dungeon-difficulty-segments {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 6px;
+}
+
+.dungeon-difficulty-option {
+  min-width: 0;
+  min-height: 104px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 10px;
+  align-content: center;
+  border: 0;
+  border-right: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 0;
+  padding: 14px;
+  text-align: left;
+}
+
+.dungeon-difficulty-option:last-child {
+  border-right: 0;
+}
+
+.dungeon-difficulty-option strong {
+  grid-column: 1 / -1;
+  font-size: 18px;
+}
+
+.dungeon-difficulty-option span {
+  min-width: 0;
+  color: #cbd5e1;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.dungeon-difficulty-option[data-difficulty-selected="true"] {
+  color: #fff7ed;
+  background: #7c2d12;
+  box-shadow: inset 0 -3px #fbbf24;
+}
+
+.dungeon-prep-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.dungeon-prep-actions button {
+  min-width: 128px;
+  padding: 0 18px;
+}
+
+.dungeon-start-button:not(:disabled) {
+  border-color: #fbbf24;
+  background: #92400e;
+}
+
 .combat-actions button {
   display: inline-grid;
   grid-auto-flow: column;
@@ -10736,6 +10869,35 @@ p {
 
   .town-hud h1 {
     font-size: 38px;
+  }
+
+  .dungeon-prep {
+    align-content: start;
+    gap: 18px;
+    padding: 20px;
+  }
+
+  .dungeon-prep-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dungeon-difficulty-segments {
+    grid-template-columns: 1fr;
+  }
+
+  .dungeon-difficulty-option {
+    min-height: 82px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.26);
+  }
+
+  .dungeon-difficulty-option:last-child {
+    border-bottom: 0;
+  }
+
+  .dungeon-prep-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .quest-tracker {

@@ -3715,4 +3715,13 @@ describe("town app shell", () => {
       expect(html).toContain(appearance.displayName);
     }
   });
+
+  it("styles the dungeon prep difficulty controls and fatigue layout responsively", () => {
+    expect(stylesCss).toContain(".dungeon-prep");
+    expect(stylesCss).toContain(".dungeon-difficulty-segments");
+    expect(stylesCss).toContain('[data-difficulty-selected="true"]');
+    expect(stylesCss).toContain(".dungeon-prep-actions");
+    expect(stylesCss).toContain(".dungeon-prep-fatigue");
+    expect(stylesCss).toContain("@media (max-width: 860px)");
+  });
 });

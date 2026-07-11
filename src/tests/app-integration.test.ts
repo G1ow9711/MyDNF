@@ -6481,4 +6481,219 @@ describe("playable app integration actions", () => {
     expect(reset.mode).toBe("town");
     expect(reset.message).toContain("重置");
   });
+
+  it("opens dungeon prep with the preferred difficulty and consumes fatigue before combat", () => {
+    const baseState = createInitialState();
+    const state = {
+      ...baseState,
+      player: {
+        ...baseState.player,
+        dungeonDifficultyPreferences: { "cinder-kiln-alley": "adventure" as const }
+      }
+    };
+    const model = createAppModel({ storage: new MemoryStorage(), initialState: state });
+    const prep = reduceAppAction(model, { type: "openDungeonPrep", dungeonId: "cinder-kiln-alley" });
+
+    expect(prep.mode).toBe("dungeon-prep");
+    expect(prep.dungeonPrep).toEqual({ dungeonId: "cinder-kiln-alley", difficultyId: "adventure" });
+    expect(prep.combatRun).toBeUndefined();
+
+    const entered = reduceAppAction(prep, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    expect(entered.mode).toBe("combat");
+    expect(entered.state.player.fatigue).toEqual({ current: 56, max: 64 });
+    expect(entered.combatRun?.difficultyId).toBe("adventure");
+    expect(entered.combatRun?.state).toBe(entered.state);
+    expect(entered.dungeonPrep).toBeUndefined();
+  });
+
+  it("keeps legacy dungeon entry compatible with normal difficulty and clears prep on town mode", () => {
+    const model = createAppModel({ storage: new MemoryStorage() });
+    const legacy = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    expect(legacy.combatRun?.difficultyId).toBe("normal");
+    expect(legacy.state.player.fatigue.current).toBe(58);
+
+    const prep = reduceAppAction(model, { type: "openDungeonPrep", dungeonId: "cinder-kiln-alley" });
+    const selected = reduceAppAction(prep, { type: "selectDungeonDifficulty", difficultyId: "warrior" });
+    const town = reduceAppAction(selected, { type: "setMode", mode: "town" });
+
+    expect(selected.dungeonPrep?.difficultyId).toBe("warrior");
+    expect(town.dungeonPrep).toBeUndefined();
+    expect(reduceAppAction(model, { type: "selectDungeonDifficulty", difficultyId: "adventure" })).toBe(model);
+  });
+
+  it("renders dungeon prep, town fatigue, disabled fatigue entry, and combat difficulty hooks", () => {
+    const baseState = createInitialState();
+    const lowFatigueState = {
+      ...baseState,
+      player: { ...baseState.player, fatigue: { current: 5, max: 64 } }
+    };
+    const townHtml = renderAppHtml({ state: baseState, mode: "town" });
+    const prepHtml = renderAppHtml({
+      state: lowFatigueState,
+      mode: "dungeon-prep",
+      dungeonPrep: { dungeonId: "cinder-kiln-alley", difficultyId: "normal" }
+    });
+    const adventureRun = reduceAppAction(
+      createAppModel({ initialState: baseState }),
+      { type: "enterDungeon", dungeonId: "cinder-kiln-alley", difficultyId: "adventure" }
+    );
+    const combatHtml = renderAppHtml(adventureRun);
+
+    expect(townHtml).toContain('data-prepare-dungeon="cinder-kiln-alley"');
+    expect(townHtml).toContain('data-fatigue-current="64"');
+    expect(townHtml).toContain('data-fatigue-max="64"');
+    expect(prepHtml).toContain('data-dungeon-prep="true"');
+    expect(prepHtml).toContain('data-dungeon-prep-id="cinder-kiln-alley"');
+    expect(prepHtml).toContain('data-dungeon-difficulty="normal"');
+    expect(prepHtml).toContain('data-difficulty-selected="true"');
+    expect(prepHtml).toContain('data-fatigue-cost="6"');
+    expect(prepHtml).toMatch(/data-dungeon-start="true"[^>]*disabled/);
+    expect(prepHtml).toContain('data-dungeon-prep-back="true"');
+    expect(prepHtml).toMatch(/推荐战力<\/dt><dd>120/);
+    expect(prepHtml).toContain("Boss");
+    expect(combatHtml).toContain('data-combat-difficulty="adventure"');
+    expect(combatHtml).toContain("冒险");
+  });
+
+  it("rejects insufficient fatigue in the dungeon prep reducer", () => {
+    const baseState = createInitialState();
+    const state = {
+      ...baseState,
+      player: { ...baseState.player, fatigue: { current: 5, max: 64 } }
+    };
+    const prep = reduceAppAction(
+      createAppModel({ initialState: state }),
+      { type: "openDungeonPrep", dungeonId: "cinder-kiln-alley" }
+    );
+    const refused = reduceAppAction(prep, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    expect(refused.mode).toBe("dungeon-prep");
+    expect(refused.combatRun).toBeUndefined();
+    expect(refused.state).toBe(prep.state);
+    expect(refused.message).toContain("疲劳");
+  });
+
+  it("mounts dungeon prep click controls and auto saves selected difficulty fatigue", () => {
+    const previousLocalStorage = globalThis.localStorage;
+    const previousAddEventListener = globalThis.addEventListener;
+    const previousRemoveEventListener = globalThis.removeEventListener;
+    const storage = new MemoryStorage();
+    const listeners = new Map<string, EventListener>();
+    let clickHandler: ((event: Event) => void) | undefined;
+    const root = {
+      innerHTML: "",
+      addEventListener(type: string, handler: EventListener): void {
+        if (type === "click") clickHandler = handler as (event: Event) => void;
+      }
+    } as unknown as HTMLDivElement;
+
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: storage });
+    Object.defineProperty(globalThis, "addEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => listeners.set(type, handler)
+    });
+    Object.defineProperty(globalThis, "removeEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => {
+        if (listeners.get(type) === handler) listeners.delete(type);
+      }
+    });
+
+    try {
+      const cleanup = mountApp(root);
+      const button = (dataset: Record<string, string>) => {
+        const element = { dataset, closest: () => element };
+        return element;
+      };
+
+      clickHandler?.({ target: button({ prepareDungeon: "cinder-kiln-alley" }) } as unknown as Event);
+      expect(root.innerHTML).toContain('data-dungeon-prep-id="cinder-kiln-alley"');
+
+      clickHandler?.({ target: button({ dungeonPrepBack: "true" }) } as unknown as Event);
+      expect(root.innerHTML).toContain('data-app-mode="town"');
+      clickHandler?.({ target: button({ prepareDungeon: "cinder-kiln-alley" }) } as unknown as Event);
+
+      clickHandler?.({ target: button({ dungeonDifficulty: "adventure" }) } as unknown as Event);
+      expect(root.innerHTML).toContain('data-dungeon-difficulty="adventure" data-difficulty-selected="true"');
+
+      clickHandler?.({ target: button({ dungeonStart: "true" }) } as unknown as Event);
+      expect(root.innerHTML).toContain('data-combat-difficulty="adventure"');
+
+      const saved = JSON.parse(storage.getItem(SAVE_KEY) ?? "null") as GameState | null;
+      expect(saved?.player.fatigue.current).toBe(56);
+      expect(saved?.player.dungeonDifficultyPreferences["cinder-kiln-alley"]).toBe("adventure");
+
+      clickHandler?.({ target: button({ mode: "town" }) } as unknown as Event);
+      clickHandler?.({ target: button({ prepareDungeon: "cinder-kiln-alley" }) } as unknown as Event);
+      let enterPrevented = false;
+      (listeners.get("keydown") as ((event: KeyboardEvent) => void) | undefined)?.({
+        code: "Enter",
+        repeat: false,
+        preventDefault: () => { enterPrevented = true; }
+      } as KeyboardEvent);
+      expect(enterPrevented).toBe(true);
+      expect(root.innerHTML).toContain('data-combat-difficulty="adventure"');
+      cleanup();
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", { configurable: true, value: previousLocalStorage });
+      Object.defineProperty(globalThis, "addEventListener", { configurable: true, value: previousAddEventListener });
+      Object.defineProperty(globalThis, "removeEventListener", { configurable: true, value: previousRemoveEventListener });
+    }
+  });
+
+  it("mounts dungeon prep difficulty keyboard cycling, start guard, and Escape back", () => {
+    const previousLocalStorage = globalThis.localStorage;
+    const previousAddEventListener = globalThis.addEventListener;
+    const previousRemoveEventListener = globalThis.removeEventListener;
+    const storage = new MemoryStorage();
+    const listeners = new Map<string, EventListener>();
+    let clickHandler: ((event: Event) => void) | undefined;
+    const root = {
+      innerHTML: "",
+      addEventListener(type: string, handler: EventListener): void {
+        if (type === "click") clickHandler = handler as (event: Event) => void;
+      }
+    } as unknown as HTMLDivElement;
+    const lowState = createInitialState();
+    saveGame(storage, { ...lowState, player: { ...lowState.player, fatigue: { current: 5, max: 64 } } });
+
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: storage });
+    Object.defineProperty(globalThis, "addEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => listeners.set(type, handler)
+    });
+    Object.defineProperty(globalThis, "removeEventListener", {
+      configurable: true,
+      value: (type: string, handler: EventListener) => {
+        if (listeners.get(type) === handler) listeners.delete(type);
+      }
+    });
+
+    try {
+      const cleanup = mountApp(root);
+      const prepareButton = { dataset: { prepareDungeon: "cinder-kiln-alley" }, closest: () => prepareButton };
+      clickHandler?.({ target: prepareButton } as unknown as Event);
+      const keydown = listeners.get("keydown") as ((event: KeyboardEvent) => void) | undefined;
+      let prevented = 0;
+      const press = (code: string) => keydown?.({ code, repeat: false, preventDefault: () => { prevented += 1; } } as KeyboardEvent);
+
+      press("ArrowRight");
+      expect(root.innerHTML).toContain('data-dungeon-difficulty="adventure" data-difficulty-selected="true"');
+      press("ArrowLeft");
+      expect(root.innerHTML).toContain('data-dungeon-difficulty="normal" data-difficulty-selected="true"');
+      press("Enter");
+      expect(root.innerHTML).toContain('data-app-mode="dungeon-prep"');
+      expect(root.innerHTML).not.toContain('data-combat-difficulty=');
+      press("Escape");
+      expect(root.innerHTML).toContain('data-app-mode="town"');
+      expect(prevented).toBe(4);
+      cleanup();
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", { configurable: true, value: previousLocalStorage });
+      Object.defineProperty(globalThis, "addEventListener", { configurable: true, value: previousAddEventListener });
+      Object.defineProperty(globalThis, "removeEventListener", { configurable: true, value: previousRemoveEventListener });
+    }
+  });
 });

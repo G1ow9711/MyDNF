@@ -28,7 +28,7 @@ import {
   type CombatVector
 } from "../game/combat";
 import { addOwnedGear, createInitialState } from "../game/state";
-import type { AdvancementId, ClassId, ClassSkillDefinition, ConsumableId, DungeonId, GameState, SkillAnimationDefinition } from "../game/types";
+import type { AdvancementId, ClassId, ClassSkillDefinition, ConsumableId, DungeonDifficultyId, DungeonId, GameState, SkillAnimationDefinition } from "../game/types";
 import { createRenderPlan } from "../game/render";
 import {
   chooseMusicLayer,
@@ -42,6 +42,7 @@ import {
 } from "../systems/audio";
 import { createBrowserAudioSink } from "../systems/audio-browser";
 import { advanceClass as applyClassAdvancement, getSkillLevel, resetSkillTree, selectBaseClass as applyBaseClass, syncCurrentClassResource, upgradeSkill } from "../systems/classes";
+import { DUNGEON_DIFFICULTY_ORDER, canEnterDungeon, consumeDungeonEntry, getDungeonDifficulty, preferredDungeonDifficulty } from "../systems/dungeons";
 import { applyLoadout, dismantleItem, equipItem, saveLoadout, sellItem, setItemLock } from "../systems/inventory";
 import { acceptTrade, listAuction, resolveAuctions } from "../systems/market";
 import { applyQuestEvent, claimQuestReward, getActiveQuestText } from "../systems/quests";
@@ -60,13 +61,14 @@ import {
   renderSmithPanel
 } from "./panels";
 
-export type AppMode = "town" | "combat" | "inventory" | "smith" | "auction" | "shop" | "quests" | "classes" | "settings";
+export type AppMode = "town" | "dungeon-prep" | "combat" | "inventory" | "smith" | "auction" | "shop" | "quests" | "classes" | "settings";
 
 export const AUDIO_SETTINGS_KEY = "mydnf-audio-settings-v1";
 
 export interface AppViewModel {
   state: GameState;
   mode: AppMode;
+  dungeonPrep?: { dungeonId: DungeonId; difficultyId: DungeonDifficultyId };
   combatRun?: CombatRun;
   message?: string;
   audio?: AudioState;
@@ -83,7 +85,9 @@ const combatTickMs = 48;
 
 export type AppAction =
   | { type: "setMode"; mode: AppMode }
-  | { type: "enterDungeon"; dungeonId: DungeonId }
+  | { type: "openDungeonPrep"; dungeonId: DungeonId }
+  | { type: "selectDungeonDifficulty"; difficultyId: DungeonDifficultyId }
+  | { type: "enterDungeon"; dungeonId: DungeonId; difficultyId?: DungeonDifficultyId }
   | { type: "combatTick"; moveX?: number; moveY?: number; dash?: boolean }
   | { type: "combatMove"; moveX: number; moveY: number; dash: boolean }
   | { type: "combatAction"; action: "light" | "heavy" | "jump" | "backstep" | "finish" }
@@ -473,10 +477,80 @@ function renderTownScene(model: AppViewModel): string {
       <div class="town-hud">
         <h1>烬璃纪元</h1>
         <p>炉山市集 · ${classDef?.displayName ?? "烬拳卫"} · 等级 ${state.player.level}</p>
+        <p class="town-fatigue">疲劳 <strong data-fatigue-current="${state.player.fatigue.current}">${state.player.fatigue.current}</strong>/<span data-fatigue-max="${state.player.fatigue.max}">${state.player.fatigue.max}</span></p>
         <div class="dungeon-row">
-          <button data-enter-dungeon="cinder-kiln-alley" ${cinderUnlocked ? "" : "disabled"}>灰窑巷</button>
-          <button data-enter-dungeon="liuli-furnace" ${liuliUnlocked ? "" : "disabled"}>琉璃熔炉</button>
+          <button data-prepare-dungeon="cinder-kiln-alley" ${cinderUnlocked ? "" : "disabled"}>灰窑巷</button>
+          <button data-prepare-dungeon="liuli-furnace" ${liuliUnlocked ? "" : "disabled"}>琉璃熔炉</button>
         </div>
+      </div>
+    </section>
+  `;
+}
+
+function dungeonBossName(bossId: string): string {
+  return bossId === "kiln-warden" ? "饕餮监工" : bossId === "liuli-overseer" ? "琉璃监工" : bossId;
+}
+
+function multiplierLabel(value: number): string {
+  return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2)}x`;
+}
+
+function renderDungeonPrep(model: AppViewModel): string {
+  const prep = model.dungeonPrep;
+
+  if (!prep) {
+    return renderTownScene(model);
+  }
+
+  const dungeon = catalog.dungeons.find((item) => item.id === prep.dungeonId);
+
+  if (!dungeon) {
+    return renderTownScene(model);
+  }
+
+  const selectedDifficulty = getDungeonDifficulty(prep.difficultyId);
+  const entry = canEnterDungeon(model.state, prep.dungeonId, prep.difficultyId);
+  const difficultyButtons = DUNGEON_DIFFICULTY_ORDER.map((difficultyId) => {
+    const difficulty = getDungeonDifficulty(difficultyId);
+    const selected = difficultyId === prep.difficultyId;
+
+    return `
+      <button class="dungeon-difficulty-option" data-dungeon-difficulty="${difficultyId}" data-difficulty-selected="${selected ? "true" : "false"}" data-fatigue-cost="${difficulty.fatigueCost}" aria-pressed="${selected ? "true" : "false"}">
+        <strong>${difficulty.displayName}</strong>
+        <span>HP ${multiplierLabel(difficulty.hpMultiplier)}</span>
+        <span>伤害 ${multiplierLabel(difficulty.damageMultiplier)}</span>
+        <span>奖励 ${multiplierLabel(difficulty.rewardMultiplier)}</span>
+        <span>疲劳 ${difficulty.fatigueCost}</span>
+      </button>
+    `;
+  }).join("");
+
+  return `
+    <section class="dungeon-prep" data-dungeon-prep="true" data-dungeon-prep-id="${dungeon.id}" aria-label="地下城准备">
+      <header class="dungeon-prep-header">
+        <p class="dungeon-prep-kicker">地下城准备</p>
+        <h2>${dungeon.displayName}</h2>
+      </header>
+      <dl class="dungeon-prep-summary">
+        <div><dt>等级要求</dt><dd>Lv.${dungeon.minLevel}</dd></div>
+        <div><dt>房间数</dt><dd>${dungeon.rooms}</dd></div>
+        <div><dt>Boss</dt><dd>${dungeonBossName(dungeon.bossId)}</dd></div>
+        <div><dt>推荐战力</dt><dd>${dungeon.recommendedPower}</dd></div>
+      </dl>
+      <div class="dungeon-prep-fatigue">
+        <span>当前疲劳</span>
+        <strong data-fatigue-current="${model.state.player.fatigue.current}">${model.state.player.fatigue.current}</strong>
+        <span>/</span>
+        <span data-fatigue-max="${model.state.player.fatigue.max}">${model.state.player.fatigue.max}</span>
+        <span>本次消耗</span>
+        <strong data-fatigue-cost="${selectedDifficulty.fatigueCost}">${selectedDifficulty.fatigueCost}</strong>
+      </div>
+      <div class="dungeon-difficulty-segments" role="group" aria-label="难度选择">
+        ${difficultyButtons}
+      </div>
+      <div class="dungeon-prep-actions">
+        <button data-dungeon-prep-back="true">返回城镇</button>
+        <button class="dungeon-start-button" data-dungeon-start="true" data-fatigue-cost="${selectedDifficulty.fatigueCost}" ${entry.canEnter ? "" : "disabled"}>开始挑战 · ${selectedDifficulty.displayName}</button>
       </div>
     </section>
   `;
@@ -1872,6 +1946,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const objective = roomFailed ? "failed" : roomCleared ? "cleared" : "active";
   const roomGate = roomGateForRun(run);
   const dungeon = catalog.dungeons.find((item) => item.id === run.dungeonId);
+  const combatDifficulty = getDungeonDifficulty(run.difficultyId);
   const roomCount = dungeon?.rooms ?? 0;
   const liveEnemyCount = run.enemies.filter((enemy) => enemy.hp > 0).length;
   const defeatedEnemyCount = run.enemies.filter((enemy) => enemy.hp <= 0).length;
@@ -2023,7 +2098,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   `;
 
   return `
-    <section class="combat-scene" aria-label="战斗" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-hp="${run.player.hp}" data-player-max-hp="${run.player.maxHp}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
+    <section class="combat-scene" aria-label="战斗 · ${combatDifficulty.displayName}" data-combat-difficulty="${run.difficultyId}" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-hp="${run.player.hp}" data-player-max-hp="${run.player.maxHp}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
@@ -2057,7 +2132,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         <button data-mode="town">返回</button>
       </div>
       <div class="combat-status">
-        <p>房间 ${run.roomIndex + 1} · HP ${run.player.hp}/${run.player.maxHp} · ${run.player.resource.displayName} ${run.player.resource.current}/${run.player.resource.max} · 连段 ${run.player.comboStep} · 攻击 ${attackValue} · 防御 ${defenseValue} · 冷却 ${cooldownValue}%</p>
+        <p>${combatDifficulty.displayName} · 房间 ${run.roomIndex + 1} · HP ${run.player.hp}/${run.player.maxHp} · ${run.player.resource.displayName} ${run.player.resource.current}/${run.player.resource.max} · 连段 ${run.player.comboStep} · 攻击 ${attackValue} · 防御 ${defenseValue} · 冷却 ${cooldownValue}%</p>
         <ul>${enemies}</ul>
       </div>
       <aside class="quest-tracker quest-tracker-prominent" aria-label="任务追踪">
@@ -2070,6 +2145,8 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
 
 function renderActivePanel(model: AppViewModel): string {
   switch (model.mode) {
+    case "dungeon-prep":
+      return "";
     case "inventory":
       return renderInventoryPanel(model.state);
     case "smith":
@@ -2093,7 +2170,11 @@ function renderActivePanel(model: AppViewModel): string {
 }
 
 export function renderAppHtml(model: AppViewModel): string {
-  const scene = model.mode === "combat" && model.combatRun ? renderCombatScene(model.combatRun, model.state) : renderTownScene(model);
+  const scene = model.mode === "combat" && model.combatRun
+    ? renderCombatScene(model.combatRun, model.state)
+    : model.mode === "dungeon-prep"
+      ? renderDungeonPrep(model)
+      : renderTownScene(model);
   const currencies = model.state.player.currencies;
   const audioVolumes = model.audio?.volumes ?? createAudioState().volumes;
 
@@ -2275,17 +2356,60 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       return {
         ...model,
         mode: action.mode,
+        dungeonPrep: action.mode === "town" ? undefined : model.dungeonPrep,
         message: undefined,
         audio: action.mode === "town" ? playBgm(model.audio, chooseMusicLayer({ mode: "town" }).trackId) : model.audio
       };
-    case "enterDungeon":
+    case "openDungeonPrep":
       return {
         ...model,
-        mode: "combat",
-        combatRun: createCombatRun(model.state, action.dungeonId),
-        message: undefined,
-        audio: playBgm(model.audio, chooseMusicLayer({ mode: "dungeon", dungeonId: action.dungeonId, danger: 0.2 }).trackId)
+        mode: "dungeon-prep",
+        dungeonPrep: {
+          dungeonId: action.dungeonId,
+          difficultyId: preferredDungeonDifficulty(model.state, action.dungeonId)
+        },
+        combatRun: undefined,
+        message: undefined
       };
+    case "selectDungeonDifficulty":
+      if (model.mode !== "dungeon-prep" || !model.dungeonPrep) {
+        return model;
+      }
+
+      return {
+        ...model,
+        dungeonPrep: { ...model.dungeonPrep, difficultyId: action.difficultyId },
+        message: undefined
+      };
+    case "enterDungeon":
+      {
+        const difficultyId = action.difficultyId
+          ?? (model.mode === "dungeon-prep" && model.dungeonPrep?.dungeonId === action.dungeonId
+            ? model.dungeonPrep.difficultyId
+            : preferredDungeonDifficulty(model.state, action.dungeonId));
+        const entry = canEnterDungeon(model.state, action.dungeonId, difficultyId);
+
+        if (!entry.canEnter) {
+          return {
+            ...model,
+            message: entry.reason === "insufficient-fatigue" || entry.reason === "invalid-fatigue"
+              ? "疲劳值不足，无法进入地下城"
+              : "当前无法进入该地下城"
+          };
+        }
+
+        const state = consumeDungeonEntry(model.state, action.dungeonId, difficultyId);
+
+        return {
+          ...model,
+          state,
+          mode: "combat",
+          dungeonPrep: undefined,
+          combatRun: createCombatRun(state, action.dungeonId, difficultyId),
+          message: undefined,
+          audio: playBgm(model.audio, chooseMusicLayer({ mode: "dungeon", dungeonId: action.dungeonId, danger: 0.2 }).trackId)
+        };
+      }
     case "combatTick": {
       if (model.mode !== "combat" || !model.combatRun) {
         return model;
@@ -2798,6 +2922,8 @@ export function mountApp(root: HTMLDivElement): () => void {
 
       const mode = target.dataset.mode as AppMode | undefined;
       const dungeonId = target.dataset.enterDungeon as DungeonId | undefined;
+      const prepareDungeonId = target.dataset.prepareDungeon as DungeonId | undefined;
+      const difficultyId = target.dataset.dungeonDifficulty as DungeonDifficultyId | undefined;
       const combatAction = target.dataset.combatAction as "light" | "heavy" | "jump" | "backstep" | "skill" | "finish" | undefined;
       const combatSkillId = target.dataset.combatSkillId;
       const appAction = target.dataset.appAction;
@@ -2820,6 +2946,22 @@ export function mountApp(root: HTMLDivElement): () => void {
 
       if (dungeonId) {
         dispatch({ type: "enterDungeon", dungeonId });
+      }
+
+      if (prepareDungeonId) {
+        dispatch({ type: "openDungeonPrep", dungeonId: prepareDungeonId });
+      }
+
+      if (difficultyId) {
+        dispatch({ type: "selectDungeonDifficulty", difficultyId });
+      }
+
+      if (target.dataset.dungeonStart && model.dungeonPrep) {
+        dispatch({ type: "enterDungeon", dungeonId: model.dungeonPrep.dungeonId });
+      }
+
+      if (target.dataset.dungeonPrepBack) {
+        dispatch({ type: "setMode", mode: "town" });
       }
 
       if (combatAction) {
@@ -2951,16 +3093,44 @@ export function mountApp(root: HTMLDivElement): () => void {
         commandBuffer = [];
         heldCombatKeys.clear();
 
+        if (model.mode === "dungeon-prep" && model.dungeonPrep) {
+          if (event.code === "ArrowLeft" || event.code === "ArrowRight") {
+            event.preventDefault();
+            const currentIndex = DUNGEON_DIFFICULTY_ORDER.indexOf(model.dungeonPrep.difficultyId);
+            const direction = event.code === "ArrowRight" ? 1 : -1;
+            const nextIndex = (currentIndex + direction + DUNGEON_DIFFICULTY_ORDER.length) % DUNGEON_DIFFICULTY_ORDER.length;
+            dispatch({ type: "selectDungeonDifficulty", difficultyId: DUNGEON_DIFFICULTY_ORDER[nextIndex] });
+            render();
+            return;
+          }
+
+          if (event.code === "Enter") {
+            event.preventDefault();
+            if (canEnterDungeon(model.state, model.dungeonPrep.dungeonId, model.dungeonPrep.difficultyId).canEnter) {
+              dispatch({ type: "enterDungeon", dungeonId: model.dungeonPrep.dungeonId });
+              render();
+            }
+            return;
+          }
+
+          if (event.code === "Escape") {
+            event.preventDefault();
+            dispatch({ type: "setMode", mode: "town" });
+            render();
+            return;
+          }
+        }
+
         if (event.code === "Enter" || event.code === "Space") {
           const activeElement = (event.target instanceof HTMLElement ? event.target : globalThis.document?.activeElement) as
             | HTMLElement
             | undefined;
-          const dungeonButton = activeElement?.closest?.("[data-enter-dungeon]") as HTMLElement | null | undefined;
-          const dungeonId = dungeonButton?.dataset.enterDungeon as DungeonId | undefined;
+          const dungeonButton = activeElement?.closest?.("[data-prepare-dungeon]") as HTMLElement | null | undefined;
+          const dungeonId = dungeonButton?.dataset.prepareDungeon as DungeonId | undefined;
 
           if (dungeonId) {
             event.preventDefault();
-            dispatch({ type: "enterDungeon", dungeonId });
+            dispatch({ type: "openDungeonPrep", dungeonId });
             render();
           }
         }

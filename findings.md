@@ -1512,3 +1512,10 @@
 - Combat actors have drop shadows around their silhouettes but no shared ground-contact shadow. A root-level ellipse can follow arena coordinates while airborne/downed attributes alter its scale without touching combat rules.
 - The remaining warm rectangle was root-filter clipping, not PNG alpha. A 260-510 px absolute sprite exceeded its 112-260 px actor root, and the root drop-shadow rendered through that smaller filter region. Sprite-local drop shadows avoid the rectangular filter surface.
 - Mobile combat used normal document flow below 720 px, making the action stack 417 px high and hiding the arena. The same controls fit in three explicit rows at about 120 px without removing touch actions.
+
+## Task 194 Double-Tap Run Audit
+- The combat core already treats `input.dash` as 0.42 px/ms instead of 0.24 px/ms, opens a 220 ms dash-attack readiness window, and resolves `dash-light` through a strict delayed live-target hit frame.
+- Mounted keyboard control only maps held Shift to `dash`; repeated direction input is currently consumed only by the command buffer, which intentionally removes adjacent duplicate directions.
+- The missing behavior belongs in the browser input adapter. Feeding its result into existing `combatTick` preserves one movement/attack authority and avoids duplicate speed or damage rules.
+- Player hit presentation had a longer event lifetime than the actual hurt lock. A new dash-light could resolve while the body still showed the stale hit pose; hit presentation now owns the body only while `hurtLockUntilMs` is active.
+- Double-tap and command input can coexist because the run detector requires release then press, while the command buffer still collapses adjacent duplicate direction tokens before terminal Z/Space matching.

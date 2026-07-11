@@ -169,6 +169,30 @@ type BrowserCommandState = {
   skillVfx: string;
 };
 
+type BrowserDoubleTapRunState = {
+  objective: string;
+  playerX: number;
+  elapsedMs: number;
+  dashSource: string;
+  doubleTapActive: string;
+  doubleTapDirection: string;
+  dashReadyUntilMs: number;
+  playerMotion: string;
+  normalAttackMove: string;
+  spriteState: string;
+  spriteDashSource: string;
+  spriteDustContent: string;
+  spriteDustAnimation: string;
+  impactCue: string;
+  enemyHp: number[];
+};
+
+type BrowserDoubleTapRunEvidence = {
+  sawDashLightMotion: boolean;
+  sawDashLightImpact: boolean;
+  lowestEnemyHp: number;
+};
+
 type BrowserComboCancelState = {
   objective: string;
   playerX: number;
@@ -1301,6 +1325,70 @@ const readCommandStateExpression = `
 })()
 `;
 
+const readDoubleTapRunStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const player = document.querySelector(".combat-player");
+  const sprite = document.querySelector(".player-frame-sprite");
+  const impact = document.querySelector("[data-impact-spark='true']");
+  return {
+    objective: scene?.getAttribute("data-combat-objective") ?? "",
+    playerX: Number(scene?.getAttribute("data-player-x") ?? "0"),
+    elapsedMs: Number(scene?.getAttribute("data-combat-elapsed-ms") ?? "0"),
+    dashSource: scene?.getAttribute("data-movement-dash-source") ?? "",
+    doubleTapActive: scene?.getAttribute("data-double-tap-dash-active") ?? "",
+    doubleTapDirection: scene?.getAttribute("data-double-tap-dash-direction") ?? "",
+    dashReadyUntilMs: Number(player?.getAttribute("data-player-dash-attack-ready-until-ms") ?? "0"),
+    playerMotion: player?.getAttribute("data-player-motion") ?? "",
+    normalAttackMove: player?.getAttribute("data-player-normal-attack-move") ?? "",
+    spriteState: sprite?.getAttribute("data-sprite-state") ?? "",
+    spriteDashSource: sprite?.getAttribute("data-sprite-dash-source") ?? "",
+    spriteDustContent: sprite ? getComputedStyle(sprite, "::before").content : "",
+    spriteDustAnimation: sprite ? getComputedStyle(sprite, "::before").animationName : "",
+    impactCue: impact?.getAttribute("data-vfx-cue") ?? "",
+    enemyHp: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => Number(enemy.getAttribute("data-enemy-hp-current") ?? "0"))
+  };
+})()
+`;
+
+const installDoubleTapRunRecorderExpression = `
+(() => {
+  globalThis.__doubleTapRunEvidence = {
+    sawDashLightMotion: false,
+    sawDashLightImpact: false,
+    lowestEnemyHp: Number.POSITIVE_INFINITY
+  };
+  const sample = () => {
+    const player = document.querySelector(".combat-player");
+    const impact = document.querySelector("[data-impact-spark='true']");
+    const enemyHp = Array.from(document.querySelectorAll(".combat-enemy"))
+      .map((enemy) => Number(enemy.getAttribute("data-enemy-hp-current") ?? "0"));
+    const evidence = globalThis.__doubleTapRunEvidence;
+    evidence.sawDashLightMotion ||=
+      player?.getAttribute("data-player-motion") === "dash-light" &&
+      player?.getAttribute("data-player-skill-move") === "dash-light";
+    evidence.sawDashLightImpact ||= impact?.getAttribute("data-vfx-cue") === "dash-light-slash";
+    evidence.lowestEnemyHp = Math.min(evidence.lowestEnemyHp, ...enemyHp);
+  };
+  const observer = new MutationObserver(sample);
+  observer.observe(document.documentElement, { attributes: true, childList: true, subtree: true });
+  globalThis.__doubleTapRunObserver = observer;
+  const startedAt = performance.now();
+  const tick = () => {
+    sample();
+    if (performance.now() - startedAt < 5000) {
+      globalThis.__doubleTapRunFrame = requestAnimationFrame(tick);
+    }
+  };
+  globalThis.__doubleTapRunFrame = requestAnimationFrame(tick);
+  return true;
+})()
+`;
+
+const readDoubleTapRunEvidenceExpression = `
+(() => globalThis.__doubleTapRunEvidence)()
+`;
+
 const readComboCancelStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
@@ -1968,6 +2056,74 @@ describe("real browser keyboard control", () => {
 
         expect(heavyImpact.screenShake).toBe("heavy");
         expect(heavyImpact.impactCue).toBe("ground-heavy-impact");
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
+  it("double-taps a direction to run and chains a real dash-light attack", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
+        await enterDungeonWithKeyboard(page);
+        await moveIntoLiveEnemyRange(page);
+        await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
+          readFlowingLightSafeCastWindowExpression,
+          (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
+          5000
+        );
+        await page.waitFor<BrowserBackstepReactionState>(
+          readBackstepReactionStateExpression,
+          (state) => state.playerHurtLockActive !== "true",
+          1500
+        );
+        const start = await page.waitFor<BrowserDoubleTapRunState>(
+          readDoubleTapRunStateExpression,
+          (state) => state.objective === "active" && state.enemyHp.length === 2,
+          5000
+        );
+
+        await page.pressKey("ArrowRight");
+        await waitInBrowser(page, 90);
+        const singleTap = await page.evaluate<BrowserDoubleTapRunState>(readDoubleTapRunStateExpression);
+        expect(singleTap.dashSource).not.toBe("double-tap");
+        expect(singleTap.doubleTapActive).not.toBe("true");
+
+        await page.keyDown("ArrowRight");
+        const running = await page.waitFor<BrowserDoubleTapRunState>(
+          readDoubleTapRunStateExpression,
+          (state) =>
+            state.dashSource === "double-tap" &&
+            state.doubleTapActive === "true" &&
+            state.doubleTapDirection === "ArrowRight" &&
+            state.playerX > start.playerX &&
+            state.dashReadyUntilMs > state.elapsedMs &&
+            state.spriteState === "run" &&
+            state.spriteDashSource === "double-tap",
+          1500
+        );
+        expect(running.spriteDustContent).toBe('\"\"');
+        expect(running.spriteDustAnimation).toBe("sprite-double-tap-dust");
+
+        await page.evaluate<boolean>(installDoubleTapRunRecorderExpression);
+        await page.pressKey("KeyX");
+        const evidence = await page.waitFor<BrowserDoubleTapRunEvidence>(
+          readDoubleTapRunEvidenceExpression,
+          (state) => state.sawDashLightMotion && state.sawDashLightImpact && state.lowestEnemyHp < Math.min(...start.enemyHp),
+          1600
+        );
+        expect(evidence.sawDashLightMotion).toBe(true);
+        expect(evidence.sawDashLightImpact).toBe(true);
+
+        await page.keyUp("ArrowRight");
+        await page.waitFor<BrowserDoubleTapRunState>(
+          readDoubleTapRunStateExpression,
+          (state) => state.dashSource === "none" && state.doubleTapActive === "false",
+          1000
+        );
       });
     } finally {
       await server.close();

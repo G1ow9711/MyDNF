@@ -385,7 +385,18 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Add grounded, airborne, and knockdown contact-shadow states for player and monsters.
 - [x] Verify desktop/mobile rendering and a real-keyboard jump cycle, then run regression/build and push in Chinese.
 
+## Task 194 DNF Double-Tap Run And Dash Attack
+- [x] Audit held movement, Shift dash, dash readiness, and existing dash-light hit resolution.
+- [x] Lock the 280 ms release-then-press double-tap input contract and Shift compatibility.
+- [x] Implement four-direction double-tap run state, cleanup rules, mounted diagnostics, and sprite speed feedback.
+- [x] Verify single-tap walk, double-tap run, real X dash-light, and release exit through browser keyboard events.
+- [x] Run broad regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 194 first browser GREEN held the second direction through the monster pack before pressing X, so a natural monster hit could preempt the action. The route now uses an observed post-attack safe window and presses X on the first confirmed run frame without changing combat timing.
+- Task 194 polling saw real dash-light damage but missed its short motion window. Added a MutationObserver plus animation-frame recorder that proves body motion, impact cue, and HP loss from the same real key press.
+- Task 194 recorder initially required `data-player-normal-attack-move="dash-light"`, but the existing authoritative movement is exposed as `data-player-skill-move="dash-light"`. Corrected the reader after capturing all mounted motion fields; production behavior was already correct.
+- Task 194 app regression exposed that lightweight mount roots do not implement `querySelector`. Mounted diagnostics now use a capability guard while real DOM roots retain all source attributes.
 - Task 193 RED proved old frame-replacement layers still computed as `visibility: visible` even at opacity zero. Added ready-gated visibility isolation so animation keyframes cannot reveal the legacy portrait or weapon.
 - Task 193 first post-shadow screenshot still showed a rectangular warm block. Atlas alpha inspection proved clean silhouettes; the actual cause was root-level drop-shadow filtering a larger absolute sprite through a smaller actor box. Ready frame actors now use child silhouette filters only.
 - Task 193 first mobile geometry assertion measured a 417 px control column. Rebuilt the mounted mobile controls as a 12-column, roughly 120 px overlay and moved status/quest surfaces out of document flow.

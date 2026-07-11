@@ -101,6 +101,7 @@ export interface AppModel extends AppViewModel {
 }
 
 const combatTickMs = 48;
+const doubleTapRunWindowMs = 280;
 
 export type AppAction =
   | { type: "setMode"; mode: AppMode }
@@ -1185,7 +1186,7 @@ function playerHurtLockActive(run: CombatRun): boolean {
 }
 
 function playerDashAttackActive(run: CombatRun): boolean {
-  if (latestPlayerHitEvent(run)) {
+  if (latestPlayerHitEvent(run) && playerHurtLockActive(run)) {
     return false;
   }
 
@@ -1276,7 +1277,7 @@ function playerMotion(run: CombatRun): string {
     return "quick-recover";
   }
 
-  if (latestPlayerHitEvent(run)) {
+  if (latestPlayerHitEvent(run) && playerHurtLockActive(run)) {
     return "hit";
   }
 
@@ -1344,7 +1345,7 @@ function playerState(run: CombatRun): string {
     return "recovering";
   }
 
-  if (latestPlayerHitEvent(run)) {
+  if (latestPlayerHitEvent(run) && playerHurtLockActive(run)) {
     return "hit";
   }
 
@@ -2199,7 +2200,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
           : ""
       }
       <div class="combat-actions">
-        <div class="combat-control-hint">方向键移动 · Shift 冲刺 · X/J 轻击 · Z/K 重击 · C 跳跃/受身 · A/S/D/F/G/H 技能 · 1 药剂 · 2 复活</div>
+        <div class="combat-control-hint">方向键移动 · 同方向双击/Shift 奔跑 · X/J 轻击 · Z/K 重击 · C 跳跃/受身 · A/S/D/F/G/H 技能 · 1 药剂 · 2 复活</div>
         <button data-combat-action="light" data-hotkey="J" ${roomCleared || roomFailed ? "disabled" : ""}>轻击<span>X/J</span></button>
         <button data-combat-action="heavy" data-hotkey="K" ${roomCleared || roomFailed ? "disabled" : ""}>重击<span>Z/K</span></button>
         <button data-combat-action="jump" data-hotkey="C" data-player-recovery-available="${playerQuickRecoverReady(run) ? "true" : "false"}" ${roomCleared || roomFailed ? "disabled" : ""}>${playerQuickRecoverReady(run) ? "受身" : "跳跃"}<span>C</span></button>
@@ -3283,10 +3284,50 @@ export function mountApp(root: HTMLDivElement): () => void {
   const audioProcessor = createAudioCommandProcessor(createBrowserAudioSink());
   const combatSpriteStage = createCombatSpriteStage();
   const heldCombatKeys = new Set<string>();
+  let doubleTapDashCode: string | undefined;
+  let lastDirectionTap: { code: string; pressedAtMs: number; released: boolean } | undefined;
+
+  function doubleTapDashActive(): boolean {
+    return doubleTapDashCode !== undefined && heldCombatKeys.has(doubleTapDashCode);
+  }
+
+  function movementDashSource(): "shift" | "double-tap" | "none" {
+    if (heldCombatKeys.has("ShiftLeft") || heldCombatKeys.has("ShiftRight")) {
+      return "shift";
+    }
+
+    return doubleTapDashActive() ? "double-tap" : "none";
+  }
+
+  function clearHeldCombatInput(): void {
+    heldCombatKeys.clear();
+    doubleTapDashCode = undefined;
+    lastDirectionTap = undefined;
+  }
 
   function render(): void {
     root.innerHTML = renderAppHtml(model);
     combatSpriteStage.sync(root);
+    const dashSource = movementDashSource();
+    if (typeof root.querySelector === "function") {
+      const scene = root.querySelector<HTMLElement>(".combat-scene");
+      const player = root.querySelector<HTMLElement>(".combat-player");
+      const sprite = root.querySelector<HTMLElement>(".player-frame-sprite");
+
+      if (scene) {
+        scene.dataset.movementDashSource = dashSource;
+        scene.dataset.doubleTapDashActive = doubleTapDashActive() ? "true" : "false";
+        scene.dataset.doubleTapDashDirection = doubleTapDashCode ?? "";
+      }
+
+      if (player) {
+        player.dataset.playerDashInputSource = dashSource;
+      }
+
+      if (sprite) {
+        sprite.dataset.spriteDashSource = dashSource;
+      }
+    }
   }
 
   function dispatch(action: AppAction): void {
@@ -3308,7 +3349,7 @@ export function mountApp(root: HTMLDivElement): () => void {
   function heldCombatTickAction(): Extract<AppAction, { type: "combatTick" }> {
     const moveX = (heldCombatKeys.has("ArrowRight") ? 1 : 0) + (heldCombatKeys.has("ArrowLeft") ? -1 : 0);
     const moveY = (heldCombatKeys.has("ArrowDown") ? 1 : 0) + (heldCombatKeys.has("ArrowUp") ? -1 : 0);
-    const dash = heldCombatKeys.has("ShiftLeft") || heldCombatKeys.has("ShiftRight");
+    const dash = movementDashSource() !== "none";
 
     return {
       type: "combatTick",
@@ -3320,6 +3361,7 @@ export function mountApp(root: HTMLDivElement): () => void {
 
   const combatTickTimer = globalThis.setInterval?.(() => {
     if (model.mode !== "combat" || !model.combatRun) {
+      clearHeldCombatInput();
       return;
     }
 
@@ -3542,7 +3584,7 @@ export function mountApp(root: HTMLDivElement): () => void {
     const keydownHandler = (event: KeyboardEvent) => {
       if (model.mode !== "combat") {
         commandBuffer = [];
-        heldCombatKeys.clear();
+        clearHeldCombatInput();
 
         if (model.mode === "story-dialogue") {
           if (event.code === "Enter" || event.code === "Space") {
@@ -3631,13 +3673,29 @@ export function mountApp(root: HTMLDivElement): () => void {
         return;
       }
 
+      const isRepeat = event.repeat;
+      const atMs = commandNow();
+      pruneCommandBuffer(atMs);
+
       if (heldMovementCodes.has(event.code)) {
         heldCombatKeys.add(event.code);
       }
 
-      const isRepeat = event.repeat;
-      const atMs = commandNow();
-      pruneCommandBuffer(atMs);
+      if (commandDirectionCodes.has(event.code) && !isRepeat) {
+        const previousTap = lastDirectionTap;
+        const completesDoubleTap =
+          previousTap?.code === event.code &&
+          previousTap.released &&
+          atMs - previousTap.pressedAtMs <= doubleTapRunWindowMs;
+
+        if (completesDoubleTap) {
+          doubleTapDashCode = event.code;
+        } else if (doubleTapDashCode !== event.code) {
+          doubleTapDashCode = undefined;
+        }
+
+        lastDirectionTap = { code: event.code, pressedAtMs: atMs, released: false };
+      }
 
       if (commandDirectionCodes.has(event.code) && !isRepeat) {
         pushCommandCode(event.code, atMs);
@@ -3685,7 +3743,7 @@ export function mountApp(root: HTMLDivElement): () => void {
         model.state,
         event.code,
         model.combatRun?.player.resource.current,
-        event.shiftKey,
+        event.shiftKey || doubleTapDashActive(),
         model.combatRun,
         true
       );
@@ -3702,9 +3760,19 @@ export function mountApp(root: HTMLDivElement): () => void {
       if (heldMovementCodes.has(event.code)) {
         heldCombatKeys.delete(event.code);
       }
+
+      if (commandDirectionCodes.has(event.code)) {
+        if (lastDirectionTap?.code === event.code) {
+          lastDirectionTap = { ...lastDirectionTap, released: true };
+        }
+
+        if (doubleTapDashCode === event.code) {
+          doubleTapDashCode = undefined;
+        }
+      }
     };
     const clearHeldCombatKeys = () => {
-      heldCombatKeys.clear();
+      clearHeldCombatInput();
     };
 
     globalThis.addEventListener?.("keydown", keydownHandler);
@@ -3717,7 +3785,7 @@ export function mountApp(root: HTMLDivElement): () => void {
       globalThis.removeEventListener?.("keydown", keydownHandler);
       globalThis.removeEventListener?.("keyup", keyupHandler);
       globalThis.removeEventListener?.("blur", clearHeldCombatKeys);
-      heldCombatKeys.clear();
+      clearHeldCombatInput();
       clearCombatTick();
       combatSpriteStage.destroy();
     };

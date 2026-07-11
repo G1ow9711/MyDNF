@@ -4315,3 +4315,13 @@
 - Rebuilt the <=720 px combat HUD into three compact rows, changed navigation to four columns, and moved status/combo/quest surfaces to bounded overlays. Real browser geometry proves controls <=140 px and all actor visuals start below the toolbar.
 - Inspected 1440x900 desktop/attack and 390x844 mobile screenshots after explicit environment-image decode. No rectangular actor surface remains and both mobile actors plus the arena are visible.
 - Final verification passed: focused real-browser frame/jump/mobile route in 16.17 seconds, focused Liuli three-phase route in 13.20 seconds, 671/671 non-keyboard and computed-style tests, production build, HTTP 200, and Git whitespace validation.
+
+## Task 194 DNF Double-Tap Run And Dash Attack
+- Audited the mounted keyboard adapter and existing dash-light combat path. Selected a 280 ms release-then-press input adapter that reuses the existing dash speed, readiness, movement, hit frame, reaction, and VFX rules.
+- Added design and implementation records. No subagent was started.
+- Added four-direction released-double-tap tracking, Shift priority, held-tick integration, direct second-press dash movement, and cleanup on key release, blur, non-combat mode, and destroy.
+- Added mounted source diagnostics and frame-sprite dash-source metadata. Confirmed double-tap run frames render a dedicated looping dust/speed effect.
+- Fixed stale player-hit presentation so a completed hurt lock cannot hide a newly started dash-light body action.
+- Real browser acceptance proves one tap stays walk, the second right press within 90 ms activates the 280 ms double-tap contract, opens the 220 ms dash window, shows run/dust, and real X produces dash-light body motion, `dash-light-slash`, and enemy HP 80 to 43 before release exits run.
+- Compatibility acceptance passed for direction-plus-Z command priority and Shift-driven Liuli Flowing Light movement. Fast mount coverage proves the second press moves over 1.5x the first press delta and stops on release.
+- Final verification passed: focused double-tap route in 12.32 seconds, command/Liuli routes in 23.42 seconds, 671/671 non-keyboard and computed-style tests, production build, HTTP 200, and Git whitespace validation.

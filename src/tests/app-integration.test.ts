@@ -1057,7 +1057,7 @@ describe("playable app integration actions", () => {
     }
   });
 
-  it("mounts held arrow movement across combat ticks and stops on keyup", () => {
+  it("mounts held movement, accelerates a released double tap, and stops on keyup", () => {
     const previousLocalStorage = globalThis.localStorage;
     const previousAddEventListener = globalThis.addEventListener;
     const previousRemoveEventListener = globalThis.removeEventListener;
@@ -1142,10 +1142,27 @@ describe("playable app integration actions", () => {
       tickHandler?.();
       const stoppedX = mountedPlayerActorX(root.innerHTML);
 
+      keydown?.({
+        code: "ArrowRight",
+        repeat: false,
+        shiftKey: false,
+        preventDefault: () => undefined
+      } as KeyboardEvent);
+      const doubleTapX = mountedPlayerActorX(root.innerHTML);
+
+      keyup?.({
+        code: "ArrowRight",
+        preventDefault: () => undefined
+      } as KeyboardEvent);
+      tickHandler?.();
+      const doubleTapStoppedX = mountedPlayerActorX(root.innerHTML);
+
       expect(keydownX).toBeGreaterThan(startX);
       expect(firstTickX).toBeGreaterThan(keydownX);
       expect(secondTickX).toBeGreaterThan(firstTickX);
       expect(stoppedX).toBe(secondTickX);
+      expect(doubleTapX - stoppedX).toBeGreaterThan((keydownX - startX) * 1.5);
+      expect(doubleTapStoppedX).toBe(doubleTapX);
       expect(root.innerHTML).not.toContain('data-command-release-source="manual"');
 
       cleanup();

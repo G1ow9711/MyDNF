@@ -322,6 +322,19 @@ type BrowserIronVanguardState = {
   enemyVfxCue: string;
 };
 
+type BrowserInkMarkState = {
+  appMode: string;
+  classId: string;
+  advancementId: string;
+  resourceCurrent: number;
+  activeSkill: string;
+  playerMotion: string;
+  skillVfx: string;
+  detonationImpact: string;
+  detonationCue: string;
+  marks: number[];
+};
+
 const readCombatStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
@@ -684,6 +697,28 @@ const readIronVanguardStateExpression = `
     statusVfxCue: statusVfx?.getAttribute("data-vfx-cue") ?? "",
     enemyVfx: enemyVfx?.getAttribute("data-enemy-skill-vfx") ?? "",
     enemyVfxCue: enemyVfx?.getAttribute("data-enemy-vfx-cue") ?? ""
+  };
+})()
+`;
+
+const readInkMarkStateExpression = `
+(() => {
+  const shell = document.querySelector(".app-shell");
+  const scene = document.querySelector(".combat-scene");
+  const player = document.querySelector(".combat-player");
+  const skillVfx = document.querySelector("[data-player-skill-vfx]");
+  const detonation = document.querySelector('[data-skill-impact-vfx="night-mark-detonation"][data-hit-phase="detonate"]');
+  return {
+    appMode: shell?.getAttribute("data-app-mode") ?? "",
+    classId: scene?.getAttribute("data-class-id") ?? "",
+    advancementId: scene?.getAttribute("data-advancement-id") ?? "",
+    resourceCurrent: Number(scene?.getAttribute("data-resource-current") || "0"),
+    activeSkill: player?.getAttribute("data-active-skill-id") ?? "",
+    playerMotion: player?.getAttribute("data-player-motion") ?? "",
+    skillVfx: skillVfx?.getAttribute("data-player-skill-vfx") ?? "",
+    detonationImpact: detonation?.getAttribute("data-skill-impact-vfx") ?? "",
+    detonationCue: detonation?.getAttribute("data-vfx-cue") ?? "",
+    marks: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => Number(enemy.getAttribute("data-ink-marks") || "0"))
   };
 })()
 `;
@@ -2388,6 +2423,65 @@ describe("real browser keyboard control", () => {
     }
   }, 75000);
 
+  it("returns Ink from real marked-target detonation through class clicks and keyboard input", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, createReadyInkContractState());
+        await page.click('[data-mode="classes"]');
+        await page.waitFor<BrowserTownEcosystemState>(readTownEcosystemStateExpression, (state) => state.appMode === "classes", 3000);
+        await page.click('[data-class-id="ink-shadow-ranger"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.classId === "ink-shadow-ranger",
+          3000
+        );
+        await page.click('[data-advancement-id="night-contract-hunter"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.advancementId === "night-contract-hunter",
+          3000
+        );
+        await page.click('[data-mode="town"]');
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<BrowserInkMarkState>(
+          readInkMarkStateExpression,
+          (state) => state.appMode === "combat" && state.classId === "ink-shadow-ranger" && state.advancementId === "night-contract-hunter",
+          5000
+        );
+
+        await moveIntoLiveEnemyRange(page);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.playerHurtLockActive === "false",
+          1800
+        );
+        await page.pressKey("KeyD");
+        const marked = await page.waitFor<BrowserInkMarkState>(
+          readInkMarkStateExpression,
+          (state) => state.activeSkill === "marking-bolt" && state.resourceCurrent === 88 && state.marks.some((marks) => marks === 2),
+          3000
+        );
+
+        expect(marked.skillVfx).toBe("marking-bolt");
+        await page.evaluate<void>("new Promise((resolve) => setTimeout(resolve, 520))");
+        await page.pressKey("Space");
+        const detonated = await page.waitFor<BrowserInkMarkState>(
+          readInkMarkStateExpression,
+          (state) =>
+            state.resourceCurrent === 50 &&
+            state.detonationImpact === "night-mark-detonation" &&
+            state.detonationCue === "night-mark-burst" &&
+            state.marks.every((marks) => marks === 0),
+          4000
+        );
+      });
+    } finally {
+      await server.close();
+    }
+  }, 75000);
+
   it("shows Liuli Furnace enemy windup, model motion, and VFX through real browser control", async () => {
     const server = await startViteServer();
 
@@ -2934,6 +3028,26 @@ function createReadyIronVanguardState(): GameState {
       classResources: {
         ...baseState.player.classResources,
         "iron-forge-guardian": 100
+      },
+      quests: {
+        ...baseState.player.quests,
+        "prologue-ember-warden": "ready"
+      }
+    }
+  };
+}
+
+function createReadyInkContractState(): GameState {
+  const baseState = createInitialState();
+
+  return {
+    ...baseState,
+    player: {
+      ...baseState.player,
+      level: 15,
+      classResources: {
+        ...baseState.player.classResources,
+        "ink-shadow-ranger": 100
       },
       quests: {
         ...baseState.player.quests,

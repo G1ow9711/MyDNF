@@ -549,6 +549,7 @@ export interface HitDefinition {
   marksApplied?: number;
   consumeMarks?: boolean;
   bonusDamagePerMark?: number;
+  resourceGainPerConsumedMark?: number;
   pullCenter?: CombatVector;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
@@ -574,6 +575,7 @@ export interface CombatScheduledEnemyHitEffect {
   marksApplied?: number;
   consumeMarks?: boolean;
   bonusDamagePerMark?: number;
+  resourceGainPerConsumedMark?: number;
   pullCenter?: CombatVector;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
@@ -689,6 +691,7 @@ interface PlayerHitboxDefinition {
   marksApplied?: number;
   consumeMarks?: boolean;
   bonusDamagePerMark?: number;
+  resourceGainPerConsumedMark?: number;
   pullCenter?: CombatVector;
   repeatHits?: number;
   repeatIntervalMs?: number;
@@ -4026,6 +4029,7 @@ function applyNightMarkDetonation(run: CombatRun, skill: ClassSkillDefinition, c
     knockback: 54,
     consumeMarks: true,
     bonusDamagePerMark: bonusDamagePerMarkForSkill(skill),
+    resourceGainPerConsumedMark: 6,
     inputToHitMs: skill.animation.hitFrameMs + 180,
     statusTags: ["stagger"],
     actionTags: ["knockdown"],
@@ -5344,6 +5348,7 @@ function scheduleEnemyHitEffect(run: CombatRun, hit: HitDefinition): CombatRun {
     playerFacing: run.player.facing,
     marksApplied: hit.marksApplied,
     consumeMarks: hit.consumeMarks,
+    resourceGainPerConsumedMark: hit.resourceGainPerConsumedMark,
     pullCenter: hit.pullCenter,
     statusTags: hit.statusTags,
     actionTags: hit.actionTags,
@@ -5383,6 +5388,7 @@ function schedulePlayerHitboxEffect(
     marksApplied: hitbox.marksApplied,
     consumeMarks: hitbox.consumeMarks,
     bonusDamagePerMark: hitbox.bonusDamagePerMark,
+    resourceGainPerConsumedMark: hitbox.resourceGainPerConsumedMark,
     pullCenter: hitbox.pullCenter,
     statusTags: hitbox.statusTags,
     actionTags: hitbox.actionTags,
@@ -5598,7 +5604,8 @@ function applyScheduledEnemyHitEffect(
     return impactResolvedRun;
   }
 
-  const bonusDamage = effect.consumeMarks ? target.marks * (effect.bonusDamagePerMark ?? 0) : 0;
+  const consumedMarks = effect.consumeMarks ? target.marks : 0;
+  const bonusDamage = consumedMarks * (effect.bonusDamagePerMark ?? 0);
   const effectiveDamage = effect.damage + bonusDamage;
   const statusTags = effect.statusTags ?? [];
   const actionTags = effect.actionTags ?? [];
@@ -5703,8 +5710,9 @@ function applyScheduledEnemyHitEffect(
   });
 
   const resourceGain =
-    effect.resourceGainOnHit ??
-    (effect.action === "light" && effect.hitPhase === "air-light" ? 5 : effect.action === "light" && effect.hitPhase === "dash-light" ? 6 : 0);
+    (effect.resourceGainOnHit ??
+      (effect.action === "light" && effect.hitPhase === "air-light" ? 5 : effect.action === "light" && effect.hitPhase === "dash-light" ? 6 : 0)) +
+    consumedMarks * (effect.resourceGainPerConsumedMark ?? 0);
   const nextPlayerWithResource =
     resourceGain > 0 ? gainPlayerResource(impactResolvedRun.player, impactResolvedRun, resourceGain) : impactResolvedRun.player;
 

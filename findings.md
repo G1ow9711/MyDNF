@@ -1329,3 +1329,9 @@
 - Normal rooms award a recovery potion, boss rooms award a revival token, gift packs include supplies, and the shop sells both independent replenishment items. Legacy saves receive the default quickbar inventory during validation.
 - Browser regression exposed a real control-helper gap: move-to-target waited through player hurt lock. The helper now yields back to combat when interrupted. Liuli entry acceptance uses the established focused keyboard path rather than an intermittent post-reload mouse entry.
 - Verification: focused real `Digit1` potion/save/VFX acceptance passed; core regression 474/474; production build passed; final serial browser suite passed 23/23 in 518.14 seconds.
+
+## Task 179 Ink Contract Resource Loop
+- `night-mark-detonation` now returns 6 Ink per contract mark actually consumed by its delayed burst frame. The lock frame, empty casts, and misses do not return Ink.
+- The refund is attached to the scheduled target-hit resolution, so it follows real target survival, interruption, hit timing, and mark consumption instead of granting resource on input.
+- Browser evidence now selects Ink Shadow Ranger and Night Contract Hunter through real class clicks, enters the dungeon through the focused keyboard path, uses `D` to apply two marks, and uses `Space` to detonate. It verifies the 88 -> 38 -> 50 Ink loop, mark removal, and detonation VFX.
+- Verification: focused browser test passed; core regression 474/474; production build passed; final serial browser suite passed 24/24 in 545.32 seconds.

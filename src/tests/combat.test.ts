@@ -2477,6 +2477,7 @@ describe("combat actions and impact feel", () => {
     expect(resolved.enemies[0].marks).toBe(0);
     expect(skillHitEvents(detonated, "night-mark-detonation")).toHaveLength(0);
     expect(latestHitForSkill(resolved, "night-mark-detonation").damage).toBeGreaterThan(50);
+    expect(resolved.player.resource.current).toBe(40);
   });
 
   it("detonates night marks as staged bursts on every marked target", () => {
@@ -2625,6 +2626,7 @@ describe("combat actions and impact feel", () => {
       skillId: "night-mark-detonation",
       occurredAtMs: lockAtMs
     });
+    expect(lockFrame.player.resource.current).toBe(50);
     expect(lockFrame.enemies.map((enemy) => enemy.hp)).toEqual(run.enemies.map((enemy) => enemy.hp));
   });
 

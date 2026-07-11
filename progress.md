@@ -4171,3 +4171,9 @@
 - Added combat-state handling, 35% recovery, defeated-state revive, 1.2 s revive invulnerability, consumable VFX, room drops, gift-pack contents, standalone shop SKUs, combat quickbar UI, click handling, and real `Digit1`/`Digit2` browser input support.
 - Added focused reducer/UI/economy/save/browser coverage. During the final browser regression, fixed interrupted movement handling in the shared boss helper and used the existing focused keyboard dungeon-entry helper for Liuli reload flow.
 - Verification: core `combat/app/ui/classes/economy` regression 474/474; `npm run build`; focused live potion test passed; final serial `browser-keyboard-control` passed 23/23 in 518.14 seconds.
+
+## Task 179 Ink Contract Resource Loop
+- Added `resourceGainPerConsumedMark` to scheduled player hit effects and applied a 6 Ink refund per mark consumed by the real delayed `night-mark-detonation` burst frame.
+- Kept empty detonation and mark-lock resource-neutral beyond the normal skill cost. Unit coverage proves a two-mark detonation returns from 28 to 40 Ink, while no-mark detonation stays at 50 after the 50 Ink cost.
+- Added mounted browser acceptance for class/advancement selection, `D` marking bolt, `Space` detonation, delayed target impact VFX, mark cleanup, and observed resource return to 50 Ink from a 100 Ink starting state.
+- Verification: core regression 474/474; `npm run build`; focused Ink browser test passed; final serial `browser-keyboard-control` 24/24 passed in 545.32 seconds.

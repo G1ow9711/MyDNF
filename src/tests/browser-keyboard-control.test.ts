@@ -3339,6 +3339,7 @@ function createLiuliUnlockedState(): GameState {
     ...baseState,
     player: {
       ...baseState.player,
+      level: 4,
       unlockedDungeons: [...baseState.player.unlockedDungeons, "liuli-furnace"]
     }
   };

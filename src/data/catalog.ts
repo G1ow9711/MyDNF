@@ -942,7 +942,7 @@ export const dungeons: DungeonDef[] = [
   {
     id: "liuli-furnace",
     displayName: "琉璃熔炉",
-    minLevel: 20,
+    minLevel: 4,
     rooms: 5,
     bossId: "liuli-overseer",
     recommendedPower: 420,

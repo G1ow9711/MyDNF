@@ -156,6 +156,22 @@ describe("dungeon entry", () => {
     });
   });
 
+  it("allows a level 4 player to enter an unlocked Liuli Furnace on normal difficulty", () => {
+    const state: GameState = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        level: 4,
+        unlockedDungeons: ["cinder-kiln-alley", "liuli-furnace"]
+      }
+    };
+
+    expect(canEnterDungeon(state, "liuli-furnace", "normal")).toEqual({
+      canEnter: true,
+      reason: "ready"
+    });
+  });
+
   it("allows exact remaining fatigue cost and consumes it to zero", () => {
     const state: GameState = {
       ...createInitialState(),

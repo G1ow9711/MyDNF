@@ -6241,11 +6241,8 @@ function applyScheduledArenaHazard(run: CombatRun, hazard: CombatScheduledArenaH
     };
   }
 
-  const shieldActive = hazard.impactAtMs < sampledPlayer.shieldUntilMs;
-  const mitigation = shieldActive ? clamp(sampledPlayer.shieldReduction, 0, 0.85) : 0;
-  const shieldAbsorbedImpact = shieldActive && mitigation > 0;
   const difficultyDamage = Math.round(hazard.damage * getDungeonDifficulty(run.difficultyId).damageMultiplier);
-  const damage = Math.max(1, Math.round(difficultyDamage * run.combatProfile.damageTakenMultiplier * (1 - mitigation)));
+  const damage = Math.max(1, Math.round(difficultyDamage * run.combatProfile.damageTakenMultiplier));
   const nextHp = Math.max(0, sampledPlayer.hp - damage);
   const nextFacing: 1 | -1 = hazard.x >= sampledPlayer.x ? 1 : -1;
   const playerHit: CombatPlayerHitEvent = {
@@ -6262,17 +6259,17 @@ function applyScheduledArenaHazard(run: CombatRun, hazard: CombatScheduledArenaH
   const damagedPlayer: CombatPlayer = {
     ...run.player,
     hp: nextHp,
-    x: shieldAbsorbedImpact ? sampledPlayer.x : clamp(sampledPlayer.x - nextFacing * hazard.knockback, 0, run.arena.width),
+    x: clamp(sampledPlayer.x - nextFacing * hazard.knockback, 0, run.arena.width),
     y: sampledPlayer.y,
-    facing: shieldAbsorbedImpact ? sampledPlayer.facing : nextFacing,
+    facing: nextFacing,
     hitstopUntilMs: Math.max(run.player.hitstopUntilMs, hazard.impactAtMs + hazard.hitstopMs),
     invulnerableStartedAtMs: hazard.impactAtMs,
     invulnerableUntilMs: hazard.impactAtMs + 520,
-    hurtLockUntilMs: shieldAbsorbedImpact ? run.player.hurtLockUntilMs : hazard.impactAtMs + 520,
-    bufferedAction: shieldAbsorbedImpact ? run.player.bufferedAction : undefined,
-    bufferedActionQueuedAtMs: shieldAbsorbedImpact ? run.player.bufferedActionQueuedAtMs : undefined,
-    bufferedActionExecuteAtMs: shieldAbsorbedImpact ? run.player.bufferedActionExecuteAtMs : undefined,
-    activeSkillMovement: shieldAbsorbedImpact ? run.player.activeSkillMovement : undefined,
+    hurtLockUntilMs: hazard.impactAtMs + 520,
+    bufferedAction: undefined,
+    bufferedActionQueuedAtMs: undefined,
+    bufferedActionExecuteAtMs: undefined,
+    activeSkillMovement: undefined,
     defeated: nextHp <= 0
   };
   const nextPlayer = damagedPlayer.resource.id === "guard" ? gainFlatPlayerResource(damagedPlayer, 12) : damagedPlayer;

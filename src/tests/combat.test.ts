@@ -312,9 +312,7 @@ function resolveDifficultyArenaHazard(run: CombatRun, inRange = true): CombatRun
       x: 240,
       y: inRange ? 340 : run.arena.maxY,
       hp: 500,
-      maxHp: 500,
-      shieldUntilMs: 1000,
-      shieldReduction: 0.25
+      maxHp: 500
     },
     scheduledArenaHazards: [
       {
@@ -570,7 +568,7 @@ describe("combat difficulty scaling", () => {
     ]);
   });
 
-  it("difficulty scales arena hazard damage once before the same shield flow", () => {
+  it("difficulty keeps normal arena hazard damage and scales adventure once", () => {
     const normal = resolveDifficultyArenaHazard(createCombatRun(createInitialState(), "cinder-kiln-alley"));
     const adventure = resolveDifficultyArenaHazard(
       createCombatRun(createInitialState(), "cinder-kiln-alley", "adventure")
@@ -582,8 +580,31 @@ describe("combat difficulty scaling", () => {
       (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-forge-collapse"
     );
 
-    expect(normalHit?.damage).toBe(Math.round(Math.round(51 * 1) * 0.75));
-    expect(adventureHit?.damage).toBe(Math.round(Math.round(51 * 1.2) * 0.75));
+    expect(normalHit?.damage).toBe(51);
+    expect(adventureHit?.damage).toBe(Math.round(51 * 1.2));
+  });
+
+  it("difficulty preserves normal arena hazard hit semantics when a shield window exists", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const impacted = resolveDifficultyArenaHazard({
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        shieldUntilMs: 1000,
+        shieldReduction: 0.5,
+        bufferedAction: { type: "light" },
+        bufferedActionQueuedAtMs: 1,
+        bufferedActionExecuteAtMs: 200
+      }
+    });
+    const playerHit = impacted.events.find(
+      (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "taotie-forge-collapse"
+    );
+
+    expect(playerHit?.damage).toBe(51);
+    expect(impacted.player.x).toBe(156);
+    expect(impacted.player.hurtLockUntilMs).toBe(620);
+    expect(impacted.player.bufferedAction).toBeUndefined();
   });
 
   it("difficulty does not damage the player when an arena hazard misses", () => {

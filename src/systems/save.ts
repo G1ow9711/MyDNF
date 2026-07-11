@@ -16,6 +16,7 @@ import type {
   TownId
 } from "../game/types";
 import { isKnownAdvancementId, isKnownClassId, skillMaxLevel } from "./classes";
+import { isDungeonDifficultyId } from "./dungeons";
 import { normalizeAuctionPriceRecords } from "./market";
 import { isKnownBoxId } from "./shop";
 
@@ -58,12 +59,6 @@ const dungeonIds = new Set<DungeonId>(catalog.dungeons.map((dungeon) => dungeon.
 const townIds = new Set<TownId>(catalog.towns.map((town) => town.id));
 const gearSlotIds = new Set<GearSlot>(gearSlots);
 const amplifyStatIds = new Set<AmplifyStat>(amplifyStats);
-const dungeonDifficultyIds = new Set<string>(["normal", "adventure", "warrior"]);
-
-function isDungeonDifficultyId(value: unknown): value is DungeonDifficultyId {
-  return typeof value === "string" && dungeonDifficultyIds.has(value);
-}
-
 function parseSave(rawSave: string): unknown {
   try {
     return JSON.parse(rawSave);

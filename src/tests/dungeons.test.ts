@@ -6,10 +6,20 @@ import {
   canEnterDungeon,
   consumeDungeonEntry,
   getDungeonDifficulty,
+  isDungeonDifficultyId,
   preferredDungeonDifficulty
 } from "../systems/dungeons";
 
 describe("dungeon difficulty rules", () => {
+  it("recognizes every known difficulty id and rejects unknown values", () => {
+    expect(["normal", "adventure", "warrior"].map(isDungeonDifficultyId)).toEqual([
+      true,
+      true,
+      true
+    ]);
+    expect(isDungeonDifficultyId("unknown")).toBe(false);
+  });
+
   it("defines all difficulties in progression order with exact values", () => {
     expect(DUNGEON_DIFFICULTY_ORDER).toEqual(["normal", "adventure", "warrior"]);
     expect(DUNGEON_DIFFICULTY_ORDER.map(getDungeonDifficulty)).toEqual([

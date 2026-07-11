@@ -60,8 +60,8 @@ const dungeonDifficulties: Readonly<Record<DungeonDifficultyId, DungeonDifficult
   })
 });
 
-function isDungeonDifficultyId(value: string): value is DungeonDifficultyId {
-  return dungeonDifficultyIds.has(value);
+export function isDungeonDifficultyId(value: unknown): value is DungeonDifficultyId {
+  return typeof value === "string" && dungeonDifficultyIds.has(value);
 }
 
 function isDungeonId(value: string): value is DungeonId {

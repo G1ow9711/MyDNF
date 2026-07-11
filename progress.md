@@ -4193,3 +4193,9 @@
 ## Task 182 Dungeon Preparation, Difficulty, and Fatigue
 - Dispatched three parallel read-only audits across combat, progression/economy, and dungeon/story loops; closed all agents after collecting evidence.
 - Wrote the approved-scope design and TDD implementation plan for a mounted preparation view, normal/adventure/warrior scaling, 64-point persisted fatigue, reducer-level entry validation, and real keyboard/mouse acceptance.
+- Implemented and reviewed domain rules/save migration, combat scaling, mounted preparation controls, and real-browser acceptance through sequential worker, specification-review, and quality-review agents.
+- Review loops fixed mutable public rules, illegal in-memory fatigue, arena-hazard scaling, normal-mode behavior drift, reflect scaling, legacy enter-action compatibility, and a low-fatigue browser-test false positive before final acceptance.
+- First full browser regression passed 25/27 and exposed the stale Liuli level-20 gate. A RED/GREEN content fix aligned it with the natural post-Cinder level 4; the two failed Liuli routes then passed 2/2.
+- Final review fixed prep-control Enter focus semantics, removed a browser-test synthetic-click shim, standardized CDP Enter text, and unified save/runtime difficulty ID validation.
+- Updated `AGENTS.md` to require explicit user permission for every future subagent or parallel-agent launch; historical authorization no longer applies.
+- Final verification: core regression 559/559; production build and diff check passed; serial mounted-browser suite passed 28/28 in 615.37 seconds.

@@ -665,23 +665,6 @@ const readDungeonDifficultyStateExpression = `
 })()
 `;
 
-const installFocusedEnterActivationExpression = `
-(() => {
-  if (globalThis.__focusedEnterActivationInstalled) return;
-  globalThis.__focusedEnterActivationInstalled = true;
-  globalThis.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    const control = event.target instanceof Element ? event.target.closest("button") : null;
-    if (!(control instanceof HTMLButtonElement)) return;
-    queueMicrotask(() => {
-      if (!event.defaultPrevented && control.isConnected && document.activeElement === control) {
-        control.click();
-      }
-    });
-  });
-})()
-`;
-
 const readTownEcosystemStateExpression = `
 (() => {
   const shell = document.querySelector(".app-shell");
@@ -1660,7 +1643,6 @@ describe("real browser keyboard control", () => {
     try {
       await runAppInRealBrowser(server.url, async (page) => {
         await seedSaveAndReload(page, createInitialState());
-        await page.evaluate<void>(installFocusedEnterActivationExpression);
         await page.click('[data-prepare-dungeon="cinder-kiln-alley"]');
         await page.evaluate<void>(`document.querySelector('[data-dungeon-prep-back]')?.focus()`);
         await page.pressKey("Enter");
@@ -1679,7 +1661,6 @@ describe("real browser keyboard control", () => {
         const lowFatigueState = createInitialState();
         lowFatigueState.player.fatigue = { current: 5, max: 64 };
         await seedSaveAndReload(page, lowFatigueState);
-        await page.evaluate<void>(installFocusedEnterActivationExpression);
         await page.click('[data-prepare-dungeon="cinder-kiln-alley"]');
         await page.evaluate<void>(`document.querySelector('[data-dungeon-prep-back]')?.focus()`);
         await page.pressKey("Enter");

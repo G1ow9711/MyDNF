@@ -1355,3 +1355,12 @@
 - Progression audit found dungeon `lootSetIds` are not consumed by actual drops and set descriptions mostly collapse to additive stats, blocking sustainable multi-build farming.
 - Dungeon audit and local source inspection agreed on the immediate outer-loop P0: town buttons directly create combat; no preparation view, dungeon difficulty, fatigue state, scaling, or result context exists.
 - Selected scope is preparation plus three difficulty tiers and persisted fatigue. It creates a foundation for later targeted epic drops and clear grading without changing established action timing, maps, or VFX.
+
+## Task 182 Difficulty and Fatigue Implementation Evidence
+- Added immutable normal/adventure/warrior rules with HP, damage, reward, and fatigue values of `1/1/1/6`, `1.35/1.2/1.35/8`, and `1.75/1.45/1.8/10`. Runtime fatigue invariants and v1 save migration are validated independently of public rule objects.
+- Difficulty now follows every native room and Taotie summon. Enemy attacks, arena hazards, and reflect paths use one rounded difficulty damage value before the existing defense behavior; normal difficulty semantics remain unchanged.
+- The mounted town flow now opens a preparation surface, supports mouse difficulty selection plus ArrowLeft/ArrowRight and Enter/Escape, deducts fatigue only on confirmed entry, auto-saves the preference, and exposes difficulty in the combat HUD.
+- A first full browser run found the newly enforced level gate contradicted the established fresh-save story path: Cinder's 390 XP naturally reaches level 4, while Liuli still required level 20. The content gate now matches the natural level-4 unlock instead of bypassing validation or seeding endgame progress.
+- Final cross-module review found focused prep controls were losing native Enter semantics to the global start shortcut. The handler now defers Enter on interactive controls to native button activation; browser acceptance proves back, difficulty, and low-fatigue back controls without synthesizing clicks.
+- Difficulty save validation now reuses the immutable runtime type guard instead of maintaining a second difficulty ID list.
+- Final evidence: core regression 559/559, production build passed, and the serial mounted-browser suite passed 28/28 in 615.37 seconds.

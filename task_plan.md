@@ -298,10 +298,13 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 ## Task 182 Dungeon Preparation, Difficulty, and Fatigue
 - [x] Audit combat, progression, and dungeon-loop gaps with three parallel read-only agents.
 - [x] Select and document the dungeon preparation, three-difficulty, and persisted-fatigue design.
-- [ ] Implement domain rules and migration with RED/GREEN tests.
-- [ ] Apply difficulty to enemy HP, enemy damage, and room rewards.
-- [ ] Build mounted preparation UI plus mouse and keyboard control.
-- [ ] Run focused/full regression, document evidence, commit, and push in Chinese.
+- [x] Implement domain rules and migration with RED/GREEN tests.
+- [x] Apply difficulty to enemy HP, enemy damage, and room rewards.
+- [x] Build mounted preparation UI plus mouse and keyboard control.
+- [x] Run focused/full regression, document evidence, commit, and push in Chinese.
 
 ### Errors Encountered
 - PowerShell parsed an over-escaped `rg` alternation as file paths during the Task 182 audit. Replaced it with simple `rg` patterns and direct `Get-Content` ranges; no project files were affected.
+- Two agent prompts containing JavaScript template-literal backticks were rejected by the orchestration parser before dispatch. Retried with newline-joined plain strings; no project files were affected.
+- The first 27-scenario browser run passed 25/27 and stopped both Liuli routes in dungeon preparation. Root cause was a stale `minLevel: 20` content gate while the natural Cinder clear reaches level 4. Updated the Liuli gate to level 4 and the minimal seeded acceptance state to the same legal level; both focused routes and the final full suite passed.
+- A final review found prep controls could lose native Enter activation to the global start shortcut. Added real focused-control browser coverage, then removed a test-only synthetic click that could mask CDP keyboard regressions. The final 28-scenario suite passed using only real browser key events.

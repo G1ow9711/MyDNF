@@ -975,7 +975,7 @@ function keyInfoForCode(code: RealBrowserKeyCode): { key: string; text: string; 
     ArrowRight: { key: "ArrowRight", text: "", windowsVirtualKeyCode: 39 },
     ArrowUp: { key: "ArrowUp", text: "", windowsVirtualKeyCode: 38 },
     ArrowDown: { key: "ArrowDown", text: "", windowsVirtualKeyCode: 40 },
-    Enter: { key: "Enter", text: "", windowsVirtualKeyCode: 13 },
+    Enter: { key: "Enter", text: "\r", windowsVirtualKeyCode: 13 },
     ShiftLeft: { key: "Shift", text: "", windowsVirtualKeyCode: 16 },
     ShiftRight: { key: "Shift", text: "", windowsVirtualKeyCode: 16 },
     KeyA: { key: "a", text: "a", windowsVirtualKeyCode: 65 },

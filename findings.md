@@ -1505,3 +1505,10 @@
 - Both new sheets are original transparent 4x4 atlases at 1536x1024. Their 3:2 cells require explicit 3:2 sprite boxes instead of the square trash-monster dimensions.
 - Atlas preload remains atomic. Old monster art stays visible while loading or on failure, then hides for trash, elite, and Boss actors together.
 - Real-browser evidence proves Zheng naturally reaches frame 8 during windup with old art at opacity zero. Taotie world-devour does the same, then a later live cycle accepts a real `C` jump and opens the armor-break window.
+
+## Task 193 Actor Environment Integration Audit
+- Pixel sampling confirms the atlases themselves have transparent cell backgrounds; the visible rectangular legacy portrait is not a fully opaque atlas-cell defect.
+- The ready-state replacement currently asserts only `opacity: 0`. Animated legacy nodes remain mounted and animation keyframes can outrank a normal opacity declaration, so opacity alone is too weak as the replacement boundary.
+- Combat actors have drop shadows around their silhouettes but no shared ground-contact shadow. A root-level ellipse can follow arena coordinates while airborne/downed attributes alter its scale without touching combat rules.
+- The remaining warm rectangle was root-filter clipping, not PNG alpha. A 260-510 px absolute sprite exceeded its 112-260 px actor root, and the root drop-shadow rendered through that smaller filter region. Sprite-local drop shadows avoid the rectangular filter surface.
+- Mobile combat used normal document flow below 720 px, making the action stack 417 px high and hiding the arena. The same controls fit in three explicit rows at about 120 px without removing touch actions.

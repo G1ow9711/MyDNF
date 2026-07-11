@@ -378,7 +378,17 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify natural Zheng windup/armor behavior and Taotie world-devour dodge/armor-break through real browser combat.
 - [x] Run broad regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 193 Actor Grounding And Legacy Layer Isolation
+- [x] Audit the remaining pasted-image appearance in current desktop evidence.
+- [x] Add real-browser RED coverage for legacy-layer visibility and actor contact shadows.
+- [x] Force-hide legacy bitmap/weapon/trail layers only after the frame atlas preload reaches ready.
+- [x] Add grounded, airborne, and knockdown contact-shadow states for player and monsters.
+- [x] Verify desktop/mobile rendering and a real-keyboard jump cycle, then run regression/build and push in Chinese.
+
 ### Errors Encountered
+- Task 193 RED proved old frame-replacement layers still computed as `visibility: visible` even at opacity zero. Added ready-gated visibility isolation so animation keyframes cannot reveal the legacy portrait or weapon.
+- Task 193 first post-shadow screenshot still showed a rectangular warm block. Atlas alpha inspection proved clean silhouettes; the actual cause was root-level drop-shadow filtering a larger absolute sprite through a smaller actor box. Ready frame actors now use child silhouette filters only.
+- Task 193 first mobile geometry assertion measured a 417 px control column. Rebuilt the mounted mobile controls as a 12-column, roughly 120 px overlay and moved status/quest surfaces out of document flow.
 - Task 192 first Zheng screenshot used the headless browser's small default viewport, so the valid animated model was hidden behind the desktop HUD. Both elite and Boss visual acceptance routes now set 1440x900 explicitly; mobile remains covered by the separate responsive route.
 - Task 192 first Taotie route captured the correct world-devour windup frame but screenshot encoding consumed the remaining 1.6-second dodge window. Visual capture and live dodge now use consecutive world-devour cycles; the focused route passes without synthetic input or time manipulation.
 - Task 191 full browser regression passed 34/35; the only failure reached a valid defeat overlay but the real-click helper measured a detached button after waiting two animation frames across 50 ms DOM replacement. Reacquiring the same mounted selector after the wait preserved real CDP clicking and the focused revival route passed.

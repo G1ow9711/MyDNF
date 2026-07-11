@@ -2606,6 +2606,12 @@ p {
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="liuli-blademage"] .player-motion-trail,
 .combat-scene[data-frame-sprite-stage="ready"] .combat-enemy .enemy-art {
   opacity: 0;
+  visibility: hidden;
+}
+
+.combat-scene[data-frame-sprite-stage="ready"] .combat-player,
+.combat-scene[data-frame-sprite-stage="ready"] .combat-enemy {
+  filter: none;
 }
 
 .enemy-frame-sprite[data-sprite-skill="zheng-horn-charge"] {
@@ -2687,11 +2693,36 @@ p {
   display: grid;
   justify-items: center;
   transform: translate(-50%, -100%);
+  --ground-shadow-width: 104px;
+  --ground-shadow-height: 18px;
+  --ground-shadow-bottom: 15px;
+  --ground-shadow-opacity: 0.72;
+  --ground-shadow-scale: 1;
+}
+
+.combat-actor::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: var(--ground-shadow-bottom);
+  z-index: 0;
+  width: var(--ground-shadow-width);
+  height: var(--ground-shadow-height);
+  border-radius: 50%;
+  opacity: var(--ground-shadow-opacity);
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.82) 0%, rgba(2, 6, 23, 0.58) 46%, rgba(15, 23, 42, 0.18) 66%, transparent 78%);
+  filter: blur(2px);
+  transform: translateX(-50%) scaleX(var(--ground-shadow-scale));
+  transform-origin: center;
+  transition: opacity 90ms linear, transform 90ms ease-out;
+  pointer-events: none;
 }
 
 .combat-player {
   width: clamp(112px, 8vw, 154px);
   height: clamp(230px, 34vh, 320px);
+  --ground-shadow-width: clamp(96px, 8vw, 132px);
+  --ground-shadow-bottom: 18px;
   filter:
     drop-shadow(0 18px 18px rgba(2, 6, 23, 0.86))
     drop-shadow(0 0 18px rgba(251, 146, 60, 0.42));
@@ -3250,7 +3281,32 @@ p {
 .combat-enemy {
   gap: 5px;
   width: var(--enemy-body-width, 144px);
+  --ground-shadow-width: 82%;
+  --ground-shadow-bottom: 7px;
   filter: drop-shadow(0 16px 18px rgba(2, 6, 23, 0.82));
+}
+
+.combat-enemy-elite {
+  --ground-shadow-width: 94%;
+  --ground-shadow-height: 22px;
+}
+
+.combat-enemy-boss {
+  --ground-shadow-width: 108%;
+  --ground-shadow-height: 28px;
+  --ground-shadow-opacity: 0.78;
+}
+
+.combat-player[data-player-airborne-active="true"],
+.combat-enemy[data-enemy-airborne="true"] {
+  --ground-shadow-opacity: 0.24;
+  --ground-shadow-scale: 0.52;
+}
+
+.combat-enemy[data-enemy-knockdown="true"],
+.combat-enemy[data-enemy-state="defeated"] {
+  --ground-shadow-opacity: 0.56;
+  --ground-shadow-scale: 1.22;
 }
 
 .combat-enemy[data-enemy-hit-slide-active="true"] {
@@ -13109,4 +13165,202 @@ p {
   0% { opacity: 0; transform: translate(-50%, -44%) scale(0.56); }
   26% { opacity: 1; transform: translate(-50%, -56%) scale(1.2); }
   100% { opacity: 0; transform: translate(-50%, -116%) scale(1.42); }
+}
+
+@media (max-width: 720px) {
+  .top-nav {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .top-nav button {
+    min-height: 36px;
+    padding: 0 4px;
+    font-size: 12px;
+  }
+
+  .combat-scene {
+    min-height: 720px;
+    padding: 8px;
+  }
+
+  .combat-actions {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: 8px;
+    z-index: 6;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 4px;
+    margin: 0;
+    align-items: stretch;
+  }
+
+  .combat-control-hint {
+    display: none;
+  }
+
+  .combat-actions > button {
+    min-width: 0;
+    min-height: 32px;
+    height: 32px;
+    padding: 0 3px;
+    gap: 3px;
+    font-size: 11px;
+  }
+
+  .combat-actions > button[data-combat-action="light"],
+  .combat-actions > button[data-combat-action="heavy"],
+  .combat-actions > button[data-combat-action="jump"],
+  .combat-actions > button[data-combat-action="backstep"] {
+    grid-column: span 3;
+  }
+
+  .combat-actions > button[data-combat-action="light"] span,
+  .combat-actions > button[data-combat-action="heavy"] span,
+  .combat-actions > button[data-combat-action="jump"] span,
+  .combat-actions > button[data-combat-action="backstep"] span {
+    font-size: 10px;
+  }
+
+  .combat-actions .dnf-skill-bar,
+  .combat-actions .legacy-skill-bar {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 3px;
+    max-width: none;
+  }
+
+  .combat-actions .dnf-skill-slot,
+  .combat-actions .legacy-skill-slot {
+    display: grid;
+    grid-auto-flow: row;
+    align-content: center;
+    justify-content: stretch;
+    min-height: 42px;
+    height: 42px;
+    padding: 3px 2px 3px 24px;
+    overflow: hidden;
+  }
+
+  .dnf-skill-slot[data-dnf-hotkey]:not([data-dnf-hotkey=""])::before {
+    left: 3px;
+    top: 4px;
+    width: 18px;
+    height: 18px;
+    font-size: 11px;
+  }
+
+  .combat-actions .skill-slot-name {
+    display: block;
+    width: 100%;
+    font-size: 10px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .combat-actions .skill-slot-meta,
+  .combat-actions .skill-slot-command,
+  .combat-actions .skill-slot-discount {
+    display: none;
+  }
+
+  .combat-actions .consumable-quickbar {
+    grid-column: span 6;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    width: auto;
+  }
+
+  .combat-actions .consumable-slot {
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    gap: 3px;
+    min-width: 0;
+    min-height: 32px;
+    height: 32px;
+    padding: 2px 4px;
+  }
+
+  .combat-actions .consumable-keycap {
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+  }
+
+  .combat-actions .consumable-name {
+    font-size: 9px;
+  }
+
+  .combat-actions .consumable-slot strong {
+    font-size: 11px;
+  }
+
+  .combat-actions .door-status-button,
+  .combat-actions > button[data-mode="town"] {
+    grid-column: span 3;
+    min-width: 0;
+    min-height: 32px;
+    height: 32px;
+    padding: 0 3px;
+    font-size: 10px;
+  }
+
+  .combat-status {
+    position: absolute;
+    left: 8px;
+    top: 132px;
+    z-index: 5;
+    max-width: 220px;
+    padding: 4px 6px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 4px;
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
+  .combat-status p {
+    margin: 0;
+  }
+
+  .combat-status ul {
+    display: none;
+  }
+
+  .combo-meter {
+    right: 8px;
+    top: 132px;
+    min-width: 54px;
+    padding: 4px 6px;
+  }
+
+  .combo-meter strong {
+    font-size: 22px;
+  }
+
+  .combo-meter span {
+    font-size: 9px;
+  }
+
+  .quest-tracker {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: min(226px, calc(100% - 16px));
+    margin: 0;
+    gap: 3px;
+    padding: 7px 8px;
+  }
+
+  .quest-tracker h3 {
+    font-size: 11px;
+  }
+
+  .quest-tracker p {
+    margin: 0;
+    font-size: 10px;
+    line-height: 1.3;
+  }
 }

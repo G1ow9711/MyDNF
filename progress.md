@@ -4306,3 +4306,12 @@
 - Focused real-browser Zheng acceptance passed in 21.63 seconds and captured `zheng-elite-windup.png`.
 - Focused real-browser Taotie phase-three acceptance passed in 55.59 seconds and captured `taotie-world-devour-windup.png`; visual capture and live dodge use consecutive casts so screenshot work cannot consume the dodge window.
 - Final verification passed: 671/671 non-keyboard and computed-style tests; focused real-browser Zheng, Taotie, and Liuli routes; production build; HTTP 200 on `http://127.0.0.1:5174/`; and Git whitespace validation. Chinese commit and push follow this record update.
+
+## Task 193 Actor Grounding And Legacy Layer Isolation
+- Audited the current 1440x900 elite/Boss evidence and selected legacy-layer isolation plus dynamic contact shadows as the next visual-combat slice.
+- Added the design and implementation plan. No subagent was started.
+- Added ready-gated `visibility: hidden` for legacy player, monster, weapon, and trail layers; removed root-filter clipping while retaining sprite-local silhouette lighting.
+- Added player/trash/elite/Boss contact shadows with airborne shrink/fade and knockdown widening. A real `C` jump proves the computed shadow changes and restores after landing.
+- Rebuilt the <=720 px combat HUD into three compact rows, changed navigation to four columns, and moved status/combo/quest surfaces to bounded overlays. Real browser geometry proves controls <=140 px and all actor visuals start below the toolbar.
+- Inspected 1440x900 desktop/attack and 390x844 mobile screenshots after explicit environment-image decode. No rectangular actor surface remains and both mobile actors plus the arena are visible.
+- Final verification passed: focused real-browser frame/jump/mobile route in 16.17 seconds, focused Liuli three-phase route in 13.20 seconds, 671/671 non-keyboard and computed-style tests, production build, HTTP 200, and Git whitespace validation.

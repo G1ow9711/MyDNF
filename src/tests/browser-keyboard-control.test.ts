@@ -481,9 +481,22 @@ type BrowserInkMarkState = {
 
 type BrowserFrameSpriteState = {
   stage: string;
+  backgroundReady: boolean;
   oldPlayerOpacity: string;
+  oldPlayerVisibility: string;
   oldEnemyOpacity: string;
+  oldEnemyVisibility: string;
   oldWeaponOpacity: string;
+  oldWeaponVisibility: string;
+  playerAirborne: string;
+  playerShadowContent: string;
+  playerShadowBackground: string;
+  playerShadowOpacity: number;
+  playerShadowTransform: string;
+  playerRootFilter: string;
+  enemyShadowContents: string[];
+  enemyShadowBackgrounds: string[];
+  enemyRootFilters: string[];
   playerFrame: number;
   playerSpriteState: string;
   playerBackground: string;
@@ -492,6 +505,9 @@ type BrowserFrameSpriteState = {
   enemyBackgrounds: string[];
   sceneWidth: number;
   sceneHeight: number;
+  controlsHeight: number;
+  controlsBottom: number;
+  actorVisualTop: number;
 };
 
 type BrowserMonsterSpriteState = {
@@ -512,17 +528,38 @@ type BrowserMonsterSpriteState = {
 const readFrameSpriteStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
+  const background = document.querySelector(".combat-background-art");
   const playerSprite = document.querySelector(".player-frame-sprite");
   const enemySprites = Array.from(document.querySelectorAll(".combat-enemy-trash .enemy-frame-sprite"));
   const playerArt = document.querySelector(".combat-player-art");
   const enemyArt = document.querySelector(".enemy-art");
   const weapon = document.querySelector(".combat-player .weapon-layer");
+  const player = document.querySelector(".combat-player");
+  const enemies = Array.from(document.querySelectorAll(".combat-enemy"));
+  const playerShadow = player ? getComputedStyle(player, "::before") : null;
   const rect = scene?.getBoundingClientRect();
+  const controlsRect = document.querySelector(".combat-actions")?.getBoundingClientRect();
+  const actorVisualRects = [playerSprite, ...enemySprites]
+    .filter((sprite) => sprite instanceof Element)
+    .map((sprite) => sprite.getBoundingClientRect());
   return {
     stage: scene?.getAttribute("data-frame-sprite-stage") ?? "",
+    backgroundReady: background instanceof HTMLImageElement && background.complete && background.naturalWidth > 0,
     oldPlayerOpacity: playerArt ? getComputedStyle(playerArt).opacity : "",
+    oldPlayerVisibility: playerArt ? getComputedStyle(playerArt).visibility : "",
     oldEnemyOpacity: enemyArt ? getComputedStyle(enemyArt).opacity : "",
+    oldEnemyVisibility: enemyArt ? getComputedStyle(enemyArt).visibility : "",
     oldWeaponOpacity: weapon ? getComputedStyle(weapon).opacity : "",
+    oldWeaponVisibility: weapon ? getComputedStyle(weapon).visibility : "",
+    playerAirborne: player?.getAttribute("data-player-airborne-active") ?? "",
+    playerShadowContent: playerShadow?.content ?? "",
+    playerShadowBackground: playerShadow?.backgroundImage ?? "",
+    playerShadowOpacity: Number(playerShadow?.opacity ?? "0"),
+    playerShadowTransform: playerShadow?.transform ?? "",
+    playerRootFilter: player ? getComputedStyle(player).filter : "",
+    enemyShadowContents: enemies.map((enemy) => getComputedStyle(enemy, "::before").content),
+    enemyShadowBackgrounds: enemies.map((enemy) => getComputedStyle(enemy, "::before").backgroundImage),
+    enemyRootFilters: enemies.map((enemy) => getComputedStyle(enemy).filter),
     playerFrame: Number(playerSprite?.getAttribute("data-sprite-frame") ?? "-1"),
     playerSpriteState: playerSprite?.getAttribute("data-sprite-state") ?? "",
     playerBackground: playerSprite ? getComputedStyle(playerSprite).backgroundImage : "",
@@ -530,7 +567,10 @@ const readFrameSpriteStateExpression = `
     enemySpriteStates: enemySprites.map((sprite) => sprite.getAttribute("data-sprite-state") ?? ""),
     enemyBackgrounds: enemySprites.map((sprite) => getComputedStyle(sprite).backgroundImage),
     sceneWidth: Math.round(rect?.width ?? 0),
-    sceneHeight: Math.round(rect?.height ?? 0)
+    sceneHeight: Math.round(rect?.height ?? 0),
+    controlsHeight: Math.round(controlsRect?.height ?? 0),
+    controlsBottom: Math.round((controlsRect?.bottom ?? 0) - (rect?.top ?? 0)),
+    actorVisualTop: Math.round(Math.min(...actorVisualRects.map((actorRect) => actorRect.top - (rect?.top ?? 0))))
   };
 })()
 `;
@@ -1619,9 +1659,22 @@ describe("real browser keyboard control", () => {
         await enterDungeonWithKeyboard(page);
         const idle = await page.waitFor<BrowserFrameSpriteState>(
           readFrameSpriteStateExpression,
-          (state) => state.stage === "ready" && state.enemyFrames.length === 2 && state.oldPlayerOpacity === "0" && state.oldEnemyOpacity === "0" && state.oldWeaponOpacity === "0" && state.playerBackground.includes("ember-warden-atlas") && state.enemyBackgrounds.every((background) => background.includes("ash-cinder-imp-atlas")),
+          (state) => state.stage === "ready" && state.backgroundReady && state.enemyFrames.length === 2 && state.playerBackground.includes("ember-warden-atlas") && state.enemyBackgrounds.every((background) => background.includes("ash-cinder-imp-atlas")),
           10000
         );
+        expect(idle.oldPlayerOpacity).toBe("0");
+        expect(idle.oldEnemyOpacity).toBe("0");
+        expect(idle.oldWeaponOpacity).toBe("0");
+        expect(idle.oldPlayerVisibility).toBe("hidden");
+        expect(idle.oldEnemyVisibility).toBe("hidden");
+        expect(idle.oldWeaponVisibility).toBe("hidden");
+        expect(idle.playerShadowContent).toBe('\"\"');
+        expect(idle.playerShadowBackground).toContain("radial-gradient");
+        expect(idle.playerShadowOpacity).toBeGreaterThan(0.5);
+        expect(idle.playerRootFilter).toBe("none");
+        expect(idle.enemyShadowContents).toEqual(['\"\"', '\"\"']);
+        expect(idle.enemyShadowBackgrounds.every((background) => background.includes("radial-gradient"))).toBe(true);
+        expect(idle.enemyRootFilters).toEqual(["none", "none"]);
         expect(idle.sceneWidth).toBeGreaterThan(900);
         expect(idle.sceneHeight).toBeGreaterThan(500);
         expect(idle.playerFrame).toBeGreaterThanOrEqual(0);
@@ -1642,24 +1695,53 @@ describe("real browser keyboard control", () => {
         expect(attacking.playerFrame).not.toBe(running.playerFrame);
         await page.captureScreenshot(`${screenshotRoot}/player-attack.png`);
 
+        await page.pressKey("KeyC");
+        const airborne = await page.waitFor<BrowserFrameSpriteState>(
+          readFrameSpriteStateExpression,
+          (state) => state.playerAirborne === "true" && state.playerShadowOpacity < idle.playerShadowOpacity,
+          1000
+        );
+        expect(airborne.playerShadowTransform).not.toBe(idle.playerShadowTransform);
+        await page.waitFor<BrowserFrameSpriteState>(
+          readFrameSpriteStateExpression,
+          (state) => state.playerAirborne === "false" && state.playerShadowOpacity === idle.playerShadowOpacity,
+          1200
+        );
+
         await page.keyDown("ArrowRight");
         await page.waitFor<BrowserCombatState>(readCombatStateExpression, (state) => state.playerX >= 29, 3000);
         await page.keyUp("ArrowRight");
         const enemyAttack = await page.waitFor<BrowserFrameSpriteState>(
           readFrameSpriteStateExpression,
-          (state) => state.enemySpriteStates.includes("attack") && state.enemyFrames.some((frame) => frame >= 8 && frame <= 11),
+          (state) => state.enemySpriteStates.some((spriteState) => spriteState === "attack" || spriteState.startsWith("monster-skill-")) && state.enemyFrames.some((frame) => frame >= 8 && frame <= 11),
           10000
         );
-        expect(enemyAttack.enemySpriteStates).toContain("attack");
+        expect(enemyAttack.enemySpriteStates.some((spriteState) => spriteState.startsWith("monster-skill-"))).toBe(true);
         await page.captureScreenshot(`${screenshotRoot}/enemy-attack.png`);
 
+        await page.keyDown("ArrowLeft");
+        await page.waitFor<BrowserCombatState>(readCombatStateExpression, (state) => state.playerX <= 15, 3000);
+        await page.keyUp("ArrowLeft");
+        await page.waitFor<BrowserFrameSpriteState>(
+          readFrameSpriteStateExpression,
+          (state) => state.playerSpriteState === "idle" && state.enemySpriteStates.every((spriteState) => spriteState === "idle"),
+          4000
+        );
+        await waitInBrowser(page, 650);
         await page.setViewport(390, 844);
         const mobile = await page.waitFor<BrowserFrameSpriteState>(
           readFrameSpriteStateExpression,
-          (state) => state.stage === "ready" && state.sceneWidth >= 350 && state.sceneWidth <= 390 && state.sceneHeight > 500,
+          (state) => state.stage === "ready" && state.backgroundReady && state.playerSpriteState === "idle" && state.sceneWidth >= 350 && state.sceneWidth <= 390 && state.sceneHeight > 500,
           5000
         );
         expect(mobile.enemyFrames.length).toBe(2);
+        expect(mobile.oldPlayerVisibility).toBe("hidden");
+        expect(mobile.oldEnemyVisibility).toBe("hidden");
+        expect(mobile.oldWeaponVisibility).toBe("hidden");
+        expect(mobile.playerRootFilter).toBe("none");
+        expect(mobile.enemyRootFilters).toEqual(["none", "none"]);
+        expect(mobile.controlsHeight).toBeLessThanOrEqual(140);
+        expect(mobile.actorVisualTop).toBeGreaterThanOrEqual(mobile.controlsBottom + 20);
         await page.captureScreenshot(`${screenshotRoot}/mobile.png`);
       });
     } finally {

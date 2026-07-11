@@ -264,6 +264,18 @@ type BrowserAppModeState = {
   townScene: string;
 };
 
+type BrowserDungeonDifficultyState = {
+  appMode: string;
+  prepDungeonId: string;
+  selectedDifficulty: string;
+  fatigueCost: number;
+  combatDifficulty: string;
+  firstTrashHpMax: number;
+  combatScene: boolean;
+  savedFatigue: number;
+  savedPreference: string;
+};
+
 type BrowserSavedState = {
   appMode: string;
   saveKey: string;
@@ -621,6 +633,30 @@ const readAppModeStateExpression = `
   return {
     appMode: shell?.getAttribute("data-app-mode") ?? "",
     townScene: town?.getAttribute("data-town-scene") ?? ""
+  };
+})()
+`;
+
+const readDungeonDifficultyStateExpression = `
+(() => {
+  const shell = document.querySelector(".app-shell");
+  const prep = document.querySelector("[data-dungeon-prep='true']");
+  const selected = document.querySelector("[data-dungeon-difficulty][data-difficulty-selected='true']");
+  const combat = document.querySelector(".combat-scene");
+  const firstTrash = document.querySelector(".combat-enemy[data-enemy-kind='trash']");
+  const rawSave = localStorage.getItem(${JSON.stringify(SAVE_KEY)});
+  const saved = rawSave ? JSON.parse(rawSave) : null;
+
+  return {
+    appMode: shell?.getAttribute("data-app-mode") ?? "",
+    prepDungeonId: prep?.getAttribute("data-dungeon-prep-id") ?? "",
+    selectedDifficulty: selected?.getAttribute("data-dungeon-difficulty") ?? "",
+    fatigueCost: Number(selected?.getAttribute("data-fatigue-cost") ?? "0"),
+    combatDifficulty: combat?.getAttribute("data-combat-difficulty") ?? "",
+    firstTrashHpMax: Number(firstTrash?.getAttribute("data-enemy-hp-max") ?? "0"),
+    combatScene: Boolean(combat),
+    savedFatigue: Number(saved?.player?.fatigue?.current ?? -1),
+    savedPreference: saved?.player?.dungeonDifficultyPreferences?.["cinder-kiln-alley"] ?? ""
   };
 })()
 `;
@@ -1460,13 +1496,24 @@ describe("real browser keyboard control", () => {
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
+        await page.evaluate<void>(`(() => {
+          globalThis.__browserSawDungeonPrep = false;
+          const observer = new MutationObserver(() => {
+            if (document.querySelector('[data-app-mode="dungeon-prep"]')) {
+              globalThis.__browserSawDungeonPrep = true;
+            }
+          });
+          observer.observe(document.documentElement, { attributes: true, childList: true, subtree: true });
+        })()`);
         await enterDungeonWithKeyboard(page, "Space");
         const combat = await page.waitFor<BrowserRoomFlowState>(
           readRoomFlowStateExpression,
           (state) => state.objective === "active",
           5000
         );
+        const sawDungeonPrep = await page.evaluate<boolean>("Boolean(globalThis.__browserSawDungeonPrep)");
 
+        expect(sawDungeonPrep).toBe(true);
         expect(combat.objective).toBe("active");
         expect(combat.dungeonId).toBe("cinder-kiln-alley");
         expect(combat.roomIndex).toBe("0");
@@ -1483,6 +1530,85 @@ describe("real browser keyboard control", () => {
         expect(combat.transitionState).toBe("none");
         expect(combat.transitionFromRoom).toBe("");
         expect(combat.transitionTargetRoom).toBe("");
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
+  it("selects dungeon difficulty and enforces fatigue through real browser controls", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, createInitialState());
+        await waitInBrowser(page, 200);
+        await page.click('[data-prepare-dungeon="cinder-kiln-alley"]');
+        const normalPrep = await page.waitFor<BrowserDungeonDifficultyState>(
+          readDungeonDifficultyStateExpression,
+          (state) =>
+            state.appMode === "dungeon-prep" &&
+            state.prepDungeonId === "cinder-kiln-alley" &&
+            state.selectedDifficulty === "normal",
+          5000
+        );
+
+        expect(normalPrep.fatigueCost).toBe(6);
+
+        await page.pressKey("ArrowRight");
+        const adventurePrep = await page.waitFor<BrowserDungeonDifficultyState>(
+          readDungeonDifficultyStateExpression,
+          (state) => state.selectedDifficulty === "adventure" && state.fatigueCost === 8,
+          5000
+        );
+
+        expect(adventurePrep.appMode).toBe("dungeon-prep");
+        await page.pressKey("Enter");
+        const combat = await page.waitFor<BrowserDungeonDifficultyState>(
+          readDungeonDifficultyStateExpression,
+          (state) =>
+            state.appMode === "combat" &&
+            state.combatDifficulty === "adventure" &&
+            state.firstTrashHpMax === 108 &&
+            state.savedFatigue === 56 &&
+            state.savedPreference === "adventure",
+          5000
+        );
+
+        expect(combat.combatScene).toBe(true);
+
+        await page.reload();
+        const restored = await page.waitFor<BrowserDungeonDifficultyState>(
+          readDungeonDifficultyStateExpression,
+          (state) => state.appMode === "town" && state.savedFatigue === 56 && state.savedPreference === "adventure",
+          15000
+        );
+
+        expect(restored.combatScene).toBe(false);
+
+        const lowFatigueState = createInitialState();
+        lowFatigueState.player.fatigue = { current: 7, max: 64 };
+        await seedSaveAndReload(page, lowFatigueState);
+        await waitInBrowser(page, 200);
+        await page.click('[data-prepare-dungeon="cinder-kiln-alley"]');
+        await page.waitFor<BrowserDungeonDifficultyState>(
+          readDungeonDifficultyStateExpression,
+          (state) => state.appMode === "dungeon-prep" && state.selectedDifficulty === "normal",
+          5000
+        );
+        await page.pressKey("ArrowRight");
+        await page.waitFor<BrowserDungeonDifficultyState>(
+          readDungeonDifficultyStateExpression,
+          (state) => state.selectedDifficulty === "adventure" && state.fatigueCost === 8,
+          5000
+        );
+        await page.pressKey("Enter");
+        await waitInBrowser(page, 100);
+        const refused = await page.evaluate<BrowserDungeonDifficultyState>(readDungeonDifficultyStateExpression);
+
+        expect(refused.appMode).toBe("dungeon-prep");
+        expect(refused.combatScene).toBe(false);
+        expect(refused.savedFatigue).toBe(7);
       });
     } finally {
       await server.close();
@@ -3330,33 +3456,30 @@ async function enterDungeonWithKeyboard(
   activationKey: "Enter" | "Space" = "Enter",
   dungeonId: DungeonId = "cinder-kiln-alley"
 ): Promise<void> {
-  await page.waitFor<{ ready: boolean; focused: boolean; href: string; body: string; scripts: string[] }>(
+  await page.waitFor<{ ready: boolean }>(
     `(() => {
-      const button = document.querySelector(${JSON.stringify(`[data-enter-dungeon="${dungeonId}"]`)});
-      return {
-        ready: Boolean(button),
-        focused: document.activeElement === button,
-        href: location.href,
-        body: (document.body?.innerHTML ?? "").slice(0, 500),
-        scripts: Array.from(document.scripts).map((script) => script.src || script.textContent?.slice(0, 80) || "")
-      };
+      const button = document.querySelector(${JSON.stringify(`[data-prepare-dungeon="${dungeonId}"]`)});
+      return { ready: Boolean(button) };
     })()`,
     (state) => state.ready,
     15000
   );
   await page.evaluate<void>(`(() => {
-    const button = document.querySelector(${JSON.stringify(`[data-enter-dungeon="${dungeonId}"]`)});
+    const button = document.querySelector(${JSON.stringify(`[data-prepare-dungeon="${dungeonId}"]`)});
     button?.focus();
   })()`);
   await page.waitFor<{ focused: boolean }>(
     `(() => {
-      const button = document.querySelector(${JSON.stringify(`[data-enter-dungeon="${dungeonId}"]`)});
+      const button = document.querySelector(${JSON.stringify(`[data-prepare-dungeon="${dungeonId}"]`)});
       return { focused: document.activeElement === button };
     })()`,
     (state) => state.focused,
     1000
   );
   await page.pressKey(activationKey);
+  await page.waitFor<BrowserAppModeState>(readAppModeStateExpression, (state) => state.appMode === "dungeon-prep", 5000);
+  await page.pressKey("Enter");
+  await page.waitFor<BrowserAppModeState>(readAppModeStateExpression, (state) => state.appMode === "combat", 5000);
 }
 
 async function startViteServer(): Promise<{ server: ViteDevServer; url: string; close(): Promise<void> }> {

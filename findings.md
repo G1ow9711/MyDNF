@@ -1453,3 +1453,19 @@
 - Retry availability can be derived at render time from the current post-reward state. Expose current fatigue, cost, legal state, and reason as stable `data-*` hooks; disable only the retry button, never the return button.
 - A true browser proof must clear the actual Boss, observe the result, press real `R`, and land in fresh room zero with live enemies, empty run events/loot, the same difficulty, and the second fatigue deduction already present in `localStorage`.
 - An official-site search for explicit current DNF result-screen shortcut documentation returned no usable results. The implementation therefore does not invent an official key claim; `R` is a project-local explicit shortcut shown in the mounted control.
+
+## Task 188 Defeat-Continue Audit
+- Combat already supports a real revival token: it clears `failed`/`defeated`, restores 35% HP, grants 1.2 seconds of invulnerability, preserves room enemies, consumes one token, emits `revival-token-use`, and syncs consumables into the save state.
+- Mounted defeat presentation is incomplete. It shows a small banner telling the player to return to town while a generic quickbar separately exposes the revive token; there is no explicit continue decision, token availability state, no-token explanation, or dedicated browser acceptance.
+- The combat tick stops while failed, so a countdown would require a separate authoritative clock and is not justified for this slice. The overlay should remain until the player revives or returns to town.
+- The existing `useConsumable` action and delegated `data-consumable-id` click handler are the single revival path. The overlay button should use them directly rather than add a second revive action.
+- A deterministic app test can force the real monster-impact defeat boundary and then invoke the production consumable action. A true-browser route should instead let Warrior-difficulty monsters naturally reduce a low-defense class to zero, inspect the mounted overlay, and click the actual continue button.
+- The battlefield, enemy HP, room index, and combat event history must remain in place behind the overlay. Revival is continuation, not room reset or retry.
+- The authoritative revival status event shape is `action: "consumable"`, `skillId: "revival-token"`, and `vfxCue: "revival-token-use"`; tests should preserve that shared consumable contract instead of inventing an action value.
+- An unequipped level-one Ink Shadow Ranger on Warrior Cinder reliably reaches natural defeat in roughly 32 seconds when the browser repeatedly repositions into the nearest live enemy's range. This keeps acceptance on real monster timing without production damage shortcuts.
+
+## Task 188 Implementation Evidence
+- Mounted defeat now occupies a real modal layer over the unchanged battlefield. It exposes token count, continue eligibility, a shared `data-consumable-id="revival-token"` button, the `2` shortcut, and a separate return-to-town action.
+- Zero-token defeat keeps return-to-town available and renders an actually disabled continue button with an explicit `no-revival-token` reason; the reducer also rejects repeated token use without mutating the run or save.
+- Real-browser acceptance proved natural monster defeat, live overlay state, real mouse activation, same-room continuation, exact enemy preservation, 35% HP restoration, active 1.2-second invulnerability, one authoritative status event, and immediate save-backed token consumption.
+- Final evidence is 664/664 non-keyboard tests, 33/33 true-browser scenarios, production build, HTTP 200, and clean Git whitespace validation. No subagent was started.

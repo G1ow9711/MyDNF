@@ -6258,6 +6258,54 @@ describe("playable app integration actions", () => {
 
     expect(blocked.combatRun).toEqual(model.combatRun);
     expect(blocked.message).toContain("倒地");
+
+    const defeatedRun = model.combatRun;
+    const defeatedEnemies = defeatedRun?.enemies;
+    const defeatedEvents = defeatedRun?.events ?? [];
+    const revived = reduceAppAction(model, { type: "useConsumable", consumableId: "revival-token" });
+
+    expect(revived.mode).toBe("combat");
+    expect(revived.combatRun?.failed).toBe(false);
+    expect(revived.combatRun?.player.defeated).toBe(false);
+    expect(revived.combatRun?.player.hp).toBeGreaterThan(0);
+    expect(revived.combatRun?.player.invulnerableUntilMs).toBe((revived.combatRun?.elapsedMs ?? 0) + 1200);
+    expect(revived.combatRun?.roomIndex).toBe(defeatedRun?.roomIndex);
+    expect(revived.combatRun?.enemies).toEqual(defeatedEnemies);
+    expect(revived.combatRun?.events.slice(0, -1)).toEqual(defeatedEvents);
+    expect(revived.combatRun?.events.at(-1)).toMatchObject({
+      kind: "player-status",
+      action: "consumable",
+      skillId: "revival-token",
+      vfxCue: "revival-token-use"
+    });
+    expect(revived.state.player.consumables["revival-token"]).toBe(0);
+    expect(revived.combatRun?.state.player.consumables["revival-token"]).toBe(0);
+    expect(revived.message).toContain("复活");
+
+    if (!revived.combatRun) {
+      throw new Error("Expected revived combat run");
+    }
+
+    const defeatedWithoutToken = {
+      ...revived,
+      combatRun: {
+        ...revived.combatRun,
+        failed: true,
+        player: {
+          ...revived.combatRun.player,
+          hp: 0,
+          defeated: true
+        }
+      }
+    };
+    const refusedRevival = reduceAppAction(defeatedWithoutToken, {
+      type: "useConsumable",
+      consumableId: "revival-token"
+    });
+
+    expect(refusedRevival.combatRun).toBe(defeatedWithoutToken.combatRun);
+    expect(refusedRevival.state).toBe(defeatedWithoutToken.state);
+    expect(refusedRevival.message).toContain("无法使用");
   });
 
   it("does not map unaffordable combat skill hotkeys", () => {

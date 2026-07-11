@@ -4263,3 +4263,11 @@
 - The focused-prep route passed after hardening. Because two PTY runs dropped their final output tail, the final authoritative full run wrote to a project-local runtime log and passed 32/32 in 770.60 seconds with `EXIT_CODE=0`.
 - Final verification before commit: 664/664 non-keyboard tests across 16 files, 32/32 true-browser keyboard scenarios, production build, HTTP 200, and no subagent launch.
 - Task 187 implementation, tests, design, and acceptance evidence were committed as `5a60510 实现地下城连续再战刷装循环`.
+
+## Task 188 DNF Defeat Continue And Revival Flow
+- Confirmed a clean zero-divergence branch at `208fd4c`. Started a no-subagent audit of failed combat presentation, revival-token runtime behavior, mounted controls, and save synchronization.
+- Selected a dedicated defeat/continue overlay because the underlying revival mechanics exist but are hidden inside a generic quickbar and lack an explicit, browser-verified DNF decision flow.
+- Focused RED established two boundaries: the app-level revival test reached the existing authoritative consumable event but initially asserted its VFX cue as the action, while the UI smoke test failed only because no mounted defeat overlay existed.
+- Implemented the mounted defeat decision layer over the preserved battlefield with token count, available/empty states, real shared-consumable continue button, `2` shortcut label, and always-available return-to-town action. Focused app/UI tests and the production build pass.
+- Added a true-browser Warrior-difficulty route using a legal unequipped Ink Shadow Ranger save. Real monster attacks naturally defeated the player, the mounted overlay exposed the saved token, and a real CDP mouse click revived in the same room with 35% HP, active invulnerability, unchanged enemy HP, one new event, and the saved token reduced to zero. Focused acceptance passed in 33.82 seconds.
+- Final Task 188 verification passed: 664/664 non-keyboard tests across 16 files, 33/33 serial true-browser keyboard/mouse scenarios in 833.09 seconds with `EXIT_CODE=0`, production TypeScript/Vite build, `git diff --check`, and HTTP 200 from `http://127.0.0.1:5174/`. No subagent was started.

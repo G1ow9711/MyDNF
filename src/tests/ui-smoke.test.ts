@@ -1273,9 +1273,38 @@ describe("town app shell", () => {
     const html = renderAppHtml({ state, mode: "combat", combatRun: failedRun });
 
     expect(html).toContain('data-combat-objective="failed"');
+    expect(html).toContain('data-defeat-overlay="true"');
+    expect(html).toContain('data-defeat-revive-available="true"');
+    expect(html).toContain('data-defeat-revival-token-count="1"');
+    expect(html).toContain('data-defeat-revive="true"');
+    expect(html).toContain('data-consumable-id="revival-token"');
+    expect(html).toContain('data-defeat-return-town="true"');
+    expect(html).toContain("继续挑战");
+    expect(html).toContain("快捷键 2");
     expect(html).toContain('data-arena-danger="none"');
     expect(html).toContain('data-arena-hazard-count="0"');
     expect(html).not.toContain('data-arena-hazard="taotie-forge-collapse"');
+    expect(stylesCss).toContain(".combat-defeat-overlay");
+    expect(stylesCss).toContain("@keyframes combat-defeat-enter");
+
+    const noTokenState = {
+      ...state,
+      player: {
+        ...state.player,
+        consumables: {
+          ...state.player.consumables,
+          "revival-token": 0
+        }
+      }
+    };
+    const noTokenHtml = renderAppHtml({ state: noTokenState, mode: "combat", combatRun: failedRun });
+
+    expect(noTokenHtml).toContain('data-defeat-revive-available="false"');
+    expect(noTokenHtml).toContain('data-defeat-revival-token-count="0"');
+    expect(noTokenHtml).toMatch(/data-defeat-revive="true"[^>]*disabled/);
+    expect(noTokenHtml).toContain('data-defeat-reason="no-revival-token"');
+    expect(noTokenHtml).toContain("复活令不足");
+    expect(noTokenHtml).toContain('data-defeat-return-town="true"');
   });
 
   it("renders target-bound skill impact bursts for multi-hit player skills", () => {

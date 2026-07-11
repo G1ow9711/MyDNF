@@ -2141,6 +2141,29 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
       <button class="consumable-slot consumable-slot-revive" data-consumable-id="revival-token" data-consumable-hotkey="2" ${revivalTokenDisabled ? "disabled" : ""}><span class="consumable-keycap">2</span><span class="consumable-name">复活令</span><strong>${revivalTokenCount}</strong></button>
     </div>
   `;
+  const defeatOverlay = roomFailed
+    ? `
+      <div class="combat-defeat-overlay" data-defeat-overlay="true" data-defeat-revive-available="${revivalTokenCount > 0 ? "true" : "false"}" data-defeat-revival-token-count="${revivalTokenCount}" role="dialog" aria-modal="true" aria-label="战斗失败">
+        <div class="combat-defeat-panel">
+          <span class="combat-defeat-kicker">战斗失败</span>
+          <h2>角色倒地</h2>
+          <div class="combat-defeat-token" data-defeat-token-status="${revivalTokenCount > 0 ? "ready" : "empty"}">
+            <span>复活令</span>
+            <strong>${revivalTokenCount}</strong>
+          </div>
+          ${
+            revivalTokenCount > 0
+              ? `<p class="combat-defeat-status">原地恢复生命并获得短暂无敌</p>`
+              : `<p class="combat-defeat-status is-empty" data-defeat-reason="no-revival-token">复活令不足</p>`
+          }
+          <div class="combat-defeat-actions">
+            <button class="combat-defeat-revive" data-defeat-revive="true" data-consumable-id="revival-token" ${revivalTokenCount > 0 ? "" : "disabled"}>继续挑战 <span>快捷键 2</span></button>
+            <button class="combat-defeat-return" data-defeat-return-town="true" data-mode="town">返回城镇</button>
+          </div>
+        </div>
+      </div>
+    `
+    : "";
 
   return `
     <section class="combat-scene" aria-label="战斗 · ${combatDifficulty.displayName}" data-combat-difficulty="${run.difficultyId}" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-combat-event-count="${run.events.length}" data-combat-loot-event-count="${run.lootEvents.length}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-hp="${run.player.hp}" data-player-max-hp="${run.player.maxHp}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-critical-chance="${criticalChance}" data-critical-accumulator="${Math.round(run.criticalAccumulator * 100) / 100}" data-critical-hit="${sceneHit?.critical ? "true" : "false"}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
@@ -2153,16 +2176,12 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
       ${roomFailed ? `<div class="arena-hazard-layer" data-arena-hazard-layer="true" data-arena-hazard-count="0"></div>` : renderArenaHazards(run)}
       ${renderCombatVfx(run)}
       ${comboMeter}
+      ${defeatOverlay}
       ${commandReductionApplied ? `<div class="command-input-toast" data-command-toast="true">COMMAND INPUT</div>` : ""}
       ${comboCancelCast ? `<div class="skill-cancel-toast" data-skill-cancel-toast="true" data-combo-cancel-skill-id="${comboCancelCast.skillId}">CANCEL</div>` : ""}
       ${
         roomCleared
           ? `<div class="room-clear-banner"><strong>房间已清理</strong><span>前往右侧房门进入下一段战斗</span></div>`
-          : ""
-      }
-      ${
-        roomFailed
-          ? `<div class="room-failed-banner"><strong>角色倒地</strong><span>返回城镇整备后重新挑战</span></div>`
           : ""
       }
       <div class="combat-actions">

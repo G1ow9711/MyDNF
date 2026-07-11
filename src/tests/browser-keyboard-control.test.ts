@@ -408,6 +408,25 @@ type BrowserConsumableState = {
   statusCoreAnimation: string;
 };
 
+type BrowserDefeatState = {
+  appMode: string;
+  objective: string;
+  roomIndex: string;
+  playerHp: number;
+  playerMaxHp: number;
+  playerInvulnerable: string;
+  overlayVisible: boolean;
+  reviveAvailable: string;
+  revivalTokenCount: number;
+  reviveButtonVisible: boolean;
+  reviveButtonDisabled: boolean;
+  returnButtonVisible: boolean;
+  liveEnemyCount: number;
+  combatEventCount: number;
+  savedRevivalTokenCount: number;
+  enemyHp: number[];
+};
+
 type BrowserIronVanguardState = {
   appMode: string;
   classId: string;
@@ -846,6 +865,38 @@ const readConsumableStateExpression = `
     statusVfx: status?.getAttribute("data-player-status-vfx") ?? "",
     statusVfxCue: status?.getAttribute("data-vfx-cue") ?? "",
     statusCoreAnimation: core ? getComputedStyle(core).animationName : "none"
+  };
+})()
+`;
+
+const readDefeatStateExpression = `
+(() => {
+  const shell = document.querySelector(".app-shell");
+  const scene = document.querySelector(".combat-scene");
+  const player = document.querySelector(".combat-player");
+  const overlay = document.querySelector("[data-defeat-overlay='true']");
+  const reviveButton = document.querySelector("[data-defeat-revive='true']");
+  const rawSave = localStorage.getItem(${JSON.stringify(SAVE_KEY)});
+  const saved = rawSave ? JSON.parse(rawSave) : null;
+  return {
+    appMode: shell?.getAttribute("data-app-mode") ?? "",
+    objective: scene?.getAttribute("data-combat-objective") ?? "",
+    roomIndex: scene?.getAttribute("data-room-index") ?? "",
+    playerHp: Number(scene?.getAttribute("data-player-hp") || "0"),
+    playerMaxHp: Number(scene?.getAttribute("data-player-max-hp") || "0"),
+    playerInvulnerable: player?.getAttribute("data-player-invulnerable-active") ?? "false",
+    overlayVisible: Boolean(overlay),
+    reviveAvailable: overlay?.getAttribute("data-defeat-revive-available") ?? "",
+    revivalTokenCount: Number(overlay?.getAttribute("data-defeat-revival-token-count") || "0"),
+    reviveButtonVisible: Boolean(reviveButton),
+    reviveButtonDisabled: reviveButton instanceof HTMLButtonElement ? reviveButton.disabled : true,
+    returnButtonVisible: Boolean(document.querySelector("[data-defeat-return-town='true']")),
+    liveEnemyCount: Number(scene?.getAttribute("data-live-enemy-count") || "0"),
+    combatEventCount: Number(scene?.getAttribute("data-combat-event-count") || "0"),
+    savedRevivalTokenCount: Number(saved?.player?.consumables?.["revival-token"] || "0"),
+    enemyHp: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) =>
+      Number(enemy.getAttribute("data-enemy-hp-current") || "0")
+    )
   };
 })()
 `;
@@ -1468,6 +1519,70 @@ describe("real browser keyboard control", () => {
       await server.close();
     }
   }, 60000);
+
+  it("opens the defeat decision and revives through a real mounted click", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, createDefeatAcceptanceState());
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<BrowserDefeatState>(
+          readDefeatStateExpression,
+          (state) => state.objective === "active" && state.liveEnemyCount === 2 && state.savedRevivalTokenCount === 1,
+          5000
+        );
+
+        let defeated: BrowserDefeatState | undefined;
+        for (let attempt = 0; attempt < 48; attempt += 1) {
+          const current = await page.evaluate<BrowserDefeatState>(readDefeatStateExpression);
+          if (current.objective === "failed") {
+            defeated = current;
+            break;
+          }
+
+          await moveIntoLiveEnemyRange(page);
+          await waitInBrowser(page, 650);
+        }
+
+        defeated ??= await page.waitFor<BrowserDefeatState>(
+          readDefeatStateExpression,
+          (state) => state.objective === "failed",
+          5000
+        );
+
+        expect(defeated.playerHp).toBe(0);
+        expect(defeated.overlayVisible).toBe(true);
+        expect(defeated.reviveAvailable).toBe("true");
+        expect(defeated.revivalTokenCount).toBe(1);
+        expect(defeated.reviveButtonVisible).toBe(true);
+        expect(defeated.reviveButtonDisabled).toBe(false);
+        expect(defeated.returnButtonVisible).toBe(true);
+        expect(defeated.liveEnemyCount).toBeGreaterThan(0);
+        expect(defeated.savedRevivalTokenCount).toBe(1);
+
+        await page.click("[data-defeat-revive='true']");
+        const revived = await page.waitFor<BrowserDefeatState>(
+          readDefeatStateExpression,
+          (state) =>
+            state.objective === "active" &&
+            !state.overlayVisible &&
+            state.playerHp > 0 &&
+            state.playerInvulnerable === "true" &&
+            state.savedRevivalTokenCount === 0,
+          1200
+        );
+
+        expect(revived.roomIndex).toBe(defeated.roomIndex);
+        expect(revived.playerHp).toBeLessThanOrEqual(Math.ceil(revived.playerMaxHp * 0.35));
+        expect(revived.liveEnemyCount).toBe(defeated.liveEnemyCount);
+        expect(revived.enemyHp).toEqual(defeated.enemyHp);
+        expect(revived.combatEventCount).toBe(defeated.combatEventCount + 1);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 90000);
 
   it("triggers a deterministic critical hit with real keyboard attacks and mounted feedback", async () => {
     const server = await startViteServer();
@@ -3869,6 +3984,26 @@ function createFlowingLightSwordmasterState() {
   };
 
   return advanceClass(readyState, "flowing-light-swordmaster");
+}
+
+function createDefeatAcceptanceState(): GameState {
+  const classState = selectBaseClass(createInitialState(), "ink-shadow-ranger");
+
+  return {
+    ...classState,
+    player: {
+      ...classState.player,
+      consumables: {
+        ...classState.player.consumables,
+        "revival-token": 1
+      },
+      equipment: {},
+      dungeonDifficultyPreferences: {
+        ...classState.player.dungeonDifficultyPreferences,
+        "cinder-kiln-alley": "warrior"
+      }
+    }
+  };
 }
 
 function browserEcosystemEchoOwnedId(): string {

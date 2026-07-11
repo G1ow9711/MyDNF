@@ -338,7 +338,15 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Prove insufficient fatigue cannot leave the result screen or mutate the save.
 - [x] Verify a true-keyboard Boss clear presses `R`, starts room 1 of a fresh run, persists the second fatigue deduction, then run full regressions and push Chinese commits.
 
+## Task 188 DNF Defeat Continue And Revival Flow
+- [x] Replace the small failure banner with a mounted defeat decision overlay that keeps the live battlefield visible.
+- [x] Present revival-token count, continue availability, real revive button, `2` shortcut, and return-to-town action.
+- [x] Keep zero-token defeat recoverable through return-to-town while preventing fake revival.
+- [x] Prove app-level revival restores combat, applies invulnerability, consumes exactly one token, and auto-saves.
+- [x] Verify a real monster defeat opens the overlay and a real mounted click revives the character before full regression and Chinese push.
+
 ### Errors Encountered
+- Task 188 first UI GREEN reached the correct disabled no-token revive button, but the smoke assertion required `disabled` to be immediately adjacent to `data-defeat-revive`. Replaced the attribute-order assertion with a same-button-tag regex; production markup was already correct.
 - Task 187 second full 32-scenario run again passed 31/32; all combat, Boss, and rechallenge routes passed. A different legacy focused-prep scenario lost one mounted town-button click. Replaced its three direct clicks with the existing real-click/state-confirmation retry helper; native focused Enter behavior remains unchanged and no synthetic click was introduced.
 - Task 187 first full 32-scenario browser run passed 31/32. The new rechallenge scenario passed; an older Boss-clear route was defeated under full-suite load with one revival token still available because the shared clear helper only handled hurt/quick-recovery states. It now presses real `Digit2` only after observing `failed`, waits for active revival, and otherwise retains the existing timeout failure.
 - Task 187 first focused browser run never sent `KeyR` because the CDP key map did not contain that code and failed in test infrastructure. Added the real `R`/virtual-key-82 mapping, then reran. The second RED reached a fresh combat run with saved fatigue 52 and unchanged rewards, failing only on absent event/loot-count hooks as intended.

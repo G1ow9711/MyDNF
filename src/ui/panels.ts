@@ -1,7 +1,7 @@
 import { catalog } from "../data/catalog";
 import type { GameState, GearItem, OwnedGearItem } from "../game/types";
 import { evaluateEquipmentBuild } from "../systems/builds";
-import { getAdvancementPreview } from "../systems/classes";
+import { getAdvancementPreview, getAvailableSkills, getSkillLevel, skillMaxLevel } from "../systems/classes";
 import { getAuctionPricing } from "../systems/market";
 import { getActiveQuestText, isSystemUnlocked } from "../systems/quests";
 import { getBoxRates } from "../systems/shop";
@@ -315,6 +315,24 @@ export function renderClassPanel(state: GameState): string {
       `;
     })
     .join("");
+  const skillRows = getAvailableSkills(state)
+    .map((skill) => {
+      const level = getSkillLevel(state, skill.id);
+      const damageBonus = (level - 1) * 8;
+      const cooldownReduction = (level - 1) * 2;
+      const disabled = state.player.skillPoints <= 0 || level >= skillMaxLevel;
+
+      return `
+        <article class="skill-tree-row" data-skill-tree-id="${skill.id}" data-skill-rank="${level}" data-skill-max-rank="${skillMaxLevel}">
+          <div>
+            <b>${skill.displayName} Lv.${level}/${skillMaxLevel}</b>
+            <small>伤害 +${damageBonus}% · 冷却 -${cooldownReduction}% · ${skill.key}</small>
+          </div>
+          <button data-skill-upgrade-id="${skill.id}" ${disabled ? "disabled" : ""}>+</button>
+        </article>
+      `;
+    })
+    .join("");
 
   return panel(
     "职业",
@@ -329,6 +347,10 @@ export function renderClassPanel(state: GameState): string {
       <div class="advancement-grid">
         <h3>转职</h3>
         ${advancementRows}
+      </div>
+      <div class="skill-tree" data-skill-tree="true" data-skill-points="${state.player.skillPoints}">
+        <h3>技能树 · 剩余 ${state.player.skillPoints} 点</h3>
+        ${skillRows}
       </div>
     `
   );

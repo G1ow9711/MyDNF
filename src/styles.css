@@ -729,6 +729,57 @@ p {
     linear-gradient(160deg, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.78));
 }
 
+.skill-tree {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(167, 139, 250, 0.34);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.68);
+}
+
+.skill-tree h3 {
+  margin: 0;
+  color: #e9d5ff;
+  font-size: 16px;
+}
+
+.skill-tree-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 10px;
+  align-items: center;
+  min-height: 50px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 6px;
+  background: rgba(2, 6, 23, 0.46);
+}
+
+.skill-tree-row div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.skill-tree-row small {
+  color: #c4b5fd;
+  font-size: 11px;
+}
+
+.skill-tree-row button {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+  border-color: rgba(196, 181, 253, 0.64);
+  color: #f5f3ff;
+  background: rgba(91, 33, 182, 0.7);
+  font-size: 20px;
+  line-height: 1;
+}
+
 .class-summary p,
 .class-card p,
 .advancement-card p {

@@ -3129,6 +3129,25 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("content: attr(data-dnf-hotkey)");
   });
 
+  it("renders a class skill tree with ranks, points, and upgrade controls", () => {
+    const state = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        skillPoints: 2,
+        skillLevels: { "spark-combo": 3 }
+      }
+    };
+    const html = renderClassPanel(state);
+
+    expect(html).toContain('data-skill-tree="true"');
+    expect(html).toContain('data-skill-points="2"');
+    expect(html).toContain('data-skill-tree-id="spark-combo"');
+    expect(html).toContain('data-skill-rank="3"');
+    expect(html).toContain('data-skill-upgrade-id="spark-combo"');
+    expect(stylesCss).toContain(".skill-tree-row");
+  });
+
   it("renders a separate consumable quickbar without replacing DNF skill hotkeys", () => {
     const state = createInitialState();
     const combatRun = createCombatRun(state, "cinder-kiln-alley");

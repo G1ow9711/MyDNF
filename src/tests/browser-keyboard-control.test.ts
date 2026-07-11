@@ -2423,6 +2423,58 @@ describe("real browser keyboard control", () => {
     }
   }, 75000);
 
+  it("spends a skill point through the real class tree and keeps the rank after reload", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, createSkillTreeState());
+        await page.click('[data-mode="classes"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "classes",
+          3000
+        );
+        await page.click('[data-skill-upgrade-id="spark-combo"]');
+        const upgraded = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.skillPoints === 0 && state.saved.player.skillLevels["spark-combo"] === 2,
+          3000
+        );
+
+        await page.reload();
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "town" && state.saved?.player.skillLevels["spark-combo"] === 2,
+          15000
+        );
+        await enterDungeonWithKeyboard(page);
+        const combatRank = await page.waitFor<{ rank: string; activeSkill: string }>(
+          `(() => {
+            const slot = document.querySelector('[data-combat-skill-id="spark-combo"]');
+            return {
+              rank: slot?.getAttribute("data-skill-rank") ?? "",
+              activeSkill: document.querySelector(".combat-player")?.getAttribute("data-active-skill-id") ?? ""
+            };
+          })()`,
+          (state) => state.rank === "2",
+          5000
+        );
+
+        expect(upgraded.saved?.player.skillLevels["spark-combo"]).toBe(2);
+        expect(combatRank.rank).toBe("2");
+        await page.pressKey("KeyA");
+        await page.waitFor<{ activeSkill: string }>(
+          `(() => ({ activeSkill: document.querySelector(".combat-player")?.getAttribute("data-active-skill-id") ?? "" }))()`,
+          (state) => state.activeSkill === "spark-combo",
+          3000
+        );
+      });
+    } finally {
+      await server.close();
+    }
+  }, 75000);
+
   it("returns Ink from real marked-target detonation through class clicks and keyboard input", async () => {
     const server = await startViteServer();
 
@@ -3053,6 +3105,19 @@ function createReadyInkContractState(): GameState {
         ...baseState.player.quests,
         "prologue-ember-warden": "ready"
       }
+    }
+  };
+}
+
+function createSkillTreeState(): GameState {
+  const baseState = createInitialState();
+
+  return {
+    ...baseState,
+    player: {
+      ...baseState.player,
+      level: 2,
+      skillPoints: 1
     }
   };
 }

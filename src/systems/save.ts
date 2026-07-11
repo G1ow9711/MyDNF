@@ -14,7 +14,7 @@ import type {
   QuestStatus,
   TownId
 } from "../game/types";
-import { isKnownAdvancementId, isKnownClassId } from "./classes";
+import { isKnownAdvancementId, isKnownClassId, skillMaxLevel } from "./classes";
 import { normalizeAuctionPriceRecords } from "./market";
 import { isKnownBoxId } from "./shop";
 
@@ -52,6 +52,7 @@ const auctionStatuses: readonly AuctionStatus[] = ["listed", "sold", "expired"];
 
 const catalogGearIds = new Set(catalog.gear.map((item) => item.id));
 const catalogQuestIds = new Set(catalog.quests.map((quest) => quest.id));
+const catalogSkillIds = new Set(catalog.classSkills.map((skill) => skill.id));
 const dungeonIds = new Set<DungeonId>(catalog.dungeons.map((dungeon) => dungeon.id));
 const townIds = new Set<TownId>(catalog.towns.map((town) => town.id));
 const gearSlotIds = new Set<GearSlot>(gearSlots);
@@ -171,6 +172,42 @@ function validateConsumables(value: unknown): Record<ConsumableId, number> {
   }
 
   return normalized;
+}
+
+function legacySkillPointsForLevel(level: number): number {
+  return Math.max(0, Math.floor(level) - 1);
+}
+
+function validateSkillProgress(
+  skillPointsValue: unknown,
+  skillLevelsValue: unknown,
+  level: number
+): { skillPoints: number; skillLevels: Partial<Record<string, number>> } {
+  const skillPoints =
+    skillPointsValue === undefined
+      ? legacySkillPointsForLevel(level)
+      : requireFiniteNumber(skillPointsValue, "player.skillPoints", 0);
+
+  if (!Number.isInteger(skillPoints)) {
+    throw new Error("Malformed save data: player.skillPoints must be an integer");
+  }
+
+  if (skillLevelsValue === undefined) {
+    return { skillPoints, skillLevels: {} };
+  }
+
+  const skillLevels = requireRecord(skillLevelsValue, "player.skillLevels");
+  const normalized: Partial<Record<string, number>> = {};
+
+  for (const [skillId, rank] of Object.entries(skillLevels)) {
+    if (!catalogSkillIds.has(skillId) || typeof rank !== "number" || !Number.isInteger(rank) || rank < 1 || rank > skillMaxLevel) {
+      throw new Error(`Malformed save data: player.skillLevels.${skillId} must be a known skill rank from 1 to ${skillMaxLevel}`);
+    }
+
+    normalized[skillId] = rank;
+  }
+
+  return { skillPoints, skillLevels: normalized };
 }
 
 function validateOwnedGearItem(value: unknown, path: string): string {
@@ -477,8 +514,9 @@ function validateSave(value: unknown): GameState {
     }
   }
 
-  requireFiniteNumber(player.level, "player.level", 1);
+  const playerLevel = requireFiniteNumber(player.level, "player.level", 1);
   requireFiniteNumber(player.experience, "player.experience", 0);
+  const skillProgress = validateSkillProgress(player.skillPoints, player.skillLevels, playerLevel);
   const playerHeat = requireFiniteNumber(player.heat, "player.heat", 0);
   const classResources = validateClassResources(player.classResources, classId, playerHeat);
   const currentHeat = classResources[classId] ?? normalizeClassResourceValue(classId, playerHeat);
@@ -500,7 +538,8 @@ function validateSave(value: unknown): GameState {
       ...player,
       heat: currentHeat,
       classResources,
-      consumables
+      consumables,
+      ...skillProgress
     },
     market: {
       ...market,

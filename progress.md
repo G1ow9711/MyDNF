@@ -4177,3 +4177,9 @@
 - Kept empty detonation and mark-lock resource-neutral beyond the normal skill cost. Unit coverage proves a two-mark detonation returns from 28 to 40 Ink, while no-mark detonation stays at 50 after the 50 Ink cost.
 - Added mounted browser acceptance for class/advancement selection, `D` marking bolt, `Space` detonation, delayed target impact VFX, mark cleanup, and observed resource return to 50 Ink from a 100 Ink starting state.
 - Verification: core regression 474/474; `npm run build`; focused Ink browser test passed; final serial `browser-keyboard-control` 24/24 passed in 545.32 seconds.
+
+## Task 180 DNF-Style Skill Growth
+- Added `skillPoints` and `skillLevels` to player state, defaulting to zero points and base rank one. Old saves migrate to `level - 1` points with no rank overrides.
+- Added validated rank allocation for currently available class skills, a 1-10 rank cap, combat damage scaling (+8% per rank above one), cooldown scaling (-2% per rank above one, capped), level-up point awards, class-tree UI, and auto-save app action wiring.
+- Added reducer/UI/save/combat/browser coverage. The browser route spends one point via the mounted class tree, verifies persisted rank after reload, enters combat, confirms the slot rank, and casts it through keyboard control.
+- Verification: core regression 503/503; `npm run build`; focused skill-tree browser test passed; final serial `browser-keyboard-control` 25/25 passed in 533.02 seconds.

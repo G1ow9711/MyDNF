@@ -127,6 +127,8 @@ export function createInitialState(): GameState {
       classId: "ember-warden",
       level: 1,
       experience: 0,
+      skillPoints: 0,
+      skillLevels: {},
       heat: 0,
       classResources: {
         "ember-warden": 0

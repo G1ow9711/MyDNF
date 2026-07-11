@@ -16,6 +16,7 @@ export interface AdvancementPreview {
 }
 
 const advancementQuestId = "prologue-ember-warden";
+export const skillMaxLevel = 10;
 
 function findClass(classId: string): ClassDefinition | undefined {
   return catalog.classes.find((classDef) => classDef.id === classId);
@@ -167,6 +168,50 @@ export function getAvailableSkills(state: GameState): ClassSkillDefinition[] {
   ]);
 
   return catalog.classSkills.filter((skill) => skill.classId === classDef.id && skillIds.has(skill.id));
+}
+
+export function getSkillLevel(state: GameState, skillId: string): number {
+  const stored = state.player.skillLevels[skillId];
+
+  return typeof stored === "number" && Number.isInteger(stored) ? Math.min(skillMaxLevel, Math.max(1, stored)) : 1;
+}
+
+export function skillDamageMultiplier(state: GameState, skillId: string): number {
+  return 1 + (getSkillLevel(state, skillId) - 1) * 0.08;
+}
+
+export function skillCooldownMultiplier(state: GameState, skillId: string): number {
+  return Math.max(0.82, 1 - (getSkillLevel(state, skillId) - 1) * 0.02);
+}
+
+export function upgradeSkill(state: GameState, skillId: string): GameState {
+  const skill = getAvailableSkills(state).find((item) => item.id === skillId);
+
+  if (!skill) {
+    throw new Error(`Skill ${skillId} does not belong to the current class`);
+  }
+
+  if (state.player.skillPoints <= 0) {
+    throw new Error("No skill points available");
+  }
+
+  const level = getSkillLevel(state, skillId);
+
+  if (level >= skillMaxLevel) {
+    throw new Error(`Skill ${skillId} is already at maximum level`);
+  }
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      skillPoints: state.player.skillPoints - 1,
+      skillLevels: {
+        ...state.player.skillLevels,
+        [skillId]: level + 1
+      }
+    }
+  };
 }
 
 export function isKnownClassId(classId: string): classId is ClassId {

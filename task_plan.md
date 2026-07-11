@@ -68,6 +68,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Add Taotie phase-three armor pulse, bounded ash summons, room recovery, and serial real-browser combat acceptance
 - [x] Add consumable quickbar, recovery/revival, combat drops, shop supplies, save migration, and serial real-browser acceptance
 - [x] Add Ink marked-target detonation resource return and serial real-browser acceptance
+- [x] Add skill-point growth, rank-scaled skills, local-save migration, and serial real-browser acceptance
 - **Status:** ongoing for continuation polish; latest full verification is tracked in `progress.md`
 
 ## Key Questions

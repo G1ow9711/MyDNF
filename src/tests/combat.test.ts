@@ -3,7 +3,7 @@ import { catalog } from "../data/catalog";
 import { createInitialState, createOwnedGear } from "../game/state";
 import type { GameState, GearSlot, OwnedGearItem } from "../game/types";
 import { equipItem } from "../systems/inventory";
-import { advanceClass, selectBaseClass } from "../systems/classes";
+import { advanceClass, selectBaseClass, upgradeSkill } from "../systems/classes";
 import { applyQuestEvent, claimQuestReward } from "../systems/quests";
 import {
   applyHit,
@@ -2428,6 +2428,29 @@ describe("combat actions and impact feel", () => {
     const burstHit = stepToElapsed(burst, burstAtMs);
 
     expect(latestHitForSkill(burstHit, "anvil-crash").damage).toBeGreaterThan(latestHitForSkill(normalHit, "anvil-crash").damage);
+  });
+
+  it("scales skilled-up attacks with higher damage and shorter cooldowns", () => {
+    const state = {
+      ...withHeat(createInitialState(), 80),
+      player: {
+        ...withHeat(createInitialState(), 80).player,
+        skillPoints: 2
+      }
+    };
+    const rankedState = upgradeSkill(upgradeSkill(state, "anvil-crash"), "anvil-crash");
+    const baseRun = withPlayerAndEnemies(createCombatRun(state, "cinder-kiln-alley"), { x: 240, y: 340, facing: 1 }, [{ x: 318, y: 340 }]);
+    const rankedRun = withPlayerAndEnemies(createCombatRun(rankedState, "cinder-kiln-alley"), { x: 240, y: 340, facing: 1 }, [{ x: 318, y: 340 }]);
+    const baseCast = performAction(baseRun, { type: "skill", skillId: "anvil-crash" });
+    const rankedCast = performAction(rankedRun, { type: "skill", skillId: "anvil-crash" });
+    const [baseHitAtMs] = scheduledSkillTimes(baseCast, "anvil-crash");
+    const [rankedHitAtMs] = scheduledSkillTimes(rankedCast, "anvil-crash");
+
+    const baseHit = stepToElapsed(baseCast, baseHitAtMs);
+    const rankedHit = stepToElapsed(rankedCast, rankedHitAtMs);
+
+    expect(latestHitForSkill(rankedHit, "anvil-crash").damage).toBeGreaterThan(latestHitForSkill(baseHit, "anvil-crash").damage);
+    expect(rankedCast.player.skillCooldowns["anvil-crash"]).toBeLessThan(baseCast.player.skillCooldowns["anvil-crash"] ?? Infinity);
   });
 
   it("rewards liuli prism cycling with resource refund and shorter cooldown", () => {

@@ -325,6 +325,8 @@ export interface PlayerState {
   advancementId?: AdvancementId;
   level: number;
   experience: number;
+  skillPoints: number;
+  skillLevels: Partial<Record<string, number>>;
   heat: number;
   classResources: Partial<Record<ClassId, number>>;
   currencies: CurrencyState;

@@ -1335,3 +1335,10 @@
 - The refund is attached to the scheduled target-hit resolution, so it follows real target survival, interruption, hit timing, and mark consumption instead of granting resource on input.
 - Browser evidence now selects Ink Shadow Ranger and Night Contract Hunter through real class clicks, enters the dungeon through the focused keyboard path, uses `D` to apply two marks, and uses `Space` to detonate. It verifies the 88 -> 38 -> 50 Ink loop, mark removal, and detonation VFX.
 - Verification: focused browser test passed; core regression 474/474; production build passed; final serial browser suite passed 24/24 in 545.32 seconds.
+
+## Task 180 DNF-Style Skill Growth
+- Added an offline skill tree: each character level awards one point; active skills rank from 1 to 10; each rank adds 8% skill damage and removes 2% cooldown, capped at 18% cooldown reduction.
+- The class panel exposes only the current class and advancement skills, with live rank, rank cap, growth preview, remaining points, and an explicit plus control. Skill rank is also visible on combat hotkey slots.
+- Legacy saves infer unspent points from `level - 1`, preserve an empty rank map, and reject unknown or out-of-range persisted skill ranks.
+- Browser validation uses real clicks to spend a point, reloads the local save, enters combat with keyboard, verifies the persisted rank on the hotkey slot, and casts the upgraded skill with `A`.
+- Verification: core regression 503/503; production build passed; final serial browser suite passed 25/25 in 533.02 seconds.

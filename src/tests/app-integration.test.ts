@@ -441,6 +441,7 @@ describe("playable app integration actions", () => {
 
     expect(model.state.player.level).toBeGreaterThanOrEqual(15);
     expect(model.state.player.experience).toBeLessThan(100);
+    expect(model.state.player.skillPoints).toBeGreaterThan(0);
 
     const advanced = reduceAppAction(model, { type: "advanceClass", advancementId: "ember-furnace-master" });
 

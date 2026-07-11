@@ -7,7 +7,9 @@ import {
   getAdvancementPreview,
   getAvailableSkills,
   getClassDefinition,
+  getSkillLevel,
   selectBaseClass
+  ,upgradeSkill
 } from "../systems/classes";
 import { loadGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 
@@ -76,6 +78,23 @@ describe("class catalog", () => {
 });
 
 describe("class selection and advancement", () => {
+  it("spends skill points on the active class skill tree only", () => {
+    const state = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        skillPoints: 2
+      }
+    };
+
+    const upgraded = upgradeSkill(state, "spark-combo");
+
+    expect(upgraded.player.skillPoints).toBe(1);
+    expect(getSkillLevel(upgraded, "spark-combo")).toBe(2);
+    expect(getSkillLevel(state, "spark-combo")).toBe(1);
+    expect(() => upgradeSkill(upgraded, "glass-cut")).toThrow(/current class/i);
+  });
+
   it("starts as 烬拳卫 and can switch base class before advancement", () => {
     const state = createInitialState();
 
@@ -231,6 +250,23 @@ describe("class save validation", () => {
       "healing-potion": 3,
       "revival-token": 1
     });
+  });
+
+  it("migrates legacy skill progress from the player level", () => {
+    const storage = new MemoryStorage();
+    const legacySave = cloneSave({
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        level: 6
+      }
+    });
+
+    delete (legacySave.player as Record<string, unknown>).skillPoints;
+    delete (legacySave.player as Record<string, unknown>).skillLevels;
+    writeSave(storage, legacySave);
+
+    expect(loadGame(storage)?.player).toMatchObject({ skillPoints: 5, skillLevels: {} });
   });
 
   it("rejects malformed class resource save data", () => {

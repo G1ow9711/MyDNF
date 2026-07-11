@@ -2,7 +2,7 @@ import { catalog } from "../data/catalog";
 import type { ClassSkillDefinition, ConsumableId, DungeonId, GameState } from "./types";
 import type { CombatInput } from "./input";
 import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
-import { classResourceValue } from "../systems/classes";
+import { classResourceValue, skillCooldownMultiplier, skillDamageMultiplier } from "../systems/classes";
 
 export type EnemyKind = "trash" | "elite" | "boss";
 export type EnemyAttackProfileId =
@@ -2356,7 +2356,7 @@ function playerCooldownMs(run: CombatRun, baseCooldownMs: number): number {
   return Math.max(250, Math.round(baseCooldownMs * run.combatProfile.cooldownMultiplier));
 }
 
-function skillDamage(run: CombatRun, skill: { resourceCost: number; tags: string[] }): number {
+function skillDamage(run: CombatRun, skill: { id?: string; resourceCost: number; tags: string[] }): number {
   const baseDamage = 38 + Math.round(skill.resourceCost / 4);
   const heatBurstMultiplier =
     run.player.resource.id === "heat" &&
@@ -2365,7 +2365,9 @@ function skillDamage(run: CombatRun, skill: { resourceCost: number; tags: string
       ? 1.25
       : 1;
 
-  return playerDamage(run, Math.round(baseDamage * heatBurstMultiplier));
+  const rankMultiplier = skill.id ? skillDamageMultiplier(run.state, skill.id) : 1;
+
+  return playerDamage(run, Math.round(baseDamage * heatBurstMultiplier * rankMultiplier));
 }
 
 function skillMovementDistance(skill: ClassSkillDefinition): number {
@@ -4386,7 +4388,7 @@ export function combatSkillResourceCost(skill: ClassSkillDefinition, inputMethod
 }
 
 function combatSkillCooldownMs(run: CombatRun, skill: ClassSkillDefinition, inputMethod: CombatSkillInputMethod): number {
-  const base = prismCooldownMs(run, skill.id, skill.cooldownMs);
+  const base = Math.max(250, Math.round(prismCooldownMs(run, skill.id, skill.cooldownMs) * skillCooldownMultiplier(run.state, skill.id)));
 
   return inputMethod === "command" ? Math.max(0, Math.round(base * commandInputCooldownMultiplier)) : base;
 }

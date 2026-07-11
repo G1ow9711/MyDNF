@@ -41,7 +41,7 @@ import {
   type AudioState
 } from "../systems/audio";
 import { createBrowserAudioSink } from "../systems/audio-browser";
-import { advanceClass as applyClassAdvancement, selectBaseClass as applyBaseClass, syncCurrentClassResource } from "../systems/classes";
+import { advanceClass as applyClassAdvancement, getSkillLevel, selectBaseClass as applyBaseClass, syncCurrentClassResource, upgradeSkill } from "../systems/classes";
 import { applyLoadout, dismantleItem, equipItem, saveLoadout, sellItem, setItemLock } from "../systems/inventory";
 import { acceptTrade, listAuction, resolveAuctions } from "../systems/market";
 import { applyQuestEvent, claimQuestReward, getActiveQuestText } from "../systems/quests";
@@ -92,6 +92,7 @@ export type AppAction =
   | { type: "claimQuest"; questId: string }
   | { type: "selectBaseClass"; classId: ClassId }
   | { type: "advanceClass"; advancementId: AdvancementId }
+  | { type: "upgradeSkill"; skillId: string }
   | { type: "equipItem"; gearId: string }
   | { type: "saveLoadout"; index: number }
   | { type: "applyLoadout"; index: number }
@@ -1925,6 +1926,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
       return `<button class="dnf-skill-slot is-empty" data-dnf-hotkey="${dnfHotkey}" data-dnf-slot-index="${slotIndex}" data-dnf-slot-state="empty" data-command-slot-state="empty" disabled><span class="dnf-keycap">${dnfHotkey}</span><span>空槽</span></button>`;
     }
 
+      const skillRank = getSkillLevel(state, skill.id);
       const cooldownRemaining = skillCooldownRemaining(run, skill.id);
       const cooldownLabel = cooldownRemaining > 0 ? ` · 冷却 ${(cooldownRemaining / 1000).toFixed(1)}s` : "";
       const cooldownState = cooldownRemaining > 0 ? "cooling" : "ready";
@@ -1957,7 +1959,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         ? `data-command-input="${command.input}" data-command-display="${command.display}" data-command-terminal-key="${command.terminalKey}" data-command-base-cost="${skill.resourceCost}" data-command-manual-cost="${commandManualCost}" data-command-discount-percent="${commandInputDiscountPercent}"`
         : `data-command-input="" data-command-display="" data-command-terminal-key="" data-command-base-cost="${skill.resourceCost}" data-command-manual-cost="${skill.resourceCost}" data-command-discount-percent="0"`;
 
-      return `<button class="${dnfClass}" data-combat-action="skill" data-combat-skill-id="${skill.id}" data-hotkey="${skill.key}" data-dnf-hotkey="${dnfHotkey}" data-dnf-slot-index="${slotIndexAttribute}" data-legacy-hotkey="${skill.key}" data-dnf-slot-state="${slotState}" data-command-slot-state="${commandSlotState}" ${commandAttributes} data-resource-id="${run.player.resource.id}" data-skill-cost="${skill.resourceCost}" data-skill-cooldown-remaining="${cooldownRemaining}" data-cooldown-state="${cooldownState}" data-combo-cancel-available="${comboCancelAvailable && directAvailable ? "true" : "false"}" data-combo-cancel-button-state="${comboCancelAvailable && directAvailable ? "available" : comboCancelWindow ? "blocked" : "none"}" ${disabled ? "disabled" : ""}>${dnfHotkey ? `<span class="dnf-keycap">${dnfHotkey}</span>` : ""}<span class="skill-slot-name">${skill.displayName}</span><span class="skill-slot-meta">${hotkeyLabel} · ${skill.resourceCost}${cooldownLabel}</span>${commandMarkup}<span class="dnf-cooldown-overlay" aria-hidden="true"></span></button>`;
+      return `<button class="${dnfClass}" data-combat-action="skill" data-combat-skill-id="${skill.id}" data-skill-rank="${skillRank}" data-hotkey="${skill.key}" data-dnf-hotkey="${dnfHotkey}" data-dnf-slot-index="${slotIndexAttribute}" data-legacy-hotkey="${skill.key}" data-dnf-slot-state="${slotState}" data-command-slot-state="${commandSlotState}" ${commandAttributes} data-resource-id="${run.player.resource.id}" data-skill-cost="${skill.resourceCost}" data-skill-cooldown-remaining="${cooldownRemaining}" data-cooldown-state="${cooldownState}" data-combo-cancel-available="${comboCancelAvailable && directAvailable ? "true" : "false"}" data-combo-cancel-button-state="${comboCancelAvailable && directAvailable ? "available" : comboCancelWindow ? "blocked" : "none"}" ${disabled ? "disabled" : ""}>${dnfHotkey ? `<span class="dnf-keycap">${dnfHotkey}</span>` : ""}<span class="skill-slot-name">${skill.displayName}</span><span class="skill-slot-meta">${hotkeyLabel} · ${skill.resourceCost} · Lv.${skillRank}${cooldownLabel}</span>${commandMarkup}<span class="dnf-cooldown-overlay" aria-hidden="true"></span></button>`;
   };
   const dnfSkillButtons = dnfSkillHotkeys
     .map((hotkey, index) => renderSkillButton(availableCombatSkills[index], hotkey, index))
@@ -2095,7 +2097,7 @@ export function renderAppHtml(model: AppViewModel): string {
   const audioVolumes = model.audio?.volumes ?? createAudioState().volumes;
 
   return `
-    <main class="app-shell" aria-label="烬璃纪元" data-app-mode="${model.mode}" data-save-key="${SAVE_KEY}" data-audio-settings-key="${AUDIO_SETTINGS_KEY}" data-audio-master="${audioVolumes.master}" data-audio-music="${audioVolumes.music}" data-audio-sfx="${audioVolumes.sfx}" data-player-gold="${currencies.gold}" data-player-iron-dust="${currencies.ironDust}" data-player-arc-shard="${currencies.arcShard}" data-inventory-count="${model.state.player.inventory.length}">
+    <main class="app-shell" aria-label="烬璃纪元" data-app-mode="${model.mode}" data-save-key="${SAVE_KEY}" data-audio-settings-key="${AUDIO_SETTINGS_KEY}" data-audio-master="${audioVolumes.master}" data-audio-music="${audioVolumes.music}" data-audio-sfx="${audioVolumes.sfx}" data-player-gold="${currencies.gold}" data-player-iron-dust="${currencies.ironDust}" data-player-arc-shard="${currencies.arcShard}" data-player-skill-points="${model.state.player.skillPoints}" data-inventory-count="${model.state.player.inventory.length}">
       ${renderNav(model.mode)}
       <section class="game-layout">
         ${scene}
@@ -2135,7 +2137,8 @@ function applyExperience(player: GameState["player"], gainedExperience: number):
   return {
     ...player,
     level,
-    experience
+    experience,
+    skillPoints: player.skillPoints + Math.max(0, level - player.level)
   };
 }
 
@@ -2525,6 +2528,14 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         audio: playSfx(model.audio, "quest-complete")
       };
     }
+    case "upgradeSkill":
+      return {
+        ...model,
+        state: upgradeSkill(model.state, action.skillId),
+        mode: "classes",
+        message: "技能已升级",
+        audio: playSfx(model.audio, "ui-select")
+      };
     case "equipItem":
       return {
         ...model,
@@ -2791,6 +2802,7 @@ export function mountApp(root: HTMLDivElement): () => void {
       const auctionPrice = Number(target.dataset.auctionPrice);
       const classId = target.dataset.classId as ClassId | undefined;
       const advancementId = target.dataset.advancementId as AdvancementId | undefined;
+      const skillUpgradeId = target.dataset.skillUpgradeId;
       const loadoutIndex = Number(target.dataset.loadoutIndex);
 
       if (mode) {
@@ -2865,6 +2877,10 @@ export function mountApp(root: HTMLDivElement): () => void {
 
       if (advancementId) {
         dispatch({ type: "advanceClass", advancementId });
+      }
+
+      if (skillUpgradeId) {
+        dispatch({ type: "upgradeSkill", skillId: skillUpgradeId });
       }
 
       if (tradeOfferId) {

@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export type EnemyVfxFixture = {
@@ -192,6 +192,8 @@ export type RealBrowserAppPage = {
   keyDown(code: RealBrowserKeyCode): Promise<void>;
   keyUp(code: RealBrowserKeyCode): Promise<void>;
   pressKey(code: RealBrowserKeyCode): Promise<void>;
+  setViewport(width: number, height: number): Promise<void>;
+  captureScreenshot(path: string): Promise<void>;
 };
 
 type CdpResponse<T> = {
@@ -440,14 +442,19 @@ export async function runAppInRealBrowser<T>(
   const target = element.closest("button,[role='button'],a,input,select,textarea") ?? element;
   target.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  const rect = target.getBoundingClientRect();
+  const currentElement = document.querySelector(selector);
+  if (!currentElement) {
+    return { disabled: false, found: false, height: 0, hitTarget: "", receivesPointer: false, selector, width: 0, x: 0, y: 0 };
+  }
+  const currentTarget = currentElement.closest("button,[role='button'],a,input,select,textarea") ?? currentElement;
+  const rect = currentTarget.getBoundingClientRect();
   const hitTarget = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
   return {
-    disabled: Boolean(target.disabled || target.getAttribute("disabled") !== null || target.getAttribute("aria-disabled") === "true"),
+    disabled: Boolean(currentTarget.disabled || currentTarget.getAttribute("disabled") !== null || currentTarget.getAttribute("aria-disabled") === "true"),
     found: true,
     height: rect.height,
     hitTarget: hitTarget instanceof Element ? hitTarget.tagName + "." + hitTarget.className : "",
-    receivesPointer: Boolean(hitTarget && (hitTarget === target || target.contains(hitTarget))),
+    receivesPointer: Boolean(hitTarget && (hitTarget === currentTarget || currentTarget.contains(hitTarget))),
     selector,
     width: rect.width,
     x: rect.left + rect.width / 2,
@@ -556,6 +563,19 @@ export async function runAppInRealBrowser<T>(
       pressKey: async (code) => {
         await dispatchKey("keyDown", code);
         await dispatchKey("keyUp", code);
+      },
+      setViewport: async (width, height) => {
+        await client?.send(
+          "Emulation.setDeviceMetricsOverride",
+          { width, height, deviceScaleFactor: 1, mobile: width < 720 },
+          session.sessionId
+        );
+      },
+      captureScreenshot: async (path) => {
+        const result = await client?.send<{ data: string }>("Page.captureScreenshot", { format: "png", fromSurface: true }, session.sessionId);
+        if (!result) throw new Error("Browser client closed before screenshot capture");
+        await mkdir(join(path, ".."), { recursive: true });
+        await writeFile(path, Buffer.from(result.data, "base64"));
       }
     };
 

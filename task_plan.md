@@ -352,7 +352,32 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Render a full story scene with environment, portrait, speaker, progress, next, and skip controls.
 - [ ] Verify active briefing and ready turn-in through real browser controls before full regression and Chinese push.
 
+## Task 190 Articulated Player And Monster Combat Models
+- [x] Replace whole-PNG combat actors with a persistent transparent Three.js articulated model stage and explicit fallback.
+- [x] Build jointed humanoid player rigs with class-specific and tier-differentiated weapons attached to hand joints.
+- [x] Build separate articulated trash, elite, Liuli creature, and Taotie boss anatomies.
+- [x] Map authoritative player and monster combat phases to real limb, head, jaw, body, and weapon motion.
+- [x] Prove nonblank canvas pixels and changing joint/world transforms through real keyboard and natural monster attacks.
+
+**Outcome:** Rejected during user visual review. The procedural Three.js rigs proved state synchronization but did not meet the art bar and were removed from the runtime and dependency graph.
+
+## Task 191 Arcade Frame Combat Art And Skill-Specific Motion
+- [x] Replace the rejected primitive geometry with original transparent 4x4 player and monster action atlases.
+- [x] Drive idle, run, attack, hit, and knockdown frames from authoritative combat state without CSS-reset drift.
+- [x] Add Ember Warden and Ash Cinder Imp runtime art with atlas preload fallback and no baked rectangular backgrounds.
+- [x] Add a complete Liuli Blade Mage base atlas and a separate 16-frame Flowing Light skill atlas.
+- [x] Bind the three skill hit phases to dedicated body/sword frames, synchronized sword arcs, frame-matched afterimages, and existing hit VFX.
+- [x] Rebuild the combat layout to use the full game width and compact the HUD above the action field.
+- [x] Run full non-browser/browser regression, inspect final desktop/mobile screenshots, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 191 full browser regression passed 34/35; the only failure reached a valid defeat overlay but the real-click helper measured a detached button after waiting two animation frames across 50 ms DOM replacement. Reacquiring the same mounted selector after the wait preserved real CDP clicking and the focused revival route passed.
+- Task 191 visual review rejected the first procedural Three.js result as worse than a basic browser game. Removed the runtime stage and Three.js packages instead of polishing the rejected direction; replaced it with original KOF-style frame animation after the user's reference clarified the target.
+- Task 191 first frame-stage screenshots hid old actors before the new atlases finished decoding, producing an empty field for the first frames. Added a four-atlas preload gate; fallback art remains visible until every required atlas loads.
+- Task 191 first Flowing Light acceptance missed the 130 ms cross phase because the recorder required both the authoritative hit event and the newly rendered sprite phase in one animation frame. Restored event-first sampling and asserted sprite/effect evidence on each captured phase; also fixed the generic active-stage branch taking precedence over explicit finish frames.
+- Task 190 first mobile acceptance expected a full 390 px scene width, but the real responsive shell correctly reserved 30 px through its mobile layout and rendered a 360 px combat canvas. Replaced the brittle viewport-equality check with a bounded responsive-width assertion; model pixels and action checks were already green.
+- Task 190 first visual screenshot showed only the player's upper body and no monsters despite three live rigs and nonblank pixels. Projected root diagnostics proved all three foot origins were below the camera (`y=-1.15` to `-1.21` NDC); aligning the orthographic camera origin with its projection bounds restored all models and contact shadows.
+- Task 190 production TypeScript initially found no bundled Three.js declaration file. Added project-local `@types/three`; the next build passed.
 - Task 189 first 670-test non-keyboard regression passed 669 and failed only because the exact public bitmap manifest correctly detected the new NPC atlas as an unregistered extra asset. Added `story-npc-atlas.png` to the authoritative expected list.
 - Task 189 combined campaign regression passed the full new-save campaign, while the chapter-two route's final readiness probe selected the first quest row, now a disabled completed prologue. Narrowed the probe to the epilogue quest id; the production quest state and dialogue settlement were already correct.
 - Task 189 first focused browser route remained on the quest panel with an unchanged save after one CDP click, proving no mounted state change rather than a dialogue reducer failure. Added state-confirmed retries around only the real quest-entry click, matching existing town-control hardening and without synthetic activation.

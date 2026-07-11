@@ -4280,3 +4280,20 @@
 - Focused catalog, app, UI, and production-build checks pass. The true-browser route clicked a ready prologue, verified live portrait animations and hidden navigation, advanced three lines with real Enter, persisted rewards/unlocks, then opened the next active briefing and closed it with real Escape without reward mutation.
 - Updated the existing default-save campaign and chapter-two/epilogue browser routes to turn in quests through the same real dialogue flow. Both focused routes pass.
 - Non-keyboard regression passed 670/670 across 16 files. The final 34-scenario browser run was stopped after the user explicitly reprioritized work toward articulated player and monster models; no full-suite result is claimed for this checkpoint.
+
+## Task 190 Articulated Player And Monster Combat Models
+- Audited live mounted combat state and researched MIT-licensed Three.js, DragonBonesJS, PixiJS, and Phaser examples without launching subagents. Selected a persistent Three.js layer because it provides true joint geometry now and a later glTF `AnimationMixer` migration path.
+- Installed Three.js and project-local type declarations, added `CombatModelStage`, integrated it into mount/render/destroy lifecycle, and preserved PNG fallback until first successful WebGL frame.
+- Implemented player and four monster rig families, class/tier weapon geometry, joint pose mapping, scene lighting, depth placement, responsive camera mapping, and contact shadows.
+- First production build passed after adding Three.js declarations. Focused UI/app regression passed 220/220.
+- Focused true-browser acceptance passed after fixing a brittle mobile width assumption and a camera-origin projection defect. It proves nonblank desktop/mobile canvases, all actor roots in viewport, old images hidden, real walking and attack joint changes, hand-following weapon movement, and natural monster head/jaw attack changes.
+- Visual evidence is stored under `.codex-local/tmp/articulated-model-acceptance/` for desktop, mobile, player-attack, and enemy-attack frames. Full regressions remain before commit/push.
+
+## Task 191 Arcade Frame Combat Art And Skill-Specific Motion
+- User visual review rejected the procedural Three.js result. Stopped the full regression, removed the stage and packages, and redirected to original high-detail frame animation based on the user's KOF reference.
+- Generated, chroma-keyed, alpha-validated, and integrated four original 1254x1254 atlases: Ember Warden normal actions, Ash Cinder Imp normal actions, Liuli Blade Mage normal actions, and Liuli Flowing Light signature-skill actions.
+- Added deterministic frame-state integration plus preload fallback. Real browser acceptance proves idle/run/attack frame ranges, natural monster attacks, old bitmap opacity zero, and desktop/mobile presence.
+- Added skill-specific Flowing Light mapping and synchronized cyan arc/afterimage effects. The existing true-browser Liuli route now verifies all three damage phases, dedicated frame ranges, the skill atlas, pseudo-element sword arc, frame-matched ghost, existing core/wave/spark animations, and real Space input.
+- Rebuilt desktop combat layout to full width with a compact top HUD. Updated screenshots show the fighter, two monsters, background, gate, task tracker, and attacks in one viewport instead of a large blank right column and overlapping panels.
+- Final screenshot review found one old PNG motion-trail rectangle behind the Liuli skill. Disabled the legacy trail for frame-atlas classes; focused rerun and broad regression remain.
+- Final verification: 646/646 non-keyboard tests across 15 files; production TypeScript/Vite build; HTTP 200 on `http://127.0.0.1:5174/`; full browser regression passed 34/35 in 879.25 seconds, with the sole detached-node click-helper failure subsequently fixed and the real defeat/revival click passing focused in 32.32 seconds. The Liuli three-phase skill route passed again after final trail cleanup.

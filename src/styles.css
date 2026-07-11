@@ -91,6 +91,10 @@ p {
   padding: 14px;
 }
 
+.app-shell[data-app-mode="combat"] .game-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .app-shell[data-app-mode="dungeon-result"],
 .app-shell[data-app-mode="story-dialogue"] {
   grid-template-rows: 1fr;
@@ -2428,6 +2432,77 @@ p {
   background: rgba(2, 6, 23, 0.66);
 }
 
+@media (min-width: 721px) {
+  .combat-actions {
+    position: absolute;
+    left: 20px;
+    right: 126px;
+    top: 20px;
+    z-index: 5;
+    gap: 5px;
+    margin: 0;
+    align-items: stretch;
+  }
+
+  .combat-control-hint {
+    width: 100%;
+    min-height: 28px;
+    padding: 0 9px;
+    font-size: 11px;
+  }
+
+  .combat-actions > button {
+    min-width: 82px;
+    min-height: 34px;
+    height: 34px;
+    padding: 0 9px;
+    font-size: 12px;
+  }
+
+  .dnf-skill-bar {
+    gap: 5px;
+    max-width: none;
+  }
+
+  .dnf-skill-slot {
+    min-height: 44px;
+    height: 44px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .consumable-quickbar {
+    grid-template-columns: repeat(2, minmax(118px, 148px));
+    gap: 5px;
+  }
+
+  .consumable-slot {
+    min-height: 34px;
+    height: 34px;
+    padding: 4px 8px;
+  }
+
+  .combat-status {
+    position: absolute;
+    left: 20px;
+    top: 194px;
+    z-index: 4;
+    max-width: 440px;
+    padding: 7px 10px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 5px;
+    font-size: 12px;
+  }
+
+  .combat-status p {
+    margin: 0;
+  }
+
+  .combat-status ul {
+    display: none;
+  }
+}
+
 .combo-meter {
   position: absolute;
   right: 28px;
@@ -2467,8 +2542,117 @@ p {
 .combat-actors {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 3;
   pointer-events: none;
+}
+
+.combat-frame-sprite {
+  position: absolute;
+  z-index: 1;
+  display: block;
+  background-repeat: no-repeat;
+  background-size: 400% 400%;
+  transform: translateX(-50%) scaleX(var(--sprite-facing, 1));
+  transform-origin: center bottom;
+  pointer-events: none;
+  image-rendering: auto;
+  will-change: background-position, transform;
+}
+
+.player-frame-sprite {
+  left: 50%;
+  bottom: -4px;
+  width: clamp(260px, 20vw, 330px);
+  height: clamp(260px, 20vw, 330px);
+  background-image: url("/assets/sprites/ember-warden-atlas.png");
+  filter: drop-shadow(0 16px 12px rgba(2, 6, 23, 0.8)) drop-shadow(0 0 14px rgba(251, 146, 60, 0.26));
+}
+
+.player-frame-sprite[data-frame-class-id="liuli-blademage"] {
+  background-image: url("/assets/sprites/liuli-blademage-atlas.png");
+  filter: drop-shadow(0 16px 12px rgba(2, 6, 23, 0.8)) drop-shadow(0 0 14px rgba(34, 211, 238, 0.34));
+}
+
+.enemy-frame-sprite {
+  left: 50%;
+  bottom: -26px;
+  width: clamp(190px, 15vw, 238px);
+  height: clamp(190px, 15vw, 238px);
+  background-image: url("/assets/sprites/ash-cinder-imp-atlas.png");
+  filter: drop-shadow(0 13px 10px rgba(2, 6, 23, 0.86)) drop-shadow(0 0 12px rgba(249, 115, 22, 0.3));
+}
+
+.combat-scene[data-frame-sprite-stage="ready"][data-class-id="ember-warden"] .combat-player-art,
+.combat-scene[data-frame-sprite-stage="ready"][data-class-id="liuli-blademage"] .combat-player-art,
+.combat-scene[data-frame-sprite-stage="ready"][data-class-id="ember-warden"] .combat-player .weapon-layer,
+.combat-scene[data-frame-sprite-stage="ready"][data-class-id="liuli-blademage"] .combat-player .weapon-layer,
+.combat-scene[data-frame-sprite-stage="ready"][data-class-id="ember-warden"] .player-motion-trail,
+.combat-scene[data-frame-sprite-stage="ready"][data-class-id="liuli-blademage"] .player-motion-trail,
+.combat-scene[data-frame-sprite-stage="ready"] .combat-enemy-trash .enemy-art {
+  opacity: 0;
+}
+
+.player-frame-sprite[data-sprite-skill="flowing-light-chain"] {
+  filter: drop-shadow(0 18px 12px rgba(2, 6, 23, 0.82)) drop-shadow(0 0 26px rgba(103, 232, 249, 0.62));
+}
+
+.player-frame-sprite[data-sprite-skill="flowing-light-chain"]::before,
+.player-frame-sprite[data-sprite-skill="flowing-light-chain"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.player-frame-sprite[data-sprite-skill="flowing-light-chain"]::before {
+  left: -24%;
+  top: 38%;
+  width: 150%;
+  height: 34%;
+  border-top: 7px solid rgba(207, 250, 254, 0.94);
+  border-radius: 50%;
+  opacity: 0.88;
+  background: radial-gradient(ellipse at center, rgba(34, 211, 238, 0.2), transparent 68%);
+  box-shadow: 0 -5px 18px rgba(34, 211, 238, 0.82), inset 0 5px 20px rgba(125, 211, 252, 0.46);
+  transform: rotate(-12deg) scaleX(1.08);
+  mix-blend-mode: screen;
+}
+
+.player-frame-sprite[data-sprite-skill="flowing-light-chain"]::after {
+  z-index: -1;
+  background-image: url("/assets/sprites/liuli-flowing-light-array-atlas.png");
+  background-repeat: no-repeat;
+  background-size: 400% 400%;
+  background-position: var(--sprite-frame-position);
+  opacity: 0.26;
+  filter: sepia(1) hue-rotate(130deg) saturate(2.2) brightness(1.5);
+  transform: translateX(calc(-18px * var(--sprite-facing, 1)));
+}
+
+.player-frame-sprite[data-sprite-skill-phase="chain-cross"]::before {
+  top: 28%;
+  height: 48%;
+  border-top-width: 9px;
+  border-bottom: 6px solid rgba(125, 211, 252, 0.7);
+  transform: rotate(19deg) scaleX(1.18);
+}
+
+.player-frame-sprite[data-sprite-skill-phase="chain-finish"]::before {
+  left: -42%;
+  top: 18%;
+  width: 185%;
+  height: 72%;
+  border-top-width: 12px;
+  transform: rotate(-34deg) scaleX(1.2);
+  box-shadow: 0 -8px 28px rgba(103, 232, 249, 0.94), inset 0 8px 28px rgba(224, 242, 254, 0.72);
+}
+
+.combat-frame-sprite[data-sprite-state="attack"] {
+  filter: drop-shadow(0 18px 12px rgba(2, 6, 23, 0.84)) drop-shadow(0 0 20px rgba(251, 146, 60, 0.46));
+}
+
+.combat-frame-sprite[data-sprite-state="hit"] {
+  filter: drop-shadow(0 12px 10px rgba(2, 6, 23, 0.8)) drop-shadow(0 0 22px rgba(254, 240, 138, 0.62)) brightness(1.18);
 }
 
 .combat-actor {

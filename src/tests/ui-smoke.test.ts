@@ -43,6 +43,12 @@ const publicWeaponAssetModules = import.meta.glob("../../public/assets/weapons/*
   import: "default"
 }) as Record<string, string>;
 
+const publicSpriteAssetModules = import.meta.glob("../../public/assets/sprites/*.png", {
+  eager: true,
+  query: "?url",
+  import: "default"
+}) as Record<string, string>;
+
 const stylesCss = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
 type EnemyAttackPresentationSpec = {
@@ -571,6 +577,19 @@ describe("town app shell", () => {
     for (const appearance of catalog.weaponAppearances) {
       expect(appearance.asset.src).toBe(`/assets/weapons/${appearance.id}.svg`);
       expect(publicWeaponAssetModules[`../../public${appearance.asset.src}`]).toMatch(/^(data:image\/svg\+xml|.*\.svg$)/);
+    }
+  });
+
+  it("keeps the arcade combat action atlases present", () => {
+    expect(Object.keys(publicSpriteAssetModules).sort()).toEqual([
+      "../../public/assets/sprites/ash-cinder-imp-atlas.png",
+      "../../public/assets/sprites/ember-warden-atlas.png",
+      "../../public/assets/sprites/liuli-blademage-atlas.png",
+      "../../public/assets/sprites/liuli-flowing-light-array-atlas.png"
+    ]);
+
+    for (const assetUrl of Object.values(publicSpriteAssetModules)) {
+      expect(assetUrl).toMatch(/\.png$/);
     }
   });
 

@@ -114,6 +114,13 @@ type BrowserFlowingLightPhaseSample = {
   skillVfxCoreAnimation: string;
   skillVfxWaveAnimation: string;
   skillVfxSparksAnimation: string;
+  spriteFrame: number;
+  spriteState: string;
+  spriteSkill: string;
+  spriteSkillPhase: string;
+  spriteBackground: string;
+  spriteSlashWidth: string;
+  spriteGhostBackground: string;
   enemies: Array<{
     id: string;
     kind: string;
@@ -471,6 +478,47 @@ type BrowserInkMarkState = {
   detonationCue: string;
   marks: number[];
 };
+
+type BrowserFrameSpriteState = {
+  stage: string;
+  oldPlayerOpacity: string;
+  oldEnemyOpacity: string;
+  oldWeaponOpacity: string;
+  playerFrame: number;
+  playerSpriteState: string;
+  playerBackground: string;
+  enemyFrames: number[];
+  enemySpriteStates: string[];
+  enemyBackgrounds: string[];
+  sceneWidth: number;
+  sceneHeight: number;
+};
+
+const readFrameSpriteStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const playerSprite = document.querySelector(".player-frame-sprite");
+  const enemySprites = Array.from(document.querySelectorAll(".combat-enemy-trash .enemy-frame-sprite"));
+  const playerArt = document.querySelector(".combat-player-art");
+  const enemyArt = document.querySelector(".enemy-art");
+  const weapon = document.querySelector(".combat-player .weapon-layer");
+  const rect = scene?.getBoundingClientRect();
+  return {
+    stage: scene?.getAttribute("data-frame-sprite-stage") ?? "",
+    oldPlayerOpacity: playerArt ? getComputedStyle(playerArt).opacity : "",
+    oldEnemyOpacity: enemyArt ? getComputedStyle(enemyArt).opacity : "",
+    oldWeaponOpacity: weapon ? getComputedStyle(weapon).opacity : "",
+    playerFrame: Number(playerSprite?.getAttribute("data-sprite-frame") ?? "-1"),
+    playerSpriteState: playerSprite?.getAttribute("data-sprite-state") ?? "",
+    playerBackground: playerSprite ? getComputedStyle(playerSprite).backgroundImage : "",
+    enemyFrames: enemySprites.map((sprite) => Number(sprite.getAttribute("data-sprite-frame") ?? "-1")),
+    enemySpriteStates: enemySprites.map((sprite) => sprite.getAttribute("data-sprite-state") ?? ""),
+    enemyBackgrounds: enemySprites.map((sprite) => getComputedStyle(sprite).backgroundImage),
+    sceneWidth: Math.round(rect?.width ?? 0),
+    sceneHeight: Math.round(rect?.height ?? 0)
+  };
+})()
+`;
 
 const readCombatStateExpression = `
 (() => {
@@ -1231,6 +1279,7 @@ const installSparkComboPhaseRecorderExpression = `
     const player = document.querySelector(".combat-player");
     const art = document.querySelector(".combat-player-art");
     const weapon = document.querySelector(".combat-weapon");
+    const sprite = document.querySelector(".player-frame-sprite");
     const skillVfx = document.querySelector('[data-player-skill-vfx="spark-combo"]');
     return {
       capturedAtMs: performance.now(),
@@ -1294,6 +1343,7 @@ const installFlowingLightPhaseRecorderExpression = `
     const player = document.querySelector(".combat-player");
     const art = document.querySelector(".combat-player-art");
     const weapon = document.querySelector(".combat-weapon");
+    const sprite = document.querySelector(".player-frame-sprite");
     const skillVfx = document.querySelector('[data-player-skill-vfx="flowing-light-chain"]');
     return {
       capturedAtMs: performance.now(),
@@ -1320,6 +1370,13 @@ const installFlowingLightPhaseRecorderExpression = `
       skillVfxCoreAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-core")).animationName : "",
       skillVfxWaveAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-wave")).animationName : "",
       skillVfxSparksAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-sparks")).animationName : "",
+      spriteFrame: Number(sprite?.getAttribute("data-sprite-frame") ?? "-1"),
+      spriteState: sprite?.getAttribute("data-sprite-state") ?? "",
+      spriteSkill: sprite?.getAttribute("data-sprite-skill") ?? "",
+      spriteSkillPhase: sprite?.getAttribute("data-sprite-skill-phase") ?? "",
+      spriteBackground: sprite ? getComputedStyle(sprite).backgroundImage : "",
+      spriteSlashWidth: sprite ? getComputedStyle(sprite, "::before").borderTopWidth : "",
+      spriteGhostBackground: sprite ? getComputedStyle(sprite, "::after").backgroundImage : "",
       enemies: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => ({
         id: enemy.getAttribute("data-enemy-id") ?? "",
         kind: enemy.getAttribute("data-enemy-kind") ?? "",
@@ -1516,6 +1573,64 @@ const readCriticalHitEvidenceExpression = `
 `;
 
 describe("real browser keyboard control", () => {
+  it("renders KOF-style player and monster action frames through real combat controls", async () => {
+    const server = await startViteServer();
+    const screenshotRoot = `${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance`;
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
+        await enterDungeonWithKeyboard(page);
+        const idle = await page.waitFor<BrowserFrameSpriteState>(
+          readFrameSpriteStateExpression,
+          (state) => state.stage === "ready" && state.enemyFrames.length === 2 && state.oldPlayerOpacity === "0" && state.oldEnemyOpacity === "0" && state.oldWeaponOpacity === "0" && state.playerBackground.includes("ember-warden-atlas") && state.enemyBackgrounds.every((background) => background.includes("ash-cinder-imp-atlas")),
+          10000
+        );
+        expect(idle.sceneWidth).toBeGreaterThan(900);
+        expect(idle.sceneHeight).toBeGreaterThan(500);
+        expect(idle.playerFrame).toBeGreaterThanOrEqual(0);
+        expect(idle.playerFrame).toBeLessThanOrEqual(3);
+        await page.captureScreenshot(`${screenshotRoot}/desktop.png`);
+
+        await page.keyDown("ArrowRight");
+        const running = await page.waitFor<BrowserFrameSpriteState>(readFrameSpriteStateExpression, (state) => state.playerSpriteState === "run" && state.playerFrame >= 4 && state.playerFrame <= 7, 4000);
+        await page.keyUp("ArrowRight");
+        expect(running.playerFrame).not.toBe(idle.playerFrame);
+
+        await page.pressKey("KeyX");
+        const attacking = await page.waitFor<BrowserFrameSpriteState>(
+          readFrameSpriteStateExpression,
+          (state) => state.playerSpriteState === "attack" && state.playerFrame >= 8 && state.playerFrame <= 11,
+          2500
+        );
+        expect(attacking.playerFrame).not.toBe(running.playerFrame);
+        await page.captureScreenshot(`${screenshotRoot}/player-attack.png`);
+
+        await page.keyDown("ArrowRight");
+        await page.waitFor<BrowserCombatState>(readCombatStateExpression, (state) => state.playerX >= 29, 3000);
+        await page.keyUp("ArrowRight");
+        const enemyAttack = await page.waitFor<BrowserFrameSpriteState>(
+          readFrameSpriteStateExpression,
+          (state) => state.enemySpriteStates.includes("attack") && state.enemyFrames.some((frame) => frame >= 8 && frame <= 11),
+          10000
+        );
+        expect(enemyAttack.enemySpriteStates).toContain("attack");
+        await page.captureScreenshot(`${screenshotRoot}/enemy-attack.png`);
+
+        await page.setViewport(390, 844);
+        const mobile = await page.waitFor<BrowserFrameSpriteState>(
+          readFrameSpriteStateExpression,
+          (state) => state.stage === "ready" && state.sceneWidth >= 350 && state.sceneWidth <= 390 && state.sceneHeight > 500,
+          5000
+        );
+        expect(mobile.enemyFrames.length).toBe(2);
+        await page.captureScreenshot(`${screenshotRoot}/mobile.png`);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
   it("uses a recovery potion through real Digit1 input and auto-saves the quickbar", async () => {
     const server = await startViteServer();
 
@@ -1599,6 +1714,22 @@ describe("real browser keyboard control", () => {
         expect(defeated.returnButtonVisible).toBe(true);
         expect(defeated.liveEnemyCount).toBeGreaterThan(0);
         expect(defeated.savedRevivalTokenCount).toBe(1);
+
+        const reviveGeometry = await page.evaluate<{ width: number; height: number; display: string; overlayHeight: number; sceneHeight: number }>(`(() => {
+          const button = document.querySelector("[data-defeat-revive='true']");
+          const overlay = document.querySelector(".combat-defeat-overlay");
+          const scene = document.querySelector(".combat-scene");
+          const rect = button?.getBoundingClientRect();
+          return {
+            width: rect?.width ?? 0,
+            height: rect?.height ?? 0,
+            display: button ? getComputedStyle(button).display : "missing",
+            overlayHeight: overlay?.getBoundingClientRect().height ?? 0,
+            sceneHeight: scene?.getBoundingClientRect().height ?? 0
+          };
+        })()`);
+        expect(reviveGeometry.width).toBeGreaterThan(0);
+        expect(reviveGeometry.height).toBeGreaterThan(0);
 
         await page.click("[data-defeat-revive='true']");
         const revived = await page.waitFor<BrowserDefeatState>(
@@ -1938,6 +2069,7 @@ describe("real browser keyboard control", () => {
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
         await seedSaveAndReload(page, createFlowingLightSwordmasterState());
         await enterDungeonWithKeyboard(page);
         await page.waitFor<BrowserRoomFlowState>(
@@ -1957,6 +2089,12 @@ describe("real browser keyboard control", () => {
         );
         await page.evaluate<boolean>(installFlowingLightPhaseRecorderExpression);
         await page.pressKey("Space");
+        await page.waitFor<BrowserFlowingLightPhaseSample[]>(
+          readFlowingLightPhaseSamplesExpression,
+          (state) => state.some((sample) => sample.hitPhase === "chain-open"),
+          1800
+        );
+        await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/liuli-flowing-light.png`);
 
         let samples: BrowserFlowingLightPhaseSample[];
         try {
@@ -2008,6 +2146,14 @@ describe("real browser keyboard control", () => {
           expect(phaseState?.skillVfxCoreAnimation).toBe(expected.coreAnimation);
           expect(phaseState?.skillVfxWaveAnimation).toBe(expected.waveAnimation);
           expect(phaseState?.skillVfxSparksAnimation).toBe(expected.sparksAnimation);
+          expect(phaseState?.spriteState).toBe("skill-dance");
+          expect(phaseState?.spriteSkill).toBe("flowing-light-chain");
+          expect(phaseState?.spriteSkillPhase).toBe(expected.phase);
+          expect(phaseState?.spriteFrame).toBeGreaterThanOrEqual(expected.phase === "chain-open" ? 0 : expected.phase === "chain-cross" ? 5 : 12);
+          expect(phaseState?.spriteFrame).toBeLessThanOrEqual(expected.phase === "chain-open" ? 4 : expected.phase === "chain-cross" ? 11 : 14);
+          expect(phaseState?.spriteBackground).toContain("liuli-flowing-light-array-atlas");
+          expect(phaseState?.spriteSlashWidth).not.toBe("0px");
+          expect(phaseState?.spriteGhostBackground).toContain("liuli-flowing-light-array-atlas");
         }
       });
     } finally {

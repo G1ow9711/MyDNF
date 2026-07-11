@@ -7218,6 +7218,89 @@ p {
   background: rgba(127, 29, 29, 0.9);
 }
 
+.loot-result-banner {
+  position: fixed;
+  z-index: 12;
+  top: 66px;
+  left: 50%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 18px;
+  width: min(720px, calc(100vw - 32px));
+  padding: 11px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  border-left-width: 4px;
+  border-radius: 6px;
+  color: #f8fafc;
+  background: rgba(3, 7, 18, 0.94);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.loot-result-heading {
+  grid-row: span 2;
+  display: grid;
+  align-content: center;
+  min-width: 112px;
+  padding-right: 14px;
+  border-right: 1px solid rgba(148, 163, 184, 0.34);
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.loot-result-heading strong {
+  color: #f8fafc;
+  font-size: 15px;
+}
+
+.loot-result-gear {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.loot-result-gear b {
+  color: #60a5fa;
+  font-size: 13px;
+}
+
+.loot-result-gear strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loot-result-gear span,
+.loot-result-rewards {
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.loot-result-rewards {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loot-result-banner.loot-rarity-epic {
+  border-left-color: #f59e0b;
+}
+
+.loot-result-banner.loot-rarity-epic .loot-result-gear b {
+  color: #fbbf24;
+}
+
+.loot-result-banner.loot-rarity-mythic {
+  border-left-color: #ef4444;
+  box-shadow: 0 12px 32px rgba(127, 29, 29, 0.46);
+}
+
+.loot-result-banner.loot-rarity-mythic .loot-result-gear b {
+  color: #fb7185;
+}
+
 @keyframes player-light-strike {
   0% { transform: translateX(0) rotate(0deg) scaleX(var(--model-scale-x, 1)); }
   35% { transform: translateX(var(--light-lunge-x, 24px)) rotate(2deg) scale(1.03) scaleX(var(--model-scale-x, 1)); }
@@ -10968,6 +11051,28 @@ p {
     bottom: auto;
     width: 100%;
     margin-top: 14px;
+  }
+
+  .loot-result-banner {
+    top: 132px;
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .loot-result-heading {
+    grid-row: auto;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .loot-result-gear {
+    flex-wrap: wrap;
+  }
+
+  .loot-result-rewards {
+    white-space: normal;
   }
 }
 

@@ -1,5 +1,5 @@
 import { catalog } from "../data/catalog";
-import type { ClassSkillDefinition, ConsumableId, DungeonDifficultyId, DungeonId, GameState } from "./types";
+import type { ClassSkillDefinition, ConsumableId, DungeonDifficultyId, DungeonId, GameState, GearItem, Rarity } from "./types";
 import type { CombatInput } from "./input";
 import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
 import { classResourceValue, skillCooldownMultiplier, skillDamageMultiplier } from "../systems/classes";
@@ -7209,21 +7209,71 @@ export function skillCooldownRemaining(run: CombatRun, skillId: string): number 
   return Math.max(0, (run.player.skillCooldowns[skillId] ?? 0) - run.elapsedMs);
 }
 
+function roomGearRarity(run: CombatRun, roomCount: number): Rarity {
+  const bossRoom = run.roomIndex === roomCount - 1;
+  const eliteRoom = roomCount > 1 && run.roomIndex === roomCount - 2;
+
+  if (run.difficultyId === "warrior") {
+    return bossRoom ? "mythic" : "epic";
+  }
+
+  if (run.difficultyId === "adventure" && (eliteRoom || bossRoom)) {
+    return "epic";
+  }
+
+  return bossRoom ? "epic" : "rare";
+}
+
+function stableLootOffset(run: CombatRun): number {
+  const difficultyOffset = ["normal", "adventure", "warrior"].indexOf(run.difficultyId);
+  const dungeonOffset = catalog.dungeons.findIndex((dungeon) => dungeon.id === run.dungeonId);
+
+  return run.roomIndex + Math.max(0, difficultyOffset) + Math.max(0, dungeonOffset);
+}
+
+function leastOwnedCandidate(run: CombatRun, candidates: readonly GearItem[]): GearItem | undefined {
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  const ownedCounts = new Map<string, number>();
+  for (const owned of run.state.player.inventory) {
+    ownedCounts.set(owned.catalogGearId, (ownedCounts.get(owned.catalogGearId) ?? 0) + 1);
+  }
+
+  const minimumOwned = Math.min(...candidates.map((item) => ownedCounts.get(item.id) ?? 0));
+  const leastOwned = candidates.filter((item) => (ownedCounts.get(item.id) ?? 0) === minimumOwned);
+
+  return leastOwned[stableLootOffset(run) % leastOwned.length];
+}
+
+function dungeonGearDrop(run: CombatRun, roomCount: number, lootSetIds: readonly string[]): GearItem | undefined {
+  const rarity = roomGearRarity(run, roomCount);
+  const allowedSetIds = new Set<string>(lootSetIds);
+  const candidates = catalog.gear.filter((item) =>
+    item.rarity === rarity && (rarity === "rare" ? item.setId === undefined : item.setId !== undefined && allowedSetIds.has(item.setId))
+  );
+
+  return leastOwnedCandidate(run, candidates);
+}
+
 function createLootEvent(run: CombatRun): CombatLootEvent {
   const dungeonBonus = run.dungeonId === "liuli-furnace" ? 1 : 0;
   const dungeon = getDungeon(run.dungeonId);
   const rewardMultiplier = getDungeonDifficulty(run.difficultyId).rewardMultiplier;
   const bossRoom = dungeon !== undefined && run.roomIndex === dungeon.rooms - 1;
+  const farmingMultiplier = 1 + Math.max(0, run.combatProfile.stats.goldFind ?? 0) / 100;
+  const gearDrop = dungeon ? dungeonGearDrop(run, dungeon.rooms, dungeon.lootSetIds) : undefined;
 
   return {
     dungeonId: run.dungeonId,
     roomIndex: run.roomIndex,
     experience: Math.round((110 + run.roomIndex * 20 + dungeonBonus * 60) * rewardMultiplier),
-    gold: Math.round((120 + run.roomIndex * 30 + dungeonBonus * 80) * rewardMultiplier),
-    ironDust: Math.round((6 + run.roomIndex * 2) * rewardMultiplier),
-    arcShard: Math.round(dungeonBonus * rewardMultiplier),
+    gold: Math.round((120 + run.roomIndex * 30 + dungeonBonus * 80) * rewardMultiplier * farmingMultiplier),
+    ironDust: Math.round((6 + run.roomIndex * 2) * rewardMultiplier * farmingMultiplier),
+    arcShard: Math.round(dungeonBonus * rewardMultiplier * farmingMultiplier),
     consumables: bossRoom ? { "revival-token": 1 } : { "healing-potion": 1 },
-    gearDropId: run.roomIndex % 2 === 0 ? catalog.gear[run.roomIndex % catalog.gear.length]?.id : undefined
+    gearDropId: gearDrop?.id
   };
 }
 

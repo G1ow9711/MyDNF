@@ -4210,3 +4210,17 @@
 - Implemented mounted enemy hitstun/super-armor hooks and dedicated model/armor animations. Focused real-browser acceptance passed twice after replacing a flaky polling-only short-window assertion with an animation-frame plus mutation evidence recorder.
 - Verification complete: core and computed-style regression 642/642; production build passed; `git diff --check` passed with line-ending warnings only; serial mounted-browser acceptance passed 29/29 in 624.03 seconds.
 - Implementation, tests, design, and verification evidence were committed as `96dadd3 完善后跳硬直与怪物霸体`, pushed to `origin/feature/vertical-slice`, and confirmed at zero branch divergence.
+
+## Task 184 Dungeon Target Farming and Loot Results
+- Confirmed a clean, zero-divergence branch at `8a992ed` and kept the existing hidden Vite server on `http://127.0.0.1:5174/`.
+- Audited dungeon catalogs, room settlement, equipment generation, set evaluation, reward application, and mounted result flow. Selected deterministic dungeon-pool rotation plus difficulty rarity gates and concrete loot presentation.
+- No subagent was started; explicit user permission remains required.
+- Locked the room/difficulty drop matrix while preserving the existing first-room inventory/save loop. Added the Task 184 design and TDD implementation plan; no production code changed before RED coverage.
+- Added five domain tests for rarity gates, five-room classification, pool isolation, deterministic anti-duplicate rotation, and equipped `goldFind`. RED passed as intended: all five failed on the missing behavior.
+- Implemented deterministic least-owned dungeon-pool selection, difficulty/room rarity gates, rare filler drops, and post-difficulty `goldFind` scaling. Six focused combat reward tests pass.
+- Added runtime-only `lastLoot`, concrete catalog-aware room/Boss result markup, responsive styling, and stale-result clearing on new dungeon preparation/entry. Two reducer/render integration tests pass.
+- Added real-browser acceptance that selects Warrior with two ArrowRight presses, clears the first room through combat keys, enters the next room, observes an exact Cinder-pool epic result, and reloads to prove that exact gear ID persisted. Focused run passed in 18.71 seconds.
+- Broad non-keyboard regression passed 649/649 across 15 files and the production build passed. The first 30-scenario browser run passed 29/30; its only failure was an obsolete fixed inventory count in the full campaign route after every room began awarding the specified gear.
+- Updated the full campaign's exact inventory totals from the old every-other-room values to the new every-room matrix; its focused Cinder-to-Liuli route passed in 100.75 seconds.
+- Diagnosed a later full-suite transient reinforcement click: its helper bypassed all remaining attempts when a genuine click caused no state change. Added state-aware timeout retry matching the existing trade helper; the focused ecosystem route passed.
+- Final verification passed: 649/649 non-keyboard tests, production build, `git diff --check`, HTTP 200 on `http://127.0.0.1:5174/`, and all 30/30 serial real-browser keyboard scenarios in 637.41 seconds.

@@ -310,7 +310,21 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Expose mounted actor state and cue-specific motion/VFX for hitstun and super armor.
 - [x] Verify the real keyboard path in Edge/Chrome CDP, run core regression/build, then commit and push in Chinese.
 
+## Task 184 Dungeon Target Farming and Loot Results
+- [x] Specify difficulty-aware dungeon loot using each dungeon's `lootSetIds` and deterministic offline rotation.
+- [x] Add RED/GREEN coverage for normal/adventure/warrior room and boss rarity rules plus dungeon-pool isolation.
+- [x] Apply active `goldFind` build stats to room gold/material rewards without double scaling difficulty.
+- [x] Render concrete room and final-clear loot results, including rarity, set, slot, and reward totals.
+- [x] Verify a real keyboard clear obtains the expected targeted set drop and persists it after reload; Chinese commit and push remain the final repository action.
+
 ### Errors Encountered
+- The staged Task 184 diff check found one extra blank line at the end of the new design document. Removed it, re-staged the two touched records, and re-ran the authoritative raw Git check after RTK returned an empty nonzero result for the cached mode.
+- Task 184 second full browser run again passed 29/30; the failure moved to the previously green town-ecosystem scenario. A real reinforcement click produced no toast or state change, and the helper's uncaught wait timeout bypassed its advertised four-attempt retry loop. Fix the helper to retry only this proven no-state-change timeout.
+- Task 184 first full 30-scenario browser run passed 29/30. The default Cinder-to-Liuli campaign still expected the old every-other-room inventory totals (4 after Cinder, 7 after Liuli); the new explicit every-room matrix correctly yields 5 and 10. Updated all four exact progression assertions, leaving production behavior unchanged.
+- Task 184 first GREEN run passed five of six focused checks. The remaining failure came from `toMatchObject({ setId: undefined })` treating an absent optional property differently from an explicit `undefined`; split it into rarity and `toBeUndefined()` assertions.
+- A Task 184 PowerShell search used a double-quoted regular expression containing escaped quotes; PowerShell parsed it before `rg` and rejected the command. Re-ran with one simple single-quoted pattern; no project files were affected.
+- Task 184 的一次 `rtk rg` 把 Windows 不支持的 `src/tests/render*.test.ts` 通配符作为路径传入并报错；其余明确文件搜索正常。后续只传目录或完整文件名。
+- The first Task 184 findings patch targeted a stale section title (`Dungeon Target Farming and Loot Results`) instead of the actual `Target-Farming Audit` heading. No file changed; re-read the tail and patched the authoritative heading.
 - Task 183 首次 29 场全浏览器回归为 28/29；新用例在全套负载下漏采 280 ms 硬直窗口，但末态 HP 已证明真实轻击命中。改为攻击前安装 MutationObserver 与 requestAnimationFrame 证据记录器，不修改游戏时长或放宽状态/动画断言。
 - Task 183 首次真实浏览器路线已通过后跳中间帧，但杂兵硬直的计算样式仍被后置的普通轻击反应选择器覆盖。将硬直选择器绑定权威 `data-enemy-hitstun-active="true"` 并提高权重后重验。
 - Task 183 的一次组合 `rg` 命令含未闭合 PowerShell 双引号，解析前即失败且未触碰项目文件。后续改用单引号简单模式和分段读取。

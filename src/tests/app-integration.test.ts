@@ -423,6 +423,57 @@ describe("playable app integration actions", () => {
     expect(model.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "loot-drop" }]));
   });
 
+  it("keeps and renders a concrete targeted room drop after entering the next room", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, {
+      type: "enterDungeon",
+      dungeonId: "cinder-kiln-alley",
+      difficultyId: "warrior"
+    });
+    model = settleClearedRoom(model);
+
+    const loot = model.lastLoot;
+    const gear = catalog.gear.find((item) => item.id === loot?.gearDropId);
+    const html = renderAppHtml(model);
+
+    expect(model.mode).toBe("combat");
+    expect(loot).toMatchObject({ dungeonId: "cinder-kiln-alley", roomIndex: 0 });
+    expect(gear?.rarity).toBe("epic");
+    expect(catalog.dungeons.find((item) => item.id === "cinder-kiln-alley")?.lootSetIds).toContain(gear?.setId);
+    expect(html).toContain('data-loot-result="true"');
+    expect(html).toContain('data-loot-room-index="0"');
+    expect(html).toContain(`data-loot-gear-id="${gear?.id}"`);
+    expect(html).toContain(`data-loot-rarity="${gear?.rarity}"`);
+    expect(html).toContain(`data-loot-set-id="${gear?.setId}"`);
+    expect(html).toContain(`data-loot-slot="${gear?.slot}"`);
+    expect(html).toContain(gear?.displayName ?? "missing gear");
+  });
+
+  it("preserves the final boss loot result when combat returns to town", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+
+    const loot = model.lastLoot;
+    const gear = catalog.gear.find((item) => item.id === loot?.gearDropId);
+    const set = catalog.epicSets.find((item) => item.id === gear?.setId);
+    const html = renderAppHtml(model);
+
+    expect(model.mode).toBe("town");
+    expect(loot).toMatchObject({ dungeonId: "cinder-kiln-alley", roomIndex: 2 });
+    expect(gear?.rarity).toBe("epic");
+    expect(html).toContain('data-loot-result="true"');
+    expect(html).toContain('data-loot-room-index="2"');
+    expect(html).toContain(`data-loot-gold="${loot?.gold}"`);
+    expect(html).toContain("首领战利品");
+    expect(html).toContain("史诗");
+    expect(html).toContain(set?.displayName ?? "missing set");
+  });
+
   it("awards room experience so advancement can be reached through normal dungeon play", () => {
     const baseState = withQuestReady(createInitialState(), "prologue-ember-warden");
     let model = createAppModel({

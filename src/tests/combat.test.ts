@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { createInitialState, createOwnedGear } from "../game/state";
+import { addOwnedGear, createInitialState, createOwnedGear } from "../game/state";
 import type { GameState, GearSlot, OwnedGearItem } from "../game/types";
 import { equipItem } from "../systems/inventory";
 import { advanceClass, selectBaseClass, upgradeSkill } from "../systems/classes";
@@ -225,6 +225,17 @@ function defeatAll(run: CombatRun): CombatRun {
       }),
     run
   );
+}
+
+function lootForRoom(
+  state: GameState,
+  dungeonId: CombatRun["dungeonId"],
+  difficultyId: CombatRun["difficultyId"],
+  roomIndex: number
+) {
+  const run = createCombatRun(state, dungeonId, difficultyId);
+
+  return finishRoom(defeatAll({ ...run, roomIndex })).lootEvents.at(-1)!;
 }
 
 function reachBossRoom(run: CombatRun): CombatRun {
@@ -655,7 +666,7 @@ describe("combat difficulty scaling", () => {
     expect(missed.events.some((event) => event.kind === "player-hit" && event.skillId === "taotie-forge-collapse")).toBe(false);
   });
 
-  it("difficulty scales room currency rewards once without changing drop identity", () => {
+  it("difficulty scales room currency rewards once independently from rarity gates", () => {
     const normal = finishRoom(defeatAll(createCombatRun(unlockLiuli(createInitialState()), "liuli-furnace")));
     const adventure = finishRoom(
       defeatAll(createCombatRun(unlockLiuli(createInitialState()), "liuli-furnace", "adventure"))
@@ -668,9 +679,94 @@ describe("combat difficulty scaling", () => {
       gold: Math.round(normalLoot.gold * 1.35),
       ironDust: Math.round(normalLoot.ironDust * 1.35),
       arcShard: Math.round(normalLoot.arcShard * 1.35),
-      consumables: normalLoot.consumables,
-      gearDropId: normalLoot.gearDropId
+      consumables: normalLoot.consumables
     });
+    expect(catalog.gear.find((item) => item.id === normalLoot.gearDropId)).toMatchObject({ rarity: "rare" });
+    expect(catalog.gear.find((item) => item.id === adventureLoot.gearDropId)).toMatchObject({ rarity: "rare" });
+  });
+
+  it("uses DNF-style rarity gates for normal, adventure, and warrior Cinder rooms", () => {
+    const expectedRarities = {
+      normal: ["rare", "rare", "epic"],
+      adventure: ["rare", "epic", "epic"],
+      warrior: ["epic", "epic", "mythic"]
+    } as const;
+
+    for (const [difficultyId, rarities] of Object.entries(expectedRarities) as Array<
+      [CombatRun["difficultyId"], readonly string[]]
+    >) {
+      const actual = rarities.map((_, roomIndex) => {
+        const loot = lootForRoom(createInitialState(), "cinder-kiln-alley", difficultyId, roomIndex);
+        return catalog.gear.find((item) => item.id === loot.gearDropId)?.rarity;
+      });
+
+      expect(actual).toEqual(rarities);
+    }
+  });
+
+  it("treats only the final two Liuli rooms as elite and boss rarity gates", () => {
+    const normal = Array.from({ length: 5 }, (_, roomIndex) =>
+      catalog.gear.find(
+        (item) => item.id === lootForRoom(unlockLiuli(createInitialState()), "liuli-furnace", "normal", roomIndex).gearDropId
+      )?.rarity
+    );
+    const adventure = Array.from({ length: 5 }, (_, roomIndex) =>
+      catalog.gear.find(
+        (item) => item.id === lootForRoom(unlockLiuli(createInitialState()), "liuli-furnace", "adventure", roomIndex).gearDropId
+      )?.rarity
+    );
+    const warrior = Array.from({ length: 5 }, (_, roomIndex) =>
+      catalog.gear.find(
+        (item) => item.id === lootForRoom(unlockLiuli(createInitialState()), "liuli-furnace", "warrior", roomIndex).gearDropId
+      )?.rarity
+    );
+
+    expect(normal).toEqual(["rare", "rare", "rare", "rare", "epic"]);
+    expect(adventure).toEqual(["rare", "rare", "rare", "epic", "epic"]);
+    expect(warrior).toEqual(["epic", "epic", "epic", "epic", "mythic"]);
+  });
+
+  it("keeps targeted drops inside each dungeon set pool and filler drops non-set", () => {
+    const cinderDungeon = catalog.dungeons.find((dungeon) => dungeon.id === "cinder-kiln-alley")!;
+    const liuliDungeon = catalog.dungeons.find((dungeon) => dungeon.id === "liuli-furnace")!;
+    const cinderFiller = catalog.gear.find(
+      (item) => item.id === lootForRoom(createInitialState(), "cinder-kiln-alley", "normal", 0).gearDropId
+    )!;
+    const cinderTarget = catalog.gear.find(
+      (item) => item.id === lootForRoom(createInitialState(), "cinder-kiln-alley", "warrior", 2).gearDropId
+    )!;
+    const liuliTarget = catalog.gear.find(
+      (item) => item.id === lootForRoom(unlockLiuli(createInitialState()), "liuli-furnace", "warrior", 4).gearDropId
+    )!;
+
+    expect(cinderFiller.rarity).toBe("rare");
+    expect(cinderFiller.setId).toBeUndefined();
+    expect(cinderDungeon.lootSetIds).toContain(cinderTarget.setId);
+    expect(liuliDungeon.lootSetIds).toContain(liuliTarget.setId);
+    expect(cinderDungeon.lootSetIds).not.toContain(liuliTarget.setId);
+  });
+
+  it("rotates toward an unowned targeted piece before repeating the same drop", () => {
+    const first = lootForRoom(createInitialState(), "cinder-kiln-alley", "normal", 2);
+    const stateWithFirst = addOwnedGear(createInitialState(), first.gearDropId!);
+    const second = lootForRoom(stateWithFirst, "cinder-kiln-alley", "normal", 2);
+
+    expect(first.gearDropId).toBeTruthy();
+    expect(second.gearDropId).toBeTruthy();
+    expect(second.gearDropId).not.toBe(first.gearDropId);
+  });
+
+  it("applies equipped gold-find once after difficulty scaling without changing experience", () => {
+    const initial = createInitialState();
+    const withWeapon = withEquippedOwnedGear(initial, createOwnedGear(gearId("market-wind", "weapon"), "farm-weapon"));
+    const farmer = withEquippedOwnedGear(withWeapon, createOwnedGear(gearId("market-wind", "core"), "farm-core"));
+    const plainLoot = lootForRoom(initial, "cinder-kiln-alley", "adventure", 1);
+    const farmerLoot = lootForRoom(farmer, "cinder-kiln-alley", "adventure", 1);
+
+    expect(farmerLoot.experience).toBe(plainLoot.experience);
+    expect(farmerLoot.gold).toBe(Math.round(150 * 1.35 * 1.08));
+    expect(farmerLoot.ironDust).toBe(Math.round(8 * 1.35 * 1.08));
+    expect(farmerLoot.gold).toBeGreaterThan(plainLoot.gold);
   });
 
   it("difficulty persists through direct finish and gate entry into later rooms", () => {

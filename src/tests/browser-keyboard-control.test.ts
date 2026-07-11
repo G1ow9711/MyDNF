@@ -320,6 +320,18 @@ type BrowserSavedState = {
   savedInventoryCount: number;
 };
 
+type BrowserLootResultState = {
+  appMode: string;
+  combatDifficulty: string;
+  gearId: string;
+  rarity: string;
+  setId: string;
+  slot: string;
+  roomIndex: string;
+  gold: number;
+  savedGearIds: string[];
+};
+
 type BrowserTownEcosystemState = {
   appMode: string;
   toast: string;
@@ -808,6 +820,29 @@ const readSavedStateExpression = `
     savedIronDust: Number(parsed?.player?.currencies?.ironDust ?? 0),
     savedArcShard: Number(parsed?.player?.currencies?.arcShard ?? 0),
     savedInventoryCount: Number(parsed?.player?.inventory?.length ?? 0)
+  };
+})()
+`;
+
+const readLootResultStateExpression = `
+(() => {
+  const shell = document.querySelector(".app-shell");
+  const combat = document.querySelector(".combat-scene");
+  const loot = document.querySelector("[data-loot-result='true']");
+  const rawSave = localStorage.getItem(${JSON.stringify(SAVE_KEY)});
+  const saved = rawSave ? JSON.parse(rawSave) : null;
+  return {
+    appMode: shell?.getAttribute("data-app-mode") ?? "",
+    combatDifficulty: combat?.getAttribute("data-combat-difficulty") ?? "",
+    gearId: loot?.getAttribute("data-loot-gear-id") ?? "",
+    rarity: loot?.getAttribute("data-loot-rarity") ?? "",
+    setId: loot?.getAttribute("data-loot-set-id") ?? "",
+    slot: loot?.getAttribute("data-loot-slot") ?? "",
+    roomIndex: loot?.getAttribute("data-loot-room-index") ?? "",
+    gold: Number(loot?.getAttribute("data-loot-gold") ?? "0"),
+    savedGearIds: Array.isArray(saved?.player?.inventory)
+      ? saved.player.inventory.map((item) => String(item?.catalogGearId ?? ""))
+      : []
   };
 })()
 `;
@@ -2145,7 +2180,7 @@ describe("real browser keyboard control", () => {
           arcShard: 0,
           valorToken: 0
         });
-        expect(unlocked.saved?.player.inventory).toHaveLength(4);
+        expect(unlocked.saved?.player.inventory).toHaveLength(5);
 
         await page.click('[data-mode="town"]');
         await enterDungeonWithKeyboard(page, "Enter", "liuli-furnace");
@@ -2214,7 +2249,7 @@ describe("real browser keyboard control", () => {
           arcShard: 5,
           valorToken: 0
         });
-        expect(liuliReady.saved?.player.inventory).toHaveLength(7);
+        expect(liuliReady.saved?.player.inventory).toHaveLength(10);
 
         await page.click('[data-quest-id="chapter-liuli-furnace"]');
         const chapterClaimed = await page.waitFor<BrowserTownEcosystemState>(
@@ -2231,7 +2266,7 @@ describe("real browser keyboard control", () => {
           arcShard: 13,
           valorToken: 3
         });
-        expect(chapterClaimed.saved?.player.inventory).toHaveLength(7);
+        expect(chapterClaimed.saved?.player.inventory).toHaveLength(10);
 
         await page.reload();
         const restored = await page.waitFor<BrowserTownEcosystemState>(
@@ -2243,7 +2278,7 @@ describe("real browser keyboard control", () => {
           15000
         );
         expect(restored.saved?.player.currencies).toEqual(chapterClaimed.saved?.player.currencies);
-        expect(restored.saved?.player.inventory).toHaveLength(7);
+        expect(restored.saved?.player.inventory).toHaveLength(10);
       });
     } finally {
       await server.close();
@@ -3102,6 +3137,66 @@ describe("real browser keyboard control", () => {
     }
   }, 90000);
 
+  it("earns a targeted Warrior epic through real keyboard combat and persists the exact drop", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, createInitialState());
+        await page.evaluate<void>(`document.querySelector('[data-prepare-dungeon="cinder-kiln-alley"]')?.focus()`);
+        await page.pressKey("Enter");
+        await page.waitFor<BrowserDungeonDifficultyState>(
+          readDungeonDifficultyStateExpression,
+          (state) => state.appMode === "dungeon-prep" && state.selectedDifficulty === "normal",
+          5000
+        );
+        await page.pressKey("ArrowRight");
+        await page.pressKey("ArrowRight");
+        await page.waitFor<BrowserDungeonDifficultyState>(
+          readDungeonDifficultyStateExpression,
+          (state) => state.selectedDifficulty === "warrior" && state.fatigueCost === 10,
+          5000
+        );
+        await page.pressKey("Enter");
+        await page.waitFor<BrowserDungeonDifficultyState>(
+          readDungeonDifficultyStateExpression,
+          (state) => state.appMode === "combat" && state.combatDifficulty === "warrior",
+          5000
+        );
+
+        await clearCurrentRoomWithKeyboard(page, 28);
+        await walkThroughOpenGate(page);
+        const earned = await page.waitFor<BrowserLootResultState>(
+          readLootResultStateExpression,
+          (state) =>
+            state.appMode === "combat" &&
+            state.combatDifficulty === "warrior" &&
+            state.roomIndex === "0" &&
+            state.rarity === "epic" &&
+            state.gearId.length > 0 &&
+            state.savedGearIds.includes(state.gearId),
+          5000
+        );
+
+        expect(catalog.dungeons.find((dungeon) => dungeon.id === "cinder-kiln-alley")?.lootSetIds).toContain(earned.setId);
+        expect(earned.slot).not.toBe("");
+        expect(earned.gold).toBe(216);
+
+        await page.reload();
+        const restored = await page.waitFor<BrowserLootResultState>(
+          readLootResultStateExpression,
+          (state) => state.appMode === "town" && state.savedGearIds.includes(earned.gearId),
+          15000
+        );
+
+        expect(restored.gearId).toBe("");
+        expect(restored.savedGearIds).toContain(earned.gearId);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 90000);
+
   it("shows natural monster windup, skill VFX, and model motion in the live browser", async () => {
     const server = await startViteServer();
 
@@ -3679,11 +3774,19 @@ async function reinforceGearThroughRealClicks(
     }
 
     await page.click(`[data-app-action="reinforce"][data-gear-id="${gearId}"]`);
-    const after = await page.waitFor<BrowserTownEcosystemState>(
-      readTownEcosystemStateExpression,
-      (state) => (state.saved?.player.currencies.ironDust ?? ironDustBefore) < ironDustBefore,
-      3000
-    );
+    let after: BrowserTownEcosystemState;
+    try {
+      after = await page.waitFor<BrowserTownEcosystemState>(
+        readTownEcosystemStateExpression,
+        (state) => (state.saved?.player.currencies.ironDust ?? ironDustBefore) < ironDustBefore,
+        3000
+      );
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.startsWith("Timed out waiting for browser expression") || attempt === maxAttempts - 1) {
+        throw error;
+      }
+      continue;
+    }
     const afterGear = after.saved?.player.inventory.find((item) => item.instanceId === gearId);
 
     if ((afterGear?.reinforceLevel ?? 0) > (beforeGear?.reinforceLevel ?? 0)) {

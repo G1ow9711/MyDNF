@@ -29,7 +29,7 @@ import {
   type CombatVector
 } from "../game/combat";
 import { addOwnedGear, createInitialState } from "../game/state";
-import type { AdvancementId, ClassId, ClassSkillDefinition, ConsumableId, DungeonDifficultyId, DungeonId, GameState, SkillAnimationDefinition } from "../game/types";
+import type { AdvancementId, ClassId, ClassSkillDefinition, ConsumableId, DungeonDifficultyId, DungeonId, GameState, GearSlot, Rarity, SkillAnimationDefinition } from "../game/types";
 import { createRenderPlan } from "../game/render";
 import {
   chooseMusicLayer,
@@ -71,6 +71,7 @@ export interface AppViewModel {
   mode: AppMode;
   dungeonPrep?: { dungeonId: DungeonId; difficultyId: DungeonDifficultyId };
   combatRun?: CombatRun;
+  lastLoot?: CombatLootEvent;
   message?: string;
   audio?: AudioState;
 }
@@ -2193,6 +2194,65 @@ function renderActivePanel(model: AppViewModel): string {
   }
 }
 
+const lootRarityNames: Record<Rarity, string> = {
+  common: "普通",
+  uncommon: "高级",
+  rare: "稀有",
+  epic: "史诗",
+  mythic: "神话"
+};
+
+const lootSlotNames: Record<GearSlot, string> = {
+  weapon: "武器",
+  core: "核心",
+  head: "头肩",
+  body: "上衣",
+  legs: "下装",
+  belt: "腰带",
+  boots: "鞋",
+  necklace: "项链",
+  bracelet: "手镯",
+  ring: "戒指",
+  sigil: "辅助装备",
+  charm: "魔法石"
+};
+
+function renderLootResult(loot: CombatLootEvent | undefined): string {
+  if (!loot) {
+    return "";
+  }
+
+  const dungeon = catalog.dungeons.find((item) => item.id === loot.dungeonId);
+  const gear = catalog.gear.find((item) => item.id === loot.gearDropId);
+  const set = catalog.epicSets.find((item) => item.id === gear?.setId);
+  const bossRoom = dungeon !== undefined && loot.roomIndex === dungeon.rooms - 1;
+  const consumables = Object.entries(loot.consumables ?? {})
+    .filter(([, amount]) => amount > 0)
+    .map(([id, amount]) => `${id === "revival-token" ? "复活币" : "恢复药剂"} +${amount}`)
+    .join(" · ");
+  const materialRewards = [
+    `经验 +${loot.experience}`,
+    `金币 +${loot.gold}`,
+    `玄铁尘 +${loot.ironDust}`,
+    loot.arcShard > 0 ? `弧光碎片 +${loot.arcShard}` : "",
+    consumables
+  ].filter(Boolean).join(" · ");
+  const gearAttributes = gear
+    ? ` data-loot-gear-id="${gear.id}" data-loot-rarity="${gear.rarity}" data-loot-set-id="${gear.setId ?? ""}" data-loot-slot="${gear.slot}"`
+    : " data-loot-gear-id=\"\" data-loot-rarity=\"\" data-loot-set-id=\"\" data-loot-slot=\"\"";
+
+  return `
+    <aside class="loot-result-banner${gear ? ` loot-rarity-${gear.rarity}` : ""}" data-loot-result="true" data-loot-dungeon-id="${loot.dungeonId}" data-loot-room-index="${loot.roomIndex}" data-loot-gold="${loot.gold}" data-loot-iron-dust="${loot.ironDust}" data-loot-arc-shard="${loot.arcShard}"${gearAttributes} role="status" aria-label="${bossRoom ? "首领战利品" : "房间战利品"}">
+      <div class="loot-result-heading">
+        <span>${bossRoom ? "首领战利品" : `房间 ${loot.roomIndex + 1} 战利品`}</span>
+        <strong>${dungeon?.displayName ?? loot.dungeonId}</strong>
+      </div>
+      ${gear ? `<div class="loot-result-gear"><b>${lootRarityNames[gear.rarity]}</b><strong>${gear.displayName}</strong><span>${lootSlotNames[gear.slot]} · ${set ? `${set.displayName}套装` : "散件"}</span></div>` : ""}
+      <div class="loot-result-rewards">${materialRewards}</div>
+    </aside>
+  `;
+}
+
 export function renderAppHtml(model: AppViewModel): string {
   const scene = model.mode === "combat" && model.combatRun
     ? renderCombatScene(model.combatRun, model.state)
@@ -2209,6 +2269,7 @@ export function renderAppHtml(model: AppViewModel): string {
         ${scene}
         ${model.mode === "combat" ? "" : renderActivePanel(model)}
       </section>
+      ${renderLootResult(model.lastLoot)}
       ${model.message ? `<div class="toast">${model.message}</div>` : ""}
     </main>
   `;
@@ -2307,6 +2368,7 @@ function applyFinishedRoom(model: AppModel, finishedRun: CombatRun, roomMessage:
       state: nextState,
       mode: "town",
       combatRun: undefined,
+      lastLoot: latestLoot,
       message: "副本通关，战利品已入账",
       audio: playSfx(playBgm(model.audio, chooseMusicLayer({ mode: "town" }).trackId), "loot-drop")
     };
@@ -2319,6 +2381,7 @@ function applyFinishedRoom(model: AppModel, finishedRun: CombatRun, roomMessage:
       ...finishedRun,
       state: nextState
     },
+    lastLoot: latestLoot,
     message: roomMessage,
     audio: playSfx(model.audio, "loot-drop")
   };
@@ -2393,6 +2456,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           difficultyId: preferredDungeonDifficulty(model.state, action.dungeonId)
         },
         combatRun: undefined,
+        lastLoot: undefined,
         message: undefined
       };
     case "selectDungeonDifficulty":
@@ -2430,6 +2494,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           mode: "combat",
           dungeonPrep: undefined,
           combatRun: createCombatRun(state, action.dungeonId, difficultyId),
+          lastLoot: undefined,
           message: undefined,
           audio: playBgm(model.audio, chooseMusicLayer({ mode: "dungeon", dungeonId: action.dungeonId, danger: 0.2 }).trackId)
         };

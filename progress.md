@@ -4236,3 +4236,4 @@
 - Added a real-browser Night Contract Hunter route with 22% legal crit gear. Real keyboard combat triggered and recorded mounted critical damage, hitstop, scene feedback, and non-idle player/weapon animations; focused acceptance passed in 14.34 seconds.
 - Broad non-keyboard regression passed 655/655 across 15 files, including all 25 real-browser computed-style scenarios. TypeScript and Vite production build passed.
 - Final serial real-browser keyboard regression passed 31/31 in 650.89 seconds, including the new deterministic critical route and all existing story, Boss, economy, save, class, control, and VFX scenarios.
+- Task 185 implementation, tests, design, and acceptance evidence were committed as `2e06045 实现离散暴击与伤害反馈` and pushed to `origin/feature/vertical-slice`.

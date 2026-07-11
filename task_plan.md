@@ -322,7 +322,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Apply critical resolution once to direct and scheduled player hit frames without affecting monster damage or misses.
 - [x] Emit critical metadata, stronger impact feedback, and model-following damage-number/VFX presentation.
 - [x] Prove crit-focused gear materially changes hit outcomes while zero-crit builds never crit.
-- [x] Verify critical hits through real keyboard combat and run full regression/build; Chinese commit and push are the final repository action.
+- [x] Verify critical hits through real keyboard combat, run full regression/build, then commit and push with Chinese messages.
 
 ### Errors Encountered
 - A combined Task 185 evidence patch targeted `progress.md` with “move an initially valid target before” while the file contained “move an initially valid target out before”; patch verification rejected the entire edit. Re-read the tail and reapplied against the exact text; no partial file changes occurred.

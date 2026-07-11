@@ -1349,3 +1349,9 @@
 - Reset is rejected when no points are invested or gold is insufficient. The class panel exposes invested points, cost, and an enabled state derived from those same rules.
 - Focused browser acceptance used the mounted class UI, clicked the real reset control, observed 3 refunded points and 800 gold spent, then reloaded and verified the local save retained the reset state.
 - Final regression passed 504/504 core tests and all 26 serial mounted-browser scenarios in 557.24 seconds.
+
+## Task 182 Parallel Completion-Gap Audit
+- Combat audit found `backstep` is fully implemented but lacks a true keyboard command, while hitstun/super-armor and real critical hits remain larger strict-combat gaps.
+- Progression audit found dungeon `lootSetIds` are not consumed by actual drops and set descriptions mostly collapse to additive stats, blocking sustainable multi-build farming.
+- Dungeon audit and local source inspection agreed on the immediate outer-loop P0: town buttons directly create combat; no preparation view, dungeon difficulty, fatigue state, scaling, or result context exists.
+- Selected scope is preparation plus three difficulty tiers and persisted fatigue. It creates a foundation for later targeted epic drops and clear grading without changing established action timing, maps, or VFX.

@@ -294,3 +294,14 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Wire reset through the class panel, app reducer, audio feedback, auto-save, and disabled-state rules.
 - [x] Add rule, rendering, and real-browser click/reload acceptance coverage.
 - [x] Run full core and serial real-browser regression, then commit and push with a Chinese message.
+
+## Task 182 Dungeon Preparation, Difficulty, and Fatigue
+- [x] Audit combat, progression, and dungeon-loop gaps with three parallel read-only agents.
+- [x] Select and document the dungeon preparation, three-difficulty, and persisted-fatigue design.
+- [ ] Implement domain rules and migration with RED/GREEN tests.
+- [ ] Apply difficulty to enemy HP, enemy damage, and room rewards.
+- [ ] Build mounted preparation UI plus mouse and keyboard control.
+- [ ] Run focused/full regression, document evidence, commit, and push in Chinese.
+
+### Errors Encountered
+- PowerShell parsed an over-escaped `rg` alternation as file paths during the Task 182 audit. Replaced it with simple `rg` patterns and direct `Get-Content` ranges; no project files were affected.

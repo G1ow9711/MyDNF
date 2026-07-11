@@ -4189,3 +4189,7 @@
 - Added class-panel reset status/control, reducer handling, select SFX, auto-save compatibility, and CSS for the compact reset row.
 - Added class rule coverage, UI smoke assertions, and a mounted real-browser click/reload acceptance test. Focused build, 94 rule/UI tests, and the new browser scenario passed.
 - Final verification: core regression 504/504; production build passed; serial mounted-browser suite 26/26 passed in 557.24 seconds.
+
+## Task 182 Dungeon Preparation, Difficulty, and Fatigue
+- Dispatched three parallel read-only audits across combat, progression/economy, and dungeon/story loops; closed all agents after collecting evidence.
+- Wrote the approved-scope design and TDD implementation plan for a mounted preparation view, normal/adventure/warrior scaling, 64-point persisted fatigue, reducer-level entry validation, and real keyboard/mouse acceptance.

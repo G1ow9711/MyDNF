@@ -5,6 +5,7 @@ import {
   combatSkillResourceCost,
   createCombatRun,
   enterRoomGate,
+  enemySuperArmorActive,
   finishRoom,
   performAction,
   roomGateForRun,
@@ -295,6 +296,10 @@ export function combatActionForCommandSequence(
   }
 
   return { type: "combatAction", action: "skill", skillId: match.skill.id, inputMethod: "command" };
+}
+
+export function isBackstepCommandSequence(codes: readonly string[]): boolean {
+  return codes.length >= 2 && codes.at(-2) === "ArrowDown" && codes.at(-1) === "KeyC";
 }
 
 export function combatActionForKeyCode(
@@ -1360,6 +1365,19 @@ function enemyMotion(
     return "guard-break";
   }
 
+  if (elapsedMs < (enemy.hitstunUntilMs ?? 0)) {
+    return "hitstun";
+  }
+
+  if (
+    enemySuperArmorActive(enemy, elapsedMs) &&
+    enemy.attackSkillId &&
+    enemy.attackRecoverUntilMs !== undefined &&
+    elapsedMs < enemy.attackRecoverUntilMs
+  ) {
+    return "attack";
+  }
+
   if (enemy.id === lastHitTargetId) {
     return "hit";
   }
@@ -1400,7 +1418,11 @@ function enemyAirborneState(enemy: CombatEnemy): string {
 }
 
 function enemyArmorState(enemy: CombatEnemy, elapsedMs: number): string {
-  return elapsedMs < (enemy.armorBrokenUntilMs ?? 0) ? "broken" : "normal";
+  if (elapsedMs < (enemy.armorBrokenUntilMs ?? 0)) {
+    return "broken";
+  }
+
+  return enemySuperArmorActive(enemy, elapsedMs) ? "super-armor" : "normal";
 }
 
 function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { id: string; label: string } {
@@ -1901,6 +1923,8 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const controlState = enemyControlState(enemy, run.elapsedMs);
       const airborneState = enemyAirborneState(enemy);
       const armorState = enemyArmorState(enemy, run.elapsedMs);
+      const hitstunActive = run.elapsedMs < (enemy.hitstunUntilMs ?? 0);
+      const superArmorActive = enemySuperArmorActive(enemy, run.elapsedMs);
       const spawnSource = summonedById.get(enemy.id);
       const recentTargetHit = latestHitByTargetId.get(enemy.id);
       const hitAirAction = airActionForHitPhase(recentTargetHit?.hitPhase);
@@ -1913,7 +1937,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const enemyModelVfxCue = enemyModelAttackEvent?.vfxCue ?? "";
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-kind="${enemy.kind}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-boss-phase-skill-id="${bossPhaseSkillId}" data-enemy-model-vfx-cue="${enemyModelVfxCue}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-enemy-attack-stage="${attackVisual.stage}" data-enemy-attack-duration-ms="${attackVisual.durationMs || ""}" data-enemy-attack-progress="${attackVisual.progress}" data-hit-recent="${hitRecent ? "true" : "false"}" data-hit-action="${recentTargetHit?.action ?? ""}" data-hit-phase="${recentTargetHit?.hitPhase ?? ""}" data-hit-air-action="${hitAirAction}" data-enemy-hit-air-action="${hitAirAction}" data-hit-dash-action="${hitDashAction}" data-enemy-hit-dash-action="${hitDashAction}" data-enemy-hit-ground-light-step="${hitGroundLightStep}" data-hit-vfx-cue="${recentTargetHit?.vfxCue ?? ""}" data-enemy-hit-slide-active="${hitSlide.active ? "true" : "false"}" data-enemy-hit-slide-progress="${hitSlide.progress.toFixed(2)}" data-enemy-hit-slide-start-x="${hitSlide.start ? Math.round(hitSlide.start.x) : ""}" data-enemy-hit-slide-start-y="${hitSlide.start ? Math.round(hitSlide.start.y) : ""}" data-enemy-hit-slide-end-x="${hitSlide.end ? Math.round(hitSlide.end.x) : ""}" data-enemy-hit-slide-end-y="${hitSlide.end ? Math.round(hitSlide.end.y) : ""}" data-enemy-hit-slide-duration-ms="${enemyHitSlideDurationMs}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-enemy-x="${Math.round(enemy.position.x)}" data-enemy-y="${Math.round(enemy.position.y)}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-current="${enemy.hp}" data-enemy-hp-max="${enemy.maxHp}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy, hitSlide.position)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-kind="${enemy.kind}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-hitstun-active="${hitstunActive ? "true" : "false"}" data-enemy-super-armor="${superArmorActive ? "true" : "false"}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-boss-phase-skill-id="${bossPhaseSkillId}" data-enemy-model-vfx-cue="${enemyModelVfxCue}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-enemy-attack-stage="${attackVisual.stage}" data-enemy-attack-duration-ms="${attackVisual.durationMs || ""}" data-enemy-attack-progress="${attackVisual.progress}" data-hit-recent="${hitRecent ? "true" : "false"}" data-hit-action="${recentTargetHit?.action ?? ""}" data-hit-phase="${recentTargetHit?.hitPhase ?? ""}" data-hit-air-action="${hitAirAction}" data-enemy-hit-air-action="${hitAirAction}" data-hit-dash-action="${hitDashAction}" data-enemy-hit-dash-action="${hitDashAction}" data-enemy-hit-ground-light-step="${hitGroundLightStep}" data-hit-vfx-cue="${recentTargetHit?.vfxCue ?? ""}" data-enemy-hit-slide-active="${hitSlide.active ? "true" : "false"}" data-enemy-hit-slide-progress="${hitSlide.progress.toFixed(2)}" data-enemy-hit-slide-start-x="${hitSlide.start ? Math.round(hitSlide.start.x) : ""}" data-enemy-hit-slide-start-y="${hitSlide.start ? Math.round(hitSlide.start.y) : ""}" data-enemy-hit-slide-end-x="${hitSlide.end ? Math.round(hitSlide.end.x) : ""}" data-enemy-hit-slide-end-y="${hitSlide.end ? Math.round(hitSlide.end.y) : ""}" data-enemy-hit-slide-duration-ms="${enemyHitSlideDurationMs}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-enemy-x="${Math.round(enemy.position.x)}" data-enemy-y="${Math.round(enemy.position.y)}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-current="${enemy.hp}" data-enemy-hp-max="${enemy.maxHp}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy, hitSlide.position)}">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
             <img class="enemy-art actor-model actor-model-${motion}${enemySkillMotionClass ? ` ${enemySkillMotionClass}` : ""}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy, attackVisual, enemyMotionSkillId)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
@@ -2125,7 +2149,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         <button data-combat-action="light" data-hotkey="J" ${roomCleared || roomFailed ? "disabled" : ""}>轻击<span>X/J</span></button>
         <button data-combat-action="heavy" data-hotkey="K" ${roomCleared || roomFailed ? "disabled" : ""}>重击<span>Z/K</span></button>
         <button data-combat-action="jump" data-hotkey="C" data-player-recovery-available="${playerQuickRecoverReady(run) ? "true" : "false"}" ${roomCleared || roomFailed ? "disabled" : ""}>${playerQuickRecoverReady(run) ? "受身" : "跳跃"}<span>C</span></button>
-        <button data-combat-action="backstep" ${roomCleared || roomFailed ? "disabled" : ""}>后跳<span>鼠标</span></button>
+        <button data-combat-action="backstep" ${roomCleared || roomFailed ? "disabled" : ""}>后跳<span>↓C</span></button>
         ${skillButtons}
         ${consumableQuickbar}
         ${doorStatus}
@@ -3156,6 +3180,20 @@ export function mountApp(root: HTMLDivElement): () => void {
 
       if (commandDirectionCodes.has(event.code) && !isRepeat) {
         pushCommandCode(event.code, atMs);
+      }
+
+      if (event.code === "KeyC" && !isRepeat) {
+        pushCommandCode(event.code, atMs);
+
+        if (isBackstepCommandSequence(commandCodes())) {
+          event.preventDefault();
+          commandBuffer = [];
+          dispatch({ type: "combatAction", action: "backstep" });
+          render();
+          return;
+        }
+
+        commandBuffer = [];
       }
 
       if (commandTerminalCodes.has(event.code) && !isRepeat) {

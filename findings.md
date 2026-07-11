@@ -1364,3 +1364,19 @@
 - Final cross-module review found focused prep controls were losing native Enter semantics to the global start shortcut. The handler now defers Enter on interactive controls to native button activation; browser acceptance proves back, difficulty, and low-fatigue back controls without synthesizing clicks.
 - Difficulty save validation now reuses the immutable runtime type guard instead of maintaining a second difficulty ID list.
 - Final evidence: core regression 559/559, production build passed, and the serial mounted-browser suite passed 28/28 in 615.37 seconds.
+
+## Task 183 Combat-Control Audit
+- `performAction({ type: "backstep" })` already supplies a 74 px reverse move, 420 ms evade, 240 ms invulnerability, and 260 ms action lock without spending class resource. The mounted keyboard path cannot trigger it because `KeyC` currently falls through to jump/quick recover and command terminals only include `KeyZ` and `Space`.
+- The command buffer already records arrow directions for 700 ms. A strict tail match of `ArrowDown`, `KeyC` can dispatch backstep before standalone `KeyC` mapping without changing jump or quick-recover semantics.
+- Enemy runtime state has control and armor-break windows but no ordinary hitstun timer. Direct and scheduled hit paths currently interrupt attacks only for control, air/down, or guard break; ordinary hits therefore do not create DNF-style trash hitstun.
+- Armored elite/Boss enemies currently absorb damage through `armor`, but ordinary hits may still apply airborne/downed state. The missing invariant is super armor while armor is positive and not broken: damage/armor loss still resolves, but ordinary hitstun, juggle, knockdown, and attack cancellation do not.
+- Actor rendering already exposes enemy motion and armor state. Adding explicit hitstun/super-armor data hooks and animations lets unit and real-browser tests prove model reaction instead of inferring it from HP alone.
+- Existing elite interruption tests use explicit `stagger`/control semantics. Super armor must suppress only ordinary hitstun, juggle, and knockdown; explicit trap/control/stagger and `guard-break` retain their current interruption authority.
+- Hitstop shifts all active enemy timers. `hitstunUntilMs` must join that shift list or a long impact pause would consume the reaction window while combat is frozen.
+
+## Task 183 Implementation Evidence
+- Mounted input now gives `ArrowDown` + `KeyC` priority over standalone `KeyC`, while standalone jump and strong-hit quick recover remain unchanged. Backstep travels 74 px through a 180 ms eased model-following movement and retains the existing evade/invulnerability/action-lock windows.
+- Direct and scheduled hits share one enemy-reaction resolver. Living non-armored targets receive 280 ms hitstun, active attacks are canceled, and hitstop shifts the reaction timer. Explicit trap/control/stagger/guard-break still interrupts armored targets.
+- Elite/Boss super armor is evaluated from pre-hit armor. The current hit still deals damage and removes armor but cannot ordinarily hardstun, juggle, knock down, or cancel the attack; a later hit after armor reaches zero, or any hit during the guard-break window, restores those reactions.
+- Actor roots expose hitstun and super-armor state, with dedicated hardstun, armor-pulse, armor-impact, backstep-body, and backstep-weapon animations. A computed-style precedence fix ensures authoritative hitstun overrides combo-step decoration.
+- Final evidence: 642/642 non-keyboard tests passed across 15 files (including 25 real-browser computed-style scenarios), production build passed, and the serial mounted-browser suite passed 29/29 in 624.03 seconds.

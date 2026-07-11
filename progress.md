@@ -4199,3 +4199,13 @@
 - Final review fixed prep-control Enter focus semantics, removed a browser-test synthetic-click shim, standardized CDP Enter text, and unified save/runtime difficulty ID validation.
 - Updated `AGENTS.md` to require explicit user permission for every future subagent or parallel-agent launch; historical authorization no longer applies.
 - Final verification: core regression 559/559; production build and diff check passed; serial mounted-browser suite passed 28/28 in 615.37 seconds.
+
+## Task 183 DNF Combat Control, Hitstun, and Super Armor
+- Confirmed the branch is clean and exactly synchronized with `origin/feature/vertical-slice` at `62ac897` before starting this slice.
+- Audited backstep input, direct/scheduled hit resolution, enemy motion rendering, and current combat tests. Selected a narrow strict-combat slice: true `ArrowDown` + `KeyC` backstep, trash hitstun, armored elite/Boss super armor, and post-break interruption.
+- No subagent was started; project `AGENTS.md` explicit-permission rule remains in force.
+- RED verification passed as intended: four focused tests failed only because the backstep sequence predicate, model-following backstep movement, enemy hitstun timer, and armored super-armor suppression do not yet exist.
+- Implemented a shared direct/scheduled enemy reaction state machine, a hitstop-aware 280 ms hitstun window, pre-hit armor super armor, guard-break bypass, and attack-start gating.
+- Implemented real `ArrowDown` + `KeyC` mounted routing, 180 ms / 74 px model-following backstep, `↓C` UI help, and dedicated player/weapon animations.
+- Implemented mounted enemy hitstun/super-armor hooks and dedicated model/armor animations. Focused real-browser acceptance passed twice after replacing a flaky polling-only short-window assertion with an animation-frame plus mutation evidence recorder.
+- Verification complete: core and computed-style regression 642/642; production build passed; `git diff --check` passed with line-ending warnings only; serial mounted-browser acceptance passed 29/29 in 624.03 seconds.

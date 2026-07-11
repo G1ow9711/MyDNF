@@ -8,6 +8,7 @@ import { saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 import {
   combatActionForCommandSequence,
   combatActionForKeyCode,
+  isBackstepCommandSequence,
   AUDIO_SETTINGS_KEY,
   createAppModel,
   mountApp,
@@ -1051,8 +1052,9 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('class="combat-player-art actor-model actor-model-light actor-model-light-1"');
     expect(hitHtml).toContain(`data-last-hit-target="${targetId}"`);
     expect(hitHtml).toContain('data-hit-recent="true"');
-    expect(hitHtml).toContain('data-enemy-motion="hit"');
-    expect(hitHtml).toContain('class="enemy-art actor-model actor-model-hit"');
+    expect(hitHtml).toContain('data-enemy-motion="hitstun"');
+    expect(hitHtml).toContain('data-enemy-hitstun-active="true"');
+    expect(hitHtml).toContain('class="enemy-art actor-model actor-model-hitstun"');
 
     const recoveredHtml = renderAppHtml({
       ...model,
@@ -1067,6 +1069,80 @@ describe("playable app integration actions", () => {
     expect(recoveredHtml).toContain('data-enemy-motion="idle"');
     expect(recoveredHtml).toContain('class="combat-player-art actor-model actor-model-idle"');
     expect(recoveredHtml).not.toContain('class="hit-impact');
+  });
+
+  it("renders authoritative enemy hitstun, super armor, and broken armor actor states", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const elapsedMs = 120;
+    const baseEnemy = model.combatRun.enemies[0];
+    const hitstunHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs,
+        enemies: [
+          {
+            ...baseEnemy,
+            kind: "trash",
+            armor: 0,
+            hitstunUntilMs: elapsedMs + 280,
+            attackSkillId: undefined,
+            attackStartedAtMs: undefined,
+            attackImpactAtMs: undefined,
+            attackRecoverUntilMs: undefined
+          }
+        ]
+      }
+    });
+    const armoredHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs,
+        enemies: [
+          {
+            ...baseEnemy,
+            kind: "elite",
+            armor: 30,
+            hitstunUntilMs: undefined,
+            attackSkillId: "zheng-shockwave",
+            attackStartedAtMs: elapsedMs,
+            attackImpactAtMs: elapsedMs + 320,
+            attackRecoverUntilMs: elapsedMs + 640
+          }
+        ]
+      }
+    });
+    const brokenHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs,
+        enemies: [
+          {
+            ...baseEnemy,
+            kind: "elite",
+            armor: 30,
+            armorBrokenUntilMs: elapsedMs + 900
+          }
+        ]
+      }
+    });
+
+    expect(hitstunHtml).toContain('data-enemy-motion="hitstun"');
+    expect(hitstunHtml).toContain('data-enemy-hitstun-active="true"');
+    expect(hitstunHtml).toContain('data-enemy-super-armor="false"');
+    expect(armoredHtml).toContain('data-enemy-motion="attack"');
+    expect(armoredHtml).toContain('data-enemy-super-armor="true"');
+    expect(armoredHtml).toContain('data-armor-state="super-armor"');
+    expect(brokenHtml).toContain('data-enemy-super-armor="false"');
+    expect(brokenHtml).toContain('data-armor-state="broken"');
   });
 
   it("renders distinct third normal-attack combo motion on the player model", () => {
@@ -1167,7 +1243,7 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('data-hit-phase="ground-light-1"');
     expect(hitHtml).toContain('data-hit-vfx-cue="ground-light-slash-1"');
     expect(hitHtml).toContain('data-enemy-hit-ground-light-step="1"');
-    expect(hitHtml).toContain('data-enemy-motion="hit"');
+    expect(hitHtml).toContain('data-enemy-motion="hitstun"');
     expect(hitHtml).toContain('hit-impact-ground-light-1');
     expect(hitHtml).toContain('data-impact-ground-light-step="1"');
 
@@ -1347,7 +1423,7 @@ describe("playable app integration actions", () => {
       /class="combat-player-art actor-model actor-model-light actor-model-light-1"[^>]+style="[^"]*--model-scale-x: -1;[^"]*--light-lunge-x: -24px;[^"]*--hit-react-x: 18px;/
     );
     expect(html).toMatch(
-      /class="enemy-art actor-model actor-model-hit"[^>]+style="[^"]*--hit-react-x: -18px;/
+      /class="enemy-art actor-model actor-model-hitstun"[^>]+style="[^"]*--hit-react-x: -18px;/
     );
   });
 
@@ -2266,6 +2342,16 @@ describe("playable app integration actions", () => {
     expect(airLightHtml).toContain('data-player-air-state="jumping"');
     expect(airLightHtml).toContain('data-player-air-attack-used="true"');
     expect(airLightHtml).toContain('class="combat-player-art actor-model actor-model-air-light"');
+  });
+
+  it("recognizes only a down-C tail as the DNF backstep command while standalone C remains jump", () => {
+    const state = createInitialState();
+
+    expect(isBackstepCommandSequence(["ArrowDown", "KeyC"])).toBe(true);
+    expect(isBackstepCommandSequence(["ArrowRight", "ArrowDown", "KeyC"])).toBe(true);
+    expect(isBackstepCommandSequence(["KeyC", "ArrowDown"])).toBe(false);
+    expect(isBackstepCommandSequence(["ArrowDown", "KeyZ"])).toBe(false);
+    expect(combatActionForKeyCode(state, "KeyC")).toEqual({ type: "combatAction", action: "jump" });
   });
 
   it("uses KeyC as DNF-style quick recover during strong monster hit recovery", () => {

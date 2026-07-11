@@ -1110,7 +1110,8 @@ describe("town app shell", () => {
     expect(html).toContain('data-boss-phase="3"');
     expect(html).toContain('data-boss-phase-vfx="taotie-armor-pulse"');
     expect(html).toContain('data-boss-phase-skill-id="taotie-armor-pulse"');
-    expect(html).toContain('data-armor-state="normal"');
+    expect(html).toContain('data-enemy-super-armor="true"');
+    expect(html).toContain('data-armor-state="super-armor"');
     expect(stylesCss).toContain('.combat-enemy-boss[data-boss-phase="3"]');
     expect(stylesCss).toContain(".boss-phase-vfx-taotie-armor-pulse");
     expect(stylesCss).toContain('.combat-enemy[data-boss-phase-skill-id="taotie-armor-pulse"] .enemy-art');
@@ -3413,7 +3414,8 @@ describe("town app shell", () => {
     expect(hitHtml).toContain('data-hit-phase="ground-light-1"');
     expect(hitHtml).toContain('data-hit-vfx-cue="ground-light-slash-1"');
     expect(hitHtml).toContain('data-enemy-hit-ground-light-step="1"');
-    expect(hitHtml).toContain('data-enemy-motion="hit"');
+    expect(hitHtml).toContain('data-enemy-motion="hitstun"');
+    expect(hitHtml).toContain('data-enemy-hitstun-active="true"');
     expect(hitHtml).toContain('hit-impact-ground-light-1');
     expect(hitHtml).toContain('data-impact-ground-light-step="1"');
     expect(hitHtml).toContain('data-damage-number="true"');
@@ -3422,6 +3424,8 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-ground-light-step="1"] .enemy-art');
     expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-ground-light-step="2"] .enemy-art');
     expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-ground-light-step="3"] .enemy-art');
+    expect(stylesCss).toContain('.combat-enemy[data-enemy-motion="hitstun"][data-enemy-hitstun-active="true"] .enemy-art');
+    expect(stylesCss).toContain('@keyframes monster-hitstun-react');
     expect(stylesCss).toContain('.combat-enemy[data-enemy-hit-slide-active="true"]');
     expect(stylesCss).toContain('.combat-scene[data-hitstop-active="true"] .combat-player-art');
     expect(stylesCss).toContain('.combat-scene[data-hitstop-active="true"] .enemy-art');

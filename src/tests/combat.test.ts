@@ -338,7 +338,7 @@ function resolveDifficultyArenaHazard(run: CombatRun, inRange = true): CombatRun
 function withPlayerAndEnemies(
   run: CombatRun,
   playerPatch: Partial<CombatRun["player"]>,
-  enemyPositions: Array<{ x: number; y: number; hp?: number; maxHp?: number; armor?: number }>
+  enemyPositions: Array<{ x: number; y: number; hp?: number; maxHp?: number; armor?: number; kind?: CombatEnemy["kind"] }>
 ): CombatRun {
   return {
     ...run,
@@ -351,6 +351,7 @@ function withPlayerAndEnemies(
       hp: enemyPositions[index]?.hp ?? enemy.hp,
       maxHp: enemyPositions[index]?.maxHp ?? enemy.maxHp,
       armor: enemyPositions[index]?.armor ?? enemy.armor,
+      kind: enemyPositions[index]?.kind ?? enemy.kind,
       position: {
         x: enemyPositions[index]?.x ?? enemy.position.x,
         y: enemyPositions[index]?.y ?? enemy.position.y
@@ -2282,7 +2283,7 @@ describe("combat actions and impact feel", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(createInitialState(), "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
-      [{ x: 324, y: 340, hp: 180, maxHp: 180 }]
+      [{ x: 324, y: 340, hp: 180, maxHp: 180, kind: "elite", armor: 30 }]
     );
     const cast = performAction(run, { type: "light" });
     const [hitAtMs] = scheduledGroundLightTimes(cast);
@@ -3195,9 +3196,17 @@ describe("combat actions and impact feel", () => {
     );
     const resourceBefore = run.player.resource.current;
     const backstep = performAction(run, { type: "backstep" });
+    const backstepMovement = backstep.player.activeSkillMovement;
+
+    if (!backstepMovement) {
+      throw new Error("Expected backstep model-following movement");
+    }
+
+    const middle = stepCombat(backstep, {}, 90);
+    const completed = stepCombat(middle, {}, 90);
     const telegraph = stepCombat(
       withEnemyInRange(backstep, {
-        position: { x: backstep.player.x + 20, y: backstep.player.y },
+        position: { x: backstepMovement.endX + 20, y: backstep.player.y },
         nextAttackAtMs: backstep.elapsedMs + 1
       }),
       {},
@@ -3205,7 +3214,12 @@ describe("combat actions and impact feel", () => {
     );
     const dodged = stepCombat(telegraph, {}, 360);
 
-    expect(backstep.player.x).toBeLessThan(run.player.x);
+    expect(backstep.player.x).toBe(run.player.x);
+    expect(backstepMovement.skillId).toBe("backstep");
+    expect(backstepMovement.endX).toBe(run.player.x - 74);
+    expect(middle.player.x).toBeLessThan(run.player.x);
+    expect(middle.player.x).toBeGreaterThan(backstepMovement.endX);
+    expect(completed.player.x).toBe(backstepMovement.endX);
     expect(backstep.player.facing).toBe(run.player.facing);
     expect(backstep.player.evadeUntilMs).toBeGreaterThan(backstep.elapsedMs);
     expect(backstep.player.actionLockUntilMs).toBeGreaterThan(backstep.elapsedMs);
@@ -3221,6 +3235,110 @@ describe("combat actions and impact feel", () => {
       ])
     );
     expect(dodged.events.some((event) => event.kind === "player-hit")).toBe(false);
+  });
+
+  it("interrupts a winding trash enemy with ordinary hitstun and delays its next attack", () => {
+    const baseRun = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      nextAttackAtMs: 0
+    });
+    const winding = stepCombat(baseRun, {}, 1);
+
+    expect(winding.enemies[0].attackSkillId).toBeDefined();
+
+    const hit = applyHit(winding, {
+      id: "trash-hitstun",
+      targetId: winding.enemies[0].id,
+      damage: 8,
+      hitstopMs: 42,
+      knockback: 12,
+      juggle: false,
+      action: "light"
+    });
+    const enemy = hit.enemies[0];
+
+    expect(enemy.hitstunUntilMs).toBeGreaterThan(hit.elapsedMs);
+    expect(enemy.nextAttackAtMs).toBeGreaterThanOrEqual(enemy.hitstunUntilMs ?? 0);
+    expect(enemy.attackSkillId).toBeUndefined();
+    expect(enemy.attackStartedAtMs).toBeUndefined();
+    expect(stepCombat(hit, {}, 120).enemies[0].attackSkillId).toBeUndefined();
+    expect(stepCombat(hit, {}, 500).enemies[0].hitstunUntilMs).toBeUndefined();
+  });
+
+  it("keeps armored elite attacks in super armor but permits interruption after guard break", () => {
+    const eliteBase = reachEliteRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const prepared = {
+      ...eliteBase,
+      enemies: eliteBase.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              nextAttackAtMs: 0,
+              position: { x: eliteBase.player.x + 60, y: eliteBase.player.y }
+            }
+          : enemy
+      )
+    };
+    const winding = stepCombat(prepared, {}, 1);
+    const targetId = winding.enemies[0].id;
+    const armored = applyHit(winding, {
+      id: "elite-armored-launch",
+      targetId,
+      damage: 10,
+      hitstopMs: 72,
+      knockback: 28,
+      juggle: true,
+      action: "heavy",
+      actionTags: ["knockdown"]
+    });
+    const armoredEnemy = armored.enemies[0];
+
+    expect(armoredEnemy.armor).toBeLessThan(winding.enemies[0].armor);
+    expect(armoredEnemy.attackSkillId).toBe(winding.enemies[0].attackSkillId);
+    expect(armoredEnemy.hitstunUntilMs).toBeUndefined();
+    expect(armoredEnemy.airborne).toBe(false);
+    expect(armoredEnemy.downed).toBe(false);
+
+    const broken = applyHit(armored, {
+      id: "elite-guard-break",
+      targetId,
+      damage: 40,
+      hitstopMs: 72,
+      knockback: 20,
+      juggle: false,
+      action: "skill",
+      statusTags: ["guard-break"]
+    });
+    const launched = applyHit(
+      {
+        ...broken,
+        enemies: broken.enemies.map((enemy) =>
+          enemy.id === targetId
+            ? {
+                ...enemy,
+                attackStartedAtMs: broken.elapsedMs,
+                attackImpactAtMs: broken.elapsedMs + 400,
+                attackRecoverUntilMs: broken.elapsedMs + 700,
+                attackSkillId: "zheng-shockwave"
+              }
+            : enemy
+        )
+      },
+      {
+        id: "elite-broken-launch",
+        targetId,
+        damage: 4,
+        hitstopMs: 72,
+        knockback: 28,
+        juggle: true,
+        action: "heavy"
+      }
+    );
+    const launchedEnemy = launched.enemies[0];
+
+    expect(broken.enemies[0].armorBrokenUntilMs).toBeGreaterThan(broken.elapsedMs);
+    expect(launchedEnemy.hitstunUntilMs).toBeGreaterThan(launched.elapsedMs);
+    expect(launchedEnemy.airborne).toBe(true);
+    expect(launchedEnemy.attackSkillId).toBeUndefined();
   });
 
   it("lets C trigger a DNF-style quick recover during strong monster hurt lock", () => {
@@ -3783,18 +3901,30 @@ describe("combat actions and impact feel", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(state, "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1 },
-      [{ x: 310, y: 340 }]
+      [{ x: 310, y: 340, kind: "elite", armor: 30 }]
     );
     const reflecting = performAction(run, { type: "skill", skillId: "mirror-arc" });
     const enemyHpBeforeImpact = reflecting.enemies[0].hp;
-    const telegraph = stepCombat(
-      withEnemyInRange(reflecting, {
-        nextAttackAtMs: reflecting.elapsedMs + 1
-      }),
-      {},
-      80
-    );
-    const countered = stepCombat(telegraph, {}, 360);
+    const armed: CombatRun = {
+      ...reflecting,
+      enemies: reflecting.enemies.map((enemy, index) =>
+        index === 0
+          ? {
+              ...enemy,
+              position: { x: reflecting.player.x + 70, y: reflecting.player.y },
+              attackStartedAtMs: 0,
+              attackImpactAtMs: 320,
+              attackRecoverUntilMs: 620,
+              attackSkillId: "ash-ember-spit",
+              attackHitResolved: false,
+              attackResolvedHits: 0,
+              attackConnectedHitIndexes: [],
+              nextAttackAtMs: 9999
+            }
+          : enemy
+      )
+    };
+    const countered = stepCombat(armed, {}, 440);
 
     expect(reflecting.player.reflectUntilMs).toBeGreaterThan(reflecting.elapsedMs);
     expect(countered.player.hp).toBe(run.player.hp);

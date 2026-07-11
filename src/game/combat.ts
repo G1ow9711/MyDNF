@@ -231,6 +231,7 @@ export interface CombatEnemy {
   bossPhase?: 1 | 2 | 3;
   bossPhaseTriggeredAtMs?: number;
   controlledUntilMs?: number;
+  hitstunUntilMs?: number;
   armorBrokenUntilMs?: number;
   statusSourceSkillId?: string;
 }
@@ -722,9 +723,11 @@ const roomGateEnterRangeY = 76;
 export const roomGateTransitionDurationMs = 480;
 export const actionBufferWindowMs = 180;
 const backstepDistancePx = 74;
+const backstepMovementMs = 180;
 const backstepEvadeMs = 420;
 const backstepInvulnerableMs = 240;
 const backstepActionLockMs = 260;
+const enemyOrdinaryHitstunMs = 280;
 const jumpAirborneMs = 480;
 const jumpLandingLockMs = 80;
 const jumpActionLockMs = jumpAirborneMs + jumpLandingLockMs;
@@ -814,6 +817,7 @@ function shiftEnemyTimersForHitstop(enemy: CombatEnemy, originMs: number, deltaM
     attackImpactAtMs: attackActive ? enemy.attackImpactAtMs! + deltaMs : enemy.attackImpactAtMs,
     attackRecoverUntilMs: attackActive ? shiftFutureOptionalTime(enemy.attackRecoverUntilMs, originMs, deltaMs) : enemy.attackRecoverUntilMs,
     controlledUntilMs: shiftFutureOptionalTime(enemy.controlledUntilMs, originMs, deltaMs),
+    hitstunUntilMs: shiftFutureOptionalTime(enemy.hitstunUntilMs, originMs, deltaMs),
     armorBrokenUntilMs: shiftFutureOptionalTime(enemy.armorBrokenUntilMs, originMs, deltaMs)
   };
 }
@@ -2350,6 +2354,93 @@ function skillStatusTags(tags: string[]): CombatSkillStatusTag[] {
 
 function hasStatus(tags: readonly CombatSkillStatusTag[] | undefined, status: CombatSkillStatusTag): boolean {
   return tags?.includes(status) ?? false;
+}
+
+export function enemySuperArmorActive(enemy: CombatEnemy, elapsedMs: number): boolean {
+  return enemy.hp > 0 && enemy.kind !== "trash" && enemy.armor > 0 && elapsedMs >= (enemy.armorBrokenUntilMs ?? 0);
+}
+
+interface EnemyHitReaction {
+  armorDamage: number;
+  hpDamage: number;
+  controlledUntilMs?: number;
+  hitstunUntilMs?: number;
+  armorBrokenUntilMs?: number;
+  nextAttackAtMs: number;
+  interruptsAttack: boolean;
+  airborne: boolean;
+  downed: boolean;
+  airborneUntilMs?: number;
+  downedUntilMs?: number;
+}
+
+function resolveEnemyHitReaction(
+  enemy: CombatEnemy,
+  impactAtMs: number,
+  effectiveDamage: number,
+  statusTags: readonly CombatSkillStatusTag[],
+  actionTags: readonly CombatActionTag[],
+  juggle: boolean
+): EnemyHitReaction {
+  const armorDamage = Math.min(enemy.armor, effectiveDamage);
+  const hpDamage = effectiveDamage - armorDamage;
+  const guardBreak = hasStatus(statusTags, "guard-break");
+  const superArmor = enemySuperArmorActive(enemy, impactAtMs) && !guardBreak;
+  const controlUntil = hasStatus(statusTags, "trap") || hasStatus(statusTags, "control") ? impactAtMs + 1100 : undefined;
+  const staggerUntil = hasStatus(statusTags, "stagger") ? impactAtMs + 780 : undefined;
+  const controlledUntilMs = Math.max(enemy.controlledUntilMs ?? 0, controlUntil ?? 0, staggerUntil ?? 0) || undefined;
+  const armorBrokenUntilMs = guardBreak
+    ? Math.max(enemy.armorBrokenUntilMs ?? 0, impactAtMs + 1800)
+    : enemy.armorBrokenUntilMs;
+  const aliveAfterHit = enemy.hp - hpDamage > 0;
+  const ordinaryHitstunUntilMs = aliveAfterHit && !superArmor ? impactAtMs + enemyOrdinaryHitstunMs : undefined;
+  const activeHitstunUntilMs = (enemy.hitstunUntilMs ?? 0) > impactAtMs ? enemy.hitstunUntilMs : undefined;
+  const hitstunUntilMs = Math.max(activeHitstunUntilMs ?? 0, ordinaryHitstunUntilMs ?? 0) || undefined;
+  const forcedKnockdown = actionTags.includes("knockdown");
+  const slamDown = actionTags.includes("slam") && enemy.airborne;
+  const lethalDown = !juggle && !aliveAfterHit;
+  const airborne = superArmor ? enemy.airborne : juggle && !slamDown && !forcedKnockdown;
+  const downed = lethalDown || (superArmor ? enemy.downed : forcedKnockdown || slamDown);
+  const airborneUntilMs = airborne
+    ? superArmor
+      ? enemy.airborneUntilMs
+      : Math.max(enemy.airborneUntilMs ?? 0, impactAtMs + 1000)
+    : undefined;
+  const downedUntilMs = downed
+    ? lethalDown || !superArmor
+      ? Math.max(enemy.downedUntilMs ?? 0, impactAtMs + 760)
+      : enemy.downedUntilMs
+    : airborne
+      ? undefined
+      : enemy.downedUntilMs;
+  const airControlUntil = Math.max(airborneUntilMs ?? 0, downedUntilMs ?? 0) || undefined;
+  const explicitStatusInterrupt =
+    Boolean(controlledUntilMs && controlledUntilMs > impactAtMs) || guardBreak;
+  const interruptsAttack =
+    explicitStatusInterrupt ||
+    Boolean(airControlUntil && airControlUntil > impactAtMs) ||
+    Boolean(ordinaryHitstunUntilMs && ordinaryHitstunUntilMs > impactAtMs);
+  const nextAttackAtMs = Math.max(
+    enemy.nextAttackAtMs,
+    controlledUntilMs ?? 0,
+    hitstunUntilMs ?? 0,
+    airControlUntil ?? 0,
+    guardBreak ? impactAtMs + 680 : 0
+  );
+
+  return {
+    armorDamage,
+    hpDamage,
+    controlledUntilMs,
+    hitstunUntilMs,
+    armorBrokenUntilMs,
+    nextAttackAtMs,
+    interruptsAttack,
+    airborne,
+    downed,
+    airborneUntilMs,
+    downedUntilMs
+  };
 }
 
 function playerDamage(run: CombatRun, baseDamage: number): number {
@@ -4737,9 +4828,14 @@ function hasActiveEnemyAttack(enemy: CombatEnemy, elapsedMs: number): boolean {
 }
 
 function clearRecoveredAttack(enemy: CombatEnemy, elapsedMs: number): CombatEnemy {
-  if (enemy.attackRecoverUntilMs !== undefined && elapsedMs >= enemy.attackRecoverUntilMs) {
+  const recoveredEnemy =
+    enemy.hitstunUntilMs !== undefined && elapsedMs >= enemy.hitstunUntilMs
+      ? { ...enemy, hitstunUntilMs: undefined }
+      : enemy;
+
+  if (recoveredEnemy.attackRecoverUntilMs !== undefined && elapsedMs >= recoveredEnemy.attackRecoverUntilMs) {
     return {
-      ...enemy,
+      ...recoveredEnemy,
       attackStartedAtMs: undefined,
       attackImpactAtMs: undefined,
       attackRecoverUntilMs: undefined,
@@ -4754,7 +4850,7 @@ function clearRecoveredAttack(enemy: CombatEnemy, elapsedMs: number): CombatEnem
     };
   }
 
-  return enemy;
+  return recoveredEnemy;
 }
 
 function enemyRushTargetPosition(enemy: CombatEnemy, player: CombatPlayer, rushPx: number): CombatVector {
@@ -4860,7 +4956,8 @@ function beginEnemyAttack(
     recovered.downed ||
     hasActiveEnemyAttack(recovered, elapsedMs) ||
     elapsedMs < recovered.nextAttackAtMs ||
-    elapsedMs < (recovered.controlledUntilMs ?? 0)
+    elapsedMs < (recovered.controlledUntilMs ?? 0) ||
+    elapsedMs < (recovered.hitstunUntilMs ?? 0)
   ) {
     return { enemy: recovered };
   }
@@ -5241,33 +5338,9 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
       return enemy;
     }
 
-    const armorDamage = Math.min(enemy.armor, effectiveDamage);
-    const hpDamage = effectiveDamage - armorDamage;
+    const reaction = resolveEnemyHitReaction(enemy, impactAtMs, effectiveDamage, statusTags, actionTags, hit.juggle);
+    const { armorDamage, hpDamage } = reaction;
     const nextMarks = hit.consumeMarks ? 0 : clamp(enemy.marks + (hit.marksApplied ?? 0), 0, 9);
-    const controlUntil = hasStatus(statusTags, "trap") || hasStatus(statusTags, "control") ? impactAtMs + 1100 : undefined;
-    const staggerUntil = hasStatus(statusTags, "stagger") ? impactAtMs + 780 : undefined;
-    const controlledUntilMs = Math.max(enemy.controlledUntilMs ?? 0, controlUntil ?? 0, staggerUntil ?? 0) || undefined;
-    const armorBrokenUntilMs = hasStatus(statusTags, "guard-break")
-      ? Math.max(enemy.armorBrokenUntilMs ?? 0, impactAtMs + 1800)
-      : enemy.armorBrokenUntilMs;
-    const forcedKnockdown = actionTags.includes("knockdown");
-    const slamDown = actionTags.includes("slam") && enemy.airborne;
-    const lethalDown = !hit.juggle && enemy.hp - hpDamage <= 0;
-    const airborne = hit.juggle && !slamDown && !forcedKnockdown;
-    const downed = forcedKnockdown || slamDown || lethalDown;
-    const airborneUntilMs = airborne ? Math.max(enemy.airborneUntilMs ?? 0, impactAtMs + 1000) : undefined;
-    const downedUntilMs = downed ? Math.max(enemy.downedUntilMs ?? 0, impactAtMs + 760) : airborne ? undefined : enemy.downedUntilMs;
-    const airControlUntil = Math.max(airborneUntilMs ?? 0, downedUntilMs ?? 0) || undefined;
-    const statusInterruptsAttack =
-      Boolean(controlledUntilMs && controlledUntilMs > run.elapsedMs) ||
-      Boolean(airControlUntil && airControlUntil > run.elapsedMs) ||
-      hasStatus(statusTags, "guard-break");
-    const delayedUntil = Math.max(
-      enemy.nextAttackAtMs,
-      controlledUntilMs ?? 0,
-      airControlUntil ?? 0,
-      hasStatus(statusTags, "guard-break") ? impactAtMs + 680 : 0
-    );
     const nextPosition = hit.pullCenter
       ? {
           x: clamp(enemy.position.x + (hit.pullCenter.x - enemy.position.x) * 0.75, 0, arena.width),
@@ -5283,26 +5356,27 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
       hp: Math.max(0, enemy.hp - hpDamage),
       armor: Math.max(0, enemy.armor - armorDamage),
       marks: nextMarks,
-      controlledUntilMs,
-      armorBrokenUntilMs,
+      controlledUntilMs: reaction.controlledUntilMs,
+      hitstunUntilMs: reaction.hitstunUntilMs,
+      armorBrokenUntilMs: reaction.armorBrokenUntilMs,
       statusSourceSkillId: statusTags.length > 0 ? hit.skillId : enemy.statusSourceSkillId,
-      nextAttackAtMs: delayedUntil,
-      attackStartedAtMs: statusInterruptsAttack ? undefined : enemy.attackStartedAtMs,
-      attackImpactAtMs: statusInterruptsAttack ? undefined : enemy.attackImpactAtMs,
-      attackRecoverUntilMs: statusInterruptsAttack ? undefined : enemy.attackRecoverUntilMs,
-      attackSkillId: statusInterruptsAttack ? undefined : enemy.attackSkillId,
-      attackHitResolved: statusInterruptsAttack ? undefined : enemy.attackHitResolved,
-      attackResolvedHits: statusInterruptsAttack ? undefined : enemy.attackResolvedHits,
-      attackConnectedHitIndexes: statusInterruptsAttack ? undefined : enemy.attackConnectedHitIndexes,
-      attackRushStartPosition: statusInterruptsAttack ? undefined : enemy.attackRushStartPosition,
-      attackRushTargetPosition: statusInterruptsAttack ? undefined : enemy.attackRushTargetPosition,
-      attackPullStartPosition: statusInterruptsAttack ? undefined : enemy.attackPullStartPosition,
-      attackPullTargetPosition: statusInterruptsAttack ? undefined : enemy.attackPullTargetPosition,
+      nextAttackAtMs: reaction.nextAttackAtMs,
+      attackStartedAtMs: reaction.interruptsAttack ? undefined : enemy.attackStartedAtMs,
+      attackImpactAtMs: reaction.interruptsAttack ? undefined : enemy.attackImpactAtMs,
+      attackRecoverUntilMs: reaction.interruptsAttack ? undefined : enemy.attackRecoverUntilMs,
+      attackSkillId: reaction.interruptsAttack ? undefined : enemy.attackSkillId,
+      attackHitResolved: reaction.interruptsAttack ? undefined : enemy.attackHitResolved,
+      attackResolvedHits: reaction.interruptsAttack ? undefined : enemy.attackResolvedHits,
+      attackConnectedHitIndexes: reaction.interruptsAttack ? undefined : enemy.attackConnectedHitIndexes,
+      attackRushStartPosition: reaction.interruptsAttack ? undefined : enemy.attackRushStartPosition,
+      attackRushTargetPosition: reaction.interruptsAttack ? undefined : enemy.attackRushTargetPosition,
+      attackPullStartPosition: reaction.interruptsAttack ? undefined : enemy.attackPullStartPosition,
+      attackPullTargetPosition: reaction.interruptsAttack ? undefined : enemy.attackPullTargetPosition,
       position: nextPosition,
-      airborne,
-      downed,
-      airborneUntilMs,
-      downedUntilMs
+      airborne: reaction.airborne,
+      downed: reaction.downed,
+      airborneUntilMs: reaction.airborneUntilMs,
+      downedUntilMs: reaction.downedUntilMs
     };
   });
   const event: CombatHitEvent = {
@@ -5660,33 +5734,9 @@ function applyScheduledEnemyHitEffect(
       return enemy;
     }
 
-    const armorDamage = Math.min(enemy.armor, effectiveDamage);
-    const hpDamage = effectiveDamage - armorDamage;
+    const reaction = resolveEnemyHitReaction(enemy, effect.applyAtMs, effectiveDamage, statusTags, actionTags, effect.juggle);
+    const { armorDamage, hpDamage } = reaction;
     const nextMarks = effect.consumeMarks ? 0 : clamp(enemy.marks + (effect.marksApplied ?? 0), 0, 9);
-    const controlUntil = hasStatus(statusTags, "trap") || hasStatus(statusTags, "control") ? effect.applyAtMs + 1100 : undefined;
-    const staggerUntil = hasStatus(statusTags, "stagger") ? effect.applyAtMs + 780 : undefined;
-    const controlledUntilMs = Math.max(enemy.controlledUntilMs ?? 0, controlUntil ?? 0, staggerUntil ?? 0) || undefined;
-    const armorBrokenUntilMs = hasStatus(statusTags, "guard-break")
-      ? Math.max(enemy.armorBrokenUntilMs ?? 0, effect.applyAtMs + 1800)
-      : enemy.armorBrokenUntilMs;
-    const forcedKnockdown = actionTags.includes("knockdown");
-    const slamDown = actionTags.includes("slam") && enemy.airborne;
-    const lethalDown = !effect.juggle && enemy.hp - hpDamage <= 0;
-    const airborne = effect.juggle && !slamDown && !forcedKnockdown;
-    const downed = forcedKnockdown || slamDown || lethalDown;
-    const airborneUntilMs = airborne ? Math.max(enemy.airborneUntilMs ?? 0, effect.applyAtMs + 1000) : undefined;
-    const downedUntilMs = downed ? Math.max(enemy.downedUntilMs ?? 0, effect.applyAtMs + 760) : airborne ? undefined : enemy.downedUntilMs;
-    const airControlUntil = Math.max(airborneUntilMs ?? 0, downedUntilMs ?? 0) || undefined;
-    const statusInterruptsAttack =
-      Boolean(controlledUntilMs && controlledUntilMs > effect.applyAtMs) ||
-      Boolean(airControlUntil && airControlUntil > effect.applyAtMs) ||
-      hasStatus(statusTags, "guard-break");
-    const delayedUntil = Math.max(
-      enemy.nextAttackAtMs,
-      controlledUntilMs ?? 0,
-      airControlUntil ?? 0,
-      hasStatus(statusTags, "guard-break") ? effect.applyAtMs + 680 : 0
-    );
     const nextPosition = effect.pullCenter
       ? {
           x: clamp(enemy.position.x + (effect.pullCenter.x - enemy.position.x) * 0.75, 0, impactResolvedRun.arena.width),
@@ -5706,26 +5756,27 @@ function applyScheduledEnemyHitEffect(
       hp: Math.max(0, enemy.hp - hpDamage),
       armor: Math.max(0, enemy.armor - armorDamage),
       marks: nextMarks,
-      controlledUntilMs,
-      armorBrokenUntilMs,
+      controlledUntilMs: reaction.controlledUntilMs,
+      hitstunUntilMs: reaction.hitstunUntilMs,
+      armorBrokenUntilMs: reaction.armorBrokenUntilMs,
       statusSourceSkillId: statusTags.length > 0 ? effect.skillId : enemy.statusSourceSkillId,
-      nextAttackAtMs: delayedUntil,
-      attackStartedAtMs: statusInterruptsAttack ? undefined : enemy.attackStartedAtMs,
-      attackImpactAtMs: statusInterruptsAttack ? undefined : enemy.attackImpactAtMs,
-      attackRecoverUntilMs: statusInterruptsAttack ? undefined : enemy.attackRecoverUntilMs,
-      attackSkillId: statusInterruptsAttack ? undefined : enemy.attackSkillId,
-      attackHitResolved: statusInterruptsAttack ? undefined : enemy.attackHitResolved,
-      attackResolvedHits: statusInterruptsAttack ? undefined : enemy.attackResolvedHits,
-      attackConnectedHitIndexes: statusInterruptsAttack ? undefined : enemy.attackConnectedHitIndexes,
-      attackRushStartPosition: statusInterruptsAttack ? undefined : enemy.attackRushStartPosition,
-      attackRushTargetPosition: statusInterruptsAttack ? undefined : enemy.attackRushTargetPosition,
-      attackPullStartPosition: statusInterruptsAttack ? undefined : enemy.attackPullStartPosition,
-      attackPullTargetPosition: statusInterruptsAttack ? undefined : enemy.attackPullTargetPosition,
+      nextAttackAtMs: reaction.nextAttackAtMs,
+      attackStartedAtMs: reaction.interruptsAttack ? undefined : enemy.attackStartedAtMs,
+      attackImpactAtMs: reaction.interruptsAttack ? undefined : enemy.attackImpactAtMs,
+      attackRecoverUntilMs: reaction.interruptsAttack ? undefined : enemy.attackRecoverUntilMs,
+      attackSkillId: reaction.interruptsAttack ? undefined : enemy.attackSkillId,
+      attackHitResolved: reaction.interruptsAttack ? undefined : enemy.attackHitResolved,
+      attackResolvedHits: reaction.interruptsAttack ? undefined : enemy.attackResolvedHits,
+      attackConnectedHitIndexes: reaction.interruptsAttack ? undefined : enemy.attackConnectedHitIndexes,
+      attackRushStartPosition: reaction.interruptsAttack ? undefined : enemy.attackRushStartPosition,
+      attackRushTargetPosition: reaction.interruptsAttack ? undefined : enemy.attackRushTargetPosition,
+      attackPullStartPosition: reaction.interruptsAttack ? undefined : enemy.attackPullStartPosition,
+      attackPullTargetPosition: reaction.interruptsAttack ? undefined : enemy.attackPullTargetPosition,
       position: nextPosition,
-      airborne,
-      downed,
-      airborneUntilMs,
-      downedUntilMs
+      airborne: reaction.airborne,
+      downed: reaction.downed,
+      airborneUntilMs: reaction.airborneUntilMs,
+      downedUntilMs: reaction.downedUntilMs
     };
   });
 
@@ -6844,7 +6895,15 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       ...run,
       player: {
         ...dodgingPlayer,
-        x: clamp(run.player.x - run.player.facing * backstepDistancePx, 0, run.arena.width),
+        activeSkillMovement: {
+          skillId: "backstep",
+          startAtMs: run.elapsedMs,
+          endAtMs: run.elapsedMs + backstepMovementMs,
+          startX: run.player.x,
+          startY: run.player.y,
+          endX: clamp(run.player.x - run.player.facing * backstepDistancePx, 0, run.arena.width),
+          endY: run.player.y
+        },
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + backstepActionLockMs,
         cancelWindowUntilMs: 0,

@@ -303,7 +303,17 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Build mounted preparation UI plus mouse and keyboard control.
 - [x] Run focused/full regression, document evidence, commit, and push in Chinese.
 
+## Task 183 DNF Combat Control, Hitstun, and Super Armor
+- [x] Lock the existing behavior into an implementation spec: `ArrowDown` then `KeyC` triggers backstep, while standalone `KeyC` remains jump/quick recover.
+- [x] Add RED/GREEN coverage for a trash enemy's ordinary hitstun interrupt and recovery window.
+- [x] Add RED/GREEN coverage for armored elite/Boss super armor and post-break interrupt/juggle behavior.
+- [x] Expose mounted actor state and cue-specific motion/VFX for hitstun and super armor.
+- [x] Verify the real keyboard path in Edge/Chrome CDP, run core regression/build, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 183 首次 29 场全浏览器回归为 28/29；新用例在全套负载下漏采 280 ms 硬直窗口，但末态 HP 已证明真实轻击命中。改为攻击前安装 MutationObserver 与 requestAnimationFrame 证据记录器，不修改游戏时长或放宽状态/动画断言。
+- Task 183 首次真实浏览器路线已通过后跳中间帧，但杂兵硬直的计算样式仍被后置的普通轻击反应选择器覆盖。将硬直选择器绑定权威 `data-enemy-hitstun-active="true"` 并提高权重后重验。
+- Task 183 的一次组合 `rg` 命令含未闭合 PowerShell 双引号，解析前即失败且未触碰项目文件。后续改用单引号简单模式和分段读取。
 - PowerShell parsed an over-escaped `rg` alternation as file paths during the Task 182 audit. Replaced it with simple `rg` patterns and direct `Get-Content` ranges; no project files were affected.
 - Two agent prompts containing JavaScript template-literal backticks were rejected by the orchestration parser before dispatch. Retried with newline-joined plain strings; no project files were affected.
 - The first 27-scenario browser run passed 25/27 and stopped both Liuli routes in dungeon preparation. Root cause was a stale `minLevel: 20` content gate while the natural Cinder clear reaches level 4. Updated the Liuli gate to level 4 and the minimal seeded acceptance state to the same legal level; both focused routes and the final full suite passed.

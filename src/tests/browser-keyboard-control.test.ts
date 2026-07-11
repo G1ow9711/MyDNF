@@ -23,6 +23,34 @@ type BrowserCombatState = {
   impactCue: string;
 };
 
+type BrowserBackstepReactionState = {
+  objective: string;
+  roomIndex: string;
+  playerX: number;
+  playerFacing: string;
+  playerMotion: string;
+  skillMove: string;
+  skillMoveProgress: number;
+  evadeActive: string;
+  invulnerableActive: string;
+  playerHurtLockActive: string;
+  playerAnimation: string;
+  weaponAnimation: string;
+  enemies: Array<{
+    id: string;
+    kind: string;
+    hp: number;
+    armorState: string;
+    superArmor: string;
+    hitstunActive: string;
+    hitRecent: string;
+    motion: string;
+    airborne: string;
+    downed: string;
+    animationName: string;
+  }>;
+};
+
 type BrowserSkillState = {
   activeSkill: string;
   playerMotion: string;
@@ -1133,6 +1161,87 @@ const readFlowingLightSafeCastWindowExpression = `
 })()
 `;
 
+const readBackstepReactionStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const player = document.querySelector(".combat-player");
+  const playerArt = player?.querySelector(".combat-player-art");
+  const weapon = player?.querySelector(".combat-weapon");
+  return {
+    objective: scene?.getAttribute("data-combat-objective") ?? "",
+    roomIndex: scene?.getAttribute("data-room-index") ?? "",
+    playerX: Number(scene?.getAttribute("data-player-x") || "0"),
+    playerFacing: player?.getAttribute("data-player-facing") ?? "",
+    playerMotion: player?.getAttribute("data-player-motion") ?? "",
+    skillMove: player?.getAttribute("data-player-skill-move") ?? "",
+    skillMoveProgress: Number(player?.getAttribute("data-player-skill-move-progress") || "0"),
+    evadeActive: player?.getAttribute("data-evade-active") ?? "",
+    invulnerableActive: player?.getAttribute("data-player-invulnerable-active") ?? "",
+    playerHurtLockActive: player?.getAttribute("data-player-hurt-lock-active") ?? "",
+    playerAnimation: playerArt ? getComputedStyle(playerArt).animationName : "",
+    weaponAnimation: weapon ? getComputedStyle(weapon).animationName : "",
+    enemies: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => {
+      const art = enemy.querySelector(".enemy-art");
+      return {
+        id: enemy.getAttribute("data-enemy-id") ?? "",
+        kind: enemy.getAttribute("data-enemy-kind") ?? "",
+        hp: Number(enemy.getAttribute("data-enemy-hp-current") || "0"),
+        armorState: enemy.getAttribute("data-armor-state") ?? "",
+        superArmor: enemy.getAttribute("data-enemy-super-armor") ?? "",
+        hitstunActive: enemy.getAttribute("data-enemy-hitstun-active") ?? "",
+        hitRecent: enemy.getAttribute("data-hit-recent") ?? "",
+        motion: enemy.getAttribute("data-enemy-motion") ?? "",
+        airborne: enemy.getAttribute("data-enemy-airborne") ?? "",
+        downed: enemy.getAttribute("data-enemy-knockdown") ?? "",
+        animationName: art ? getComputedStyle(art).animationName : ""
+      };
+    })
+  };
+})()
+`;
+
+const installTrashHitstunRecorderExpression = `
+(() => {
+  globalThis.__browserTrashHitstunEvidence = null;
+  globalThis.__browserTrashHitstunRecorder?.disconnect?.();
+  if (globalThis.__browserTrashHitstunFrame) {
+    cancelAnimationFrame(globalThis.__browserTrashHitstunFrame);
+  }
+  const sample = () => {
+    const enemy = Array.from(document.querySelectorAll('.combat-enemy')).find((node) =>
+      node.getAttribute('data-enemy-kind') === 'trash' &&
+      node.getAttribute('data-enemy-hitstun-active') === 'true' &&
+      node.getAttribute('data-enemy-motion') === 'hitstun'
+    );
+    const art = enemy?.querySelector('.enemy-art');
+    if (enemy && art && getComputedStyle(art).animationName === 'monster-hitstun-react') {
+      globalThis.__browserTrashHitstunEvidence = {
+        id: enemy.getAttribute('data-enemy-id') ?? '',
+        hp: Number(enemy.getAttribute('data-enemy-hp-current') || '0'),
+        motion: enemy.getAttribute('data-enemy-motion') ?? '',
+        animationName: getComputedStyle(art).animationName
+      };
+    }
+  };
+  const observer = new MutationObserver(sample);
+  observer.observe(document.documentElement, { attributes: true, childList: true, subtree: true });
+  globalThis.__browserTrashHitstunRecorder = observer;
+  const startedAt = performance.now();
+  const tick = () => {
+    sample();
+    if (!globalThis.__browserTrashHitstunEvidence && performance.now() - startedAt < 1800) {
+      globalThis.__browserTrashHitstunFrame = requestAnimationFrame(tick);
+    }
+  };
+  globalThis.__browserTrashHitstunFrame = requestAnimationFrame(tick);
+  return true;
+})()
+`;
+
+const readTrashHitstunEvidenceExpression = `
+(() => globalThis.__browserTrashHitstunEvidence ?? null)()
+`;
+
 describe("real browser keyboard control", () => {
   it("uses a recovery potion through real Digit1 input and auto-saves the quickbar", async () => {
     const server = await startViteServer();
@@ -1229,6 +1338,138 @@ describe("real browser keyboard control", () => {
       await server.close();
     }
   }, 60000);
+
+  it("uses down-C backstep and proves trash hitstun plus elite super armor through real keyboard combat", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        const start = await page.waitFor<BrowserBackstepReactionState>(
+          readBackstepReactionStateExpression,
+          (state) => state.objective === "active" && state.roomIndex === "0",
+          5000
+        );
+
+        await page.pressKey("ArrowDown");
+        await page.pressKey("KeyC");
+        const backstepStart = await page.waitFor<BrowserBackstepReactionState>(
+          readBackstepReactionStateExpression,
+          (state) =>
+            state.skillMove === "backstep" &&
+            state.playerMotion === "dodge" &&
+            state.evadeActive === "true" &&
+            state.invulnerableActive === "true",
+          700
+        );
+        const backstepMiddle = await page.waitFor<BrowserBackstepReactionState>(
+          readBackstepReactionStateExpression,
+          (state) =>
+            state.skillMove === "backstep" &&
+            state.skillMoveProgress > 0 &&
+            state.skillMoveProgress < 100 &&
+            state.playerX < start.playerX - 2,
+          700
+        );
+        const backstepEnd = await page.waitFor<BrowserBackstepReactionState>(
+          readBackstepReactionStateExpression,
+          (state) => state.skillMove === "" && state.playerX <= start.playerX - 70,
+          900
+        );
+
+        expect(backstepStart.playerFacing).toBe(start.playerFacing);
+        expect(backstepStart.playerAnimation).toBe("player-backstep-slide");
+        expect(backstepStart.weaponAnimation).toBe("weapon-backstep-guard");
+        expect(backstepMiddle.playerX).toBeLessThan(start.playerX);
+        expect(backstepMiddle.playerX).toBeGreaterThan(backstepEnd.playerX);
+        expect(backstepEnd.playerFacing).toBe(start.playerFacing);
+
+        await waitInBrowser(page, 160);
+        await moveIntoLiveEnemyRange(page);
+        await page.waitFor<BrowserBackstepReactionState>(
+          readBackstepReactionStateExpression,
+          (state) => state.playerHurtLockActive !== "true",
+          1500
+        );
+        await page.evaluate<boolean>(installTrashHitstunRecorderExpression);
+        await page.pressKey("KeyX");
+        const trashHitstun = await page.waitFor<{ id: string; hp: number; motion: string; animationName: string } | null>(
+          readTrashHitstunEvidenceExpression,
+          (state) => state !== null,
+          1800
+        );
+
+        expect(trashHitstun?.id).not.toBe("");
+        expect(trashHitstun?.hp).toBeGreaterThan(0);
+        expect(trashHitstun?.motion).toBe("hitstun");
+        expect(trashHitstun?.animationName).toBe("monster-hitstun-react");
+
+        await clearCurrentRoomWithKeyboard(page);
+        await walkThroughOpenGate(page);
+        await page.waitFor<BrowserBackstepReactionState>(
+          readBackstepReactionStateExpression,
+          (state) =>
+            state.roomIndex === "1" &&
+            state.enemies.some((enemy) => enemy.kind === "elite" && enemy.superArmor === "true" && enemy.armorState === "super-armor"),
+          5000
+        );
+        await moveIntoLiveEnemyRange(page);
+        await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
+          readFlowingLightSafeCastWindowExpression,
+          (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
+          5000
+        );
+        await page.waitFor<BrowserBackstepReactionState>(
+          readBackstepReactionStateExpression,
+          (state) => state.playerHurtLockActive !== "true",
+          1500
+        );
+
+        await page.pressKey("KeyX");
+        const armoredHit = await page.waitFor<BrowserBackstepReactionState>(
+          readBackstepReactionStateExpression,
+          (state) =>
+            state.enemies.some(
+              (enemy) =>
+                enemy.kind === "elite" &&
+                enemy.hitRecent === "true" &&
+                enemy.superArmor === "true" &&
+                enemy.hitstunActive === "false" &&
+                enemy.airborne === "false" &&
+                enemy.downed === "false"
+            ),
+          1200
+        );
+        expect(armoredHit.enemies.some((enemy) => enemy.kind === "elite" && enemy.superArmor === "true")).toBe(true);
+
+        await waitInBrowser(page, 230);
+        await page.pressKey("KeyX");
+        await page.waitFor<BrowserBackstepReactionState>(
+          readBackstepReactionStateExpression,
+          (state) => state.enemies.some((enemy) => enemy.kind === "elite" && enemy.superArmor === "false"),
+          1200
+        );
+        await waitInBrowser(page, 250);
+        await page.pressKey("KeyX");
+        const postArmorLaunch = await page.waitFor<BrowserBackstepReactionState>(
+          readBackstepReactionStateExpression,
+          (state) =>
+            state.enemies.some(
+              (enemy) =>
+                enemy.kind === "elite" &&
+                enemy.hitstunActive === "true" &&
+                enemy.airborne === "true" &&
+                enemy.superArmor === "false"
+            ),
+          1400
+        );
+
+        expect(postArmorLaunch.enemies.some((enemy) => enemy.kind === "elite" && enemy.motion === "airborne")).toBe(true);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 120000);
 
   it("drives a DNF hotkey skill with model-following motion and dedicated animations", async () => {
     const server = await startViteServer();

@@ -2025,8 +2025,8 @@ function createEnemy(
   roomIndex: number,
   enemyIndex: number,
   kind: EnemyKind,
-  attackProfileId = defaultEnemyAttackProfile(kind),
-  difficultyId: DungeonDifficultyId = "normal"
+  attackProfileId: EnemyAttackProfileId,
+  difficultyId: DungeonDifficultyId
 ): CombatEnemy {
   const stats = enemyStats(kind);
   const difficulty = getDungeonDifficulty(difficultyId);
@@ -4958,7 +4958,10 @@ function applyEnemyImpact(
     const hitVfxCue = attack.hitVfxCues?.[resolvedHits] ?? attack.vfxCue;
     const hitFeedbackCue = attack.feedbackCues?.[resolvedHits] ?? attack.feedbackCue;
     const hitDamageMultiplier = attack.damageMultipliers?.[resolvedHits] ?? 1;
-    const hitDamage = Math.max(1, Math.round(attack.damage * hitDamageMultiplier));
+    const difficultyDamage = Math.max(
+      1,
+      Math.round(attack.damage * hitDamageMultiplier * getDungeonDifficulty(runContext.difficultyId).damageMultiplier)
+    );
     const hitKnockback = attack.knockbackByHit?.[resolvedHits] ?? attack.knockback;
     const hitInvulnerabilityMs = attack.invulnerabilityMsByHit?.[resolvedHits] ?? attack.invulnerabilityMs;
     const hitHurtLockMs = attack.hurtLockMsByHit?.[resolvedHits] ?? attack.hurtLockMs;
@@ -5055,7 +5058,7 @@ function applyEnemyImpact(
 
     if (playerReflectActiveAt(nextPlayer, hitTime)) {
       const reflectSkillId = nextPlayer.reflectSkillId ?? "mirror-reflect";
-      const reflectDamage = Math.max(1, Math.round(hitDamage * 0.65));
+      const reflectDamage = Math.max(1, Math.round(difficultyDamage * 0.65));
       const armorDamage = Math.min(nextEnemy.armor, reflectDamage);
       const hpDamage = reflectDamage - armorDamage;
       const reflectedEnemy: CombatEnemy = {
@@ -5106,10 +5109,6 @@ function applyEnemyImpact(
     const shieldActive = hitTime < nextPlayer.shieldUntilMs;
     const mitigation = shieldActive ? clamp(nextPlayer.shieldReduction, 0, 0.85) : 0;
     const shieldAbsorbedImpact = shieldActive && mitigation > 0;
-    const difficultyDamage = Math.max(
-      1,
-      Math.round(attack.damage * hitDamageMultiplier * getDungeonDifficulty(runContext.difficultyId).damageMultiplier)
-    );
     const damage = Math.max(1, Math.round(difficultyDamage * combatProfile.damageTakenMultiplier * (1 - mitigation)));
     const nextHp = Math.max(0, nextPlayer.hp - damage);
     const nextFacing: 1 | -1 = nextEnemy.position.x >= nextPlayer.x ? 1 : -1;

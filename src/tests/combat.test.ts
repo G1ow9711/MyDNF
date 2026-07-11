@@ -524,6 +524,38 @@ describe("combat difficulty scaling", () => {
     expect(adventureHit?.damage).toBe(Math.round(Math.round(28 * 1.2) * 0.75));
   });
 
+  it("difficulty propagates scaled monster damage through the original reflect logic", () => {
+    const normalBase = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const normal = resolveDifficultyMonsterImpact({
+      ...normalBase,
+      player: {
+        ...normalBase.player,
+        reflectUntilMs: 1000,
+        reflectSkillId: "mirror-reflect"
+      }
+    });
+    const adventureBase = createCombatRun(createInitialState(), "cinder-kiln-alley", "adventure");
+    const adventure = resolveDifficultyMonsterImpact({
+      ...adventureBase,
+      player: {
+        ...adventureBase.player,
+        reflectUntilMs: 1000,
+        reflectSkillId: "mirror-reflect"
+      }
+    });
+    const normalReflect = normal.events.find(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mirror-reflect"
+    );
+    const adventureReflect = adventure.events.find(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mirror-reflect"
+    );
+
+    expect(normalReflect?.damage).toBe(Math.round(28 * 0.65));
+    expect(adventureReflect?.damage).toBe(Math.round(Math.round(28 * 1.2) * 0.65));
+    expect(normal.events.some((event) => event.kind === "player-hit")).toBe(false);
+    expect(adventure.events.some((event) => event.kind === "player-hit")).toBe(false);
+  });
+
   it("difficulty scales multi-hit monster profile damage once per segment", () => {
     const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley", "adventure");
     const run: CombatRun = {

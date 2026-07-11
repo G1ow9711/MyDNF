@@ -4183,3 +4183,9 @@
 - Added validated rank allocation for currently available class skills, a 1-10 rank cap, combat damage scaling (+8% per rank above one), cooldown scaling (-2% per rank above one, capped), level-up point awards, class-tree UI, and auto-save app action wiring.
 - Added reducer/UI/save/combat/browser coverage. The browser route spends one point via the mounted class tree, verifies persisted rank after reload, enters combat, confirms the slot rank, and casts it through keyboard control.
 - Verification: core regression 503/503; `npm run build`; focused skill-tree browser test passed; final serial `browser-keyboard-control` 25/25 passed in 533.02 seconds.
+
+## Task 181 DNF-Style Skill Tree Respec
+- Added an 800-gold full skill-tree reset with exact invested-point accounting, rank-map clearing, refund handling, and explicit invalid-state errors.
+- Added class-panel reset status/control, reducer handling, select SFX, auto-save compatibility, and CSS for the compact reset row.
+- Added class rule coverage, UI smoke assertions, and a mounted real-browser click/reload acceptance test. Focused build, 94 rule/UI tests, and the new browser scenario passed.
+- Final verification: core regression 504/504; production build passed; serial mounted-browser suite 26/26 passed in 557.24 seconds.

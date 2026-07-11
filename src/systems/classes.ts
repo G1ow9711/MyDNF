@@ -17,6 +17,7 @@ export interface AdvancementPreview {
 
 const advancementQuestId = "prologue-ember-warden";
 export const skillMaxLevel = 10;
+export const skillResetGoldCost = 800;
 
 function findClass(classId: string): ClassDefinition | undefined {
   return catalog.classes.find((classDef) => classDef.id === classId);
@@ -209,6 +210,38 @@ export function upgradeSkill(state: GameState, skillId: string): GameState {
       skillLevels: {
         ...state.player.skillLevels,
         [skillId]: level + 1
+      }
+    }
+  };
+}
+
+export function spentSkillPoints(state: GameState): number {
+  return Object.values(state.player.skillLevels).reduce(
+    (total: number, level) => total + (typeof level === "number" && Number.isInteger(level) ? Math.max(0, level - 1) : 0),
+    0
+  );
+}
+
+export function resetSkillTree(state: GameState): GameState {
+  const refundedPoints = spentSkillPoints(state);
+
+  if (refundedPoints <= 0) {
+    throw new Error("No upgraded skills to reset");
+  }
+
+  if (state.player.currencies.gold < skillResetGoldCost) {
+    throw new Error(`Insufficient gold for skill reset: need ${skillResetGoldCost}`);
+  }
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      skillPoints: state.player.skillPoints + refundedPoints,
+      skillLevels: {},
+      currencies: {
+        ...state.player.currencies,
+        gold: state.player.currencies.gold - skillResetGoldCost
       }
     }
   };

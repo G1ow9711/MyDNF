@@ -8,8 +8,10 @@ import {
   getAvailableSkills,
   getClassDefinition,
   getSkillLevel,
-  selectBaseClass
-  ,upgradeSkill
+  resetSkillTree,
+  selectBaseClass,
+  skillResetGoldCost,
+  upgradeSkill
 } from "../systems/classes";
 import { loadGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 
@@ -93,6 +95,41 @@ describe("class selection and advancement", () => {
     expect(getSkillLevel(upgraded, "spark-combo")).toBe(2);
     expect(getSkillLevel(state, "spark-combo")).toBe(1);
     expect(() => upgradeSkill(upgraded, "glass-cut")).toThrow(/current class/i);
+  });
+
+  it("refunds spent ranks through a paid skill-tree reset", () => {
+    const state = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        skillPoints: 0,
+        skillLevels: { "spark-combo": 3, "cinder-uppercut": 2 },
+        currencies: {
+          ...createInitialState().player.currencies,
+          gold: skillResetGoldCost
+        }
+      }
+    };
+
+    expect(() =>
+      resetSkillTree({
+        ...state,
+        player: {
+          ...state.player,
+          currencies: {
+            ...state.player.currencies,
+            gold: skillResetGoldCost - 1
+          }
+        }
+      })
+    ).toThrow(/insufficient gold/i);
+
+    const reset = resetSkillTree(state);
+
+    expect(reset.player.currencies.gold).toBe(0);
+    expect(reset.player.skillPoints).toBe(3);
+    expect(reset.player.skillLevels).toEqual({});
+    expect(() => resetSkillTree(reset)).toThrow(/no upgraded skills/i);
   });
 
   it("starts as 烬拳卫 and can switch base class before advancement", () => {

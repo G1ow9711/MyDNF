@@ -10,7 +10,7 @@ import type { DungeonId, GameState } from "../game/types";
 import { SAVE_KEY } from "../systems/save";
 import { AUDIO_SETTINGS_KEY } from "../ui/app";
 import { createInitialState, createOwnedGear } from "../game/state";
-import { advanceClass, selectBaseClass } from "../systems/classes";
+import { advanceClass, selectBaseClass, skillResetGoldCost } from "../systems/classes";
 
 type BrowserCombatState = {
   objective: string;
@@ -2475,6 +2475,47 @@ describe("real browser keyboard control", () => {
     }
   }, 75000);
 
+  it("resets allocated skill ranks through the real class tree and keeps the refund after reload", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, createAllocatedSkillTreeState());
+        await page.click('[data-mode="classes"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "classes",
+          3000
+        );
+        await page.click('[data-app-action="reset-skill-tree"]');
+        const reset = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.saved?.player.skillPoints === 3 &&
+            Object.keys(state.saved.player.skillLevels).length === 0 &&
+            state.saved.player.currencies.gold === 0,
+          3000
+        );
+
+        await page.reload();
+        const reloaded = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.appMode === "town" &&
+            state.saved?.player.skillPoints === 3 &&
+            Object.keys(state.saved.player.skillLevels).length === 0 &&
+            state.saved.player.currencies.gold === 0,
+          15000
+        );
+
+        expect(reset.saved?.player.currencies.gold).toBe(0);
+        expect(reloaded.saved?.player.skillPoints).toBe(3);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 75000);
+
   it("returns Ink from real marked-target detonation through class clicks and keyboard input", async () => {
     const server = await startViteServer();
 
@@ -3118,6 +3159,27 @@ function createSkillTreeState(): GameState {
       ...baseState.player,
       level: 2,
       skillPoints: 1
+    }
+  };
+}
+
+function createAllocatedSkillTreeState(): GameState {
+  const baseState = createInitialState();
+
+  return {
+    ...baseState,
+    player: {
+      ...baseState.player,
+      level: 4,
+      skillPoints: 0,
+      skillLevels: {
+        "spark-combo": 3,
+        "cinder-uppercut": 2
+      },
+      currencies: {
+        ...baseState.player.currencies,
+        gold: skillResetGoldCost
+      }
     }
   };
 }

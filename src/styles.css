@@ -745,6 +745,29 @@ p {
   font-size: 16px;
 }
 
+.skill-tree-reset {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  border-radius: 6px;
+  background: rgba(69, 26, 3, 0.28);
+}
+
+.skill-tree-reset small {
+  color: #fde68a;
+  font-size: 11px;
+}
+
+.skill-tree-reset button {
+  min-width: 58px;
+  border-color: rgba(251, 191, 36, 0.7);
+  color: #fef3c7;
+  background: rgba(146, 64, 14, 0.72);
+}
+
 .skill-tree-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 36px;

@@ -41,7 +41,7 @@ import {
   type AudioState
 } from "../systems/audio";
 import { createBrowserAudioSink } from "../systems/audio-browser";
-import { advanceClass as applyClassAdvancement, getSkillLevel, selectBaseClass as applyBaseClass, syncCurrentClassResource, upgradeSkill } from "../systems/classes";
+import { advanceClass as applyClassAdvancement, getSkillLevel, resetSkillTree, selectBaseClass as applyBaseClass, syncCurrentClassResource, upgradeSkill } from "../systems/classes";
 import { applyLoadout, dismantleItem, equipItem, saveLoadout, sellItem, setItemLock } from "../systems/inventory";
 import { acceptTrade, listAuction, resolveAuctions } from "../systems/market";
 import { applyQuestEvent, claimQuestReward, getActiveQuestText } from "../systems/quests";
@@ -93,6 +93,7 @@ export type AppAction =
   | { type: "selectBaseClass"; classId: ClassId }
   | { type: "advanceClass"; advancementId: AdvancementId }
   | { type: "upgradeSkill"; skillId: string }
+  | { type: "resetSkillTree" }
   | { type: "equipItem"; gearId: string }
   | { type: "saveLoadout"; index: number }
   | { type: "applyLoadout"; index: number }
@@ -2536,6 +2537,14 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         message: "技能已升级",
         audio: playSfx(model.audio, "ui-select")
       };
+    case "resetSkillTree":
+      return {
+        ...model,
+        state: resetSkillTree(model.state),
+        mode: "classes",
+        message: "技能树已重置",
+        audio: playSfx(model.audio, "ui-select")
+      };
     case "equipItem":
       return {
         ...model,
@@ -2881,6 +2890,10 @@ export function mountApp(root: HTMLDivElement): () => void {
 
       if (skillUpgradeId) {
         dispatch({ type: "upgradeSkill", skillId: skillUpgradeId });
+      }
+
+      if (appAction === "reset-skill-tree") {
+        dispatch({ type: "resetSkillTree" });
       }
 
       if (tradeOfferId) {

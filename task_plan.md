@@ -288,3 +288,9 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - Current strict-combat clarification: character and monster geometry can stay lightweight, but smooth keyboard-driven movement, model-following attacks, staged skill timing, hitstop/impact feedback, player/enemy action changes, skill VFX, monster VFX, boss mechanics, and offline save flow remain hard acceptance gates.
 - Current town-ecosystem acceptance progress: real browser tests now operate the mounted town UI with CDP mouse clicks for shop purchase, gift-box opening, reinforcement, amplification, NPC trade, auction listing, auction settlement, and reload persistence. This supports the full single-player loop without relaxing the strict combat priority.
 - Current strict-combat clarification: character and monster geometry may remain simpler while the whole game loop is connected, but combat action smoothness, model-following attacks, strict hit frames, hitstop, player/enemy reaction changes, player skill VFX, and monster skill VFX remain hard gates.
+
+## Task 181 DNF-Style Skill Tree Respec
+- [x] Define a paid full-tree reset that refunds only ranks invested above each skill's base rank.
+- [x] Wire reset through the class panel, app reducer, audio feedback, auto-save, and disabled-state rules.
+- [x] Add rule, rendering, and real-browser click/reload acceptance coverage.
+- [x] Run full core and serial real-browser regression, then commit and push with a Chinese message.

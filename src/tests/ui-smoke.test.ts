@@ -3145,7 +3145,11 @@ describe("town app shell", () => {
     expect(html).toContain('data-skill-tree-id="spark-combo"');
     expect(html).toContain('data-skill-rank="3"');
     expect(html).toContain('data-skill-upgrade-id="spark-combo"');
+    expect(html).toContain('data-skill-points-spent="2"');
+    expect(html).toContain('data-app-action="reset-skill-tree"');
+    expect(html).toContain("洗点 800 金币");
     expect(stylesCss).toContain(".skill-tree-row");
+    expect(stylesCss).toContain(".skill-tree-reset");
   });
 
   it("renders a separate consumable quickbar without replacing DNF skill hotkeys", () => {

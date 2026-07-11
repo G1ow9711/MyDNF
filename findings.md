@@ -1342,3 +1342,10 @@
 - Legacy saves infer unspent points from `level - 1`, preserve an empty rank map, and reject unknown or out-of-range persisted skill ranks.
 - Browser validation uses real clicks to spend a point, reloads the local save, enters combat with keyboard, verifies the persisted rank on the hotkey slot, and casts the upgraded skill with `A`.
 - Verification: core regression 503/503; production build passed; final serial browser suite passed 25/25 in 533.02 seconds.
+
+## Task 181 Skill Tree Respec
+- Skill ranks were persistent but irreversible, which made experimentation with equipment and class builds unnecessarily permanent in an offline game.
+- The reset cost is 800 gold and refunds exactly the sum of every stored rank above base rank one. Base skills remain rank one through the existing empty-map fallback.
+- Reset is rejected when no points are invested or gold is insufficient. The class panel exposes invested points, cost, and an enabled state derived from those same rules.
+- Focused browser acceptance used the mounted class UI, clicked the real reset control, observed 3 refunded points and 800 gold spent, then reloaded and verified the local save retained the reset state.
+- Final regression passed 504/504 core tests and all 26 serial mounted-browser scenarios in 557.24 seconds.

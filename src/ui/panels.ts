@@ -1,7 +1,7 @@
 import { catalog } from "../data/catalog";
 import type { GameState, GearItem, OwnedGearItem } from "../game/types";
 import { evaluateEquipmentBuild } from "../systems/builds";
-import { getAdvancementPreview, getAvailableSkills, getSkillLevel, skillMaxLevel } from "../systems/classes";
+import { getAdvancementPreview, getAvailableSkills, getSkillLevel, skillMaxLevel, skillResetGoldCost, spentSkillPoints } from "../systems/classes";
 import { getAuctionPricing } from "../systems/market";
 import { getActiveQuestText, isSystemUnlocked } from "../systems/quests";
 import { getBoxRates } from "../systems/shop";
@@ -333,6 +333,8 @@ export function renderClassPanel(state: GameState): string {
       `;
     })
     .join("");
+  const allocatedSkillPoints = spentSkillPoints(state);
+  const canResetSkillTree = allocatedSkillPoints > 0 && state.player.currencies.gold >= skillResetGoldCost;
 
   return panel(
     "职业",
@@ -350,6 +352,10 @@ export function renderClassPanel(state: GameState): string {
       </div>
       <div class="skill-tree" data-skill-tree="true" data-skill-points="${state.player.skillPoints}">
         <h3>技能树 · 剩余 ${state.player.skillPoints} 点</h3>
+        <div class="skill-tree-reset" data-skill-points-spent="${allocatedSkillPoints}">
+          <small>已投入 ${allocatedSkillPoints} 点 · 洗点 ${skillResetGoldCost} 金币</small>
+          <button data-app-action="reset-skill-tree" ${canResetSkillTree ? "" : "disabled"}>重置</button>
+        </div>
         ${skillRows}
       </div>
     `

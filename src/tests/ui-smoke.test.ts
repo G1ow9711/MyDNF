@@ -388,6 +388,60 @@ function countOccurrences(text: string, pattern: string): number {
 }
 
 describe("town app shell", () => {
+  it("renders a full DNF dungeon result with grade, statistics, loot, and confirmation", () => {
+    const state = createInitialState();
+    const html = renderAppHtml({
+      state,
+      mode: "dungeon-result",
+      dungeonResult: {
+        dungeonId: "cinder-kiln-alley",
+        difficultyId: "normal",
+        rank: "SS",
+        score: 8286,
+        breakdown: { base: 1400, combo: 2400, accuracy: 1500, survival: 1620, time: 1126, critical: 240 },
+        stats: {
+          hitsLanded: 10,
+          misses: 2,
+          criticalHits: 2,
+          maxCombo: 10,
+          damageDealt: 200,
+          damageTaken: 30,
+          hitsTaken: 1,
+          accuracyPercent: 83,
+          clearTimeMs: 60000
+        },
+        rankBonus: { gold: 360, ironDust: 6 },
+        loot: {
+          dungeonId: "cinder-kiln-alley",
+          roomIndex: 2,
+          experience: 150,
+          gold: 180,
+          ironDust: 10,
+          arcShard: 0,
+          gearDropId: "epic-ember-artisan-head"
+        }
+      }
+    });
+
+    expect(html).toContain('data-dungeon-result="true"');
+    expect(html).toContain('data-result-rank="SS"');
+    expect(html).toContain('data-result-score="8286"');
+    expect(html).toContain('data-result-max-combo="10"');
+    expect(html).toContain('data-result-accuracy="83"');
+    expect(html).toContain('data-result-critical-hits="2"');
+    expect(html).toContain('data-result-hits-taken="1"');
+    expect(html).toContain('data-result-clear-time-ms="60000"');
+    expect(html).toContain('data-result-gear-id="epic-ember-artisan-head"');
+    expect(html).toContain('data-result-rank-bonus-gold="360"');
+    expect(html).toContain('data-confirm-dungeon-result="true"');
+    expect(html).toContain("史诗烬火宗匠战冠");
+    expect(html).toContain("评级奖励");
+    expect(html).not.toContain('class="top-nav"');
+    expect(html).not.toContain('data-town-scene="true"');
+    expect(stylesCss).toContain('.dungeon-result[data-result-rank="SS"]');
+    expect(stylesCss).toContain('@keyframes dungeon-result-rank-enter');
+  });
+
   it("uses generated bitmap assets for detailed character and realistic Chinese-style environments", () => {
     const initialState = createInitialState();
     const state = {

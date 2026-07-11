@@ -7471,7 +7471,7 @@ export function finishRoom(run: CombatRun): CombatRun {
       bufferedActionExecuteAtMs: undefined
     },
     enemies: completed ? [] : createRoomEnemies(run.dungeonId, nextRoomIndex, run.difficultyId),
-    events: [clearedEvent],
+    events: [...run.events, clearedEvent],
     lootEvents: [...run.lootEvents, lootEvent],
     scheduledEnemyHitEffects: [],
     scheduledMissEffects: [],

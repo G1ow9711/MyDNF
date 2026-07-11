@@ -30,6 +30,7 @@ import {
 } from "../game/combat";
 import { addOwnedGear, createInitialState } from "../game/state";
 import type { AdvancementId, ClassId, ClassSkillDefinition, ConsumableId, DungeonDifficultyId, DungeonId, GameState, GearSlot, Rarity, SkillAnimationDefinition } from "../game/types";
+import { evaluateDungeonClear, type DungeonClearEvaluation } from "../game/grading";
 import { createRenderPlan } from "../game/render";
 import {
   chooseMusicLayer,
@@ -62,7 +63,7 @@ import {
   renderSmithPanel
 } from "./panels";
 
-export type AppMode = "town" | "dungeon-prep" | "combat" | "inventory" | "smith" | "auction" | "shop" | "quests" | "classes" | "settings";
+export type AppMode = "town" | "dungeon-prep" | "combat" | "dungeon-result" | "inventory" | "smith" | "auction" | "shop" | "quests" | "classes" | "settings";
 
 export const AUDIO_SETTINGS_KEY = "mydnf-audio-settings-v1";
 
@@ -71,9 +72,16 @@ export interface AppViewModel {
   mode: AppMode;
   dungeonPrep?: { dungeonId: DungeonId; difficultyId: DungeonDifficultyId };
   combatRun?: CombatRun;
+  dungeonResult?: DungeonClearResult;
   lastLoot?: CombatLootEvent;
   message?: string;
   audio?: AudioState;
+}
+
+export interface DungeonClearResult extends DungeonClearEvaluation {
+  dungeonId: DungeonId;
+  difficultyId: DungeonDifficultyId;
+  loot?: CombatLootEvent;
 }
 
 export interface AppModel extends AppViewModel {
@@ -90,6 +98,7 @@ export type AppAction =
   | { type: "openDungeonPrep"; dungeonId: DungeonId }
   | { type: "selectDungeonDifficulty"; difficultyId: DungeonDifficultyId }
   | { type: "enterDungeon"; dungeonId: DungeonId; difficultyId?: DungeonDifficultyId }
+  | { type: "confirmDungeonResult" }
   | { type: "combatTick"; moveX?: number; moveY?: number; dash?: boolean }
   | { type: "combatMove"; moveX: number; moveY: number; dash: boolean }
   | { type: "combatAction"; action: "light" | "heavy" | "jump" | "backstep" | "finish" }
@@ -2181,6 +2190,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
 function renderActivePanel(model: AppViewModel): string {
   switch (model.mode) {
     case "dungeon-prep":
+    case "dungeon-result":
       return "";
     case "inventory":
       return renderInventoryPanel(model.state);
@@ -2263,24 +2273,109 @@ function renderLootResult(loot: CombatLootEvent | undefined): string {
   `;
 }
 
+function formatDungeonClearTime(clearTimeMs: number): string {
+  const safeMilliseconds = Math.max(0, Math.round(clearTimeMs));
+  const minutes = Math.floor(safeMilliseconds / 60000);
+  const seconds = Math.floor((safeMilliseconds % 60000) / 1000);
+  const centiseconds = Math.floor((safeMilliseconds % 1000) / 10);
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(centiseconds).padStart(2, "0")}`;
+}
+
+function renderDungeonResult(result: DungeonClearResult): string {
+  const dungeon = catalog.dungeons.find((item) => item.id === result.dungeonId);
+  const difficulty = getDungeonDifficulty(result.difficultyId);
+  const loot = result.loot;
+  const gear = catalog.gear.find((item) => item.id === loot?.gearDropId);
+  const set = catalog.epicSets.find((item) => item.id === gear?.setId);
+  const consumables = Object.entries(loot?.consumables ?? {})
+    .filter(([, amount]) => amount > 0)
+    .map(([id, amount]) => `${id === "revival-token" ? "复活币" : "恢复药剂"} +${amount}`)
+    .join(" · ");
+  const lootRewards = loot
+    ? [
+        `经验 +${loot.experience}`,
+        `金币 +${loot.gold}`,
+        `玄铁尘 +${loot.ironDust}`,
+        loot.arcShard > 0 ? `弧光碎片 +${loot.arcShard}` : "",
+        consumables
+      ].filter(Boolean).join(" · ")
+    : "本次首领未掉落额外物资";
+  const scoreRows: Array<[string, number]> = [
+    ["基础", result.breakdown.base],
+    ["连击", result.breakdown.combo],
+    ["命中", result.breakdown.accuracy],
+    ["生存", result.breakdown.survival],
+    ["时间", result.breakdown.time],
+    ["暴击", result.breakdown.critical]
+  ];
+
+  return `
+    <section class="dungeon-result" data-dungeon-result="true" data-result-dungeon-id="${result.dungeonId}" data-result-difficulty-id="${result.difficultyId}" data-result-rank="${result.rank}" data-result-score="${result.score}" data-result-max-combo="${result.stats.maxCombo}" data-result-accuracy="${result.stats.accuracyPercent}" data-result-critical-hits="${result.stats.criticalHits}" data-result-hits-taken="${result.stats.hitsTaken}" data-result-clear-time-ms="${result.stats.clearTimeMs}" data-result-damage-dealt="${result.stats.damageDealt}" data-result-gear-id="${gear?.id ?? ""}" data-result-rank-bonus-gold="${result.rankBonus.gold}" data-result-rank-bonus-iron-dust="${result.rankBonus.ironDust}" aria-label="地下城通关结算">
+      <img class="dungeon-result-background" src="${dungeonBackgroundAsset(result.dungeonId)}" alt="" aria-hidden="true" />
+      <div class="dungeon-result-shade" aria-hidden="true"></div>
+      <div class="dungeon-result-content">
+        <header class="dungeon-result-header">
+          <p>地下城通关</p>
+          <h1>${dungeon?.displayName ?? result.dungeonId}</h1>
+          <span>${difficulty.displayName} · ${dungeonBossName(dungeon?.bossId ?? "")}</span>
+        </header>
+
+        <div class="dungeon-result-grade" aria-label="通关评级 ${result.rank}">
+          <span class="dungeon-result-rank">${result.rank}</span>
+          <div class="dungeon-result-score"><small>战斗评分</small><strong>${result.score}</strong><span>/ 10000</span></div>
+        </div>
+
+        <section class="dungeon-result-statistics" aria-label="战斗统计">
+          <div><span>通关时间</span><strong>${formatDungeonClearTime(result.stats.clearTimeMs)}</strong></div>
+          <div><span>最大连击</span><strong>${result.stats.maxCombo}</strong></div>
+          <div><span>命中率</span><strong>${result.stats.accuracyPercent}%</strong></div>
+          <div><span>有效命中</span><strong>${result.stats.hitsLanded}</strong></div>
+          <div><span>暴击次数</span><strong>${result.stats.criticalHits}</strong></div>
+          <div><span>受击次数</span><strong>${result.stats.hitsTaken}</strong></div>
+          <div><span>造成伤害</span><strong>${result.stats.damageDealt}</strong></div>
+          <div><span>承受伤害</span><strong>${result.stats.damageTaken}</strong></div>
+        </section>
+
+        <section class="dungeon-result-details" aria-label="评分与奖励">
+          <div class="dungeon-result-breakdown">
+            <h2>评分明细</h2>
+            <dl>${scoreRows.map(([label, value]) => `<div><dt>${label}</dt><dd>+${value}</dd></div>`).join("")}</dl>
+          </div>
+          <div class="dungeon-result-rewards">
+            <h2>首领战利品</h2>
+            ${gear ? `<div class="dungeon-result-gear loot-rarity-${gear.rarity}"><b>${lootRarityNames[gear.rarity]}</b><strong>${gear.displayName}</strong><span>${lootSlotNames[gear.slot]} · ${set ? `${set.displayName}套装` : "散件"}</span></div>` : `<div class="dungeon-result-gear"><strong>无装备掉落</strong></div>`}
+            <p>${lootRewards}</p>
+            <div class="dungeon-result-rank-bonus"><span>评级奖励</span><strong>金币 +${result.rankBonus.gold}</strong><strong>玄铁尘 +${result.rankBonus.ironDust}</strong></div>
+          </div>
+        </section>
+
+        <button class="dungeon-result-confirm" data-confirm-dungeon-result="true">返回城镇 <span>Enter / Space</span></button>
+      </div>
+    </section>
+  `;
+}
+
 export function renderAppHtml(model: AppViewModel): string {
   const scene = model.mode === "combat" && model.combatRun
     ? renderCombatScene(model.combatRun, model.state)
     : model.mode === "dungeon-prep"
       ? renderDungeonPrep(model)
+      : model.mode === "dungeon-result" && model.dungeonResult
+        ? renderDungeonResult(model.dungeonResult)
       : renderTownScene(model);
   const currencies = model.state.player.currencies;
   const audioVolumes = model.audio?.volumes ?? createAudioState().volumes;
 
   return `
     <main class="app-shell" aria-label="烬璃纪元" data-app-mode="${model.mode}" data-save-key="${SAVE_KEY}" data-audio-settings-key="${AUDIO_SETTINGS_KEY}" data-audio-master="${audioVolumes.master}" data-audio-music="${audioVolumes.music}" data-audio-sfx="${audioVolumes.sfx}" data-player-gold="${currencies.gold}" data-player-iron-dust="${currencies.ironDust}" data-player-arc-shard="${currencies.arcShard}" data-player-skill-points="${model.state.player.skillPoints}" data-inventory-count="${model.state.player.inventory.length}">
-      ${renderNav(model.mode)}
+      ${model.mode === "dungeon-result" ? "" : renderNav(model.mode)}
       <section class="game-layout">
         ${scene}
-        ${model.mode === "combat" ? "" : renderActivePanel(model)}
+        ${model.mode === "combat" || model.mode === "dungeon-result" ? "" : renderActivePanel(model)}
       </section>
-      ${renderLootResult(model.lastLoot)}
-      ${model.message ? `<div class="toast">${model.message}</div>` : ""}
+      ${model.mode === "dungeon-result" ? "" : renderLootResult(model.lastLoot)}
+      ${model.mode !== "dungeon-result" && model.message ? `<div class="toast">${model.message}</div>` : ""}
     </main>
   `;
 }
@@ -2349,6 +2444,20 @@ function applyCombatLoot(state: GameState, loot: CombatLootEvent): GameState {
   return next;
 }
 
+function applyDungeonRankBonus(state: GameState, result: DungeonClearEvaluation): GameState {
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      currencies: {
+        ...state.player.currencies,
+        gold: state.player.currencies.gold + result.rankBonus.gold,
+        ironDust: state.player.currencies.ironDust + result.rankBonus.ironDust
+      }
+    }
+  };
+}
+
 function syncCombatResourceToState(state: GameState, run: CombatRun): GameState {
   return syncCurrentClassResource(state, run.player.resource.current);
 }
@@ -2371,16 +2480,25 @@ function applyFinishedRoom(model: AppModel, finishedRun: CombatRun, roomMessage:
   let nextState = latestLoot ? applyCombatLoot(resourceState, latestLoot) : resourceState;
 
   if (finishedRun.completed) {
+    const evaluation = evaluateDungeonClear(finishedRun);
+
+    nextState = applyDungeonRankBonus(nextState, evaluation);
     nextState = applyQuestEvent(nextState, { type: "dungeonCleared", dungeonId: finishedRun.dungeonId });
 
     return {
       ...model,
       state: nextState,
-      mode: "town",
+      mode: "dungeon-result",
       combatRun: undefined,
+      dungeonResult: {
+        ...evaluation,
+        dungeonId: finishedRun.dungeonId,
+        difficultyId: finishedRun.difficultyId,
+        loot: latestLoot
+      },
       lastLoot: latestLoot,
-      message: "副本通关，战利品已入账",
-      audio: playSfx(playBgm(model.audio, chooseMusicLayer({ mode: "town" }).trackId), "loot-drop")
+      message: `副本通关 · ${evaluation.rank}级`,
+      audio: playSfx(model.audio, "loot-drop")
     };
   }
 
@@ -2449,6 +2567,18 @@ export function createAppModel(options: CreateAppModelOptions = {}): AppModel {
 
 export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
   switch (action.type) {
+    case "confirmDungeonResult":
+      if (model.mode !== "dungeon-result" || !model.dungeonResult) {
+        return model;
+      }
+
+      return {
+        ...model,
+        mode: "town",
+        dungeonResult: undefined,
+        message: "战绩已记录，返回炉山市集",
+        audio: playBgm(model.audio, chooseMusicLayer({ mode: "town" }).trackId)
+      };
     case "setMode":
       return {
         ...model,
@@ -2466,6 +2596,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           difficultyId: preferredDungeonDifficulty(model.state, action.dungeonId)
         },
         combatRun: undefined,
+        dungeonResult: undefined,
         lastLoot: undefined,
         message: undefined
       };
@@ -2504,6 +2635,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           mode: "combat",
           dungeonPrep: undefined,
           combatRun: createCombatRun(state, action.dungeonId, difficultyId),
+          dungeonResult: undefined,
           lastLoot: undefined,
           message: undefined,
           audio: playBgm(model.audio, chooseMusicLayer({ mode: "dungeon", dungeonId: action.dungeonId, danger: 0.2 }).trackId)
@@ -3063,6 +3195,10 @@ export function mountApp(root: HTMLDivElement): () => void {
         dispatch({ type: "setMode", mode: "town" });
       }
 
+      if (target.dataset.confirmDungeonResult) {
+        dispatch({ type: "confirmDungeonResult" });
+      }
+
       if (combatAction) {
         if (combatAction === "skill") {
           if (combatSkillId) {
@@ -3191,6 +3327,13 @@ export function mountApp(root: HTMLDivElement): () => void {
       if (model.mode !== "combat") {
         commandBuffer = [];
         heldCombatKeys.clear();
+
+        if (model.mode === "dungeon-result" && (event.code === "Enter" || event.code === "Space")) {
+          event.preventDefault();
+          dispatch({ type: "confirmDungeonResult" });
+          render();
+          return;
+        }
 
         if (model.mode === "dungeon-prep" && model.dungeonPrep) {
           if (event.code === "ArrowLeft" || event.code === "ArrowRight") {

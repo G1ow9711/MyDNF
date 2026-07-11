@@ -324,7 +324,15 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Prove crit-focused gear materially changes hit outcomes while zero-crit builds never crit.
 - [x] Verify critical hits through real keyboard combat, run full regression/build, then commit and push with Chinese messages.
 
+## Task 186 DNF Dungeon Clear Grade and Result Flow
+- [x] Derive deterministic C/B/A/S/SS/SSS grading from retained combat events, combo, damage taken, and clear time.
+- [x] Replace immediate Boss-clear town return with a mounted dungeon-result mode and explicit confirm action.
+- [x] Present rank, combat statistics, final loot, and rank bonus without changing the versioned save schema.
+- [x] Support Enter/Space and mounted button confirmation while keeping reload recovery safe.
+- [x] Verify a full real-keyboard dungeon clear reaches the result screen, confirms to town, and persists rewards before Chinese commit/push.
+
 ### Errors Encountered
+- Task 186 first full 31-scenario browser run passed 29/31. One preparation-page real click produced no state change; it now retries only after an observed timeout. The campaign also retained fixed pre-grade currency totals; those assertions now use mounted, persisted rank-result currency as their baseline before checking quest deltas.
 - A combined Task 185 evidence patch targeted `progress.md` with “move an initially valid target before” while the file contained “move an initially valid target out before”; patch verification rejected the entire edit. Re-read the tail and reapplied against the exact text; no partial file changes occurred.
 - Task 185 first production build stopped on the manual reflect hit event missing required critical metadata. Classified fixed monster-derived reflect damage as non-critical, added explicit fields, and documented the accumulator exception.
 - Task 185 first UI GREEN run passed the CSS smoke check but the app integration test errored before rendering because its new `createCombatRun` call was not added to the existing combat import. Added the missing test import; production behavior was not involved.

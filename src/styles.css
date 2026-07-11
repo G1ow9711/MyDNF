@@ -91,6 +91,297 @@ p {
   padding: 14px;
 }
 
+.app-shell[data-app-mode="dungeon-result"] {
+  grid-template-rows: 1fr;
+}
+
+.app-shell[data-app-mode="dungeon-result"] .game-layout {
+  display: block;
+  padding: 0;
+}
+
+.dungeon-result {
+  --result-accent: #d4d4d8;
+  --result-glow: rgba(212, 212, 216, 0.46);
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  color: #f8fafc;
+  background: #05070b;
+}
+
+.dungeon-result-background,
+.dungeon-result-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.dungeon-result-background {
+  z-index: -3;
+  object-fit: cover;
+  object-position: center 56%;
+  filter: brightness(0.34) saturate(0.76) contrast(1.12);
+  transform: scale(1.025);
+}
+
+.dungeon-result-shade {
+  z-index: -2;
+  background:
+    linear-gradient(90deg, rgba(3, 5, 9, 0.96) 0%, rgba(3, 5, 9, 0.72) 43%, rgba(3, 5, 9, 0.48) 100%),
+    linear-gradient(180deg, rgba(3, 5, 9, 0.34), rgba(3, 5, 9, 0.94));
+}
+
+.dungeon-result-content {
+  width: min(1180px, calc(100% - 64px));
+  height: 100%;
+  margin: 0 auto;
+  padding: clamp(24px, 4vh, 48px) 0 26px;
+  display: grid;
+  grid-template-columns: minmax(250px, 0.76fr) minmax(480px, 1.5fr);
+  grid-template-rows: auto auto 1fr auto;
+  gap: 18px 54px;
+  align-content: center;
+}
+
+.dungeon-result-header {
+  grid-column: 1 / -1;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.24);
+}
+
+.dungeon-result-header p {
+  color: var(--result-accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.dungeon-result-header h1 {
+  margin: 4px 0 2px;
+  font-family: "STKaiti", "KaiTi", "Microsoft YaHei", sans-serif;
+  font-size: clamp(30px, 4.2vh, 48px);
+  letter-spacing: 0;
+  text-shadow: 0 3px 20px rgba(0, 0, 0, 0.78);
+}
+
+.dungeon-result-header span {
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.dungeon-result-grade {
+  grid-row: 2 / 4;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  min-width: 0;
+  border-right: 1px solid rgba(226, 232, 240, 0.2);
+}
+
+.dungeon-result-rank {
+  color: var(--result-accent);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(104px, 21vh, 208px);
+  font-weight: 900;
+  line-height: 0.82;
+  letter-spacing: 0;
+  filter: drop-shadow(0 0 20px var(--result-glow));
+  text-shadow: 0 3px 0 #fff, 0 8px 24px rgba(0, 0, 0, 0.86);
+  animation: dungeon-result-rank-enter 760ms cubic-bezier(0.12, 0.84, 0.18, 1) both;
+}
+
+.dungeon-result-score {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.dungeon-result-score small,
+.dungeon-result-score span {
+  color: #a8b3c4;
+  font-size: 12px;
+}
+
+.dungeon-result-score strong {
+  color: #fff;
+  font-size: 26px;
+}
+
+.dungeon-result-statistics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.18);
+  border-radius: 6px;
+  background: rgba(226, 232, 240, 0.12);
+}
+
+.dungeon-result-statistics div {
+  min-width: 0;
+  padding: 11px 12px;
+  display: grid;
+  gap: 3px;
+  background: rgba(5, 8, 14, 0.82);
+}
+
+.dungeon-result-statistics span {
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+.dungeon-result-statistics strong {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 17px;
+  text-overflow: ellipsis;
+}
+
+.dungeon-result-details {
+  align-self: stretch;
+  display: grid;
+  grid-template-columns: minmax(170px, 0.72fr) minmax(280px, 1.28fr);
+  gap: 24px;
+  min-height: 0;
+  padding-top: 2px;
+}
+
+.dungeon-result-details h2 {
+  margin: 0 0 10px;
+  color: #e5e7eb;
+  font-size: 14px;
+}
+
+.dungeon-result-breakdown dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 14px;
+}
+
+.dungeon-result-breakdown dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.dungeon-result-breakdown dt {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.dungeon-result-breakdown dd {
+  margin: 0;
+  color: var(--result-accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.dungeon-result-rewards {
+  min-width: 0;
+  padding-left: 22px;
+  border-left: 1px solid rgba(226, 232, 240, 0.18);
+}
+
+.dungeon-result-gear {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 9px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.dungeon-result-gear b {
+  grid-row: span 2;
+  color: #60a5fa;
+  font-size: 12px;
+}
+
+.dungeon-result-gear strong {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dungeon-result-gear span,
+.dungeon-result-rewards > p {
+  color: #a8b3c4;
+  font-size: 11px;
+}
+
+.dungeon-result-gear.loot-rarity-epic b {
+  color: #fbbf24;
+}
+
+.dungeon-result-gear.loot-rarity-mythic b {
+  color: #fb7185;
+}
+
+.dungeon-result-rewards > p {
+  margin-top: 9px;
+  line-height: 1.55;
+}
+
+.dungeon-result-rank-bonus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(226, 232, 240, 0.18);
+}
+
+.dungeon-result-rank-bonus span {
+  color: var(--result-accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.dungeon-result-rank-bonus strong {
+  color: #f8fafc;
+  font-size: 12px;
+}
+
+.dungeon-result-confirm {
+  grid-column: 2;
+  justify-self: end;
+  min-width: 210px;
+  padding: 10px 18px;
+  border-color: var(--result-accent);
+  color: #fff;
+  background: rgba(10, 13, 20, 0.9);
+  box-shadow: 0 0 22px var(--result-glow);
+}
+
+.dungeon-result-confirm span {
+  margin-left: 14px;
+  color: #a8b3c4;
+  font-size: 11px;
+}
+
+.dungeon-result[data-result-rank="C"] { --result-accent: #a3a3a3; --result-glow: rgba(163, 163, 163, 0.3); }
+.dungeon-result[data-result-rank="B"] { --result-accent: #86efac; --result-glow: rgba(34, 197, 94, 0.36); }
+.dungeon-result[data-result-rank="A"] { --result-accent: #67e8f9; --result-glow: rgba(6, 182, 212, 0.42); }
+.dungeon-result[data-result-rank="S"] { --result-accent: #fcd34d; --result-glow: rgba(245, 158, 11, 0.48); }
+.dungeon-result[data-result-rank="SS"] { --result-accent: #f9a8d4; --result-glow: rgba(236, 72, 153, 0.52); }
+.dungeon-result[data-result-rank="SSS"] { --result-accent: #fef08a; --result-glow: rgba(239, 68, 68, 0.58); }
+
+@keyframes dungeon-result-rank-enter {
+  0% { opacity: 0; transform: translateY(-22px) scale(1.42); filter: blur(9px) drop-shadow(0 0 0 transparent); }
+  52% { opacity: 1; transform: translateY(5px) scale(0.94); filter: blur(0) drop-shadow(0 0 32px var(--result-glow)); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0) drop-shadow(0 0 20px var(--result-glow)); }
+}
+
 .town-scene,
 .combat-scene,
 .system-panel {
@@ -11052,6 +11343,62 @@ p {
     position: static;
     min-height: 100vh;
     grid-template-rows: auto 1fr;
+  }
+
+  .app-shell[data-app-mode="dungeon-result"] {
+    position: fixed;
+    grid-template-rows: 1fr;
+  }
+
+  .dungeon-result {
+    overflow-y: auto;
+  }
+
+  .dungeon-result-content {
+    width: min(100% - 32px, 680px);
+    height: auto;
+    min-height: 100%;
+    padding: 22px 0;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    gap: 18px;
+  }
+
+  .dungeon-result-header,
+  .dungeon-result-grade,
+  .dungeon-result-statistics,
+  .dungeon-result-details,
+  .dungeon-result-confirm {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .dungeon-result-grade {
+    padding: 12px 0 20px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.2);
+  }
+
+  .dungeon-result-rank {
+    font-size: clamp(96px, 18vh, 150px);
+  }
+
+  .dungeon-result-statistics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dungeon-result-details {
+    grid-template-columns: 1fr;
+  }
+
+  .dungeon-result-rewards {
+    padding: 16px 0 0;
+    border-top: 1px solid rgba(226, 232, 240, 0.18);
+    border-left: 0;
+  }
+
+  .dungeon-result-confirm {
+    justify-self: stretch;
   }
 
   .top-nav {

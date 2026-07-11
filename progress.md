@@ -4237,3 +4237,16 @@
 - Broad non-keyboard regression passed 655/655 across 15 files, including all 25 real-browser computed-style scenarios. TypeScript and Vite production build passed.
 - Final serial real-browser keyboard regression passed 31/31 in 650.89 seconds, including the new deterministic critical route and all existing story, Boss, economy, save, class, control, and VFX scenarios.
 - Task 185 implementation, tests, design, and acceptance evidence were committed as `2e06045 实现离散暴击与伤害反馈` and pushed to `origin/feature/vertical-slice`.
+
+## Task 186 DNF Dungeon Clear Grade and Result Flow
+- Confirmed a clean zero-divergence branch at `8965125`. Started a no-subagent audit of final settlement, retained combat events, result presentation, keyboard confirmation, and offline save behavior.
+- Selected a DNF-style clear-grade/result phase because final Boss settlement currently skips directly to town despite retaining enough authoritative combat data for grading.
+- Added the Task 186 design and inline implementation plan. Locked event-history preservation, six-part 0–10000 scoring, C–SSS thresholds, grade bonuses, runtime-only result state, and Enter/Space confirmation.
+- Implemented deterministic grading, retained cross-room combat events, immediate save-safe rank bonuses, and a runtime-only `dungeon-result` phase instead of direct Boss-clear return to town.
+- Added a full-screen Chinese-style result surface with rank entrance animation, score breakdown, eight combat statistics, final Boss equipment/material rewards, grade bonus, stable browser hooks, and no town navigation or duplicate loot overlay.
+- Connected the mounted confirmation button plus real Enter/Space handling to the same reducer action. The focused true-keyboard Boss route passed after first proving RED at the unhandled Enter boundary.
+- Broad verification so far: 660/660 non-keyboard tests across 16 files, including 25 real-browser computed-style scenarios; production TypeScript/Vite build passed.
+- First full 31-scenario keyboard run passed 29/31. Fixed one state-aware preparation-click retry and replaced obsolete fixed campaign currency totals with result-screen persisted-currency baselines, preserving exact quest reward-delta checks.
+- Focused reruns passed the preparation route and the complete 108.00-second Cinder-to-Liuli campaign. The final authoritative serial keyboard regression then passed 31/31 in 648.31 seconds.
+- Added explicit reload recovery coverage: a saved result-phase reward state restarts in town with no runtime result/combat state and no duplicate currency grant.
+- Final pre-commit evidence: 661/661 non-keyboard tests passed across 16 files, production build passed, `git diff --check` passed, the live Vite endpoint returned HTTP 200, and the authoritative keyboard suite passed 31/31. No subagent was started.

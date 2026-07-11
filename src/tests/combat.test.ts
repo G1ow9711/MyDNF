@@ -11031,6 +11031,23 @@ describe("room completion", () => {
     expect(next.events.at(-1)?.kind).toBe("room-cleared");
   });
 
+  it("retains authoritative combat events across room settlement for final grading", () => {
+    const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const defeated = defeatAll(run);
+    const hitIds = defeated.events
+      .filter((event): event is CombatHitEvent => event.kind === "hit")
+      .map((event) => event.id);
+    const next = finishRoom(defeated);
+
+    expect(hitIds.length).toBeGreaterThan(0);
+    expect(next.events.filter((event) => event.kind === "hit").map((event) => event.id)).toEqual(hitIds);
+    expect(next.events.at(-1)).toMatchObject({
+      kind: "room-cleared",
+      dungeonId: "cinder-kiln-alley",
+      roomIndex: 0
+    });
+  });
+
   it("restores a portion of player health when advancing through a cleared room", () => {
     const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
     const defeated = defeatAll({

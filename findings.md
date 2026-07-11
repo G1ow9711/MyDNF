@@ -1434,3 +1434,13 @@
 - Ultimate cues retain screen-feedback priority. Ordinary criticals use dedicated shake/flash, while critical ultimates still show their meteor/prism/forge presentation and retain critical damage-number metadata.
 - A legal Night Contract Hunter save with rare bracelet and ring produces 22% crit. Real keyboard combat guaranteed the fifth landed hit, and the browser recorder observed critical hitstop, text, impact animation, screen feedback, plus active player and weapon animations.
 - Final evidence: 655/655 non-keyboard tests across 15 files, production build, and 31/31 serial real-browser keyboard scenarios in 650.89 seconds. No subagent was started.
+
+## Task 186 Dungeon-Result Audit
+- Final settlement currently applies Boss loot and quest progress, switches directly to `town`, discards `combatRun`, and shows only a global loot banner. There is no DNF-style clear rank or player-confirmed result phase.
+- Audit correction: `lootEvents` accumulate, but `finishRoom()` currently replaces `events` with `[clearedEvent]` each room. Since `elapsedMs` remains monotonic and mounted VFX already filters events by age, preserving historical events is the narrowest authoritative way to grade the full run without adding duplicate stat counters.
+- The versioned save persists state only, not `AppModel` mode/combat runtime. A runtime-only `dungeonResult` is safe: rewards can be saved immediately on Boss settlement, while a reload naturally recovers in town if the result screen was open.
+- Existing browser helper `walkThroughCompletionGateToTown()` is the central compatibility point for full-clear routes. It can require `dungeon-result`, assert mounted result state, press real Enter, then wait for town; this preserves all callers while strengthening acceptance.
+- Result mode should suppress the normal top navigation and use a one-column full result surface. Rewards are applied before entering the result mode; confirmation changes only runtime mode/BGM, so reload and auto-save remain safe.
+- The focused real-browser RED route reached the mounted result screen and exposed the saved rewards, then timed out only after a real Enter press; this proved the new acceptance path was not passing through the old direct-town behavior.
+- The mounted result now exposes dungeon, difficulty, rank, score, combo, accuracy, critical, hit-taken, time, damage, gear, rank-bonus, and save-backed currency evidence while suppressing town navigation and the duplicate floating loot banner.
+- Shared completion-gate acceptance now uses Enter in the dedicated Boss route, a mounted button click in the Cinder campaign, and Space in the Liuli campaign, so all three confirmation paths are exercised without test-only state mutation.

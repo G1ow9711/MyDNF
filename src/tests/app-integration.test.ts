@@ -412,15 +412,31 @@ describe("playable app integration actions", () => {
     model = settleClearedRoom(model);
     model = settleClearedRoom(model);
 
-    expect(model.mode).toBe("town");
+    expect(model.mode).toBe("dungeon-result");
     expect(model.combatRun).toBeUndefined();
+    expect(model.dungeonResult).toMatchObject({
+      dungeonId: "cinder-kiln-alley",
+      difficultyId: "normal"
+    });
+    expect(model.dungeonResult?.rank).toMatch(/^(C|B|A|S|SS|SSS)$/);
+    expect(model.dungeonResult?.score).toBeGreaterThan(0);
     expect(model.state.player.currencies.gold).toBeGreaterThan(goldBefore);
     expect(model.state.player.currencies.ironDust).toBeGreaterThan(ironDustBefore);
     expect(model.state.player.inventory.length).toBeGreaterThan(createInitialState().player.inventory.length);
     expect(model.state.player.quests["prologue-ember-warden"]).toBe("ready");
     expect(model.message).toContain("通关");
-    expect(model.audio.currentBgm).toBe("town-forge-market");
+    expect(model.audio.currentBgm).toBe("dungeon-cinder-kiln");
     expect(model.audio.commandQueue).toEqual(expect.arrayContaining([{ type: "sfx", id: "loot-drop" }]));
+
+    const stateAfterSettlement = model.state;
+    const confirmed = reduceAppAction(model, { type: "confirmDungeonResult" });
+    const confirmedAgain = reduceAppAction(confirmed, { type: "confirmDungeonResult" });
+
+    expect(confirmed.mode).toBe("town");
+    expect(confirmed.dungeonResult).toBeUndefined();
+    expect(confirmed.state).toBe(stateAfterSettlement);
+    expect(confirmed.audio.currentBgm).toBe("town-forge-market");
+    expect(confirmedAgain.state).toBe(stateAfterSettlement);
   });
 
   it("keeps and renders a concrete targeted room drop after entering the next room", () => {
@@ -450,7 +466,7 @@ describe("playable app integration actions", () => {
     expect(html).toContain(gear?.displayName ?? "missing gear");
   });
 
-  it("preserves the final boss loot result when combat returns to town", () => {
+  it("preserves the final boss loot result on the dungeon result screen", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 
     model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
@@ -463,15 +479,36 @@ describe("playable app integration actions", () => {
     const set = catalog.epicSets.find((item) => item.id === gear?.setId);
     const html = renderAppHtml(model);
 
-    expect(model.mode).toBe("town");
+    expect(model.mode).toBe("dungeon-result");
     expect(loot).toMatchObject({ dungeonId: "cinder-kiln-alley", roomIndex: 2 });
     expect(gear?.rarity).toBe("epic");
-    expect(html).toContain('data-loot-result="true"');
-    expect(html).toContain('data-loot-room-index="2"');
-    expect(html).toContain(`data-loot-gold="${loot?.gold}"`);
+    expect(html).toContain('data-dungeon-result="true"');
+    expect(html).toContain('data-result-gear-id');
     expect(html).toContain("首领战利品");
     expect(html).toContain("史诗");
     expect(html).toContain(set?.displayName ?? "missing set");
+  });
+
+  it("reloads an already-saved dungeon result into town without granting rewards twice", () => {
+    const storage = new MemoryStorage();
+    let model = createAppModel({ storage });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+
+    expect(model.mode).toBe("dungeon-result");
+    expect(model.dungeonResult).toBeDefined();
+
+    saveGame(storage, model.state);
+    const savedCurrencies = { ...model.state.player.currencies };
+    const reloaded = createAppModel({ storage });
+
+    expect(reloaded.mode).toBe("town");
+    expect(reloaded.dungeonResult).toBeUndefined();
+    expect(reloaded.combatRun).toBeUndefined();
+    expect(reloaded.state.player.currencies).toEqual(savedCurrencies);
   });
 
   it("awards room experience so advancement can be reached through normal dungeon play", () => {
@@ -619,15 +656,26 @@ describe("playable app integration actions", () => {
 
     model = walkThroughOpenGate(model);
 
-    expect(model.mode).toBe("town");
+    expect(model.mode).toBe("dungeon-result");
     expect(model.combatRun).toBeUndefined();
+    expect(model.dungeonResult?.rankBonus.gold).toBeGreaterThanOrEqual(0);
+    expect(model.state.player.currencies.gold).toBe(
+      goldBefore + 120 + 150 + 180 + (model.dungeonResult?.rankBonus.gold ?? 0)
+    );
     expect(model.state.player.currencies.gold).toBeGreaterThan(goldBefore);
     expect(model.state.player.inventory.length).toBeGreaterThan(inventoryBefore);
     expect(model.state.player.quests["prologue-ember-warden"]).toBe("ready");
     expect(model.message).toContain("通关");
 
+    const resultHtml = renderAppHtml(model);
+
+    expect(resultHtml).toContain('data-app-mode="dungeon-result"');
+    expect(resultHtml).toContain('data-dungeon-result="true"');
+
+    model = reduceAppAction(model, { type: "confirmDungeonResult" });
     const townHtml = renderAppHtml(model);
 
+    expect(model.mode).toBe("town");
     expect(townHtml).toContain('data-app-mode="town"');
     expect(townHtml).toContain('data-town-scene="true"');
   });

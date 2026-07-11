@@ -306,6 +306,29 @@ type BrowserAppModeState = {
   townScene: string;
 };
 
+type BrowserDungeonResultState = {
+  appMode: string;
+  dungeonId: string;
+  difficultyId: string;
+  rank: string;
+  score: number;
+  maxCombo: number;
+  accuracy: number;
+  criticalHits: number;
+  hitsTaken: number;
+  clearTimeMs: number;
+  gearId: string;
+  rankBonusGold: number;
+  rankBonusIronDust: number;
+  playerGold: number;
+  playerIronDust: number;
+  savedGold: number;
+  savedIronDust: number;
+  saveExists: boolean;
+  confirmButton: boolean;
+  topNav: boolean;
+};
+
 type BrowserDungeonDifficultyState = {
   appMode: string;
   prepDungeonId: string;
@@ -689,6 +712,38 @@ const readAppModeStateExpression = `
   return {
     appMode: shell?.getAttribute("data-app-mode") ?? "",
     townScene: town?.getAttribute("data-town-scene") ?? ""
+  };
+})()
+`;
+
+const readDungeonResultStateExpression = `
+(() => {
+  const shell = document.querySelector(".app-shell");
+  const result = document.querySelector("[data-dungeon-result='true']");
+  const rawSave = localStorage.getItem(${JSON.stringify(SAVE_KEY)});
+  const saved = rawSave ? JSON.parse(rawSave) : null;
+
+  return {
+    appMode: shell?.getAttribute("data-app-mode") ?? "",
+    dungeonId: result?.getAttribute("data-result-dungeon-id") ?? "",
+    difficultyId: result?.getAttribute("data-result-difficulty-id") ?? "",
+    rank: result?.getAttribute("data-result-rank") ?? "",
+    score: Number(result?.getAttribute("data-result-score") ?? "0"),
+    maxCombo: Number(result?.getAttribute("data-result-max-combo") ?? "0"),
+    accuracy: Number(result?.getAttribute("data-result-accuracy") ?? "0"),
+    criticalHits: Number(result?.getAttribute("data-result-critical-hits") ?? "0"),
+    hitsTaken: Number(result?.getAttribute("data-result-hits-taken") ?? "0"),
+    clearTimeMs: Number(result?.getAttribute("data-result-clear-time-ms") ?? "0"),
+    gearId: result?.getAttribute("data-result-gear-id") ?? "",
+    rankBonusGold: Number(result?.getAttribute("data-result-rank-bonus-gold") ?? "0"),
+    rankBonusIronDust: Number(result?.getAttribute("data-result-rank-bonus-iron-dust") ?? "0"),
+    playerGold: Number(shell?.getAttribute("data-player-gold") ?? "0"),
+    playerIronDust: Number(shell?.getAttribute("data-player-iron-dust") ?? "0"),
+    savedGold: Number(saved?.player?.currencies?.gold ?? -1),
+    savedIronDust: Number(saved?.player?.currencies?.ironDust ?? -1),
+    saveExists: Boolean(rawSave),
+    confirmButton: Boolean(document.querySelector("[data-confirm-dungeon-result='true']")),
+    topNav: Boolean(document.querySelector(".top-nav"))
   };
 })()
 `;
@@ -1938,15 +1993,7 @@ describe("real browser keyboard control", () => {
       await runAppInRealBrowser(server.url, async (page) => {
         await seedSaveAndReload(page, createInitialState());
         await waitInBrowser(page, 200);
-        await page.click('[data-prepare-dungeon="cinder-kiln-alley"]');
-        const normalPrep = await page.waitFor<BrowserDungeonDifficultyState>(
-          readDungeonDifficultyStateExpression,
-          (state) =>
-            state.appMode === "dungeon-prep" &&
-            state.prepDungeonId === "cinder-kiln-alley" &&
-            state.selectedDifficulty === "normal",
-          5000
-        );
+        const normalPrep = await openDungeonPrepThroughRealClick(page, "cinder-kiln-alley");
 
         expect(normalPrep.fatigueCost).toBe(6);
 
@@ -2224,7 +2271,7 @@ describe("real browser keyboard control", () => {
         expect(bossCleared.gateState).toBe("complete");
         expect(bossCleared.gateTargetRoom).toBe("");
 
-        await walkThroughCompletionGateToTown(page);
+        const dungeonResult = await walkThroughCompletionGateToTown(page);
         const returned = await page.waitFor<BrowserAppModeState>(
           readAppModeStateExpression,
           (state) => state.appMode === "town" && state.townScene === "true",
@@ -2233,6 +2280,20 @@ describe("real browser keyboard control", () => {
 
         expect(returned.appMode).toBe("town");
         expect(returned.townScene).toBe("true");
+        expect(dungeonResult.appMode).toBe("dungeon-result");
+        expect(dungeonResult.dungeonId).toBe("cinder-kiln-alley");
+        expect(dungeonResult.difficultyId).toBe("normal");
+        expect(["C", "B", "A", "S", "SS", "SSS"]).toContain(dungeonResult.rank);
+        expect(dungeonResult.score).toBeGreaterThan(0);
+        expect(dungeonResult.maxCombo).toBeGreaterThan(0);
+        expect(dungeonResult.accuracy).toBeGreaterThan(0);
+        expect(dungeonResult.clearTimeMs).toBeGreaterThan(0);
+        expect(dungeonResult.gearId).toBeTruthy();
+        expect(dungeonResult.confirmButton).toBe(true);
+        expect(dungeonResult.topNav).toBe(false);
+        expect(dungeonResult.saveExists).toBe(true);
+        expect(dungeonResult.savedGold).toBe(dungeonResult.playerGold);
+        expect(dungeonResult.savedIronDust).toBe(dungeonResult.playerIronDust);
 
         const evidence = await page.evaluate<BrowserStrictCombatEvidence>(readStrictCombatEvidenceExpression);
         expect(evidence.roomsSeen).toEqual(expect.arrayContaining(["0", "1", "2"]));
@@ -2269,7 +2330,7 @@ describe("real browser keyboard control", () => {
         await clearCurrentRoomWithKeyboard(page, 28);
         await walkThroughOpenGate(page);
         await clearCurrentRoomWithKeyboard(page, 80);
-        await walkThroughCompletionGateToTown(page);
+        const cinderResult = await walkThroughCompletionGateToTown(page, "button");
 
         await page.click('[data-mode="quests"]');
         const ready = await page.waitFor<BrowserTownEcosystemState>(
@@ -2278,6 +2339,10 @@ describe("real browser keyboard control", () => {
           8000
         );
         const goldBeforeClaim = ready.saved?.player.currencies.gold ?? 0;
+        const ironDustBeforeClaim = ready.saved?.player.currencies.ironDust ?? 0;
+
+        expect(goldBeforeClaim).toBe(cinderResult.savedGold);
+        expect(ironDustBeforeClaim).toBe(cinderResult.savedIronDust);
 
         await page.click('[data-quest-id="prologue-ember-warden"]');
         const unlocked = await page.waitFor<BrowserTownEcosystemState>(
@@ -2291,7 +2356,7 @@ describe("real browser keyboard control", () => {
 
         expect(unlocked.saved?.player.currencies).toMatchObject({
           gold: goldBeforeClaim + 600,
-          ironDust: 74,
+          ironDust: ironDustBeforeClaim + 20,
           arcShard: 0,
           valorToken: 0
         });
@@ -2350,7 +2415,7 @@ describe("real browser keyboard control", () => {
         expect(liuliBoss.enemies[0]?.kind).toBe("boss");
 
         await clearCurrentRoomWithKeyboard(page, 100);
-        await walkThroughCompletionGateToTown(page);
+        const liuliResult = await walkThroughCompletionGateToTown(page, "Space");
 
         await page.click('[data-mode="quests"]');
         const liuliReady = await page.waitFor<BrowserTownEcosystemState>(
@@ -2359,8 +2424,8 @@ describe("real browser keyboard control", () => {
           8000
         );
         expect(liuliReady.saved?.player.currencies).toMatchObject({
-          gold: 3850,
-          ironDust: 124,
+          gold: liuliResult.savedGold,
+          ironDust: liuliResult.savedIronDust,
           arcShard: 5,
           valorToken: 0
         });
@@ -2376,8 +2441,8 @@ describe("real browser keyboard control", () => {
           5000
         );
         expect(chapterClaimed.saved?.player.currencies).toMatchObject({
-          gold: 5450,
-          ironDust: 124,
+          gold: liuliResult.savedGold + 1600,
+          ironDust: liuliResult.savedIronDust,
           arcShard: 13,
           valorToken: 3
         });
@@ -3537,30 +3602,44 @@ async function walkThroughOpenGate(page: RealBrowserAppPage): Promise<BrowserRoo
   );
 }
 
-async function walkThroughCompletionGateToTown(page: RealBrowserAppPage): Promise<void> {
+async function walkThroughCompletionGateToTown(
+  page: RealBrowserAppPage,
+  confirmation: "Enter" | "Space" | "button" = "Enter"
+): Promise<BrowserDungeonResultState> {
   await alignWithExitGateLane(page);
-  const alreadyReturned = await page.evaluate<BrowserAppModeState>(readAppModeStateExpression);
+  const currentMode = await page.evaluate<BrowserAppModeState>(readAppModeStateExpression);
 
-  if (alreadyReturned.appMode === "town" && alreadyReturned.townScene === "true") {
-    return;
+  if (currentMode.appMode === "combat") {
+    await page.keyDown("ArrowRight");
+    try {
+      await page.waitFor<BrowserRoomFlowState>(
+        readRoomFlowStateExpression,
+        (state) => state.gateTransition === "entering" && state.transitionState === "entering",
+        5000
+      );
+    } finally {
+      await page.keyUp("ArrowRight");
+    }
   }
 
-  await page.keyDown("ArrowRight");
-  try {
-    await page.waitFor<BrowserRoomFlowState>(
-      readRoomFlowStateExpression,
-      (state) => state.gateTransition === "entering" && state.transitionState === "entering",
-      5000
-    );
-  } finally {
-    await page.keyUp("ArrowRight");
-  }
+  const result = await page.waitFor<BrowserDungeonResultState>(
+    readDungeonResultStateExpression,
+    (state) => state.appMode === "dungeon-result" && state.confirmButton && !state.topNav && state.saveExists,
+    8000
+  );
 
+  if (confirmation === "button") {
+    await page.click("[data-confirm-dungeon-result='true']");
+  } else {
+    await page.pressKey(confirmation);
+  }
   await page.waitFor<BrowserAppModeState>(
     readAppModeStateExpression,
     (state) => state.appMode === "town" && state.townScene === "true",
     8000
   );
+
+  return result;
 }
 
 async function alignWithExitGateLane(page: RealBrowserAppPage): Promise<void> {
@@ -3997,6 +4076,33 @@ async function seedSaveAndReload(page: RealBrowserAppPage, state: GameState): Pr
     (mode) => mode.appMode === "town" && mode.townScene === "true",
     15000
   );
+}
+
+async function openDungeonPrepThroughRealClick(
+  page: Pick<RealBrowserAppPage, "click" | "waitFor">,
+  dungeonId: DungeonId,
+  maxAttempts = 3
+): Promise<BrowserDungeonDifficultyState> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await page.click(`[data-prepare-dungeon="${dungeonId}"]`);
+
+    try {
+      return await page.waitFor<BrowserDungeonDifficultyState>(
+        readDungeonDifficultyStateExpression,
+        (state) =>
+          state.appMode === "dungeon-prep" &&
+          state.prepDungeonId === dungeonId &&
+          state.selectedDifficulty === "normal",
+        1800
+      );
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.startsWith("Timed out waiting for browser expression") || attempt === maxAttempts - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error(`Real browser dungeon preparation did not open for ${dungeonId}`);
 }
 
 async function enterDungeonWithKeyboard(

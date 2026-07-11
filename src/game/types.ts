@@ -42,6 +42,8 @@ export type AdvancementId =
 
 export type DungeonId = "cinder-kiln-alley" | "liuli-furnace";
 
+export type DungeonDifficultyId = "normal" | "adventure" | "warrior";
+
 export type TownId = "forge-market";
 
 export type QuestStatus = "locked" | "active" | "ready" | "completed";
@@ -336,6 +338,11 @@ export interface PlayerState {
   loadouts: Array<Partial<Record<GearSlot, string>>>;
   quests: Record<string, QuestStatus>;
   unlockedDungeons: DungeonId[];
+  fatigue: {
+    current: number;
+    max: number;
+  };
+  dungeonDifficultyPreferences: Partial<Record<DungeonId, DungeonDifficultyId>>;
 }
 
 export interface GameState {

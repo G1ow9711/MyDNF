@@ -139,7 +139,9 @@ export function createInitialState(): GameState {
       equipment: ownedWeapon ? { weapon: ownedWeapon.instanceId } : {},
       loadouts: [{}, {}, {}],
       quests: createInitialQuests(),
-      unlockedDungeons: ["cinder-kiln-alley"]
+      unlockedDungeons: ["cinder-kiln-alley"],
+      fatigue: { current: 64, max: 64 },
+      dungeonDifficultyPreferences: {}
     }
   };
 }

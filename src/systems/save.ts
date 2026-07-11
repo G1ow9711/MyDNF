@@ -8,6 +8,7 @@ import type {
   ClassId,
   ConsumableId,
   CurrencyId,
+  DungeonDifficultyId,
   DungeonId,
   GameState,
   GearSlot,
@@ -15,6 +16,7 @@ import type {
   TownId
 } from "../game/types";
 import { isKnownAdvancementId, isKnownClassId, skillMaxLevel } from "./classes";
+import { DUNGEON_DIFFICULTY_ORDER } from "./dungeons";
 import { normalizeAuctionPriceRecords } from "./market";
 import { isKnownBoxId } from "./shop";
 
@@ -311,6 +313,61 @@ function validateUnlockedDungeons(value: unknown): void {
   }
 }
 
+function validateFatigue(value: unknown): { current: number; max: number } {
+  if (value === undefined) {
+    return { current: 64, max: 64 };
+  }
+
+  const fatigue = requireRecord(value, "player.fatigue");
+  const current = fatigue.current;
+  const max = fatigue.max;
+
+  if (
+    typeof current !== "number" ||
+    !Number.isFinite(current) ||
+    !Number.isInteger(current) ||
+    typeof max !== "number" ||
+    !Number.isFinite(max) ||
+    !Number.isInteger(max) ||
+    max <= 0 ||
+    current < 0 ||
+    current > max
+  ) {
+    throw new Error("Malformed save data: player.fatigue must contain valid integer current/max values");
+  }
+
+  return { current, max };
+}
+
+function validateDungeonDifficultyPreferences(
+  value: unknown
+): Partial<Record<DungeonId, DungeonDifficultyId>> {
+  if (value === undefined) {
+    return {};
+  }
+
+  const preferences = requireRecord(value, "player.dungeonDifficultyPreferences");
+  const normalized: Partial<Record<DungeonId, DungeonDifficultyId>> = {};
+
+  for (const [dungeonId, difficultyId] of Object.entries(preferences)) {
+    if (!dungeonIds.has(dungeonId as DungeonId)) {
+      throw new Error(
+        `Malformed save data: player.dungeonDifficultyPreferences contains unknown dungeon ${dungeonId}`
+      );
+    }
+
+    if (!DUNGEON_DIFFICULTY_ORDER.includes(difficultyId as DungeonDifficultyId)) {
+      throw new Error(
+        `Malformed save data: player.dungeonDifficultyPreferences.${dungeonId} has unknown difficulty`
+      );
+    }
+
+    normalized[dungeonId as DungeonId] = difficultyId as DungeonDifficultyId;
+  }
+
+  return normalized;
+}
+
 function classResourceMax(classId: ClassId): number {
   return catalog.classes.find((classDef) => classDef.id === classId)?.resource.max ?? 100;
 }
@@ -527,6 +584,10 @@ function validateSave(value: unknown): GameState {
   validateLoadouts(player.loadouts, ownedInstanceIds);
   validateQuests(player.quests);
   validateUnlockedDungeons(player.unlockedDungeons);
+  const fatigue = validateFatigue(player.fatigue);
+  const dungeonDifficultyPreferences = validateDungeonDifficultyPreferences(
+    player.dungeonDifficultyPreferences
+  );
   validateMarket(candidate.market, ownedInstanceIds);
   validateShop(candidate.shop);
 
@@ -539,6 +600,8 @@ function validateSave(value: unknown): GameState {
       heat: currentHeat,
       classResources,
       consumables,
+      fatigue,
+      dungeonDifficultyPreferences,
       ...skillProgress
     },
     market: {

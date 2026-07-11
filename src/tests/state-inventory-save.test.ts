@@ -130,6 +130,8 @@ describe("initial game state", () => {
     expect(state.player.level).toBe(1);
     expect(state.player.experience).toBe(0);
     expect(state.player.heat).toBe(0);
+    expect(state.player.fatigue).toEqual({ current: 64, max: 64 });
+    expect(state.player.dungeonDifficultyPreferences).toEqual({});
     expect(state.player.currencies).toEqual({
       gold: 1500,
       ironDust: 30,
@@ -336,6 +338,73 @@ describe("save system", () => {
     expect(SAVE_KEY).toBe("mydnf-save-v1");
     expect(storage.data.has(SAVE_KEY)).toBe(true);
     expect(loaded).toEqual(state);
+  });
+
+  it("migrates missing v1 dungeon fields without changing the save version", () => {
+    const storage = new MemoryStorage();
+    const save = cloneSave(createInitialState());
+    const player = save.player as Record<string, unknown>;
+
+    delete player.fatigue;
+    delete player.dungeonDifficultyPreferences;
+    writeSave(storage, save);
+
+    const loaded = loadGame(storage);
+
+    expect(loaded?.version).toBe(1);
+    expect(loaded?.player.fatigue).toEqual({ current: 64, max: 64 });
+    expect(loaded?.player.dungeonDifficultyPreferences).toEqual({});
+  });
+
+  it("preserves valid fatigue and dungeon difficulty preferences", () => {
+    const storage = new MemoryStorage();
+    const state: GameState = {
+      ...createInitialState(),
+      player: {
+        ...createInitialState().player,
+        fatigue: { current: 42, max: 80 },
+        dungeonDifficultyPreferences: {
+          "cinder-kiln-alley": "warrior",
+          "liuli-furnace": "adventure"
+        }
+      }
+    };
+
+    saveGame(storage, state);
+
+    expect(loadGame(storage)).toEqual(state);
+  });
+
+  it.each([
+    { fatigue: null, name: "non-object fatigue" },
+    { fatigue: { current: 1.5, max: 64 }, name: "fractional current fatigue" },
+    { fatigue: { current: Number.POSITIVE_INFINITY, max: 64 }, name: "non-finite current fatigue" },
+    { fatigue: { current: -1, max: 64 }, name: "negative current fatigue" },
+    { fatigue: { current: 65, max: 64 }, name: "current fatigue above max" },
+    { fatigue: { current: 0, max: 0 }, name: "non-positive max fatigue" },
+    { fatigue: { current: 0, max: 64.5 }, name: "fractional max fatigue" }
+  ])("rejects invalid save: $name", ({ fatigue }) => {
+    const storage = new MemoryStorage();
+    const save = cloneSave(createInitialState());
+    (save.player as Record<string, unknown>).fatigue = fatigue;
+
+    writeSave(storage, save);
+
+    expect(() => loadGame(storage)).toThrow(/Malformed save data/);
+  });
+
+  it.each([
+    { preferences: null, name: "non-object preferences" },
+    { preferences: { "missing-dungeon": "normal" }, name: "unknown preference dungeon" },
+    { preferences: { "cinder-kiln-alley": "nightmare" }, name: "unknown preference difficulty" }
+  ])("rejects invalid save: $name", ({ preferences }) => {
+    const storage = new MemoryStorage();
+    const save = cloneSave(createInitialState());
+    (save.player as Record<string, unknown>).dungeonDifficultyPreferences = preferences;
+
+    writeSave(storage, save);
+
+    expect(() => loadGame(storage)).toThrow(/Malformed save data/);
   });
 
   it("returns null for empty storage and rejects malformed or incompatible saves", () => {

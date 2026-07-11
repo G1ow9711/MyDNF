@@ -2386,7 +2386,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         const difficultyId = action.difficultyId
           ?? (model.mode === "dungeon-prep" && model.dungeonPrep?.dungeonId === action.dungeonId
             ? model.dungeonPrep.difficultyId
-            : preferredDungeonDifficulty(model.state, action.dungeonId));
+            : "normal");
         const entry = canEnterDungeon(model.state, action.dungeonId, difficultyId);
 
         if (!entry.canEnter) {

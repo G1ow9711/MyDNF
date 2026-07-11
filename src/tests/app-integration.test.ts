@@ -6508,7 +6508,15 @@ describe("playable app integration actions", () => {
   });
 
   it("keeps legacy dungeon entry compatible with normal difficulty and clears prep on town mode", () => {
-    const model = createAppModel({ storage: new MemoryStorage() });
+    const baseState = createInitialState();
+    const state = {
+      ...baseState,
+      player: {
+        ...baseState.player,
+        dungeonDifficultyPreferences: { "cinder-kiln-alley": "adventure" as const }
+      }
+    };
+    const model = createAppModel({ storage: new MemoryStorage(), initialState: state });
     const legacy = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
 
     expect(legacy.combatRun?.difficultyId).toBe("normal");

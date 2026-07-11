@@ -64,6 +64,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify flowing-light-chain slash origins follow the moving actor at every phase
 - [x] Complete serial real-browser regression for keyboard combat, Boss, save, and economy
 - [x] Add live Boss hazard sidestep and heavy-hit quick-recover keyboard acceptance
+- [x] Complete fresh-save Cinder-to-Liuli campaign, chapter-two, and epilogue browser acceptance with reload persistence
 - **Status:** ongoing for continuation polish; latest full verification is tracked in `progress.md`
 
 ## Key Questions
@@ -107,6 +108,8 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 | Full serial combo-cancel acceptance used a fixed coordinate during an enemy attack window | 1 | Changed the real keyboard route to acquire the live enemy range, wait for a completed attack cycle and player recovery, then start the light-hit cancel |
 | First multi-agent spawn rejected an incompatible full-history explorer role | 1 | Reissued the two independent read-only audits without full-history forking |
 | Five-room Liuli Furnace browser route lost its execution context | 1 | Captured the failure in a project-local test log; keep the route pending targeted stage-level diagnosis instead of treating it as evidence of completion |
+| Full serial chapter-two browser route accepted a mode change but the first real trade click did not update state | 1 | Stabilized the CDP click after scrolling with two animation frames and verified its center receives pointer events before dispatching real mouse input |
+| Click helper stabilization expression used `await` in a non-async page function | 1 | Made the evaluated page function async, then reran the focused failing route and the complete browser suite |
 
 ## Notes
 - Project root at start: `F:\My_DNF`.

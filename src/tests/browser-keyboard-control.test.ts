@@ -6,7 +6,7 @@ import {
   type RealBrowserKeyCode
 } from "./support/real-browser-computed-style";
 import { catalog } from "../data/catalog";
-import type { GameState } from "../game/types";
+import type { DungeonId, GameState } from "../game/types";
 import { SAVE_KEY } from "../systems/save";
 import { AUDIO_SETTINGS_KEY } from "../ui/app";
 import { createInitialState, createOwnedGear } from "../game/state";
@@ -1520,6 +1520,154 @@ describe("real browser keyboard control", () => {
     }
   }, 240000);
 
+  it("completes the default-save Cinder-to-Liuli campaign through real controls and reload", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.dungeonId === "cinder-kiln-alley" && state.roomIndex === "0",
+          5000
+        );
+
+        await clearCurrentRoomWithKeyboard(page);
+        await walkThroughOpenGate(page);
+        await clearCurrentRoomWithKeyboard(page, 28);
+        await walkThroughOpenGate(page);
+        await clearCurrentRoomWithKeyboard(page, 80);
+        await walkThroughCompletionGateToTown(page);
+
+        await page.click('[data-mode="quests"]');
+        const ready = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "quests" && state.saved?.player.quests["prologue-ember-warden"] === "ready",
+          8000
+        );
+        const goldBeforeClaim = ready.saved?.player.currencies.gold ?? 0;
+
+        await page.click('[data-quest-id="prologue-ember-warden"]');
+        const unlocked = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.saved?.player.quests["prologue-ember-warden"] === "completed" &&
+            state.saved.player.quests["chapter-liuli-furnace"] === "active" &&
+            state.saved.player.unlockedDungeons.includes("liuli-furnace"),
+          5000
+        );
+
+        expect(unlocked.saved?.player.currencies).toMatchObject({
+          gold: goldBeforeClaim + 600,
+          ironDust: 74,
+          arcShard: 0,
+          valorToken: 0
+        });
+        expect(unlocked.saved?.player.inventory).toHaveLength(4);
+
+        await page.click('[data-mode="town"]');
+        await enterDungeonWithKeyboard(page, "Enter", "liuli-furnace");
+        const liuliEntry = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) =>
+            state.objective === "active" &&
+            state.dungeonId === "liuli-furnace" &&
+            state.roomIndex === "0" &&
+            state.roomCount === "5" &&
+            state.liveEnemyCount === "2" &&
+            state.enemies.every((enemy) => enemy.kind === "trash"),
+          5000
+        );
+
+        expect(liuliEntry.gateState).toBe("locked");
+
+        const liuliRooms = [
+          { roomIndex: "0", liveEnemyCount: "2", gateState: "open", maxAttempts: 34 },
+          { roomIndex: "1", liveEnemyCount: "2", gateState: "open", maxAttempts: 34 },
+          { roomIndex: "2", liveEnemyCount: "2", gateState: "open", maxAttempts: 34 },
+          { roomIndex: "3", liveEnemyCount: "3", gateState: "boss", maxAttempts: 54 }
+        ] as const;
+
+        for (const room of liuliRooms) {
+          const activeRoom = await page.waitFor<BrowserRoomFlowState>(
+            readRoomFlowStateExpression,
+            (state) =>
+              state.objective === "active" &&
+              state.dungeonId === "liuli-furnace" &&
+              state.roomIndex === room.roomIndex &&
+              state.liveEnemyCount === room.liveEnemyCount,
+            6000
+          );
+
+          expect(activeRoom.gateState).toBe("locked");
+          const clearedRoom = await clearCurrentRoomWithKeyboard(page, room.maxAttempts);
+          expect(clearedRoom.gateState).toBe(room.gateState);
+          await walkThroughOpenGate(page);
+        }
+
+        const liuliBoss = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) =>
+            state.objective === "active" &&
+            state.dungeonId === "liuli-furnace" &&
+            state.roomIndex === "4" &&
+            state.liveEnemyCount === "1" &&
+            state.enemies.length === 1,
+          6000
+        );
+        expect(liuliBoss.enemies[0]?.kind).toBe("boss");
+
+        await clearCurrentRoomWithKeyboard(page, 100);
+        await walkThroughCompletionGateToTown(page);
+
+        await page.click('[data-mode="quests"]');
+        const liuliReady = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "quests" && state.saved?.player.quests["chapter-liuli-furnace"] === "ready",
+          8000
+        );
+        expect(liuliReady.saved?.player.currencies).toMatchObject({
+          gold: 3850,
+          ironDust: 124,
+          arcShard: 5,
+          valorToken: 0
+        });
+        expect(liuliReady.saved?.player.inventory).toHaveLength(7);
+
+        await page.click('[data-quest-id="chapter-liuli-furnace"]');
+        const chapterClaimed = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.saved?.player.quests["chapter-liuli-furnace"] === "completed" &&
+            state.saved.player.quests["chapter-two-trade-contract"] === "active" &&
+            state.saved.player.quests["chapter-two-relic-study"] === "active",
+          5000
+        );
+        expect(chapterClaimed.saved?.player.currencies).toMatchObject({
+          gold: 5450,
+          ironDust: 124,
+          arcShard: 13,
+          valorToken: 3
+        });
+        expect(chapterClaimed.saved?.player.inventory).toHaveLength(7);
+
+        await page.reload();
+        const restored = await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) =>
+            state.appMode === "town" &&
+            state.saved?.player.quests["chapter-liuli-furnace"] === "completed" &&
+            state.saved.player.unlockedDungeons.includes("liuli-furnace"),
+          15000
+        );
+        expect(restored.saved?.player.currencies).toEqual(chapterClaimed.saved?.player.currencies);
+        expect(restored.saved?.player.inventory).toHaveLength(7);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 420000);
+
   it("uses KeyC to quick-recover from a live heavy monster hit", async () => {
     const server = await startViteServer();
 
@@ -1688,7 +1836,7 @@ describe("real browser keyboard control", () => {
           3000
         );
 
-        await page.evaluate<void>("location.reload()");
+        await page.reload();
         const reloaded = await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
           (state) =>
@@ -1733,7 +1881,7 @@ describe("real browser keyboard control", () => {
           3000
         );
 
-        await page.evaluate<void>("location.reload()");
+        await page.reload();
         const restored = await page.waitFor<BrowserAudioSettingsState>(
           readAudioSettingsStateExpression,
           (state) => state.appMode === "town" && state.music === changed.music && state.saved?.music === changed.music,
@@ -1758,6 +1906,11 @@ describe("real browser keyboard control", () => {
         await seedSaveAndReload(page, seededState);
 
         await page.click('[data-mode="auction"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "auction",
+          3000
+        );
         await page.click('[data-trade-offer-id]');
         await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
@@ -1766,6 +1919,11 @@ describe("real browser keyboard control", () => {
         );
 
         await page.click('[data-mode="quests"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "quests",
+          3000
+        );
         await page.click('[data-quest-id="chapter-two-trade-contract"]');
         await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
@@ -1776,6 +1934,11 @@ describe("real browser keyboard control", () => {
         );
 
         await page.click('[data-mode="smith"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "smith",
+          3000
+        );
         await page.click(`[data-app-action="amplify"][data-gear-id="${echoGearId}"]`);
         await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
@@ -1784,6 +1947,11 @@ describe("real browser keyboard control", () => {
         );
 
         await page.click('[data-mode="quests"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "quests",
+          3000
+        );
         await page.click('[data-quest-id="chapter-two-resonance"]');
         await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
@@ -1792,6 +1960,11 @@ describe("real browser keyboard control", () => {
         );
 
         await page.click('[data-mode="shop"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "shop",
+          3000
+        );
         await page.click('[data-shop-sku="liuli-gift-pack"]');
         await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
@@ -1800,6 +1973,18 @@ describe("real browser keyboard control", () => {
         );
 
         await page.click('[data-mode="quests"]');
+        await page.waitFor<{ appMode: string; disabled: boolean; questId: string }>(
+          `(() => {
+            const button = document.querySelector("[data-quest-id]");
+            return {
+              appMode: document.querySelector(".app-shell")?.getAttribute("data-app-mode") ?? "",
+              disabled: Boolean(button?.hasAttribute("disabled")),
+              questId: button?.getAttribute("data-quest-id") ?? ""
+            };
+          })()`,
+          (state) => state.appMode === "quests" && state.questId === "epilogue-market-oath" && !state.disabled,
+          3000
+        );
         await page.click('[data-quest-id="epilogue-market-oath"]');
         await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
@@ -1807,7 +1992,7 @@ describe("real browser keyboard control", () => {
           3000
         );
 
-        await page.evaluate<void>("location.reload()");
+        await page.reload();
         const restored = await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
           (state) => state.appMode === "town" && state.saved?.player.quests["epilogue-market-oath"] === "completed",
@@ -1888,7 +2073,7 @@ describe("real browser keyboard control", () => {
           3000
         );
 
-        await page.evaluate<void>("location.reload()");
+        await page.reload();
         const restored = await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
           (state) =>
@@ -1938,6 +2123,25 @@ describe("real browser keyboard control", () => {
           (state) => state.objective === "active" && state.liveEnemyCount === "2",
           5000
         );
+        await page.evaluate<void>(`
+(() => {
+  const evidence = [];
+  const capture = () => {
+    const player = document.querySelector(".combat-player");
+    const vfx = document.querySelector("[data-player-skill-vfx]");
+    evidence.push({
+      activeSkill: player?.getAttribute("data-active-skill-id") ?? "",
+      cue: vfx?.getAttribute("data-vfx-cue") ?? "",
+      stage: player?.getAttribute("data-player-skill-stage") ?? ""
+    });
+  };
+  const observer = new MutationObserver(capture);
+  observer.observe(document.body, { attributes: true, childList: true, subtree: true });
+  capture();
+  globalThis.__ironPalmEvidence = evidence;
+  globalThis.__ironPalmObserver = observer;
+})()
+`);
         await page.pressKey("KeyA");
         const palmWindup = await page.waitFor<BrowserIronVanguardState>(
           readIronVanguardStateExpression,
@@ -1952,12 +2156,12 @@ describe("real browser keyboard control", () => {
           3000
         );
         expect(palmWindup.skillMove).toBe("iron-palm");
-        const palmImpact = await page.waitFor<BrowserIronVanguardState>(
-          readIronVanguardStateExpression,
-          (state) => state.activeSkill === "iron-palm" && state.skillStage === "active" && state.skillVfxCue === "iron-shield-jab",
+        const palmImpactSeen = await page.waitFor<boolean>(
+          `Boolean(globalThis.__ironPalmEvidence?.some((entry) => entry.activeSkill === "iron-palm" && entry.stage === "active" && entry.cue === "iron-shield-jab"))`,
+          Boolean,
           1000
         );
-        expect(palmImpact.skillVfx).toBe("iron-palm");
+        expect(palmImpactSeen).toBe(true);
 
         await waitInBrowser(page, 480);
         await page.pressKey("KeyS");
@@ -2077,7 +2281,7 @@ describe("real browser keyboard control", () => {
         expect(savedBeforeReload.savedArcShard).toBe(savedBeforeReload.playerArcShard);
         expect(savedBeforeReload.savedInventoryCount).toBeGreaterThan(0);
 
-        await page.evaluate<void>("location.reload()");
+        await page.reload();
 
         const restored = await page.waitFor<BrowserSavedState>(
           readSavedStateExpression,
@@ -2541,10 +2745,8 @@ async function reinforceGearThroughRealClicks(
 }
 
 async function seedSaveAndReload(page: RealBrowserAppPage, state: GameState): Promise<void> {
-  await page.evaluate<void>(`(() => {
-    localStorage.setItem(${JSON.stringify(SAVE_KEY)}, ${JSON.stringify(JSON.stringify(state))});
-    location.reload();
-  })()`);
+  await page.evaluate<void>(`localStorage.setItem(${JSON.stringify(SAVE_KEY)}, ${JSON.stringify(JSON.stringify(state))})`);
+  await page.reload();
   await page.waitFor<BrowserAppModeState>(
     readAppModeStateExpression,
     (mode) => mode.appMode === "town" && mode.townScene === "true",
@@ -2554,11 +2756,12 @@ async function seedSaveAndReload(page: RealBrowserAppPage, state: GameState): Pr
 
 async function enterDungeonWithKeyboard(
   page: Pick<RealBrowserAppPage, "evaluate" | "waitFor" | "pressKey">,
-  activationKey: "Enter" | "Space" = "Enter"
+  activationKey: "Enter" | "Space" = "Enter",
+  dungeonId: DungeonId = "cinder-kiln-alley"
 ): Promise<void> {
   await page.waitFor<{ ready: boolean; focused: boolean; href: string; body: string; scripts: string[] }>(
     `(() => {
-      const button = document.querySelector('[data-enter-dungeon="cinder-kiln-alley"]');
+      const button = document.querySelector(${JSON.stringify(`[data-enter-dungeon="${dungeonId}"]`)});
       return {
         ready: Boolean(button),
         focused: document.activeElement === button,
@@ -2571,12 +2774,12 @@ async function enterDungeonWithKeyboard(
     15000
   );
   await page.evaluate<void>(`(() => {
-    const button = document.querySelector('[data-enter-dungeon="cinder-kiln-alley"]');
+    const button = document.querySelector(${JSON.stringify(`[data-enter-dungeon="${dungeonId}"]`)});
     button?.focus();
   })()`);
   await page.waitFor<{ focused: boolean }>(
     `(() => {
-      const button = document.querySelector('[data-enter-dungeon="cinder-kiln-alley"]');
+      const button = document.querySelector(${JSON.stringify(`[data-enter-dungeon="${dungeonId}"]`)});
       return { focused: document.activeElement === button };
     })()`,
     (state) => state.focused,

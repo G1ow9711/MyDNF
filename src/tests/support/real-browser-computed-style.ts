@@ -183,6 +183,7 @@ export type RealBrowserKeyCode =
 export type RealBrowserAppPage = {
   evaluate<T>(expression: string): Promise<T>;
   waitFor<T>(expression: string, predicate: (value: T) => boolean, timeoutMs?: number): Promise<T>;
+  reload(): Promise<void>;
   click(selector: string): Promise<void>;
   keyDown(code: RealBrowserKeyCode): Promise<void>;
   keyUp(code: RealBrowserKeyCode): Promise<void>;
@@ -292,6 +293,12 @@ class CdpClient {
   }
 }
 
+function isNavigationContextError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return /execution context was destroyed|cannot find context|inspected target navigated/i.test(message);
+}
+
 async function closeBrowserClient(client: CdpClient, timeoutMs = 1500): Promise<void> {
   await Promise.race([
     client.send("Browser.close").catch(() => undefined),
@@ -398,25 +405,29 @@ export async function runAppInRealBrowser<T>(
         disabled: boolean;
         found: boolean;
         height: number;
+        receivesPointer: boolean;
         selector: string;
         width: number;
         x: number;
         y: number;
       }>(`
-(() => {
+(async () => {
   const selector = ${JSON.stringify(selector)};
   const element = document.querySelector(selector);
   if (!element) {
-    return { disabled: false, found: false, height: 0, selector, width: 0, x: 0, y: 0 };
+    return { disabled: false, found: false, height: 0, receivesPointer: false, selector, width: 0, x: 0, y: 0 };
   }
 
   const target = element.closest("button,[role='button'],a,input,select,textarea") ?? element;
-  target.scrollIntoView({ block: "center", inline: "center" });
+  target.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const rect = target.getBoundingClientRect();
+  const hitTarget = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
   return {
     disabled: Boolean(target.disabled || target.getAttribute("disabled") !== null || target.getAttribute("aria-disabled") === "true"),
     found: true,
     height: rect.height,
+    receivesPointer: Boolean(hitTarget && (hitTarget === target || target.contains(hitTarget))),
     selector,
     width: rect.width,
     x: rect.left + rect.width / 2,
@@ -435,6 +446,10 @@ export async function runAppInRealBrowser<T>(
 
       if (targetPoint.width <= 0 || targetPoint.height <= 0) {
         throw new Error(`Element has no clickable box for browser click: ${selector}`);
+      }
+
+      if (!targetPoint.receivesPointer) {
+        throw new Error(`Element is not receiving pointer events for browser click: ${selector}`);
       }
 
       await client?.send(
@@ -472,23 +487,38 @@ export async function runAppInRealBrowser<T>(
       );
     };
 
-    const page: RealBrowserAppPage = {
-      evaluate,
-      waitFor: async <R>(expression: string, predicate: (value: R) => boolean, timeoutMs = 3000): Promise<R> => {
-        const startedAt = Date.now();
-        let latest: R | undefined;
+    const waitFor = async <R>(expression: string, predicate: (value: R) => boolean, timeoutMs = 3000): Promise<R> => {
+      const startedAt = Date.now();
+      let latest: R | undefined;
 
-        while (Date.now() - startedAt <= timeoutMs) {
+      while (Date.now() - startedAt <= timeoutMs) {
+        try {
           latest = await evaluate<R>(expression);
           if (predicate(latest)) {
             return latest;
           }
-
-          await new Promise((resolve) => setTimeout(resolve, 50));
+        } catch (error) {
+          if (!isNavigationContextError(error)) {
+            throw error;
+          }
         }
 
-        throw new Error(`Timed out waiting for browser expression. Last value: ${JSON.stringify(latest)}`);
-      },
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      throw new Error(`Timed out waiting for browser expression. Last value: ${JSON.stringify(latest)}`);
+    };
+
+    const reload = async (): Promise<void> => {
+      const previousTimeOrigin = await evaluate<number>("performance.timeOrigin");
+      await client?.send("Page.reload", {}, session.sessionId);
+      await waitFor<number>("performance.timeOrigin", (timeOrigin) => timeOrigin !== previousTimeOrigin, 15000);
+    };
+
+    const page: RealBrowserAppPage = {
+      evaluate,
+      waitFor,
+      reload,
       click,
       keyDown: (code) => dispatchKey("keyDown", code),
       keyUp: (code) => dispatchKey("keyUp", code),

@@ -8677,6 +8677,29 @@ describe("enemy attacks and player defeat", () => {
     expect(finished.completed).toBe(true);
   });
 
+  it("limits Taotie phase-two ash summon to one completed cast per encounter", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          bossPhase: 2,
+          attackProfileId: "taotie-ash-summon",
+          attackPatternIds: ["taotie-forge-shackle", "taotie-chain-cleave", "taotie-ash-summon"],
+          nextAttackPatternIndex: 2,
+          ashSummonCount: 1,
+          nextAttackAtMs: 1
+        } as CombatEnemy
+      ]
+    };
+
+    const advanced = stepCombat(run, {}, 1);
+
+    expect(advanced.enemies[0].attackSkillId).not.toBe("taotie-ash-summon");
+    expect(advanced.enemies[0].attackSkillId).toBe("taotie-forge-shackle");
+  });
+
   it("triggers taotie forge collapse once when the boss drops below half hp", () => {
     const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
     const lowHpRun: CombatRun = {
@@ -8721,6 +8744,125 @@ describe("enemy attacks and player defeat", () => {
     expect(hazardTelegraphs.every((event) => event.radiusX > 0 && event.laneRange > 0)).toBe(true);
     expect(phased.scheduledArenaHazards).toHaveLength(3);
     expect(repeated.events.filter((event) => event.kind === "boss-phase")).toHaveLength(1);
+  });
+
+  it("triggers Taotie phase three armor pulse once below thirty percent hp", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const lowHpPhaseTwoRun: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 240,
+        y: 340,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          bossPhase: 2,
+          hp: Math.floor(baseRun.enemies[0].maxHp * 0.3),
+          armor: 0,
+          attackProfileId: "taotie-chain-cleave",
+          attackPatternIds: ["taotie-chain-cleave"],
+          nextAttackPatternIndex: 0,
+          nextAttackAtMs: 9999
+        } as CombatEnemy
+      ]
+    };
+
+    const phased = stepCombat(lowHpPhaseTwoRun, {}, 1);
+    const phaseEvents = phased.events.filter((event) => event.kind === "boss-phase");
+    const repeated = stepCombat(phased, {}, 180);
+
+    expect((phased.enemies[0] as { bossPhase?: number }).bossPhase).toBe(3);
+    expect(phased.enemies[0].armor).toBeGreaterThan(0);
+    expect((phaseEvents[0] as { phase?: number; skillId?: string; hazardCount?: number } | undefined)).toMatchObject({
+      phase: 3,
+      skillId: "taotie-armor-pulse",
+      hazardCount: 0
+    });
+    expect(phased.enemies[0].attackPatternIds).toContain("taotie-world-devour");
+    expect(repeated.events.filter((event) => event.kind === "boss-phase")).toHaveLength(1);
+  });
+
+  it("consumes Taotie ash summons when phase three armor pulse begins", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          bossPhase: 2,
+          hp: Math.floor(baseRun.enemies[0].maxHp * 0.2),
+          armor: 0,
+          nextAttackAtMs: 9999
+        } as CombatEnemy,
+        {
+          ...baseRun.enemies[0],
+          id: `${baseRun.enemies[0].id}-summon-final-phase-test`,
+          displayName: "灰烬爬虫",
+          kind: "trash",
+          attackProfileId: "ash-crawler-burst",
+          attackPatternIds: ["ash-crawler-burst"],
+          hp: 80,
+          maxHp: 80,
+          armor: 0,
+          position: { x: 420, y: 340 },
+          nextAttackAtMs: 9999
+        } as CombatEnemy
+      ]
+    };
+
+    const phased = stepCombat(run, {}, 1);
+
+    expect((phased.enemies[0] as { bossPhase?: number }).bossPhase).toBe(3);
+    expect(phased.enemies[1]?.hp).toBe(0);
+    expect(phased.enemies[1]?.downed).toBe(true);
+  });
+
+  it("opens a Taotie phase three punish window when world devour misses", () => {
+    const baseRun = reachBossRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
+    const run: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        x: 180,
+        y: baseRun.arena.minY,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...baseRun.enemies[0],
+          bossPhase: 3,
+          hp: Math.floor(baseRun.enemies[0].maxHp * 0.18),
+          armor: 120,
+          attackProfileId: "taotie-world-devour",
+          attackPatternIds: ["taotie-world-devour"],
+          nextAttackPatternIndex: 0,
+          position: { x: 610, y: baseRun.arena.maxY },
+          nextAttackAtMs: 1
+        } as CombatEnemy
+      ]
+    };
+
+    const windup = stepCombat(run, {}, 1);
+    const impactAtMs = windup.enemies[0].attackImpactAtMs;
+
+    if (impactAtMs === undefined) {
+      throw new Error("Expected Taotie world devour impact frame");
+    }
+
+    const missed = stepCombat(windup, {}, impactAtMs - windup.elapsedMs);
+    const missEvent = missed.events.find(
+      (event): event is CombatEnemyAttackEvent => event.kind === "enemy-attack" && event.skillId === "taotie-world-devour" && event.phase === "miss"
+    );
+
+    expect(windup.enemies[0].attackSkillId).toBe("taotie-world-devour");
+    expect(missEvent).toMatchObject({ vfxCue: "taotie-world-devour-impact" });
+    expect(missed.enemies[0].armor).toBe(0);
+    expect(missed.enemies[0].armorBrokenUntilMs).toBeGreaterThan(missed.elapsedMs);
   });
 
   it("keeps light attack rewards when the hit also triggers boss phase events", () => {
@@ -10182,5 +10324,21 @@ describe("room completion", () => {
     });
     expect(next.enemies.length).toBeGreaterThan(0);
     expect(next.events.at(-1)?.kind).toBe("room-cleared");
+  });
+
+  it("restores a portion of player health when advancing through a cleared room", () => {
+    const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const defeated = defeatAll({
+      ...run,
+      player: {
+        ...run.player,
+        hp: 100
+      }
+    });
+
+    const next = finishRoom(defeated);
+
+    expect(next.player.hp).toBeGreaterThan(defeated.player.hp);
+    expect(next.player.hp).toBeLessThanOrEqual(next.player.maxHp);
   });
 });

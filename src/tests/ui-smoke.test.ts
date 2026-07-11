@@ -135,6 +135,19 @@ const enemyAttackPresentationMatrix: Record<EnemyAttackProfileId, EnemyAttackPre
     activeDtMs: 520,
     activeCue: "taotie-chain-cleave-drag",
     animationNamePart: "taotie-chain-cleave"
+  },
+  "taotie-world-devour": {
+    roomIndex: 2,
+    patch: {
+      bossPhase: 3,
+      attackProfileId: "taotie-world-devour",
+      attackPatternIds: ["taotie-world-devour"],
+      nextAttackPatternIndex: 0
+    },
+    telegraphShape: "line",
+    activeDtMs: 780,
+    activeCue: "taotie-world-devour-impact",
+    animationNamePart: "taotie-world-devour"
   }
 };
 
@@ -1067,6 +1080,42 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes taotie-forge-collapse-ring");
     expect(stylesCss).toContain("@keyframes taotie-forge-hazard-drop");
     expect(stylesCss).toContain("@keyframes taotie-forge-collapse-hit-feedback");
+  });
+
+  it("renders Taotie phase three armor pulse and final-phase model treatment", () => {
+    const state = createInitialState();
+    const bossBaseRun = reachCombatRoom(createCombatRun(state, "cinder-kiln-alley"), 2);
+    const phaseTwoRun: CombatRun = {
+      ...bossBaseRun,
+      player: {
+        ...bossBaseRun.player,
+        x: 240,
+        y: 340,
+        hp: 999,
+        maxHp: 999
+      },
+      enemies: [
+        {
+          ...bossBaseRun.enemies[0],
+          bossPhase: 2,
+          hp: Math.floor(bossBaseRun.enemies[0].maxHp * 0.2),
+          armor: 0,
+          nextAttackAtMs: 9999
+        } as CombatEnemy
+      ]
+    };
+    const phaseThreeRun = stepCombat(phaseTwoRun, {}, 1);
+    const html = renderAppHtml({ state, mode: "combat", combatRun: phaseThreeRun });
+
+    expect(html).toContain('data-boss-phase="3"');
+    expect(html).toContain('data-boss-phase-vfx="taotie-armor-pulse"');
+    expect(html).toContain('data-boss-phase-skill-id="taotie-armor-pulse"');
+    expect(html).toContain('data-armor-state="normal"');
+    expect(stylesCss).toContain('.combat-enemy-boss[data-boss-phase="3"]');
+    expect(stylesCss).toContain(".boss-phase-vfx-taotie-armor-pulse");
+    expect(stylesCss).toContain('.combat-enemy[data-boss-phase-skill-id="taotie-armor-pulse"] .enemy-art');
+    expect(stylesCss).toContain("@keyframes monster-taotie-armor-pulse");
+    expect(stylesCss).toContain("@keyframes taotie-armor-pulse-ring");
   });
 
   it("does not render stale arena hazards after combat failure", () => {

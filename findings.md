@@ -1316,3 +1316,9 @@
 - The route proves exact progress and economy milestones: prologue unlock rewards, Liuli clear rewards, chapter-two trade, resonance amplification, gift-pack epilogue completion, and local save restoration. It does not seed the Liuli unlock or bypass reducers.
 - A full run exposed one real CDP interaction flaw: after `scrollIntoView`, a mouse event could use a stale layout coordinate. The browser click helper now waits two animation frames, verifies the target center receives pointer events, then sends the mouse sequence. This is shared test infrastructure, not an in-app artificial click.
 - Final serial browser evidence passed all 21 scenarios, including player/monster model motion, player and monster skill VFX, keyboard combat, five-room Liuli progression, equipment/economy/class loops, and reload persistence.
+
+## Task 177 Taotie Endgame Fairness and Strict Browser Combat
+- Added Taotie phase three at 30% HP. Armor Pulse consumes only that Taotie's ash summons and swaps to the long-tell World Devour pattern; a missed World Devour opens a 1.8 second armor-break punish window.
+- Added encounter-local `ashSummonCount`, so phase two can complete one Ash Summon cast but cannot snowball repeated crawler waves. Room settlement restores 30% max HP, giving the offline default route a sustain rule before consumables exist.
+- Real-control helpers now wait through hurt-lock, use boss windup lane movement plus `C` jump, align exit lanes, and recognize gate entry initiated by that alignment. Town trade and gift-pack checks use bounded real mouse retries only after their state has not changed.
+- Verification: phase-three/summon/recovery reducer coverage passed; core regression 447/447; production build passed; serial real-browser suite passed 22/22 in 536.08 seconds.

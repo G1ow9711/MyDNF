@@ -401,21 +401,36 @@ export async function runAppInRealBrowser<T>(
     };
 
     const click = async (selector: string): Promise<void> => {
-      const targetPoint = await evaluate<{
+      let targetPoint: {
         disabled: boolean;
         found: boolean;
         height: number;
+        hitTarget: string;
         receivesPointer: boolean;
         selector: string;
         width: number;
         x: number;
         y: number;
-      }>(`
+      } | undefined;
+      const clickabilityDeadline = Date.now() + 1000;
+
+      do {
+        targetPoint = await evaluate<{
+          disabled: boolean;
+          found: boolean;
+          height: number;
+          hitTarget: string;
+          receivesPointer: boolean;
+          selector: string;
+          width: number;
+          x: number;
+          y: number;
+        }>(`
 (async () => {
   const selector = ${JSON.stringify(selector)};
   const element = document.querySelector(selector);
   if (!element) {
-    return { disabled: false, found: false, height: 0, receivesPointer: false, selector, width: 0, x: 0, y: 0 };
+    return { disabled: false, found: false, height: 0, hitTarget: "", receivesPointer: false, selector, width: 0, x: 0, y: 0 };
   }
 
   const target = element.closest("button,[role='button'],a,input,select,textarea") ?? element;
@@ -427,6 +442,7 @@ export async function runAppInRealBrowser<T>(
     disabled: Boolean(target.disabled || target.getAttribute("disabled") !== null || target.getAttribute("aria-disabled") === "true"),
     found: true,
     height: rect.height,
+    hitTarget: hitTarget instanceof Element ? hitTarget.tagName + "." + hitTarget.className : "",
     receivesPointer: Boolean(hitTarget && (hitTarget === target || target.contains(hitTarget))),
     selector,
     width: rect.width,
@@ -435,6 +451,17 @@ export async function runAppInRealBrowser<T>(
   };
 })()
 `);
+
+        if (targetPoint.found && targetPoint.width > 0 && targetPoint.height > 0 && targetPoint.receivesPointer) {
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      } while (Date.now() < clickabilityDeadline);
+
+      if (!targetPoint) {
+        throw new Error(`Unable to inspect browser click target: ${selector}`);
+      }
 
       if (!targetPoint.found) {
         throw new Error(`No element found for browser click: ${selector}`);
@@ -449,7 +476,7 @@ export async function runAppInRealBrowser<T>(
       }
 
       if (!targetPoint.receivesPointer) {
-        throw new Error(`Element is not receiving pointer events for browser click: ${selector}`);
+        throw new Error(`Element is not receiving pointer events for browser click: ${selector}; blocker=${targetPoint.hitTarget}`);
       }
 
       await client?.send(

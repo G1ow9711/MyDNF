@@ -576,6 +576,8 @@ function enemyAttackLungePx(skillId: string | undefined): number {
       return 38;
     case "taotie-chain-cleave":
       return 56;
+    case "taotie-world-devour":
+      return 88;
     case "taotie-forge-collapse":
       return 72;
     default:
@@ -1369,6 +1371,10 @@ function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { 
     return { id: "taotie-chain-cleave", label: "饕餮链斩" };
   }
 
+  if (skillId === "taotie-world-devour") {
+    return { id: "taotie-world-devour", label: "饕餮吞界" };
+  }
+
   if (skillId === "taotie-flame-breath" || enemy.kind === "boss") {
     return { id: "taotie-flame-breath", label: "饕餮炉火" };
   }
@@ -1385,6 +1391,7 @@ function enemyTelegraphShape(effectId: string): "cone" | "line" | "circle" {
     effectId === "taotie-flame-breath" ||
     effectId === "zheng-horn-charge" ||
     effectId === "taotie-chain-cleave" ||
+    effectId === "taotie-world-devour" ||
     effectId === "liuli-prism-charge" ||
     effectId === "liuli-prism-barrage" ||
     effectId === "liuli-crucible-shards"

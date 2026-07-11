@@ -4160,3 +4160,8 @@
 - Added a strict new-save real-browser campaign acceptance. It enters Cinder with keyboard, clears all rooms, claims the prologue, enters Liuli through its focused town button, clears five Liuli rooms and Overseer, claims both chapter settlements, and reloads to prove local persistence.
 - Stabilized CDP-backed real clicks after a full-suite chapter-two failure showed a rendered button could miss the immediate post-scroll mouse coordinate. The helper now waits two animation frames and confirms center-point hit testing before dispatching the real mouse click.
 - Verification passed: focused chapter-two/epilogue route (1 passed, 20 skipped); serial real-browser suite `src/tests/browser-keyboard-control.test.ts` (21/21 passed, 471.73s); combat plus app integration regression (363/363 passed); `npm run build` passed.
+
+## Task 177 Taotie Endgame Fairness and Browser Acceptance
+- RED/GREEN: phase-three threshold moved from 20% to 30%; new reducer test failed at 30% before the transition condition changed, then passed. Added RED/GREEN coverage for one completed Ash Summon per encounter and for 30% max-HP room recovery.
+- Fixed real-control route state handling: waited for hurt-lock release, used boss windup lane movement plus `C` jump, aligned exit lanes after vertical dodge, and treated a gate transition triggered during alignment as a successful town return. CDP economy checks retry only genuine clicks when the expected persisted state did not change.
+- Final verification: serial combat/app/UI regression 447/447; `npm run build` passed; serial browser suite 22/22 passed in 536.08 seconds.

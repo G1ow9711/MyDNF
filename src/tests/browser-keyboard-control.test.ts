@@ -16,6 +16,7 @@ type BrowserCombatState = {
   objective: string;
   playerX: number;
   playerMotion: string;
+  playerAirborne: string;
   normalAttackMove: string;
   hitstopActive: string;
   screenShake: string;
@@ -162,6 +163,8 @@ type BrowserRoomFlowState = {
   combatElapsedMs: string;
   playerX: string;
   playerY: string;
+  playerRecoveryAvailable: string;
+  playerHurtLockActive: string;
   gateState: string;
   gateTransition: string;
   gateTargetRoom: string;
@@ -198,6 +201,8 @@ type BrowserStrictCombatState = {
     kind: string;
     stage: string;
     skill: string;
+    armorState: string;
+    progress: number;
     animationName: string;
   }>;
   enemyVfx: string;
@@ -214,6 +219,10 @@ type BrowserStrictCombatEvidence = {
   sawEnemyAttackMotion: boolean;
   sawEnemySkillVfx: boolean;
   sawBossPhase: boolean;
+  sawBossPhaseThree: boolean;
+  sawBossPhaseThreeVfx: boolean;
+  sawWorldDevourVfx: boolean;
+  sawWorldDevourArmorBreak: boolean;
   sawArenaHazard: boolean;
   sawBossSkillVfx: boolean;
 };
@@ -325,6 +334,7 @@ const readRoomFlowStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
   const gate = document.querySelector("[data-room-gate='true']");
+  const player = document.querySelector(".combat-player");
   const enemies = Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => ({
     id: enemy.getAttribute("data-enemy-id") ?? "",
     kind: enemy.getAttribute("data-enemy-kind") ?? "",
@@ -343,6 +353,8 @@ const readRoomFlowStateExpression = `
     combatElapsedMs: scene?.getAttribute("data-combat-elapsed-ms") ?? "",
     playerX: scene?.getAttribute("data-player-x") ?? "",
     playerY: scene?.getAttribute("data-player-y") ?? "",
+    playerRecoveryAvailable: player?.getAttribute("data-player-recovery-available") ?? "false",
+    playerHurtLockActive: player?.getAttribute("data-player-hurt-lock-active") ?? "false",
     gateState: gate?.getAttribute("data-room-gate-state") ?? "",
     gateTransition: gate?.getAttribute("data-room-gate-transition") ?? "",
     gateTargetRoom: gate?.getAttribute("data-room-gate-target-room") ?? "",
@@ -369,17 +381,21 @@ const readStrictCombatStateExpression = `
       kind: enemy.getAttribute("data-enemy-kind") ?? "",
       stage: enemy.getAttribute("data-enemy-attack-stage") ?? "",
       skill: enemy.getAttribute("data-enemy-attack-skill-id") ?? "",
+      armorState: enemy.getAttribute("data-armor-state") ?? "",
+      progress: Number(enemy.getAttribute("data-enemy-attack-progress") ?? "0"),
       animationName: art ? getComputedStyle(art).animationName : ""
     };
   });
   return {
     objective: scene?.getAttribute("data-combat-objective") ?? "",
     roomIndex: scene?.getAttribute("data-room-index") ?? "",
-    bossPhase: scene?.getAttribute("data-boss-phase") ?? "",
-    bossPhaseTriggered: scene?.getAttribute("data-boss-phase-triggered") ?? "",
+  bossPhase: scene?.getAttribute("data-boss-phase") ?? "",
+  bossPhaseTriggered: scene?.getAttribute("data-boss-phase-triggered") ?? "",
+  bossPhaseVfx: document.querySelector("[data-boss-phase-vfx]")?.getAttribute("data-boss-phase-vfx") ?? "",
     arenaHazardCount: scene?.getAttribute("data-arena-hazard-count") ?? "",
     activeSkill: player?.getAttribute("data-active-skill-id") ?? "",
     playerMotion: player?.getAttribute("data-player-motion") ?? "",
+    playerAirborne: player?.getAttribute("data-player-airborne-active") ?? "false",
     skillMove: player?.getAttribute("data-player-skill-move") ?? "",
     skillStage: player?.getAttribute("data-player-skill-stage") ?? "",
     skillVfx: skillVfx?.getAttribute("data-player-skill-vfx") ?? "",
@@ -456,6 +472,10 @@ const installStrictCombatRecorderExpression = `
     sawEnemyAttackMotion: false,
     sawEnemySkillVfx: false,
     sawBossPhase: false,
+    sawBossPhaseThree: false,
+    sawBossPhaseThreeVfx: false,
+    sawWorldDevourVfx: false,
+    sawWorldDevourArmorBreak: false,
     sawArenaHazard: false,
     sawBossSkillVfx: false
   };
@@ -514,6 +534,24 @@ const installStrictCombatRecorderExpression = `
     if (state.bossPhase === "2" || state.bossPhaseTriggered === "true") {
       evidence.sawBossPhase = true;
     }
+    if (state.bossPhase === "3") {
+      evidence.sawBossPhaseThree = true;
+    }
+    if (state.bossPhaseVfx === "taotie-armor-pulse") {
+      evidence.sawBossPhaseThreeVfx = true;
+    }
+    if (
+      Array.from(document.querySelectorAll("[data-enemy-skill-vfx]")).some(
+        (vfx) =>
+          vfx.getAttribute("data-enemy-skill-vfx") === "taotie-world-devour" &&
+          vfx.getAttribute("data-enemy-vfx-cue") === "taotie-world-devour-impact"
+      )
+    ) {
+      evidence.sawWorldDevourVfx = true;
+    }
+    if (state.enemies.some((enemy) => enemy.armorState === "broken")) {
+      evidence.sawWorldDevourArmorBreak = true;
+    }
     if (Number(state.arenaHazardCount || "0") > 0) {
       evidence.sawArenaHazard = true;
     }
@@ -542,6 +580,10 @@ const readStrictCombatEvidenceExpression = `
   sawEnemyAttackMotion: false,
   sawEnemySkillVfx: false,
   sawBossPhase: false,
+  sawBossPhaseThree: false,
+  sawBossPhaseThreeVfx: false,
+  sawWorldDevourVfx: false,
+  sawWorldDevourArmorBreak: false,
   sawArenaHazard: false,
   sawBossSkillVfx: false
 })()
@@ -1770,7 +1812,7 @@ describe("real browser keyboard control", () => {
           5000
         );
 
-        await page.click('[data-shop-sku="liuli-gift-pack"]');
+        await buyLiuliGiftPackThroughRealClicks(page);
         const bought = await page.waitFor<BrowserTownEcosystemState>(
           readTownEcosystemStateExpression,
           (state) =>
@@ -1856,6 +1898,77 @@ describe("real browser keyboard control", () => {
     }
   }, 90000);
 
+  it("reaches Taotie phase three then dodges world devour into its live armor-break window", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await enterDungeonWithKeyboard(page);
+        await page.evaluate<boolean>(installStrictCombatRecorderExpression);
+        await clearCurrentRoomWithKeyboard(page);
+        await walkThroughOpenGate(page);
+        await clearCurrentRoomWithKeyboard(page, 28);
+        await walkThroughOpenGate(page);
+
+        const phaseThree = await triggerBossPhaseThreeWithKeyboard(page);
+        expect(phaseThree.bossPhase).toBe("3");
+        const phaseThreeEvidence = await page.waitFor<BrowserStrictCombatEvidence>(
+          readStrictCombatEvidenceExpression,
+          (evidence) => evidence.sawBossPhaseThree && evidence.sawBossPhaseThreeVfx,
+          3000
+        );
+        expect(phaseThreeEvidence.sawBossPhaseThreeVfx).toBe(true);
+
+        await page.keyDown("ArrowUp");
+        let windup: BrowserStrictCombatState;
+        let broken: BrowserStrictCombatEvidence;
+        try {
+          windup = await page.waitFor<BrowserStrictCombatState>(
+            readStrictCombatStateExpression,
+            (state) =>
+              state.objective === "active" &&
+              state.bossPhase === "3" &&
+              state.enemies.some(
+                (enemy) =>
+                  enemy.skill === "taotie-world-devour" &&
+                  enemy.stage === "windup" &&
+                  enemy.animationName.includes("taotie-world-devour")
+              ),
+            9000
+          );
+          await page.waitFor<BrowserStrictCombatState>(
+            readStrictCombatStateExpression,
+            (state) =>
+              state.enemies.some(
+                (enemy) => enemy.skill === "taotie-world-devour" && enemy.stage === "windup" && enemy.progress >= 0.38
+              ),
+            1600
+          );
+          await page.pressKey("KeyC");
+          const jumped = await page.waitFor<BrowserStrictCombatState>(
+            readStrictCombatStateExpression,
+            (state) => state.playerAirborne === "true",
+            600
+          );
+          expect(jumped.playerAirborne).toBe("true");
+          broken = await page.waitFor<BrowserStrictCombatEvidence>(
+            readStrictCombatEvidenceExpression,
+            (evidence) => evidence.sawWorldDevourVfx && evidence.sawWorldDevourArmorBreak,
+            4000
+          );
+        } finally {
+          await page.keyUp("ArrowUp");
+        }
+
+        expect(windup.enemies.some((enemy) => enemy.skill === "taotie-world-devour")).toBe(true);
+        expect(broken.sawWorldDevourVfx).toBe(true);
+        expect(broken.sawWorldDevourArmorBreak).toBe(true);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 150000);
+
   it("persists real settings slider input across a browser reload", async () => {
     const server = await startViteServer();
 
@@ -1911,12 +2024,7 @@ describe("real browser keyboard control", () => {
           (state) => state.appMode === "auction",
           3000
         );
-        await page.click('[data-trade-offer-id]');
-        await page.waitFor<BrowserTownEcosystemState>(
-          readTownEcosystemStateExpression,
-          (state) => state.saved?.player.quests["chapter-two-trade-contract"] === "ready",
-          3000
-        );
+        await completeChapterTwoTradeThroughRealClicks(page);
 
         await page.click('[data-mode="quests"]');
         await page.waitFor<BrowserTownEcosystemState>(
@@ -2383,6 +2491,46 @@ async function clearCurrentRoomWithKeyboard(page: RealBrowserAppPage, maxAttempt
       break;
     }
 
+    if (state.playerRecoveryAvailable === "true") {
+      await page.pressKey("KeyC");
+      await waitInBrowser(page, 280);
+      continue;
+    }
+
+    if (state.playerHurtLockActive === "true") {
+      await page.waitFor<BrowserRoomFlowState>(
+        readRoomFlowStateExpression,
+        (next) => next.objective !== "active" || next.playerRecoveryAvailable === "true" || next.playerHurtLockActive === "false",
+        1200
+      );
+      continue;
+    }
+
+    const strictState = await page.evaluate<BrowserStrictCombatState>(readStrictCombatStateExpression);
+    const boss = strictState.enemies.find((enemy) => enemy.kind === "boss");
+    const bossWindup = boss?.stage === "windup";
+
+    if (bossWindup) {
+      if ((boss?.progress ?? 0) < 0.34) {
+        await waitInBrowser(page, 180);
+      }
+      await page.keyDown("ArrowUp");
+      await waitInBrowser(page, 150);
+      await page.keyUp("ArrowUp");
+      await page.pressKey("KeyC");
+      await waitInBrowser(page, 360);
+      continue;
+    }
+
+    if (boss) {
+      await moveIntoLiveEnemyRange(page);
+      await page.pressKey("KeyA");
+      await waitInBrowser(page, 300);
+      await page.pressKey("KeyS");
+      await waitInBrowser(page, 340);
+      continue;
+    }
+
     await moveIntoLiveEnemyRange(page);
     await page.pressKey("KeyA");
     await waitInBrowser(page, 430);
@@ -2434,6 +2582,27 @@ async function triggerBossPhaseTwoWithKeyboard(page: RealBrowserAppPage, maxAtte
   return page.waitFor<BrowserStrictCombatState>(readStrictCombatStateExpression, (state) => state.bossPhase === "2", 5000);
 }
 
+async function triggerBossPhaseThreeWithKeyboard(page: RealBrowserAppPage, maxAttempts = 60): Promise<BrowserStrictCombatState> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const state = await page.evaluate<BrowserStrictCombatState>(readStrictCombatStateExpression);
+    if (state.bossPhase === "3") {
+      return state;
+    }
+
+    await moveIntoLiveEnemyRange(page);
+    await page.pressKey("KeyA");
+    await waitInBrowser(page, 430);
+    await page.pressKey("KeyS");
+    await waitInBrowser(page, 560);
+    await page.pressKey("KeyX");
+    await waitInBrowser(page, 280);
+    await page.pressKey("KeyX");
+    await waitInBrowser(page, 320);
+  }
+
+  return page.waitFor<BrowserStrictCombatState>(readStrictCombatStateExpression, (state) => state.bossPhase === "3", 5000);
+}
+
 async function waitForBossPhaseTwoWithin(page: RealBrowserAppPage, timeoutMs: number): Promise<BrowserStrictCombatState | undefined> {
   try {
     return await page.waitFor<BrowserStrictCombatState>(readStrictCombatStateExpression, (state) => state.bossPhase === "2", timeoutMs);
@@ -2447,6 +2616,7 @@ async function waitForBossPhaseTwoWithin(page: RealBrowserAppPage, timeoutMs: nu
 }
 
 async function walkThroughOpenGate(page: RealBrowserAppPage): Promise<BrowserRoomFlowState> {
+  await alignWithExitGateLane(page);
   await page.keyDown("ArrowRight");
   try {
     await page.waitFor<BrowserRoomFlowState>(
@@ -2466,6 +2636,13 @@ async function walkThroughOpenGate(page: RealBrowserAppPage): Promise<BrowserRoo
 }
 
 async function walkThroughCompletionGateToTown(page: RealBrowserAppPage): Promise<void> {
+  await alignWithExitGateLane(page);
+  const alreadyReturned = await page.evaluate<BrowserAppModeState>(readAppModeStateExpression);
+
+  if (alreadyReturned.appMode === "town" && alreadyReturned.townScene === "true") {
+    return;
+  }
+
   await page.keyDown("ArrowRight");
   try {
     await page.waitFor<BrowserRoomFlowState>(
@@ -2482,6 +2659,30 @@ async function walkThroughCompletionGateToTown(page: RealBrowserAppPage): Promis
     (state) => state.appMode === "town" && state.townScene === "true",
     8000
   );
+}
+
+async function alignWithExitGateLane(page: RealBrowserAppPage): Promise<void> {
+  const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
+  const playerY = Number(state.playerY);
+
+  if (playerY >= 320 && playerY <= 360) {
+    return;
+  }
+
+  const directionKey: RealBrowserKeyCode = playerY < 320 ? "ArrowDown" : "ArrowUp";
+  await page.keyDown(directionKey);
+  try {
+    await page.waitFor<BrowserRoomFlowState>(
+      readRoomFlowStateExpression,
+      (next) => {
+        const nextPlayerY = Number(next.playerY);
+        return next.objective === "" || next.objective === "failed" || (nextPlayerY >= 320 && nextPlayerY <= 360);
+      },
+      1800
+    );
+  } finally {
+    await page.keyUp(directionKey);
+  }
 }
 
 async function moveIntoLiveEnemyRange(page: RealBrowserAppPage): Promise<void> {
@@ -2509,7 +2710,7 @@ async function moveIntoLiveEnemyRange(page: RealBrowserAppPage): Promise<void> {
             nextState.liveEnemyCount === "0" ||
             !nextTarget ||
             nextTarget.hp <= 0 ||
-            Math.abs(nextTarget.x - nextPlayerX) <= 92
+            Math.abs(nextTarget.x - nextPlayerX) <= 108
           );
         },
         2200
@@ -2742,6 +2943,56 @@ async function reinforceGearThroughRealClicks(
   }
 
   throw new Error(`Real browser reinforcement did not reach +1 after ${maxAttempts} clicks for ${gearId}`);
+}
+
+async function completeChapterTwoTradeThroughRealClicks(page: RealBrowserAppPage, maxAttempts = 2): Promise<BrowserTownEcosystemState> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const before = await page.evaluate<BrowserTownEcosystemState>(readTownEcosystemStateExpression);
+
+    if (before.saved?.player.quests["chapter-two-trade-contract"] === "ready") {
+      return before;
+    }
+
+    await page.click('[data-trade-offer-id]');
+    try {
+      return await page.waitFor<BrowserTownEcosystemState>(
+        readTownEcosystemStateExpression,
+        (state) => state.saved?.player.quests["chapter-two-trade-contract"] === "ready",
+        1800
+      );
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.startsWith("Timed out waiting for browser expression") || attempt === maxAttempts - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("Real browser trade did not complete the chapter-two contract");
+}
+
+async function buyLiuliGiftPackThroughRealClicks(page: RealBrowserAppPage, maxAttempts = 2): Promise<BrowserTownEcosystemState> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const before = await page.evaluate<BrowserTownEcosystemState>(readTownEcosystemStateExpression);
+
+    if (before.saved?.shop.purchasedSkus.includes("liuli-gift-pack") && before.saved.shop.boxes["ember-mythic-box"] === 3) {
+      return before;
+    }
+
+    await page.click('[data-shop-sku="liuli-gift-pack"]');
+    try {
+      return await page.waitFor<BrowserTownEcosystemState>(
+        readTownEcosystemStateExpression,
+        (state) => state.saved?.shop.purchasedSkus.includes("liuli-gift-pack") && state.saved.shop.boxes["ember-mythic-box"] === 3,
+        1800
+      );
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.startsWith("Timed out waiting for browser expression") || attempt === maxAttempts - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("Real browser gift-pack purchase did not complete");
 }
 
 async function seedSaveAndReload(page: RealBrowserAppPage, state: GameState): Promise<void> {

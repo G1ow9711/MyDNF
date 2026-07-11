@@ -19,6 +19,7 @@ export type EnemyAttackProfileId =
   | "taotie-ash-summon"
   | "taotie-forge-shackle"
   | "taotie-chain-cleave"
+  | "taotie-world-devour"
   | "liuli-prism-barrage"
   | "liuli-kiln-gravity"
   | "liuli-crucible-shards";
@@ -160,7 +161,8 @@ export type CombatEnemyVfxCue =
   | "taotie-forge-shackle-bind"
   | "taotie-forge-shackle-slam"
   | "taotie-chain-cleave-drag"
-  | "taotie-chain-cleave-smash";
+  | "taotie-chain-cleave-smash"
+  | "taotie-world-devour-impact";
 export type CombatPlayerFeedbackCue =
   | "player-hurt-light"
   | "player-hurt-heavy"
@@ -170,8 +172,9 @@ export type CombatPlayerFeedbackCue =
   | "player-hurt-forge-shackle"
   | "player-hurt-forge-slam"
   | "player-hurt-chain-drag"
-  | "player-hurt-chain-smash";
-export type CombatBossPhaseSkillId = "taotie-forge-collapse";
+  | "player-hurt-chain-smash"
+  | "player-hurt-world-devour";
+export type CombatBossPhaseSkillId = "taotie-forge-collapse" | "taotie-armor-pulse";
 export type CombatArenaHazardPhase = "telegraph" | "active" | "miss";
 export type CombatArenaHazardVfxCue = "taotie-forge-collapse-telegraph" | "taotie-forge-collapse-impact";
 
@@ -197,6 +200,7 @@ export interface CombatEnemy {
   attackProfileId: EnemyAttackProfileId;
   attackPatternIds?: EnemyAttackProfileId[];
   nextAttackPatternIndex?: number;
+  ashSummonCount?: number;
   hp: number;
   maxHp: number;
   armor: number;
@@ -220,7 +224,7 @@ export interface CombatEnemy {
   attackRushTargetPosition?: CombatVector;
   attackPullStartPosition?: CombatVector;
   attackPullTargetPosition?: CombatVector;
-  bossPhase?: 1 | 2;
+  bossPhase?: 1 | 2 | 3;
   bossPhaseTriggeredAtMs?: number;
   controlledUntilMs?: number;
   armorBrokenUntilMs?: number;
@@ -458,7 +462,7 @@ export interface CombatBossPhaseEvent {
   kind: "boss-phase";
   id: string;
   enemyId: string;
-  phase: 2;
+  phase: 2 | 3;
   skillId: CombatBossPhaseSkillId;
   occurredAtMs: number;
   hazardCount: number;
@@ -701,6 +705,7 @@ const arena: CombatArena = {
 };
 const roomEntranceX = 160;
 const roomEntranceY = 345;
+const roomClearRecoveryRatio = 0.3;
 const roomGateX = 900;
 const roomGateY = 345;
 const roomGateEnterRangeX = 34;
@@ -733,6 +738,7 @@ const crowFeintEvadeStartDelayMs = 90;
 const crowFeintEvadeDurationMs = 360;
 const crowFeintInvulnerableMs = 260;
 const taotieForgeCollapseSkillId: CombatBossPhaseSkillId = "taotie-forge-collapse";
+const taotieArmorPulseSkillId: CombatBossPhaseSkillId = "taotie-armor-pulse";
 const taotieForgeCollapseTelegraphMs = 620;
 const taotieForgeCollapseHazardGapMs = 140;
 const taotieForgeCollapsePhaseVfxMs = 1180;
@@ -745,6 +751,7 @@ const taotieForgeCollapseLaneRange = 36;
 const taotieAshSummonMinionDelayMs = 540;
 const taotieBossPhaseOnePattern: EnemyAttackProfileId[] = ["taotie-flame-breath", "taotie-devour-pull", "taotie-ash-summon"];
 const taotieBossPhaseTwoPattern: EnemyAttackProfileId[] = [...taotieBossPhaseOnePattern, "taotie-forge-shackle", "taotie-chain-cleave"];
+const taotieBossPhaseThreePattern: EnemyAttackProfileId[] = ["taotie-world-devour", "taotie-chain-cleave", "taotie-flame-breath"];
 const liuliBossPattern: EnemyAttackProfileId[] = ["liuli-prism-barrage", "liuli-kiln-gravity", "liuli-crucible-shards"];
 
 function clamp(value: number, min: number, max: number): number {
@@ -1179,7 +1186,7 @@ function lockPlayerForRoomTransition(player: CombatPlayer, transition: CombatRoo
   };
 }
 
-function bossPhase(enemy: CombatEnemy): 1 | 2 {
+function bossPhase(enemy: CombatEnemy): 1 | 2 | 3 {
   return enemy.bossPhase ?? 1;
 }
 
@@ -1257,14 +1264,52 @@ function triggerBossPhaseTransitions(run: CombatRun, occurredAtMs = run.elapsedM
 
   const events: CombatEvent[] = [];
   const scheduledArenaHazards: CombatScheduledArenaHazard[] = [];
+  const phaseThreeBossIds = new Set<string>();
   const enemies = run.enemies.map((enemy) => {
-    if (
-      enemy.kind !== "boss" ||
-      !enemy.attackPatternIds?.some((profileId) => profileId.startsWith("taotie-")) ||
-      enemy.hp <= 0 ||
-      bossPhase(enemy) >= 2 ||
-      bossHpPercent(enemy) > 0.5
-    ) {
+    if (enemy.kind !== "boss" || !enemy.attackPatternIds?.some((profileId) => profileId.startsWith("taotie-")) || enemy.hp <= 0) {
+      return enemy;
+    }
+
+    if (bossPhase(enemy) === 2 && bossHpPercent(enemy) <= 0.3) {
+      phaseThreeBossIds.add(enemy.id);
+      const phaseEvent: CombatBossPhaseEvent = {
+        kind: "boss-phase",
+        id: `boss-phase-${occurredAtMs}-${enemy.id}-3`,
+        enemyId: enemy.id,
+        phase: 3,
+        skillId: taotieArmorPulseSkillId,
+        occurredAtMs,
+        hazardCount: 0,
+        vfxCue: taotieArmorPulseSkillId,
+        vfxWindowMs: 980
+      };
+
+      events.push(phaseEvent);
+
+      return {
+        ...enemy,
+        bossPhase: 3 as const,
+        bossPhaseTriggeredAtMs: occurredAtMs,
+        armor: Math.max(enemy.armor, 120),
+        attackProfileId: "taotie-world-devour" as const,
+        attackPatternIds: taotieBossPhaseThreePattern,
+        nextAttackPatternIndex: 0,
+        nextAttackAtMs: Math.max(enemy.nextAttackAtMs, occurredAtMs + 860),
+        attackStartedAtMs: undefined,
+        attackImpactAtMs: undefined,
+        attackRecoverUntilMs: undefined,
+        attackSkillId: undefined,
+        attackHitResolved: undefined,
+        attackResolvedHits: undefined,
+        attackConnectedHitIndexes: undefined,
+        attackRushStartPosition: undefined,
+        attackRushTargetPosition: undefined,
+        attackPullStartPosition: undefined,
+        attackPullTargetPosition: undefined
+      };
+    }
+
+    if (bossPhase(enemy) !== 1 || bossHpPercent(enemy) > 0.5) {
       return enemy;
     }
 
@@ -1310,9 +1355,41 @@ function triggerBossPhaseTransitions(run: CombatRun, occurredAtMs = run.elapsedM
     return run;
   }
 
+  const resolvedEnemies =
+    phaseThreeBossIds.size === 0
+      ? enemies
+      : enemies.map((enemy) => {
+          const isConsumedAshSummon =
+            enemy.kind !== "boss" &&
+            enemy.id.includes("-summon-") &&
+            [...phaseThreeBossIds].some((bossId) => enemy.id.includes(bossId));
+
+          if (!isConsumedAshSummon) {
+            return enemy;
+          }
+
+          return {
+            ...enemy,
+            hp: 0,
+            downed: true,
+            downedUntilMs: occurredAtMs + 760,
+            attackStartedAtMs: undefined,
+            attackImpactAtMs: undefined,
+            attackRecoverUntilMs: undefined,
+            attackSkillId: undefined,
+            attackHitResolved: undefined,
+            attackResolvedHits: undefined,
+            attackConnectedHitIndexes: undefined,
+            attackRushStartPosition: undefined,
+            attackRushTargetPosition: undefined,
+            attackPullStartPosition: undefined,
+            attackPullTargetPosition: undefined
+          };
+        });
+
   return {
     ...run,
-    enemies,
+    enemies: resolvedEnemies,
     events: [...run.events, ...events],
     scheduledArenaHazards: [...(run.scheduledArenaHazards ?? []), ...scheduledArenaHazards]
   };
@@ -1469,6 +1546,7 @@ function isEnemyAttackProfileId(value: string | undefined): value is EnemyAttack
     value === "taotie-ash-summon" ||
     value === "taotie-forge-shackle" ||
     value === "taotie-chain-cleave" ||
+    value === "taotie-world-devour" ||
     value === "liuli-prism-barrage" ||
     value === "liuli-kiln-gravity" ||
     value === "liuli-crucible-shards"
@@ -1482,6 +1560,7 @@ function enemyAttackProfileKind(profileId: EnemyAttackProfileId): EnemyKind {
     profileId === "taotie-ash-summon" ||
     profileId === "taotie-forge-shackle" ||
     profileId === "taotie-chain-cleave" ||
+    profileId === "taotie-world-devour" ||
     profileId === "liuli-prism-barrage" ||
     profileId === "liuli-kiln-gravity" ||
     profileId === "liuli-crucible-shards"
@@ -1501,7 +1580,9 @@ function enemyAttackProfileKind(profileId: EnemyAttackProfileId): EnemyKind {
   return "trash";
 }
 
-function nextEnemyAttackProfile(enemy: Pick<CombatEnemy, "kind" | "attackProfileId" | "attackSkillId" | "attackPatternIds" | "nextAttackPatternIndex">): EnemyAttackProfileId {
+function nextEnemyAttackProfile(
+  enemy: Pick<CombatEnemy, "kind" | "attackProfileId" | "attackSkillId" | "attackPatternIds" | "nextAttackPatternIndex" | "ashSummonCount">
+): EnemyAttackProfileId {
   if (isEnemyAttackProfileId(enemy.attackSkillId)) {
     return enemy.attackSkillId;
   }
@@ -1509,7 +1590,14 @@ function nextEnemyAttackProfile(enemy: Pick<CombatEnemy, "kind" | "attackProfile
   const patternIds = enemy.attackPatternIds?.filter((profileId) => enemyAttackProfileKind(profileId) === enemy.kind);
 
   if (patternIds && patternIds.length > 0) {
-    return patternIds[enemy.nextAttackPatternIndex ?? 0] ?? patternIds[0];
+    const patternIndex = enemy.nextAttackPatternIndex ?? 0;
+    const candidate = patternIds[patternIndex] ?? patternIds[0];
+
+    if (candidate === "taotie-ash-summon" && (enemy.ashSummonCount ?? 0) >= 1) {
+      return patternIds[(patternIndex + 1) % patternIds.length] ?? patternIds[0];
+    }
+
+    return candidate;
   }
 
   if (enemyAttackProfileKind(enemy.attackProfileId) === enemy.kind) {
@@ -1655,6 +1743,28 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       boundMsByHit: [260, 0],
       requiresPreviousHitByHit: [false, true],
       windupPullPx: 126,
+      jumpEvade: true
+    };
+  }
+
+  if (profileId === "taotie-world-devour") {
+    return {
+      skillId: "taotie-world-devour",
+      damage: 78,
+      rangeX: 320,
+      laneRange: 54,
+      windupMs: 760,
+      recoveryMs: 720,
+      cooldownMs: 4300,
+      hitstopMs: 84,
+      knockback: 98,
+      hitCount: 1,
+      hitIntervalMs: 0,
+      vfxCue: "taotie-world-devour-impact",
+      vfxWindowMs: 740,
+      feedbackCue: "player-hurt-world-devour",
+      invulnerabilityMs: 620,
+      hurtLockMs: 660,
       jumpEvade: true
     };
   }
@@ -4867,6 +4977,7 @@ function applyEnemyImpact(
       resolvedHits = hitIndex;
       nextEnemy = {
         ...nextEnemy,
+        ashSummonCount: attack.skillId === "taotie-ash-summon" ? (nextEnemy.ashSummonCount ?? 0) + 1 : nextEnemy.ashSummonCount,
         attackResolvedHits: resolvedHits,
         attackHitResolved: resolvedHits >= attack.hitCount,
         attackConnectedHitIndexes: [...connectedHitIndexes]
@@ -4906,6 +5017,13 @@ function applyEnemyImpact(
     events.push(attackEvent);
 
     if (phase === "miss" || nextPlayer.defeated || playerInvulnerableActiveAt(nextPlayer, hitTime)) {
+      if (phase === "miss" && attack.skillId === "taotie-world-devour") {
+        nextEnemy = {
+          ...nextEnemy,
+          armor: 0,
+          armorBrokenUntilMs: Math.max(nextEnemy.armorBrokenUntilMs ?? 0, hitTime + 1800)
+        };
+      }
       failed = failed || nextPlayer.defeated;
       continue;
     }
@@ -4939,7 +5057,12 @@ function applyEnemyImpact(
       };
 
       nextEnemy = reflectedEnemy;
-      if (reflectedEnemy.kind === "boss" && reflectedEnemy.hp > 0 && bossPhase(reflectedEnemy) < 2 && bossHpPercent(reflectedEnemy) <= 0.5) {
+      if (
+        reflectedEnemy.kind === "boss" &&
+        reflectedEnemy.hp > 0 &&
+        ((bossPhase(reflectedEnemy) === 1 && bossHpPercent(reflectedEnemy) <= 0.5) ||
+          (bossPhase(reflectedEnemy) === 2 && bossHpPercent(reflectedEnemy) <= 0.3))
+      ) {
         phaseTransitionAtMs = phaseTransitionAtMs ?? hitTime;
       }
       nextPlayer = {
@@ -7007,6 +7130,7 @@ export function finishRoom(run: CombatRun): CombatRun {
     comboExpiresAtMs: 0,
     player: {
       ...run.player,
+      hp: Math.min(run.player.maxHp, run.player.hp + Math.ceil(run.player.maxHp * roomClearRecoveryRatio)),
       x: roomEntranceX,
       y: roomEntranceY,
       facing: 1,

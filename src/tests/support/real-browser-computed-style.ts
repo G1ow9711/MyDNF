@@ -101,7 +101,11 @@ export type ComputedPlayerSkillPhaseStyles = Record<
     player: ComputedVfxPartStyle;
     weapon: ComputedVfxPartStyle;
     skillVfx: {
+      bladeEchoes: ComputedVfxPartStyle;
       core: ComputedVfxPartStyle;
+      cutGrid: ComputedVfxPartStyle;
+      finisherWave: ComputedVfxPartStyle;
+      groundShear: ComputedVfxPartStyle;
       wave: ComputedVfxPartStyle;
       sparks: ComputedVfxPartStyle;
     };
@@ -718,7 +722,11 @@ export async function computePlayerSkillPhaseStylesInRealBrowser(
           const playerStyle = getComputedStyle(root.querySelector(".combat-player-art"));
           const weaponStyle = getComputedStyle(root.querySelector(".combat-weapon"));
           const skillVfxParts = [
+            ["bladeEchoes", ".flowing-chain-blade-echoes"],
             ["core", ".skill-core"],
+            ["cutGrid", ".flowing-chain-cut-grid"],
+            ["finisherWave", ".flowing-chain-finisher-wave"],
+            ["groundShear", ".flowing-chain-ground-shear"],
             ["wave", ".skill-wave"],
             ["sparks", ".skill-sparks"]
           ];
@@ -1122,6 +1130,10 @@ function playerSkillPhaseFixtureMarkup(fixture: PlayerSkillPhaseFixture): string
       <i class="skill-core"></i>
       <i class="skill-wave"></i>
       <i class="skill-sparks"></i>
+      <i class="flowing-chain-blade-echoes"></i>
+      <i class="flowing-chain-cut-grid"></i>
+      <i class="flowing-chain-ground-shear"></i>
+      <i class="flowing-chain-finisher-wave"></i>
     </span>
   </div>`;
 }

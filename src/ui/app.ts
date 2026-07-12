@@ -1750,10 +1750,15 @@ function renderCombatVfx(run: CombatRun): string {
   const skillVfx =
     playerAction?.action === "skill"
       ? `
-        <div class="player-skill-vfx skill-vfx-${playerAction.skillId ?? "unknown"} skill-vfx-shape-${skillAnimation?.vfxShape ?? "generic"}" data-player-skill-vfx="${playerAction.skillId ?? "unknown"}" data-skill-vfx-shape="${skillAnimation?.vfxShape ?? ""}" data-vfx-anchor="${skillAnimation?.vfxAnchor ?? "front"}" data-weapon-arc="${skillAnimation?.weaponArc ?? ""}" data-hit-phase="${playerAction.kind === "hit" || playerAction.kind === "miss" ? playerAction.hitPhase ?? "" : ""}" data-vfx-cue="${playerAction.kind === "hit" || playerAction.kind === "miss" ? playerAction.vfxCue ?? "" : ""}" data-vfx-action="skill" style="${playerSkillVfxStyle(run, skillAnimation, skillTarget, playerAction)}">
+        <div class="player-skill-vfx skill-vfx-${playerAction.skillId ?? "unknown"} skill-vfx-shape-${skillAnimation?.vfxShape ?? "generic"}" data-player-skill-vfx="${playerAction.skillId ?? "unknown"}" data-skill-vfx-shape="${skillAnimation?.vfxShape ?? ""}" data-vfx-anchor="${skillAnimation?.vfxAnchor ?? "front"}" data-weapon-arc="${skillAnimation?.weaponArc ?? ""}" data-hit-phase="${playerAction.kind === "hit" || playerAction.kind === "miss" ? playerAction.hitPhase ?? "" : ""}" data-vfx-cue="${playerAction.kind === "hit" || playerAction.kind === "miss" ? playerAction.vfxCue ?? "" : ""}" data-vfx-action="skill" data-sword-dance-phase="${playerAction.skillId === "flowing-light-chain" ? (playerAction.kind === "hit" || playerAction.kind === "miss" ? playerAction.hitPhase ?? "windup" : "windup") : ""}" style="${playerSkillVfxStyle(run, skillAnimation, skillTarget, playerAction)}">
           <span class="skill-core"></span>
           <span class="skill-wave"></span>
           <span class="skill-sparks"></span>
+          ${
+            playerAction.skillId === "flowing-light-chain"
+              ? `<span class="flowing-chain-blade-echoes"></span><span class="flowing-chain-cut-grid"></span><span class="flowing-chain-ground-shear"></span><span class="flowing-chain-finisher-wave"></span>`
+              : ""
+          }
         </div>
       `
       : "";

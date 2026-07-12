@@ -470,6 +470,14 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify approach-to-attack behavior through a real browser.
 - [x] Run regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 205 Sword Dance Action-VFX Coupling
+- [x] Audit the existing seven-stage sword-dance timeline, sprite actions, audio cues, and VFX layers.
+- [x] Lock the original phase-by-phase action and effects contract.
+- [x] Add RED rendering and computed-style coverage for dedicated sword-dance layers.
+- [x] Implement phase-driven blade echoes, cutting grid, ground shear, and finisher wave.
+- [x] Verify all seven stages and visual readability in a real browser.
+- [x] Run regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
 - Task 204 full 37-route browser regression passed 32 and exposed five route assumptions. One lacked a desktop viewport, one waited on a fixed player coordinate while monsters now close distance, one attacked elite coordinates only once despite ongoing pursuit, one used a non-confirmed prep click, and Ink waited after positioning so its delayed mark target moved. Routes now use desktop geometry, current-target repositioning, safe attack windows, state-confirmed real clicks, and position immediately before cast.
 - Task 204 combined browser compatibility passed sword dance and Boss clear but exposed two dynamic-battle assumptions: X-X-X could launch a still-alive pursued target whose airborne motion masked reaction frame 14, and a pursued enemy could die directly beside the player so idle death ticks auto-picked floor loot before visual acceptance. Normal-combo reaction metadata now outranks airborne idle presentation, and floor pickup requires a real movement tick while gate auto-claim remains intact.

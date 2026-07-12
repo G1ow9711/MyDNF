@@ -4710,6 +4710,8 @@ describe("playable app integration actions", () => {
     expect(openHtml).toContain('data-vfx-cue="flowing-chain-open"');
     expect(openHtml).toContain('data-player-skill-hit-phase="chain-open"');
     expect(openHtml).toContain('data-player-skill-vfx-cue="flowing-chain-open"');
+    expect(openHtml).toContain('data-sword-dance-phase="chain-open"');
+    expect(openHtml).toContain('class="flowing-chain-blade-echoes"');
     expect(openHtml).toContain("actor-skill-phase-chain-open");
     expect(openHtml).toContain('data-weapon-hit-phase="chain-open"');
     expect(openHtml).toContain('data-weapon-vfx-cue="flowing-chain-open"');
@@ -4717,10 +4719,12 @@ describe("playable app integration actions", () => {
     expect(danceLeftHtml).toContain('data-vfx-cue="flowing-chain-dance-left"');
     expect(danceLeftHtml).toContain('data-player-skill-hit-phase="chain-dance-left"');
     expect(danceLeftHtml).toContain('data-weapon-hit-phase="chain-dance-left"');
+    expect(danceLeftHtml).toContain('data-sword-dance-phase="chain-dance-left"');
     expect(danceRightHtml).toContain('data-hit-phase="chain-dance-right"');
     expect(danceRightHtml).toContain('data-vfx-cue="flowing-chain-dance-right"');
     expect(danceRightHtml).toContain('data-player-skill-hit-phase="chain-dance-right"');
     expect(danceRightHtml).toContain('data-weapon-hit-phase="chain-dance-right"');
+    expect(danceRightHtml).toContain('data-sword-dance-phase="chain-dance-right"');
     expect(crossHtml).toContain('data-hit-phase="chain-cross"');
     expect(crossHtml).toContain('data-vfx-cue="flowing-chain-cross"');
     expect(crossHtml).toContain('data-player-skill-hit-phase="chain-cross"');
@@ -4728,6 +4732,7 @@ describe("playable app integration actions", () => {
     expect(crossHtml).toContain("actor-skill-phase-chain-cross");
     expect(crossHtml).toContain('data-weapon-hit-phase="chain-cross"');
     expect(crossHtml).toContain('data-weapon-vfx-cue="flowing-chain-cross"');
+    expect(crossHtml).toContain('class="flowing-chain-cut-grid"');
     expect(finishHtml).toContain('data-hit-phase="chain-finish"');
     expect(finishHtml).toContain('data-vfx-cue="flowing-chain-finish"');
     expect(finishHtml).toContain('data-player-skill-hit-phase="chain-finish"');
@@ -4735,6 +4740,8 @@ describe("playable app integration actions", () => {
     expect(finishHtml).toContain("actor-skill-phase-chain-finish");
     expect(finishHtml).toContain('data-weapon-hit-phase="chain-finish"');
     expect(finishHtml).toContain('data-weapon-vfx-cue="flowing-chain-finish"');
+    expect(finishHtml).toContain('class="flowing-chain-finisher-wave"');
+    expect(finishHtml).toContain('class="flowing-chain-ground-shear"');
     expect(finishHtml).toContain('class="skill-impact-burst skill-impact-shape-flowing-chain"');
     expect(countOccurrences(finishHtml, 'data-skill-impact-vfx="flowing-light-chain"')).toBe(4);
   });

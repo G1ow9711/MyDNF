@@ -4427,3 +4427,12 @@
 - Full real-browser suite ran all 37 routes: 32 passed immediately. The five failures were route isolation/timing assumptions, not weakened gameplay: viewport, action-lock timing, command-input expiry, moving elite targeting, confirmed prep click, and ranged mark interruption.
 - State-aware route corrections passed all five focused reruns: KOF frame stage, held movement plus heavy impact/audio, backstep plus trash hitstun/elite super armor and post-break hitstun, difficulty/fatigue refusal, and Ink marking/detonation.
 - Final verification: 686/686 non-keyboard and computed-style tests; all 37 real-browser routes have passing evidence across the full run and focused reruns; production build and inspected pursuit/drop screenshots pass.
+
+## Task 205 Sword Dance Action-VFX Coupling
+- Audited the seven-stage timeline, frame atlas mapping, weapon cues, enemy reactions, three-layer VFX, sound families, and prior finisher screenshot. No subagent was started.
+- Added the original action/VFX contract and implementation plan. The damage, cooldown, resource, and hit schedule remain unchanged.
+- RED failed on the intended boundaries: no sword-dance phase hook, no dedicated blade/ground/finisher nodes, and no dedicated keyframes.
+- Added phase-driven blade echoes for open/left/right cuts, a cross-cut grid, a ground shear, and a forward split finisher wave. Existing action frames, target reactions, hitstop, and audio remain authoritative.
+- Focused app/UI GREEN passed 228/228. Real-browser computed styles passed 25/25 and proved distinct animation names for every added layer.
+- Real keyboard sword-dance acceptance passed twice after final tuning with all seven phases, fourteen hits, two airborne targets, frame-13 contact, frame-14 recovery, and seven distinct sound events.
+- Final verification passed: 686/686 non-keyboard and computed-style tests, focused real-keyboard route, production build, and Git whitespace validation. Chinese commit and push follow this record update.

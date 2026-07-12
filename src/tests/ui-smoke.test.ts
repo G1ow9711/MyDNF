@@ -3021,6 +3021,10 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes weapon-flowing-chain-finish");
     expect(stylesCss).toContain("@keyframes flowing-chain-cast-core");
     expect(stylesCss).toContain("@keyframes flowing-chain-impact-core");
+    expect(stylesCss).toContain("@keyframes flowing-chain-open-echoes");
+    expect(stylesCss).toContain("@keyframes flowing-chain-cross-cut-grid");
+    expect(stylesCss).toContain("@keyframes flowing-chain-finish-sword-wave");
+    expect(stylesCss).toContain("@keyframes flowing-chain-finish-ground-shear");
     expect(stylesCss).toContain('.enemy-frame-sprite[data-sprite-skill-reaction="chain-dance-left"]');
     expect(stylesCss).toContain('.enemy-frame-sprite[data-sprite-skill-reaction="chain-dance-right"]');
     expect(stylesCss).toContain('.enemy-frame-sprite[data-sprite-skill-reaction="chain-cross"]');

@@ -1598,3 +1598,11 @@
 - A pursued monster can drop loot under the player. Passive combat ticks should spawn/render the drop but not claim it; pickup now requires a non-zero movement tick, while entering the gate still auto-claims as the existing fallback.
 - Browser controls that press `Z` immediately after arrow-key positioning can legitimately trigger the DNF command matcher. Heavy-attack acceptance must allow the directional command window to expire before pressing `Z`; this is gameplay behavior, not test flakiness.
 - Ranged `marking-bolt` has 320 px reach. Pursuit makes melee repositioning unnecessary and increases interruption risk, so its live acceptance casts from the safe ranged position after the current monster attack cycle ends.
+
+## Task 205 Sword Dance Action-VFX Audit
+- `flowing-light-chain` already has an authoritative seven-stage timeline, fourteen target hits, phase-specific player atlas frames, enemy reaction frames, weapon cues, and five authored sound families.
+- The current visual is readable but still concentrates most energy in three generic nodes (`skill-core`, `skill-wave`, `skill-sparks`), so the finisher screenshot reads as one large oval instead of layered rapid cuts followed by a forward sword wave.
+- The upgrade should consume existing `hitPhase` and `vfxCue`; adding another independent timer would let effects drift from hit frames under hitstop or DOM replacement.
+- Open-source PixiJS patterns support tick-driven rendering, but this scoped upgrade does not justify replacing the established sprite stage. Original DOM/CSS layers can prove the action-effect contract without importing third-party assets.
+- The first tuned finisher still read as a large oval because the old sprite pseudo-element dominated the new wave. Reducing that near-body arc and shaping the dedicated finisher layer into a forward split fan keeps the sword posture and airborne monsters readable.
+- Real keyboard acceptance preserved all seven stages, fourteen hits, alternating enemy reactions, frame-13 contact hold, frame-14 recovery, airborne finisher state, and seven hit-timed sound families.

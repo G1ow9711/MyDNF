@@ -4490,3 +4490,13 @@
 - Focused core/render/audio/UI coverage passed 549/549. Real keyboard acceptance passed with right-edge positioning, `Z` launch, three-stage `A/J` Spark Combo protection, natural fall, and `F/U` Anvil Crash OTG.
 - Combined real-browser compatibility passed X-X-X, Spark Combo phases, seven-stage Flowing Light sword dance, and the new protection/OTG route. Computed styles proved both new animations execute in the browser.
 - Final verification passed 707/707 non-keyboard and computed-style tests, four real-keyboard routes, production build, and inspected 1440x900 combat screenshot. Chinese commit and push follow this record update.
+
+## Task 211 DNF Once-Per-Combo Wall Bounce
+- Audited direct/scheduled knockback, combo expiry, airborne control, hitstop timer shifting, enemy render priority, VFX, audio, and the authoritative wall-bounce requirement. No subagent was started.
+- Locked live-airborne boundary collision, one bounce per active combo, new-combo/stand reset, super-armor exclusion, and a 460 ms synchronized model/VFX window. RED coverage follows.
+- RED proved clamping had no collision state, hit events, actor motion, wall crack, label, or authored sound. Added one shared movement resolver for direct and scheduled hits plus hitstop-safe timers.
+- Added visible-model-edge collision, once-per-combo state, stand/new-combo reset, armor exclusion, `撞墙` feedback, directional 460 ms model recoil, wall crack, and four-note confirmation audio.
+- Focused core/render/UI/audio coverage passed 554/554. Real Chromium computed styles proved both directional model animations and the wall crack execute at 0.46 s.
+- Real keyboard acceptance lured a live Warrior monster to the right wall, turned the Liuli model toward it, and cast seven-stage Flowing Light Chain with `Space`; mounted event/model/VFX/audio evidence passed and the screenshot was inspected.
+- Compatibility rerun passed both the existing seven-stage sword-dance route and the new wall-bounce route. Full non-keyboard and computed-style regression passed 712/712 before the final browser-computed fixture was added; final verification follows.
+- Final verification passed 713/713 non-keyboard and real-browser computed-style tests, both real-keyboard sword-dance routes, production build, HTTP 200, screenshot inspection, and diff/whitespace review. Chinese commit and push follow this record update.

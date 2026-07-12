@@ -19,6 +19,7 @@ export type EnemyModelMotionFixture = {
   bossPhaseSkillId?: string;
   cue?: string;
   durationMs?: number;
+  wallBounceSide?: "left" | "right";
 };
 
 export type ComputedVfxPartStyle = {
@@ -39,6 +40,7 @@ export type ComputedEnemyModelMotionStyles = Record<
   string,
   {
     art: ComputedVfxPartStyle;
+    crack: ComputedVfxPartStyle;
   }
 >;
 
@@ -641,10 +643,15 @@ export async function computeEnemyModelMotionStylesInRealBrowser(
         const result = {};
         for (const root of document.querySelectorAll("[data-enemy-model-fixture]")) {
           const style = getComputedStyle(root.querySelector(".enemy-art"));
+          const crackStyle = getComputedStyle(root.querySelector(".enemy-wall-bounce-crack"));
           result[root.getAttribute("data-enemy-model-fixture")] = {
             art: {
               animationName: style.animationName,
               animationDuration: style.animationDuration
+            },
+            crack: {
+              animationName: crackStyle.animationName,
+              animationDuration: crackStyle.animationDuration
             }
           };
         }
@@ -1072,6 +1079,9 @@ function roomGateFixtureMarkup(fixture: RoomGateFixture): string {
 function enemyModelMotionFixtureMarkup(fixture: EnemyModelMotionFixture): string {
   const durationMs = fixture.durationMs ?? 520;
   const skillClass = fixture.skillId ? ` actor-enemy-skill-${escapeAttribute(fixture.skillId)}` : "";
+  const wallBounceState = fixture.wallBounceSide
+    ? `<span class="enemy-wall-bounce-state" data-enemy-wall-bounce-active="true" data-enemy-wall-bounce-side="${fixture.wallBounceSide}"></span>`
+    : `<span class="enemy-wall-bounce-state" data-enemy-wall-bounce-active="false" data-enemy-wall-bounce-side=""></span>`;
 
   return `<div
     data-enemy-model-fixture="${escapeAttribute(fixture.key)}"
@@ -1083,6 +1093,8 @@ function enemyModelMotionFixtureMarkup(fixture: EnemyModelMotionFixture): string
     style="--enemy-attack-duration: ${durationMs}ms; --model-scale-x: -1;"
   >
     <span class="enemy-art actor-model actor-model-${escapeAttribute(fixture.motion)}${skillClass}"></span>
+    ${wallBounceState}
+    <span class="enemy-wall-bounce-crack"></span>
   </div>`;
 }
 

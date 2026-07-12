@@ -1399,6 +1399,10 @@ function enemyMotion(
     return "defeated";
   }
 
+  if (elapsedMs < (enemy.wallBounceUntilMs ?? 0)) {
+    return "wall-bounce";
+  }
+
   if (enemy.airborne) {
     return "airborne";
   }
@@ -1789,23 +1793,25 @@ function renderCombatVfx(run: CombatRun): string {
       const counterHitClass = hitEvent.counterHit ? " is-counter-hit" : "";
       const juggleProtectedClass = hitEvent.juggleProtected ? " is-juggle-protected" : "";
       const otgHitClass = hitEvent.otgHit ? " is-otg-hit" : "";
+      const wallBounceClass = hitEvent.wallBounce ? " is-wall-bounce" : "";
       const damageLabels = [
         hitEvent.critical ? "暴击" : "",
         hitEvent.backAttack ? "背击" : "",
         hitEvent.counterHit ? "破招" : "",
         hitEvent.juggleProtected ? "浮空保护" : "",
-        hitEvent.otgHit ? "扫地" : ""
+        hitEvent.otgHit ? "扫地" : "",
+        hitEvent.wallBounce ? "撞墙" : ""
       ]
         .filter(Boolean)
         .join(" ");
 
       return `
         ${skillImpactVfx}
-        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}${airImpactClass}${dashImpactClass}${groundLightImpactClass}${criticalClass}${backAttackClass}${counterHitClass}${juggleProtectedClass}${otgHitClass}" data-impact-spark="true" data-critical="${hitEvent.critical ? "true" : "false"}" data-back-attack="${hitEvent.backAttack ? "true" : "false"}" data-counter-hit="${hitEvent.counterHit ? "true" : "false"}" data-positional-multiplier="${hitEvent.positionalMultiplier}" data-juggle-count="${hitEvent.juggleCount}" data-juggle-protected="${hitEvent.juggleProtected ? "true" : "false"}" data-otg-hit="${hitEvent.otgHit ? "true" : "false"}" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" data-impact-air-action="${airImpactAction}" data-impact-dash-action="${dashImpactAction}" data-impact-ground-light-step="${groundLightImpactStep}" data-impact-origin-x="${Math.round(impactPosition.x)}" data-impact-origin-y="${Math.round(impactPosition.y)}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">
+        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}${airImpactClass}${dashImpactClass}${groundLightImpactClass}${criticalClass}${backAttackClass}${counterHitClass}${juggleProtectedClass}${otgHitClass}${wallBounceClass}" data-impact-spark="true" data-critical="${hitEvent.critical ? "true" : "false"}" data-back-attack="${hitEvent.backAttack ? "true" : "false"}" data-counter-hit="${hitEvent.counterHit ? "true" : "false"}" data-positional-multiplier="${hitEvent.positionalMultiplier}" data-juggle-count="${hitEvent.juggleCount}" data-juggle-protected="${hitEvent.juggleProtected ? "true" : "false"}" data-otg-hit="${hitEvent.otgHit ? "true" : "false"}" data-wall-bounce="${hitEvent.wallBounce ? "true" : "false"}" data-wall-bounce-side="${hitEvent.wallBounceSide ?? ""}" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" data-impact-air-action="${airImpactAction}" data-impact-dash-action="${dashImpactAction}" data-impact-ground-light-step="${groundLightImpactStep}" data-impact-origin-x="${Math.round(impactPosition.x)}" data-impact-origin-y="${Math.round(impactPosition.y)}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">
           <span class="hit-ring"></span>
           <span class="hit-slash"></span>
         </div>
-        <div class="damage-number${criticalClass}${backAttackClass}${counterHitClass}${juggleProtectedClass}${otgHitClass}" data-damage-number="true" data-critical="${hitEvent.critical ? "true" : "false"}" data-back-attack="${hitEvent.backAttack ? "true" : "false"}" data-counter-hit="${hitEvent.counterHit ? "true" : "false"}" data-positional-multiplier="${hitEvent.positionalMultiplier}" data-juggle-count="${hitEvent.juggleCount}" data-juggle-protected="${hitEvent.juggleProtected ? "true" : "false"}" data-otg-hit="${hitEvent.otgHit ? "true" : "false"}" data-hit-event-id="${hitEvent.id}" data-damage-origin-x="${Math.round(impactPosition.x)}" data-damage-origin-y="${Math.round(impactPosition.y)}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">${damageLabels ? `${damageLabels} ` : ""}-${hitEvent.damage}</div>
+        <div class="damage-number${criticalClass}${backAttackClass}${counterHitClass}${juggleProtectedClass}${otgHitClass}${wallBounceClass}" data-damage-number="true" data-critical="${hitEvent.critical ? "true" : "false"}" data-back-attack="${hitEvent.backAttack ? "true" : "false"}" data-counter-hit="${hitEvent.counterHit ? "true" : "false"}" data-positional-multiplier="${hitEvent.positionalMultiplier}" data-juggle-count="${hitEvent.juggleCount}" data-juggle-protected="${hitEvent.juggleProtected ? "true" : "false"}" data-otg-hit="${hitEvent.otgHit ? "true" : "false"}" data-wall-bounce="${hitEvent.wallBounce ? "true" : "false"}" data-wall-bounce-side="${hitEvent.wallBounceSide ?? ""}" data-hit-event-id="${hitEvent.id}" data-damage-origin-x="${Math.round(impactPosition.x)}" data-damage-origin-y="${Math.round(impactPosition.y)}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">${damageLabels ? `${damageLabels} ` : ""}-${hitEvent.damage}</div>
       `;
     })
     .join("");
@@ -2064,6 +2070,8 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
           <div class="enemy-model-frame" data-enemy-ai-state="${enemy.aiState ?? "idle"}">
             <span class="enemy-facing-state" data-enemy-facing="${enemy.facing}" aria-hidden="true"></span>
             <span class="enemy-juggle-state" data-enemy-juggle-count="${enemy.juggleCount}" data-enemy-juggle-protected="${enemy.juggleCount > 3 && enemy.airborne ? "true" : "false"}" aria-hidden="true"></span>
+            <span class="enemy-wall-bounce-state" data-enemy-wall-bounce-count="${enemy.wallBounceCount}" data-enemy-wall-bounce-active="${run.elapsedMs < (enemy.wallBounceUntilMs ?? 0) ? "true" : "false"}" data-enemy-wall-bounce-side="${enemy.wallBounceSide ?? ""}" data-enemy-wall-bounce-started-at-ms="${enemy.wallBounceStartedAtMs ?? ""}" data-enemy-wall-bounce-until-ms="${enemy.wallBounceUntilMs ?? ""}" aria-hidden="true"></span>
+            <span class="enemy-wall-bounce-crack" aria-hidden="true"></span>
             <img class="enemy-art actor-model actor-model-${motion}${enemySkillMotionClass ? ` ${enemySkillMotionClass}` : ""}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy, attackVisual, enemyMotionSkillId)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
             <span class="combat-frame-sprite enemy-frame-sprite" data-frame-atlas="${enemy.kind === "boss" ? "taotie-overseer" : enemy.kind === "elite" ? "zheng-guard" : "ash-cinder-imp"}" aria-hidden="true"></span>
           </div>
@@ -2867,7 +2875,8 @@ function combatEventSfxIds(event: CombatEvent, run: CombatRun): string[] {
       event.backAttack ? "back-attack-confirm" : undefined,
       event.counterHit ? "counter-hit-confirm" : undefined,
       event.juggleProtected ? "juggle-protection-confirm" : undefined,
-      event.otgHit ? "otg-hit-confirm" : undefined
+      event.otgHit ? "otg-hit-confirm" : undefined,
+      event.wallBounce ? "wall-bounce-confirm" : undefined
     ].filter(
       (id): id is string => Boolean(id)
     );

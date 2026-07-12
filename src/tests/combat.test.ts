@@ -1897,6 +1897,79 @@ describe("combat actions and impact feel", () => {
     expect(otgHit.juggleProtected).toBe(false);
   });
 
+  it("bounces a live airborne target off the right wall only once per combo", () => {
+    const base = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      position: { x: 880, y: 340 },
+      hp: 500,
+      maxHp: 500,
+      armor: 0,
+      maxArmor: 0,
+      airborne: true,
+      airborneUntilMs: 1000,
+      juggleCount: 1,
+      nextAttackAtMs: 9999
+    });
+    const first = applyHit(
+      { ...base, elapsedMs: 100, player: { ...base.player, facing: 1 } },
+      { id: "wall-right-1", targetId: base.enemies[0].id, damage: 10, hitstopMs: 0, knockback: 80, juggle: false, action: "heavy" }
+    );
+    const second = applyHit(
+      { ...first, elapsedMs: 200 },
+      { id: "wall-right-2", targetId: base.enemies[0].id, damage: 10, hitstopMs: 0, knockback: 80, juggle: false, action: "heavy" }
+    );
+
+    expect(first.enemies[0]).toMatchObject({
+      position: { x: 960, y: 340 },
+      wallBounceCount: 1,
+      wallBounceSide: "right",
+      wallBounceStartedAtMs: 100,
+      wallBounceUntilMs: 560
+    });
+    expect(lastHitEvent(first)).toMatchObject({ wallBounce: true, wallBounceSide: "right" });
+    expect(second.enemies[0].wallBounceCount).toBe(1);
+    expect(lastHitEvent(second)).toMatchObject({ wallBounce: false, wallBounceSide: undefined });
+  });
+
+  it("restores wall bounce for a new combo and excludes active super armor", () => {
+    const base = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      position: { x: 80, y: 340 },
+      hp: 500,
+      maxHp: 500,
+      armor: 0,
+      maxArmor: 0,
+      airborne: true,
+      airborneUntilMs: 3000,
+      juggleCount: 2,
+      wallBounceCount: 1,
+      nextAttackAtMs: 9999
+    });
+    const freshCombo = applyHit(
+      { ...base, elapsedMs: 1500, comboCount: 0, comboExpiresAtMs: 0, player: { ...base.player, facing: -1 } },
+      { id: "wall-left-fresh", targetId: base.enemies[0].id, damage: 10, hitstopMs: 0, knockback: 80, juggle: false, action: "heavy" }
+    );
+    const armoredBase = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      position: { x: 930, y: 340 },
+      kind: "elite",
+      hp: 500,
+      maxHp: 500,
+      armor: 80,
+      maxArmor: 80,
+      airborne: true,
+      airborneUntilMs: 3000,
+      juggleCount: 1,
+      nextAttackAtMs: 9999
+    });
+    const armored = applyHit(
+      { ...armoredBase, elapsedMs: 100, player: { ...armoredBase.player, facing: 1 } },
+      { id: "wall-armored", targetId: armoredBase.enemies[0].id, damage: 10, hitstopMs: 0, knockback: 80, juggle: false, action: "heavy" }
+    );
+
+    expect(freshCombo.enemies[0]).toMatchObject({ position: { x: 0, y: 340 }, wallBounceCount: 1, wallBounceSide: "left" });
+    expect(lastHitEvent(freshCombo)).toMatchObject({ wallBounce: true, wallBounceSide: "left" });
+    expect(armored.enemies[0].wallBounceCount).toBe(0);
+    expect(lastHitEvent(armored)).toMatchObject({ wallBounce: false, wallBounceSide: undefined });
+  });
+
   it("lets slam skills knock airborne enemies down without waiting for natural fall", () => {
     const run = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 90), "cinder-kiln-alley"), {
       hp: 220,

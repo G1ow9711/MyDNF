@@ -3669,6 +3669,17 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('@keyframes otg-impact-crack');
   });
 
+  it("defines directional wall-bounce model and wall-crack feedback", () => {
+    expect(stylesCss).toContain('.combat-enemy:has(.enemy-wall-bounce-state[data-enemy-wall-bounce-active="true"])');
+    expect(stylesCss).toContain('.actor-model-wall-bounce');
+    expect(stylesCss).toContain('.enemy-wall-bounce-crack');
+    expect(stylesCss).toContain('.hit-impact.is-wall-bounce');
+    expect(stylesCss).toContain('.damage-number.is-wall-bounce');
+    expect(stylesCss).toContain('@keyframes monster-wall-bounce-right');
+    expect(stylesCss).toContain('@keyframes monster-wall-bounce-left');
+    expect(stylesCss).toContain('@keyframes wall-bounce-crack-flash');
+  });
+
   it("renders DNF-style dash-light with player, weapon, target, and impact hooks", () => {
     const state = createInitialState();
     const baseRun = createCombatRun(state, "cinder-kiln-alley");

@@ -261,6 +261,18 @@ const sfxPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: Ar
       { frequencyHz: 987.77, startMs: 116, durationMs: 104, gain: 0.07, waveform: "sine" }
     ]
   },
+  "wall-bounce-confirm": {
+    commandId: "wall-bounce-confirm",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["wall-crack", "body-rebound", "stone-debris"],
+    notes: [
+      { frequencyHz: 46.25, startMs: 0, durationMs: 190, gain: 0.32, waveform: "square" },
+      { frequencyHz: 138.59, startMs: 16, durationMs: 170, gain: 0.22, waveform: "sawtooth" },
+      { frequencyHz: 415.3, startMs: 58, durationMs: 132, gain: 0.13, waveform: "triangle" },
+      { frequencyHz: 1244.51, startMs: 108, durationMs: 116, gain: 0.08, waveform: "sine" }
+    ]
+  },
   "enemy-windup-light": {
     commandId: "enemy-windup-light",
     channel: "sfx",

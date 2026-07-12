@@ -21,6 +21,21 @@ const stylesCss = readFileSync("src/styles.css", "utf8");
 const genericEnemyAnimations = ["enemy-cast-pulse", "enemy-core-flicker", "enemy-trail-flow"];
 
 describe("real browser computed style regressions", () => {
+  it("uses directional wall-bounce model and crack animations in the browser cascade", async () => {
+    const fixtures: EnemyModelMotionFixture[] = [
+      { key: "right-wall", motion: "wall-bounce", wallBounceSide: "right" },
+      { key: "left-wall", motion: "wall-bounce", wallBounceSide: "left" }
+    ];
+    const computed = await computeEnemyModelMotionStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed["right-wall"].art.animationName).toBe("monster-wall-bounce-right");
+    expect(computed["left-wall"].art.animationName).toBe("monster-wall-bounce-left");
+    expect(computed["right-wall"].crack.animationName).toBe("wall-bounce-crack-flash");
+    expect(computed["left-wall"].crack.animationName).toBe("wall-bounce-crack-flash");
+    expect(computed["right-wall"].art.animationDuration).toBe("0.46s");
+    expect(computed["right-wall"].crack.animationDuration).toBe("0.46s");
+  }, 30000);
+
   it("keeps legacy monster skill VFX cue-gated in the browser cascade", async () => {
     const fixtures: EnemyVfxFixture[] = [
       { key: "ash-spit-uncued", skillId: "ash-ember-spit" },

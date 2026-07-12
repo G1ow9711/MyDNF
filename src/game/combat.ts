@@ -222,6 +222,10 @@ export interface CombatEnemy {
   position: CombatVector;
   facing: 1 | -1;
   juggleCount: number;
+  wallBounceCount: number;
+  wallBounceStartedAtMs?: number;
+  wallBounceUntilMs?: number;
+  wallBounceSide?: "left" | "right";
   airborne: boolean;
   downed: boolean;
   airborneUntilMs?: number;
@@ -359,6 +363,8 @@ export interface CombatHitEvent {
   juggleCount: number;
   juggleProtected: boolean;
   otgHit: boolean;
+  wallBounce: boolean;
+  wallBounceSide?: "left" | "right";
   occurredAtMs: number;
   inputToHitMs: number;
   hitstopMs: number;
@@ -836,11 +842,15 @@ function shiftEnemyTimersForHitstop(enemy: CombatEnemy, originMs: number, deltaM
     enemy.attackStartedAtMs !== undefined &&
     enemy.attackImpactAtMs !== undefined &&
     (enemy.attackRecoverUntilMs ?? enemy.attackImpactAtMs) > originMs;
+  const wallBounceActive = enemy.wallBounceUntilMs !== undefined && enemy.wallBounceUntilMs > originMs;
 
   return {
     ...enemy,
     airborneUntilMs: shiftFutureOptionalTime(enemy.airborneUntilMs, originMs, deltaMs),
     downedUntilMs: shiftFutureOptionalTime(enemy.downedUntilMs, originMs, deltaMs),
+    wallBounceStartedAtMs:
+      wallBounceActive && enemy.wallBounceStartedAtMs !== undefined ? enemy.wallBounceStartedAtMs + deltaMs : enemy.wallBounceStartedAtMs,
+    wallBounceUntilMs: wallBounceActive ? enemy.wallBounceUntilMs! + deltaMs : enemy.wallBounceUntilMs,
     nextAttackAtMs: shiftFutureTime(enemy.nextAttackAtMs, originMs, deltaMs),
     attackStartedAtMs: attackActive ? enemy.attackStartedAtMs! + deltaMs : enemy.attackStartedAtMs,
     attackImpactAtMs: attackActive ? enemy.attackImpactAtMs! + deltaMs : enemy.attackImpactAtMs,
@@ -2146,6 +2156,7 @@ function createEnemy(
     },
     facing: -1,
     juggleCount: 0,
+    wallBounceCount: 0,
     airborne: false,
     downed: false,
     nextAttackAtMs: (kind === "boss" ? 650 : kind === "elite" ? 760 : 700) + enemyIndex * 220
@@ -2547,6 +2558,57 @@ function resolveEnemyHitReaction(
     juggleCount,
     juggleProtected,
     otgHit
+  };
+}
+
+interface EnemyHitMovementResolution {
+  position: CombatVector;
+  airborneUntilMs?: number;
+  wallBounce: boolean;
+  wallBounceCount: number;
+  wallBounceStartedAtMs?: number;
+  wallBounceUntilMs?: number;
+  wallBounceSide?: "left" | "right";
+}
+
+function resolveEnemyHitMovement(
+  combatArena: CombatArena,
+  enemy: CombatEnemy,
+  reaction: EnemyHitReaction,
+  rawPosition: CombatVector,
+  impactAtMs: number,
+  comboContinues: boolean
+): EnemyHitMovementResolution {
+  const modelHalfWidth = enemy.body.width / 2;
+  const wallBounceSide =
+    rawPosition.x - modelHalfWidth < 0
+      ? "left"
+      : rawPosition.x + modelHalfWidth > combatArena.width
+        ? "right"
+        : undefined;
+  const wallBounceCount = comboContinues ? enemy.wallBounceCount : 0;
+  const aliveAfterHit = enemy.hp - reaction.hpDamage > 0;
+  const wallBounce = Boolean(
+    wallBounceSide &&
+      wallBounceCount === 0 &&
+      aliveAfterHit &&
+      reaction.airborne &&
+      !enemySuperArmorActive(enemy, impactAtMs)
+  );
+
+  return {
+    position: {
+      x: clamp(rawPosition.x, 0, combatArena.width),
+      y: clamp(rawPosition.y, combatArena.minY, combatArena.maxY)
+    },
+    airborneUntilMs: wallBounce
+      ? Math.max(reaction.airborneUntilMs ?? 0, impactAtMs + 620)
+      : reaction.airborneUntilMs,
+    wallBounce,
+    wallBounceCount: wallBounce ? 1 : wallBounceCount,
+    wallBounceStartedAtMs: wallBounce ? impactAtMs : comboContinues ? enemy.wallBounceStartedAtMs : undefined,
+    wallBounceUntilMs: wallBounce ? impactAtMs + 460 : comboContinues ? enemy.wallBounceUntilMs : undefined,
+    wallBounceSide: wallBounce ? wallBounceSide : comboContinues ? enemy.wallBounceSide : undefined
   };
 }
 
@@ -4764,7 +4826,11 @@ function updateEnemyAirStates(run: CombatRun): CombatRun {
           ...enemy,
           downed: false,
           downedUntilMs: undefined,
-          juggleCount: 0
+          juggleCount: 0,
+          wallBounceCount: 0,
+          wallBounceStartedAtMs: undefined,
+          wallBounceUntilMs: undefined,
+          wallBounceSide: undefined
         };
       }
 
@@ -5499,6 +5565,8 @@ function applyEnemyImpact(
         juggleCount: nextEnemy.juggleCount,
         juggleProtected: false,
         otgHit: false,
+        wallBounce: false,
+        wallBounceSide: undefined,
         occurredAtMs: hitTime,
         inputToHitMs: 0,
         hitstopMs: attack.hitstopMs,
@@ -5688,6 +5756,23 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
   const comboCount = run.comboCount > 0 && run.elapsedMs <= run.comboExpiresAtMs ? run.comboCount + 1 : 1;
   const comboExpiresAtMs = impactAtMs + 1200;
   const targetReaction = resolveEnemyHitReaction(target, impactAtMs, effectiveDamage, statusTags, actionTags, hit.juggle);
+  const rawTargetPosition = hit.pullCenter
+    ? {
+        x: target.position.x + (hit.pullCenter.x - target.position.x) * 0.75,
+        y: target.position.y + (hit.pullCenter.y - target.position.y) * 0.45
+      }
+    : {
+        ...target.position,
+        x: target.position.x + hit.knockback * run.player.facing
+      };
+  const targetMovement = resolveEnemyHitMovement(
+    run.arena,
+    target,
+    targetReaction,
+    rawTargetPosition,
+    impactAtMs,
+    run.comboCount > 0 && impactAtMs <= run.comboExpiresAtMs
+  );
   const nextEnemies = run.enemies.map((enemy) => {
     if (enemy.id !== hit.targetId) {
       return enemy;
@@ -5696,15 +5781,6 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     const reaction = targetReaction;
     const { armorDamage, hpDamage } = reaction;
     const nextMarks = hit.consumeMarks ? 0 : clamp(enemy.marks + (hit.marksApplied ?? 0), 0, 9);
-    const nextPosition = hit.pullCenter
-      ? {
-          x: clamp(enemy.position.x + (hit.pullCenter.x - enemy.position.x) * 0.75, 0, arena.width),
-          y: clamp(enemy.position.y + (hit.pullCenter.y - enemy.position.y) * 0.45, arena.minY, arena.maxY)
-        }
-      : {
-          ...enemy.position,
-          x: clamp(enemy.position.x + hit.knockback * run.player.facing, 0, arena.width)
-        };
 
     return {
       ...enemy,
@@ -5728,12 +5804,16 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
       attackRushTargetPosition: reaction.interruptsAttack ? undefined : enemy.attackRushTargetPosition,
       attackPullStartPosition: reaction.interruptsAttack ? undefined : enemy.attackPullStartPosition,
       attackPullTargetPosition: reaction.interruptsAttack ? undefined : enemy.attackPullTargetPosition,
-      position: nextPosition,
+      position: targetMovement.position,
       airborne: reaction.airborne,
       downed: reaction.downed,
-      airborneUntilMs: reaction.airborneUntilMs,
+      airborneUntilMs: targetMovement.airborneUntilMs,
       downedUntilMs: reaction.downedUntilMs,
-      juggleCount: reaction.juggleCount
+      juggleCount: reaction.juggleCount,
+      wallBounceCount: targetMovement.wallBounceCount,
+      wallBounceStartedAtMs: targetMovement.wallBounceStartedAtMs,
+      wallBounceUntilMs: targetMovement.wallBounceUntilMs,
+      wallBounceSide: targetMovement.wallBounceSide
     };
   });
   const event: CombatHitEvent = {
@@ -5751,6 +5831,8 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     juggleCount: targetReaction.juggleCount,
     juggleProtected: targetReaction.juggleProtected,
     otgHit: targetReaction.otgHit,
+    wallBounce: targetMovement.wallBounce,
+    wallBounceSide: targetMovement.wallBounce ? targetMovement.wallBounceSide : undefined,
     occurredAtMs: impactAtMs,
     inputToHitMs: hit.inputToHitMs ?? 0,
     hitstopMs,
@@ -6087,6 +6169,23 @@ function applyScheduledEnemyHitEffect(
       : 1;
   const comboExpiresAtMs = effect.applyAtMs + 1200;
   const targetReaction = resolveEnemyHitReaction(target, effect.applyAtMs, effectiveDamage, statusTags, actionTags, effect.juggle);
+  const rawTargetPosition = effect.pullCenter
+    ? {
+        x: target.position.x + (effect.pullCenter.x - target.position.x) * 0.75,
+        y: target.position.y + (effect.pullCenter.y - target.position.y) * 0.45
+      }
+    : {
+        ...target.position,
+        x: target.position.x + effect.knockback * effect.playerFacing
+      };
+  const targetMovement = resolveEnemyHitMovement(
+    impactResolvedRun.arena,
+    target,
+    targetReaction,
+    rawTargetPosition,
+    effect.applyAtMs,
+    impactResolvedRun.comboCount > 0 && effect.applyAtMs <= impactResolvedRun.comboExpiresAtMs
+  );
   const event: CombatHitEvent = {
     kind: "hit",
     id: effect.id,
@@ -6102,6 +6201,8 @@ function applyScheduledEnemyHitEffect(
     juggleCount: targetReaction.juggleCount,
     juggleProtected: targetReaction.juggleProtected,
     otgHit: targetReaction.otgHit,
+    wallBounce: targetMovement.wallBounce,
+    wallBounceSide: targetMovement.wallBounce ? targetMovement.wallBounceSide : undefined,
     occurredAtMs: effect.applyAtMs,
     inputToHitMs: effect.inputToHitMs,
     hitstopMs,
@@ -6124,19 +6225,6 @@ function applyScheduledEnemyHitEffect(
     const reaction = targetReaction;
     const { armorDamage, hpDamage } = reaction;
     const nextMarks = effect.consumeMarks ? 0 : clamp(enemy.marks + (effect.marksApplied ?? 0), 0, 9);
-    const nextPosition = effect.pullCenter
-      ? {
-          x: clamp(enemy.position.x + (effect.pullCenter.x - enemy.position.x) * 0.75, 0, impactResolvedRun.arena.width),
-          y: clamp(
-            enemy.position.y + (effect.pullCenter.y - enemy.position.y) * 0.45,
-            impactResolvedRun.arena.minY,
-            impactResolvedRun.arena.maxY
-          )
-        }
-      : {
-          ...enemy.position,
-          x: clamp(enemy.position.x + effect.knockback * effect.playerFacing, 0, impactResolvedRun.arena.width)
-        };
 
     return {
       ...enemy,
@@ -6161,12 +6249,16 @@ function applyScheduledEnemyHitEffect(
       attackRushTargetPosition: reaction.interruptsAttack ? undefined : enemy.attackRushTargetPosition,
       attackPullStartPosition: reaction.interruptsAttack ? undefined : enemy.attackPullStartPosition,
       attackPullTargetPosition: reaction.interruptsAttack ? undefined : enemy.attackPullTargetPosition,
-      position: nextPosition,
+      position: targetMovement.position,
       airborne: reaction.airborne,
       downed: reaction.downed,
-      airborneUntilMs: reaction.airborneUntilMs,
+      airborneUntilMs: targetMovement.airborneUntilMs,
       downedUntilMs: reaction.downedUntilMs,
-      juggleCount: reaction.juggleCount
+      juggleCount: reaction.juggleCount,
+      wallBounceCount: targetMovement.wallBounceCount,
+      wallBounceStartedAtMs: targetMovement.wallBounceStartedAtMs,
+      wallBounceUntilMs: targetMovement.wallBounceUntilMs,
+      wallBounceSide: targetMovement.wallBounceSide
     };
   });
 

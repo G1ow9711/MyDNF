@@ -391,6 +391,18 @@ type BrowserJuggleOtgEvidence = {
   otgImpactAnimation: string;
 };
 
+type BrowserWallBounceEvidence = {
+  eventIds: string[];
+  hitEventIds: string[];
+  targetIds: string[];
+  sides: string[];
+  audioIds: string[];
+  maxCountByTarget: Record<string, number>;
+  maxXByTarget: Record<string, number>;
+  modelAnimation: string;
+  crackAnimation: string;
+};
+
 type BrowserEnemyDeathEvidence = {
   phases: string[];
   frames: number[];
@@ -2334,6 +2346,67 @@ const readJuggleOtgEvidenceExpression = `
 (() => globalThis.__juggleOtgEvidence)()
 `;
 
+const installWallBounceRecorderExpression = `
+(() => {
+  globalThis.__wallBounceEvidence = {
+    eventIds: [],
+    hitEventIds: [],
+    targetIds: [],
+    sides: [],
+    audioIds: [],
+    maxCountByTarget: {},
+    maxXByTarget: {},
+    modelAnimation: "",
+    crackAnimation: ""
+  };
+  globalThis.__wallBounceObserver?.disconnect();
+  if (globalThis.__wallBounceAudioListener) {
+    globalThis.removeEventListener("mydnf:audio-playback", globalThis.__wallBounceAudioListener);
+  }
+  const addUnique = (items, value) => {
+    if (value && !items.includes(value)) items.push(value);
+  };
+  const sample = () => {
+    const evidence = globalThis.__wallBounceEvidence;
+    for (const impact of document.querySelectorAll('[data-impact-spark="true"]')) {
+      const eventId = impact.getAttribute("data-hit-event-id") ?? "";
+      addUnique(evidence.hitEventIds, eventId);
+      if (impact.getAttribute("data-wall-bounce") === "true") {
+        addUnique(evidence.eventIds, eventId);
+        addUnique(evidence.sides, impact.getAttribute("data-wall-bounce-side") ?? "");
+      }
+    }
+    for (const enemy of document.querySelectorAll(".combat-enemy")) {
+      const enemyId = enemy.getAttribute("data-enemy-id") ?? "";
+      const state = enemy.querySelector("[data-enemy-wall-bounce-count]");
+      const count = Number(state?.getAttribute("data-enemy-wall-bounce-count") ?? "0");
+      evidence.maxCountByTarget[enemyId] = Math.max(evidence.maxCountByTarget[enemyId] ?? 0, count);
+      evidence.maxXByTarget[enemyId] = Math.max(
+        evidence.maxXByTarget[enemyId] ?? 0,
+        Number(enemy.getAttribute("data-enemy-x") ?? "0")
+      );
+      if (state?.getAttribute("data-enemy-wall-bounce-active") === "true") {
+        addUnique(evidence.targetIds, enemyId);
+        evidence.modelAnimation ||= getComputedStyle(enemy.querySelector(".actor-model")).animationName;
+        evidence.crackAnimation ||= getComputedStyle(enemy.querySelector(".enemy-wall-bounce-crack")).animationName;
+      }
+    }
+  };
+  globalThis.__wallBounceObserver = new MutationObserver(sample);
+  globalThis.__wallBounceObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
+  globalThis.__wallBounceAudioListener = (event) => {
+    if (event.detail?.commandId === "wall-bounce-confirm") addUnique(globalThis.__wallBounceEvidence.audioIds, event.detail.commandId);
+  };
+  globalThis.addEventListener("mydnf:audio-playback", globalThis.__wallBounceAudioListener);
+  sample();
+  return true;
+})()
+`;
+
+const readWallBounceEvidenceExpression = `
+(() => globalThis.__wallBounceEvidence)()
+`;
+
 const readFlowingLightDebugSamplesExpression = `
 (() => globalThis.__flowingLightDebugSamples ?? [])()
 `;
@@ -4072,6 +4145,118 @@ describe("real browser keyboard control", () => {
         expect(otgEvidence.otgImpactAnimation).toBe("otg-impact-crack");
         await page.captureScreenshot(
           `${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/juggle-protection-otg.png`
+        );
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
+  it("drives a live right-wall bounce with real Flowing Light Chain input", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
+        await seedSaveAndReload(page, createWallBounceAcceptanceState());
+        await enterDungeonWithKeyboard(page);
+        await moveIntoLiveEnemyRange(page);
+        await waitInBrowser(page, 420);
+        await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
+          readFlowingLightSafeCastWindowExpression,
+          (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
+          5000
+        );
+        const ready = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.difficultyId === "warrior" && state.playerHurtLockActive === "false",
+          3000
+        );
+        let targetId = [...ready.enemies].filter((enemy) => enemy.hp > 0).sort((left, right) => right.x - left.x)[0]?.id;
+        expect(targetId).toBeDefined();
+        if (!targetId) {
+          throw new Error("Expected a right-edge target for wall-bounce acceptance");
+        }
+
+        await page.keyDown("ArrowDown");
+        try {
+          await page.waitFor<BrowserRoomFlowState>(
+            readRoomFlowStateExpression,
+            (state) => Number(state.playerY) >= 420,
+            900
+          );
+        } finally {
+          await page.keyUp("ArrowDown");
+        }
+        await page.keyDown("ShiftLeft");
+        await page.keyDown("ArrowRight");
+        try {
+          await page.waitFor<BrowserRoomFlowState>(
+            readRoomFlowStateExpression,
+            (state) => Number(state.playerX) >= 940,
+            1800
+          );
+        } finally {
+          await page.keyUp("ArrowRight");
+          await page.keyUp("ShiftLeft");
+        }
+        const luredState = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.enemies.some((enemy) => enemy.hp > 0 && enemy.x >= 820) && state.playerHurtLockActive === "false",
+          5000
+        );
+        targetId = [...luredState.enemies].filter((enemy) => enemy.hp > 0).sort((left, right) => right.x - left.x)[0]?.id;
+        expect(targetId).toBeDefined();
+        if (!targetId) {
+          throw new Error("Expected a live monster to reach the right wall");
+        }
+        await page.keyDown("ArrowLeft");
+        try {
+          await page.waitFor<BrowserRoomFlowState>(
+            readRoomFlowStateExpression,
+            (state) => {
+              const target = state.enemies.find((enemy) => enemy.id === targetId && enemy.hp > 0);
+              return Boolean(
+                target &&
+                  Number(state.playerX) >= target.x - 82 &&
+                  Number(state.playerX) < target.x &&
+                  state.playerHurtLockActive === "false"
+              );
+            },
+            1800
+          );
+        } finally {
+          await page.keyUp("ArrowLeft");
+        }
+        await page.keyDown("ArrowRight");
+        await waitInBrowser(page, 32);
+        await page.keyUp("ArrowRight");
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) =>
+            state.playerHurtLockActive === "false" &&
+            state.playerFacing === "1" &&
+            state.enemies.some((enemy) => enemy.id === targetId && enemy.hp > 0),
+          3000
+        );
+        await page.evaluate<boolean>(installWallBounceRecorderExpression);
+
+        await page.pressKey("Space");
+        const evidence = await page.waitFor<BrowserWallBounceEvidence>(
+          readWallBounceEvidenceExpression,
+          (state) =>
+            state.eventIds.some((id) => id.includes("flowing-light-chain") && id.includes(targetId)) &&
+            state.targetIds.includes(targetId) &&
+            state.sides.includes("right") &&
+            state.audioIds.includes("wall-bounce-confirm"),
+          3200
+        );
+
+        expect(evidence.maxCountByTarget[targetId]).toBe(1);
+        expect(evidence.modelAnimation).toBe("monster-wall-bounce-right");
+        expect(evidence.crackAnimation).toBe("wall-bounce-crack-flash");
+        await page.captureScreenshot(
+          `${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/wall-bounce-flowing-light.png`
         );
       });
     } finally {
@@ -6026,6 +6211,22 @@ function createJuggleOtgAcceptanceState(): GameState {
         ...state.player.classResources,
         "ember-warden": 100
       },
+      dungeonDifficultyPreferences: {
+        ...state.player.dungeonDifficultyPreferences,
+        "cinder-kiln-alley": "warrior"
+      }
+    }
+  };
+}
+
+function createWallBounceAcceptanceState(): GameState {
+  const state = createFlowingLightSwordmasterState();
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      equipment: {},
       dungeonDifficultyPreferences: {
         ...state.player.dungeonDifficultyPreferences,
         "cinder-kiln-alley": "warrior"

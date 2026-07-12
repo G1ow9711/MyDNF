@@ -1693,3 +1693,13 @@
 - A slam against an already downed target remains downed and refreshes 760 ms, avoiding the old reaction path that could make a prone target stand on impact.
 - Real crowd targeting is dynamic per skill stage. For deterministic player-facing acceptance without test mutation, pre-positioning at the right edge makes the launched actor the only forward target for Heavy and Spark Combo.
 - Real-browser evidence recorded `juggle-protection-pulse` and `otg-impact-crack` as computed animation names, plus both authored confirmation audio ids.
+
+## Task 211 Wall Bounce Audit
+- The combat spec explicitly requires elite/Boss wall bounce to occur at most once per combo; current knockback only clamps X to `0..960` and emits no collision state.
+- Direct and scheduled player hits duplicate knockback mapping, so wall collision must use one shared movement resolver to avoid behavior drift.
+- Existing airborne state already blocks attacks and pursuit. Wall bounce should extend that state rather than introduce a separate control lock.
+- Hitstop currently shifts airborne/downed/attack timers; wall-bounce end time must join that shift set or model recoil will advance during freeze.
+- Combo expiry is global. A hit can treat an expired combo as a fresh wall-bounce budget, while completed stand recovery clears the per-enemy count explicitly.
+- Collision must use the visible model edge (`position.x +/- body.width / 2`), not wait for the actor center to leave the 960 px arena; otherwise large Shanhai monsters visibly pass through the wall before reacting.
+- The final real-keyboard route lures whichever live monster actually reaches X820+, repositions to its left, clears hurt lock, and casts the existing seven-stage Flowing Light Chain with real `Space` input.
+- Mounted evidence ties the same right-wall event to count 1, `monster-wall-bounce-right`, `wall-bounce-crack-flash`, and `wall-bounce-confirm`; core coverage proves later same-combo crossings stay suppressed and fresh combos restore the budget.

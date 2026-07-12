@@ -518,7 +518,20 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify live launcher, protected air chain, knockdown, and downed slam through real keys.
 - [x] Run full regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 211 DNF Once-Per-Combo Wall Bounce
+- [x] Audit knockback clamping, combo lifetime, air state, hitstop timer shifting, enemy motion, and the authoritative combat spec.
+- [x] Lock live-airborne collision, once-per-combo limit, reset, armor exclusion, and feedback timing.
+- [x] Add RED core, mounted feedback, audio, browser-computed, and real-keyboard wall-combo coverage.
+- [x] Implement authoritative visible-model wall collision reaction and synchronized model/VFX/audio feedback.
+- [x] Verify a live right-wall bounce through real keys and same-combo suppression through core state.
+- [x] Run full regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 211's first core GREEN carried the actor's stale wall side on a later non-bounce event. Event-side metadata now describes only the current impact while actor state retains the active recoil side.
+- Task 211 compatibility probing exposed Task 210's crowd route as timing-sensitive under repeated runs. Experimental heavy-cancel and route changes were fully reverted; the committed Task 210 keyboard file remained unchanged until the dedicated wall route was added.
+- Task 211's first dedicated wall route used two normal attacks, but dynamic crowd targeting pushed a different monster. The final route uses lane movement to lure a full-health monster to the right boundary without test-state mutation.
+- The first lured Flowing Light attempts either tracked the spawn-time rightmost ranged monster or cast while still facing left. The route now locks the actual wall-side pursuer, returns to its left, turns right, waits for hurt lock to clear, then sends real `Space`.
+- Two generic `ArrowRight` patches briefly matched older browser routes. Diff review caught and restored both before test execution; subsequent edits use the unique wall-acceptance error string as context.
 - Final Task 210 diff review found a broad `ShiftLeft` removal had touched the preceding crowd route while leaving Shift held in the new route. Restored crowd running, kept Task 210 on normal movement, and reran both real-keyboard routes together successfully.
 - Task 210's first combined UI patch matched an abbreviated fragment of the one-line enemy actor tag and was rejected atomically. Hit feedback was applied at verified short anchors, while mounted juggle state uses a hidden child diagnostic beside the existing facing node.
 - Task 210's first browser combo launched one target but Spark Combo dynamically selected three other crowd targets, so no actor reached protection. Diagnostics now record every hit event and per-target max count; the route positions at the right edge before launch so the same target remains the only forward target.

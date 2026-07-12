@@ -272,6 +272,15 @@ describe("adaptive audio hooks", () => {
     expect(new Set(plans.map((plan) => plan.textureTags.join(":"))).size).toBe(ids.length);
   });
 
+  it("builds an authored wall-bounce confirmation sound", () => {
+    const plan = createAudioPlaybackPlan({ type: "sfx", id: "wall-bounce-confirm" }, createAudioState().volumes);
+
+    expect(plan.commandId).toBe("wall-bounce-confirm");
+    expect(plan.notes.length).toBeGreaterThanOrEqual(4);
+    expect(plan.textureTags).toEqual(expect.arrayContaining(["wall-crack", "body-rebound"]));
+    expect(plan.textureTags).not.toContain("ui-click");
+  });
+
   it("processes audio command queues once and restarts music after volume changes", () => {
     const calls: Array<{ kind: "music" | "sfx"; plan: AudioPlaybackPlan }> = [];
     const sink: AudioPlaybackSink = {

@@ -1198,6 +1198,45 @@ describe("playable app integration actions", () => {
     expect(otgHtml).toContain("扫地 -40");
   });
 
+  it("renders authoritative wall-bounce actor motion, crack, and hit feedback", () => {
+    const state = createInitialState();
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const target = baseRun.enemies[0];
+    const bounced = applyHit(
+      {
+        ...baseRun,
+        elapsedMs: 100,
+        player: { ...baseRun.player, facing: 1 },
+        enemies: [
+          {
+            ...target,
+            position: { x: 930, y: 340 },
+            hp: 500,
+            maxHp: 500,
+            armor: 0,
+            maxArmor: 0,
+            airborne: true,
+            airborneUntilMs: 1000,
+            juggleCount: 1
+          }
+        ]
+      },
+      { id: "wall-bounce-render", action: "heavy", targetId: target.id, damage: 20, hitstopMs: 70, knockback: 80, juggle: false }
+    );
+    const html = renderAppHtml({ state, mode: "combat", combatRun: bounced });
+
+    expect(html).toContain('data-wall-bounce="true"');
+    expect(html).toContain('data-wall-bounce-side="right"');
+    expect(html).toContain('data-enemy-wall-bounce-count="1"');
+    expect(html).toContain('data-enemy-wall-bounce-active="true"');
+    expect(html).toContain('data-enemy-motion="wall-bounce"');
+    expect(html).toContain('class="enemy-art actor-model actor-model-wall-bounce"');
+    expect(html).toContain('class="enemy-wall-bounce-crack"');
+    expect(html).toContain('class="hit-impact hit-impact-heavy is-wall-bounce"');
+    expect(html).toContain('class="damage-number is-wall-bounce"');
+    expect(html).toContain("撞墙 -20");
+  });
+
   it("keeps repeated arrow key movement while excluding repeats from command buffering", () => {
     const previousLocalStorage = globalThis.localStorage;
     const previousAddEventListener = globalThis.addEventListener;

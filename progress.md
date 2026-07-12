@@ -4413,3 +4413,17 @@
 - Real 1440x900 keyboard acceptance recorded all death phases and frames, removed both monster actors, retained the blue rare floor drop, picked it up, and entered room 1.
 - Compatibility passed for X-X-X lethal launcher, seven-stage flowing-light sword dance, and Boss clear/return. The first combined run exposed and then fixed lethal reaction-frame priority without changing damage timing.
 - Final verification passed: 683/683 non-keyboard and computed-style tests, four real-keyboard routes, production build, inspected desktop screenshot, and Git whitespace validation. Chinese commit and push follow this record update.
+
+## Task 204 Enemy Belt Pursuit AI
+- Audited the live combat update path and confirmed normal enemies never move outside attack-specific rush scripts. No subagent was started.
+- Locked slower-than-player archetype speeds, next-skill engagement distance, staggered lane slots, and strict no-movement states for attacks, hitstop, control, hitstun, air, down, and death.
+- RED failed on all intended boundaries: no AI state, no ambient coordinate movement, out-of-range attacks started immediately, and rendered enemies stayed idle.
+- Added authoritative approach movement, next-skill engagement gating, archetype speeds, lane slots, action/reaction locks, `approach` model motion, and frame-stage run behavior. Focused combat/app GREEN passed 3/3; full combat/app suites passed 424/424.
+- First live browser run proved approach coordinates, `monster-approach-stride`, and run frames, but its default viewport screenshot hid the environment/HUD relationship. The 1440x900 rerun then exposed background decode timing; acceptance now separates spawn sampling from image-ready visual capture.
+- Final pursuit browser route passed with untouched player input, authoritative X/Y deltas, `approach` motion, `monster-approach-stride`, run frames 4-7, later windup/active VFX, player hurt reaction, and ordered enemy audio.
+- Inspected `enemy-pursuit.png`: full Chinese ruin environment rendered, two monsters occupied staggered lane positions, both faced and closed toward the player, and no actor/HUD overlap obscured the combat field.
+- Combined browser compatibility first passed sword dance and Boss clear but failed X-X-X reaction sampling and floor-loot visibility. Fixed frame priority for live launched targets and made floor pickup movement-triggered rather than idle-tick-triggered.
+- Focused rerun passed the floor-drop app contract plus real X-X-X and real clear/drop/pickup/room-entry routes. Inspected the refreshed floor screenshot: monsters were removed, the rare blue drop remained visible under the player, and the open gate stayed usable.
+- Full real-browser suite ran all 37 routes: 32 passed immediately. The five failures were route isolation/timing assumptions, not weakened gameplay: viewport, action-lock timing, command-input expiry, moving elite targeting, confirmed prep click, and ranged mark interruption.
+- State-aware route corrections passed all five focused reruns: KOF frame stage, held movement plus heavy impact/audio, backstep plus trash hitstun/elite super armor and post-break hitstun, difficulty/fatigue refusal, and Ink marking/detonation.
+- Final verification: 686/686 non-keyboard and computed-style tests; all 37 real-browser routes have passing evidence across the full run and focused reruns; production build and inspected pursuit/drop screenshots pass.

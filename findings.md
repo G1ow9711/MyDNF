@@ -1585,3 +1585,16 @@
 - Cleared rooms continue idle ticks only while a timestamped death presentation remains. This lets the final enemy finish dissolving without reopening attacks, movement, or duplicate loot settlement.
 - The frame stage uses death frames 12/14/15. A lethal authored reaction can retain its contact frame during the first 180 ms, preserving X-X-X's frame-14 launcher before collapse.
 - Real keyboard evidence captured all three death phases and frames 12/14/15, then observed zero mounted enemies with the world-space rare drop still present.
+
+## Task 204 Enemy Belt Pursuit Audit
+- Normal enemies have no ambient movement path. `advanceEnemyAttacks()` calls `beginEnemyAttack()` at fixed cooldown times, so non-rush monsters remain at spawn coordinates and can repeatedly wind up outside their own range.
+- Only attack-specific `windupRushPx` changes enemy position. This gives crawler/charge skills movement but leaves ranged trash, elites, and most Boss states visually pasted in place.
+- Player movement is 0.24 px/ms; pursuit must remain slower so kiting stays possible. Proposed speeds are 0.078 trash, 0.062 elite, and 0.046 boss px/ms with slower lane correction.
+- The next attack definition already contains `rangeX`, `laneRange`, `windupRushPx`, and `windupPullPx`; these can drive engagement distance without a second combat-data table.
+- `hitstunUntilMs`, `controlledUntilMs`, airborne/downed flags, active attack fields, and HP provide all movement-lock boundaries needed for deterministic pursuit.
+- Real 1440x900 inspection shows both monsters occupying separate lane slots and moving left toward the stationary player while staying grounded in the Chinese ruin backdrop. The models no longer read as fixed pasted targets during room entry.
+- Background visual capture must wait for the current `.combat-background-art` node to decode because the mounted renderer replaces combat DOM every 48 ms; spawn-coordinate evidence must still be sampled before that wait.
+- Pursuit changes target ordering in live combos: the third X hit can launch a still-alive target rather than kill the original fixed target. Frame selection must honor `reactionStep` before generic airborne motion so authored contact frame 14 remains visible.
+- A pursued monster can drop loot under the player. Passive combat ticks should spawn/render the drop but not claim it; pickup now requires a non-zero movement tick, while entering the gate still auto-claims as the existing fallback.
+- Browser controls that press `Z` immediately after arrow-key positioning can legitimately trigger the DNF command matcher. Heavy-attack acceptance must allow the directional command window to expire before pressing `Z`; this is gameplay behavior, not test flakiness.
+- Ranged `marking-bolt` has 320 px reach. Pursuit makes melee repositioning unnecessary and increases interruption risk, so its live acceptance casts from the safe ranged position after the current monster attack cycle ends.

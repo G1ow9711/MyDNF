@@ -6,6 +6,7 @@ import { classResourceValue, skillCooldownMultiplier, skillDamageMultiplier } fr
 import { getDungeonDifficulty } from "../systems/dungeons";
 
 export type EnemyKind = "trash" | "elite" | "boss";
+export type EnemyAiState = "idle" | "approach";
 export type EnemyAttackProfileId =
   | "ash-ember-spit"
   | "ash-crawler-burst"
@@ -209,6 +210,7 @@ export interface CombatEnemy {
   attackPatternIds?: EnemyAttackProfileId[];
   nextAttackPatternIndex?: number;
   ashSummonCount?: number;
+  aiState?: EnemyAiState;
   hp: number;
   maxHp: number;
   defeatedAtMs?: number;
@@ -4777,7 +4779,7 @@ function advanceCombatFrame(run: CombatRun, input: CombatInput, dtMs: number): C
     return clearPendingCombatEffectsIfFailed(movedRunWithEffects);
   }
 
-  const withEnemyAttacks = advanceEnemyAttacks(updateEnemyAirStates(movedRunWithEffects));
+  const withEnemyAttacks = advanceEnemyAttacks(updateEnemyAirStates(movedRunWithEffects), dtMs);
 
   return {
     ...withEnemyAttacks,
@@ -4932,6 +4934,91 @@ function clearRecoveredAttack(enemy: CombatEnemy, elapsedMs: number): CombatEnem
   return recoveredEnemy;
 }
 
+const enemyApproachAwarenessLeadMs = 520;
+const enemyApproachSpeedByKind: Readonly<Record<EnemyKind, number>> = {
+  trash: 0.078,
+  elite: 0.062,
+  boss: 0.046
+};
+
+function moveToward(current: number, target: number, maxDistance: number): number {
+  if (Math.abs(target - current) <= maxDistance) {
+    return target;
+  }
+
+  return current + Math.sign(target - current) * maxDistance;
+}
+
+function enemyApproachLaneOffset(enemyIndex: number): number {
+  return [-22, 22, -40, 40, 0][enemyIndex % 5] ?? 0;
+}
+
+function enemyAttackEngagementRange(attack: EnemyAttackDefinition): { rangeX: number; laneRange: number } {
+  return {
+    rangeX: attack.rangeX + Math.max(attack.windupRushPx ?? 0, attack.windupPullPx ?? 0),
+    laneRange: attack.laneRange + (attack.windupRushPx ? 36 : 0)
+  };
+}
+
+function enemyCanStartAttack(enemy: CombatEnemy, player: CombatPlayer, attack: EnemyAttackDefinition): boolean {
+  if (attack.summonProfileIds?.length || attack.skillId === "taotie-world-devour") {
+    return true;
+  }
+
+  const engagement = enemyAttackEngagementRange(attack);
+  const xDistance = axisDistanceOutsideHalfSize(enemy.position.x - player.x, enemy.hurtbox.width / 2);
+  const yDistance = axisDistanceOutsideHalfSize(enemy.position.y - player.y, enemy.hurtbox.height / 2);
+
+  return xDistance <= engagement.rangeX && yDistance <= engagement.laneRange;
+}
+
+function advanceEnemyApproachMovement(
+  enemy: CombatEnemy,
+  player: CombatPlayer,
+  elapsedMs: number,
+  dtMs: number,
+  enemyIndex: number
+): CombatEnemy {
+  const recovered = clearRecoveredAttack(enemy, elapsedMs);
+  const movementLocked =
+    recovered.hp <= 0 ||
+    recovered.airborne ||
+    recovered.downed ||
+    hasActiveEnemyAttack(recovered, elapsedMs) ||
+    elapsedMs < (recovered.controlledUntilMs ?? 0) ||
+    elapsedMs < (recovered.hitstunUntilMs ?? 0) ||
+    player.defeated;
+
+  if (movementLocked || elapsedMs + enemyApproachAwarenessLeadMs < recovered.nextAttackAtMs) {
+    return recovered.aiState === "idle" ? recovered : { ...recovered, aiState: "idle" };
+  }
+
+  const attackProfileId = nextEnemyAttackProfile(recovered);
+  const attack = enemyAttackDefinition({ ...recovered, attackProfileId });
+
+  if (attack.summonProfileIds?.length || enemyCanStartAttack(recovered, player, attack)) {
+    return recovered.aiState === "idle" ? recovered : { ...recovered, aiState: "idle" };
+  }
+
+  const engagement = enemyAttackEngagementRange(attack);
+  const side = recovered.position.x >= player.x ? 1 : -1;
+  const preferredOutsideX = Math.max(54, engagement.rangeX * 0.78);
+  const targetX = clamp(player.x + side * (recovered.hurtbox.width / 2 + preferredOutsideX), 0, arena.width);
+  const targetY = clamp(player.y + enemyApproachLaneOffset(enemyIndex), arena.minY, arena.maxY);
+  const speed = enemyApproachSpeedByKind[recovered.kind];
+  const nextPosition = {
+    x: moveToward(recovered.position.x, targetX, speed * dtMs),
+    y: moveToward(recovered.position.y, targetY, speed * 0.78 * dtMs)
+  };
+  const moved = Math.abs(nextPosition.x - recovered.position.x) > 0.01 || Math.abs(nextPosition.y - recovered.position.y) > 0.01;
+
+  return {
+    ...recovered,
+    aiState: moved ? "approach" : "idle",
+    position: nextPosition
+  };
+}
+
 function enemyRushTargetPosition(enemy: CombatEnemy, player: CombatPlayer, rushPx: number): CombatVector {
   const signedDistance = enemy.position.x - player.x;
   const absoluteDistance = Math.abs(signedDistance);
@@ -5043,6 +5130,11 @@ function beginEnemyAttack(
 
   const attackProfileId = nextEnemyAttackProfile(recovered);
   const attack = enemyAttackDefinition({ ...recovered, attackProfileId });
+
+  if (player && !enemyCanStartAttack(recovered, player, attack)) {
+    return { enemy: recovered };
+  }
+
   const attackRushTargetPosition = attack.windupRushPx && player ? enemyRushTargetPosition(recovered, player, attack.windupRushPx) : undefined;
   const attackPullTargetPosition = attack.windupPullPx && player ? enemyPullTargetPosition(recovered, player, attack.windupPullPx) : undefined;
   const impactAtMs = elapsedMs + attack.windupMs;
@@ -5056,6 +5148,7 @@ function beginEnemyAttack(
   return {
     enemy: {
       ...recovered,
+      aiState: "idle",
       attackProfileId: nextAttackProfileId,
       attackPatternIds,
       nextAttackPatternIndex,
@@ -5348,15 +5441,16 @@ function applyEnemyImpact(
   return { enemy: nextEnemy, player: nextPlayer, events, failed, phaseTransitionAtMs, spawnedEnemies };
 }
 
-function advanceEnemyAttacks(run: CombatRun): CombatRun {
+function advanceEnemyAttacks(run: CombatRun, dtMs: number): CombatRun {
   let player = run.player;
   let failed = run.failed;
   let phaseTransitionAtMs: number | undefined;
   const canceledSkillIds = new Set<string>();
   const events: CombatEvent[] = [];
   const spawnedEnemies: CombatEnemy[] = [];
-  const enemies = run.enemies.map((enemy) => {
-    const started = beginEnemyAttack(enemy, run.elapsedMs, player);
+  const enemies = run.enemies.map((enemy, enemyIndex) => {
+    const approached = advanceEnemyApproachMovement(enemy, player, run.elapsedMs, dtMs, enemyIndex);
+    const started = beginEnemyAttack(approached, run.elapsedMs, player);
 
     if (started.event) {
       events.push(started.event);

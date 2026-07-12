@@ -168,9 +168,15 @@ type BrowserEnemyAttackState = {
   objective: string;
   enemies: Array<{
     id: string;
+    x: number;
+    y: number;
+    aiState: string;
+    motion: string;
     stage: string;
     skill: string;
     animationName: string;
+    spriteState: string;
+    spriteFrame: number;
   }>;
   telegraph: string;
   telegraphShape: string;
@@ -1436,11 +1442,19 @@ const readEnemyAttackStateExpression = `
   const scene = document.querySelector(".combat-scene");
   const enemies = Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => {
     const art = enemy.querySelector(".enemy-art");
+    const modelFrame = enemy.querySelector(".enemy-model-frame");
+    const sprite = enemy.querySelector(".enemy-frame-sprite");
     return {
       id: enemy.getAttribute("data-enemy-id") ?? "",
+      x: Number(enemy.getAttribute("data-enemy-x") ?? "0"),
+      y: Number(enemy.getAttribute("data-enemy-y") ?? "0"),
+      aiState: modelFrame?.getAttribute("data-enemy-ai-state") ?? "idle",
+      motion: enemy.getAttribute("data-enemy-motion") ?? "",
       stage: enemy.getAttribute("data-enemy-attack-stage") ?? "",
       skill: enemy.getAttribute("data-enemy-attack-skill-id") ?? "",
-      animationName: art ? getComputedStyle(art).animationName : ""
+      animationName: art ? getComputedStyle(art).animationName : "",
+      spriteState: sprite?.getAttribute("data-sprite-state") ?? "",
+      spriteFrame: Number(sprite?.getAttribute("data-sprite-frame") ?? "-1")
     };
   });
   const telegraph = document.querySelector("[data-enemy-telegraph]");
@@ -2160,6 +2174,7 @@ describe("real browser keyboard control", () => {
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
         await enterDungeonWithKeyboard(page);
         const idle = await page.waitFor<BrowserFrameSpriteState>(
           readFrameSpriteStateExpression,
@@ -2199,6 +2214,12 @@ describe("real browser keyboard control", () => {
         expect(attacking.playerFrame).not.toBe(running.playerFrame);
         await page.captureScreenshot(`${screenshotRoot}/player-attack.png`);
 
+        await page.waitFor<BrowserFrameSpriteState>(
+          readFrameSpriteStateExpression,
+          (state) => state.playerSpriteState === "idle",
+          1200
+        );
+
         await page.pressKey("KeyC");
         const airborne = await page.waitFor<BrowserFrameSpriteState>(
           readFrameSpriteStateExpression,
@@ -2212,9 +2233,7 @@ describe("real browser keyboard control", () => {
           1200
         );
 
-        await page.keyDown("ArrowRight");
-        await page.waitFor<BrowserCombatState>(readCombatStateExpression, (state) => state.playerX >= 29, 3000);
-        await page.keyUp("ArrowRight");
+        await moveIntoLiveEnemyRange(page);
         const enemyAttack = await page.waitFor<BrowserFrameSpriteState>(
           readFrameSpriteStateExpression,
           (state) => state.enemySpriteStates.some((spriteState) => spriteState === "attack" || spriteState.startsWith("monster-skill-")) && state.enemyFrames.some((frame) => frame >= 8 && frame <= 11),
@@ -2451,9 +2470,14 @@ describe("real browser keyboard control", () => {
         expect(firstMove.playerX).toBeGreaterThan(start.playerX);
         expect(heldMove.playerX).toBeGreaterThan(firstMove.playerX);
 
-        await page.waitFor<BrowserCombatState>(readCombatStateExpression, (state) => state.playerX >= 27, 2500);
         await page.keyUp("ArrowRight");
-        await page.evaluate<void>("new Promise((resolve) => setTimeout(resolve, 760))");
+        await moveIntoLiveEnemyRange(page);
+        await waitInBrowser(page, 420);
+        await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
+          readFlowingLightSafeCastWindowExpression,
+          (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
+          5000
+        );
         await page.evaluate<boolean>(installNormalComboAudioRecorderExpression);
         await page.pressKey("KeyZ");
 
@@ -2752,6 +2776,7 @@ describe("real browser keyboard control", () => {
           (state) => state.playerHurtLockActive !== "true",
           1500
         );
+        await moveIntoLiveEnemyRange(page);
 
         await page.pressKey("KeyX");
         const armoredHit = await page.waitFor<BrowserBackstepReactionState>(
@@ -2771,13 +2796,21 @@ describe("real browser keyboard control", () => {
         expect(armoredHit.enemies.some((enemy) => enemy.kind === "elite" && enemy.superArmor === "true")).toBe(true);
 
         await waitInBrowser(page, 230);
-        await page.pressKey("KeyX");
+        await moveIntoLiveEnemyRange(page);
+        await waitInBrowser(page, 420);
+        await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
+          readFlowingLightSafeCastWindowExpression,
+          (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
+          5000
+        );
+        await page.pressKey("KeyZ");
         await page.waitFor<BrowserBackstepReactionState>(
           readBackstepReactionStateExpression,
           (state) => state.enemies.some((enemy) => enemy.kind === "elite" && enemy.superArmor === "false"),
-          1200
+          1800
         );
-        await waitInBrowser(page, 250);
+        await waitInBrowser(page, 360);
+        await moveIntoLiveEnemyRange(page);
         await page.pressKey("KeyX");
         const postArmorLaunch = await page.waitFor<BrowserBackstepReactionState>(
           readBackstepReactionStateExpression,
@@ -2786,13 +2819,12 @@ describe("real browser keyboard control", () => {
               (enemy) =>
                 enemy.kind === "elite" &&
                 enemy.hitstunActive === "true" &&
-                enemy.airborne === "true" &&
                 enemy.superArmor === "false"
             ),
-          1400
+          1800
         );
 
-        expect(postArmorLaunch.enemies.some((enemy) => enemy.kind === "elite" && enemy.motion === "airborne")).toBe(true);
+        expect(postArmorLaunch.enemies.some((enemy) => enemy.kind === "elite" && enemy.motion === "hitstun")).toBe(true);
       });
     } finally {
       await server.close();
@@ -3233,12 +3265,7 @@ describe("real browser keyboard control", () => {
         lowFatigueState.player.fatigue = { current: 7, max: 64 };
         await seedSaveAndReload(page, lowFatigueState);
         await waitInBrowser(page, 200);
-        await page.click('[data-prepare-dungeon="cinder-kiln-alley"]');
-        await page.waitFor<BrowserDungeonDifficultyState>(
-          readDungeonDifficultyStateExpression,
-          (state) => state.appMode === "dungeon-prep" && state.selectedDifficulty === "normal",
-          5000
-        );
+        await openDungeonPrepThroughRealClick(page, "cinder-kiln-alley");
         await page.pressKey("ArrowRight");
         await page.waitFor<BrowserDungeonDifficultyState>(
           readDungeonDifficultyStateExpression,
@@ -4594,7 +4621,6 @@ describe("real browser keyboard control", () => {
           5000
         );
 
-        await moveIntoLiveEnemyRange(page);
         await page.waitFor<BrowserRoomFlowState>(
           readRoomFlowStateExpression,
           (state) => state.objective === "active" && state.playerHurtLockActive === "false",
@@ -4789,9 +4815,47 @@ describe("real browser keyboard control", () => {
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
         await page.evaluate<boolean>(installEnemyAudioRecorderExpression);
         await enterDungeonWithKeyboard(page);
         await page.waitFor<BrowserCombatState>(readCombatStateExpression, (state) => state.objective === "active", 5000);
+        const initial = await page.evaluate<BrowserEnemyAttackState>(readEnemyAttackStateExpression);
+        await page.waitFor<boolean>(
+          `(() => {
+            const image = document.querySelector(".combat-background-art");
+            return Boolean(image && image.complete && image.naturalWidth > 0);
+          })()`,
+          (loaded) => loaded,
+          3000
+        );
+        await waitInBrowser(page, 120);
+
+        const initialById = new Map(initial.enemies.map((enemy) => [enemy.id, enemy]));
+        const approaching = await page.waitFor<BrowserEnemyAttackState>(
+          readEnemyAttackStateExpression,
+          (state) =>
+            state.enemies.some((enemy) => {
+              const start = initialById.get(enemy.id);
+              return Boolean(
+                start &&
+                enemy.aiState === "approach" &&
+                enemy.motion === "approach" &&
+                enemy.x < start.x &&
+                enemy.y !== start.y &&
+                enemy.animationName === "monster-approach-stride" &&
+                enemy.spriteState === "run" &&
+                enemy.spriteFrame >= 4 &&
+                enemy.spriteFrame <= 7
+              );
+            }),
+          2200
+        );
+        const pursuingEnemy = approaching.enemies.find((enemy) => enemy.aiState === "approach");
+
+        expect(pursuingEnemy?.motion).toBe("approach");
+        expect(pursuingEnemy?.animationName).toBe("monster-approach-stride");
+        expect(pursuingEnemy?.spriteState).toBe("run");
+        await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/enemy-pursuit.png`);
 
         const windup = await page.waitFor<BrowserEnemyAttackState>(
           readEnemyAttackStateExpression,

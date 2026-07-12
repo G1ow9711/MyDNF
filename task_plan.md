@@ -462,7 +462,18 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify all death phases and surviving floor loot through real keyboard combat.
 - [x] Run regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 204 Enemy Belt Pursuit AI
+- [x] Audit stationary enemy behavior, attack ranges, state locks, and frame presentation.
+- [x] Lock pursuit speed, engagement distance, lane-slot, and action-state boundaries.
+- [x] Add RED coverage for approach movement, attack gating, and movement locks.
+- [x] Implement authoritative pursuit AI plus model/frame presentation.
+- [x] Verify approach-to-attack behavior through a real browser.
+- [x] Run regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 204 full 37-route browser regression passed 32 and exposed five route assumptions. One lacked a desktop viewport, one waited on a fixed player coordinate while monsters now close distance, one attacked elite coordinates only once despite ongoing pursuit, one used a non-confirmed prep click, and Ink waited after positioning so its delayed mark target moved. Routes now use desktop geometry, current-target repositioning, safe attack windows, state-confirmed real clicks, and position immediately before cast.
+- Task 204 combined browser compatibility passed sword dance and Boss clear but exposed two dynamic-battle assumptions: X-X-X could launch a still-alive pursued target whose airborne motion masked reaction frame 14, and a pursued enemy could die directly beside the player so idle death ticks auto-picked floor loot before visual acceptance. Normal-combo reaction metadata now outranks airborne idle presentation, and floor pickup requires a real movement tick while gate auto-claim remains intact.
+- Task 204 pursuit browser acceptance first captured a dark fallback because the combat background image had not decoded during the 48 ms DOM replacement loop. After adding an image-ready wait, the initial coordinate sample happened after lane correction and lost the Y-delta proof. The route now samples spawn coordinates immediately, then waits for background readiness only before visual capture.
 - Task 203 first real-browser GREEN exposed that cleared rooms stopped dispatching idle combat ticks, freezing the final enemy at death age 0. The reducer now advances only the pending 1000 ms death presentation after clear, then returns to its prior idle behavior.
 - Task 203 compatibility initially let the generic death-impact frame hide normal combo step 3's lethal launcher reaction. The first 180 ms now preserves an authored lethal reaction frame when present, then rejoins collapse and dissolve; X-X-X, sword dance, Boss clear, and floor-loot routes pass.
 - Task 202's first viewport patch matched an earlier generic browser callback and added 1440x900 to the consumable route. Removed it immediately and applied it under the exact floor-loot test title before rerunning; no production file was affected.

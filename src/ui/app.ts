@@ -1962,7 +1962,8 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const hpPercentRounded = Math.round(hpPercent);
       const bossPhase = enemy.kind === "boss" ? enemy.bossPhase ?? 1 : "";
       const bossEnraged = enemy.kind === "boss" && (enemy.bossPhase ?? 1) >= 2;
-      const baseMotion = enemyMotion(enemy, hitTargetIds.has(enemy.id) ? enemy.id : undefined, run.elapsedMs);
+      const resolvedMotion = enemyMotion(enemy, hitTargetIds.has(enemy.id) ? enemy.id : undefined, run.elapsedMs);
+      const baseMotion = resolvedMotion === "idle" && enemy.aiState === "approach" ? "approach" : resolvedMotion;
       const bossPhaseSkillId =
         enemy.kind === "boss" && !enemy.attackSkillId && baseMotion === "idle" && activeBossPhase?.enemyId === enemy.id
           ? activeBossPhase.skillId
@@ -1993,7 +1994,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       return `
         <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-kind="${enemy.kind}" data-enemy-state="${enemyState}" data-enemy-defeated-at-ms="${enemy.defeatedAtMs ?? ""}" data-enemy-death-age-ms="${deathAgeMs}" data-enemy-death-progress="${deathProgress.toFixed(3)}" data-enemy-death-phase="${deathPhase}" data-enemy-motion="${motion}" data-enemy-hitstun-active="${hitstunActive ? "true" : "false"}" data-enemy-super-armor="${superArmorActive ? "true" : "false"}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-boss-phase-skill-id="${bossPhaseSkillId}" data-enemy-model-vfx-cue="${enemyModelVfxCue}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-enemy-attack-stage="${attackVisual.stage}" data-enemy-attack-duration-ms="${attackVisual.durationMs || ""}" data-enemy-attack-progress="${attackVisual.progress}" data-hit-recent="${hitRecent ? "true" : "false"}" data-hit-action="${recentTargetHit?.action ?? ""}" data-hit-phase="${recentTargetHit?.hitPhase ?? ""}" data-hit-air-action="${hitAirAction}" data-enemy-hit-air-action="${hitAirAction}" data-hit-dash-action="${hitDashAction}" data-enemy-hit-dash-action="${hitDashAction}" data-enemy-hit-ground-light-step="${hitGroundLightStep}" data-hit-vfx-cue="${recentTargetHit?.vfxCue ?? ""}" data-enemy-hit-slide-active="${hitSlide.active ? "true" : "false"}" data-enemy-hit-slide-progress="${hitSlide.progress.toFixed(2)}" data-enemy-hit-slide-start-x="${hitSlide.start ? Math.round(hitSlide.start.x) : ""}" data-enemy-hit-slide-start-y="${hitSlide.start ? Math.round(hitSlide.start.y) : ""}" data-enemy-hit-slide-end-x="${hitSlide.end ? Math.round(hitSlide.end.x) : ""}" data-enemy-hit-slide-end-y="${hitSlide.end ? Math.round(hitSlide.end.y) : ""}" data-enemy-hit-slide-duration-ms="${enemyHitSlideDurationMs}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-enemy-x="${Math.round(enemy.position.x)}" data-enemy-y="${Math.round(enemy.position.y)}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-current="${enemy.hp}" data-enemy-hp-max="${enemy.maxHp}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy, hitSlide.position)} --enemy-death-age: ${deathAgeMs}ms; --enemy-death-progress: ${deathProgress.toFixed(3)};">
           <div class="enemy-nameplate">${enemy.displayName}</div>
-          <div class="enemy-model-frame">
+          <div class="enemy-model-frame" data-enemy-ai-state="${enemy.aiState ?? "idle"}">
             <img class="enemy-art actor-model actor-model-${motion}${enemySkillMotionClass ? ` ${enemySkillMotionClass}` : ""}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy, attackVisual, enemyMotionSkillId)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
             <span class="combat-frame-sprite enemy-frame-sprite" data-frame-atlas="${enemy.kind === "boss" ? "taotie-overseer" : enemy.kind === "elite" ? "zheng-guard" : "ash-cinder-imp"}" aria-hidden="true"></span>
           </div>
@@ -2834,8 +2835,9 @@ function applyFinishedRoomIfResolved(model: AppModel, previousRun: CombatRun, co
   return undefined;
 }
 
-function advanceFloorLoot(run: CombatRun): CombatRun {
-  return pickupRoomFloorLoot(spawnRoomFloorLoot(run));
+function advanceFloorLoot(run: CombatRun, pickupRequested = false): CombatRun {
+  const spawnedRun = spawnRoomFloorLoot(run);
+  return pickupRequested ? pickupRoomFloorLoot(spawnedRun) : spawnedRun;
 }
 
 function enterGateIfReady(model: AppModel, run: CombatRun): AppModel | undefined {
@@ -3049,7 +3051,10 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         return model;
       }
 
-      const combatRun = advanceFloorLoot(stepCombat(model.combatRun, hasTickMovement ? tickInput : {}, combatTickMs));
+      const combatRun = advanceFloorLoot(
+        stepCombat(model.combatRun, hasTickMovement ? tickInput : {}, combatTickMs),
+        hasTickMovement
+      );
       const combatAudio = enqueueNewCombatEventSfx(model.audio, model.combatRun, combatRun);
       const completedTransition = applyFinishedRoomIfResolved({ ...model, audio: combatAudio }, model.combatRun, combatRun);
 
@@ -3092,7 +3097,8 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
               dash: action.dash
             },
             160
-          )
+          ),
+          action.moveX !== 0 || action.moveY !== 0
         );
         const combatAudio = enqueueNewCombatEventSfx(model.audio, model.combatRun, combatRun);
         const completedTransition = applyFinishedRoomIfResolved({ ...model, audio: combatAudio }, model.combatRun, combatRun);

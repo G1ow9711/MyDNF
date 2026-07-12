@@ -1409,7 +1409,13 @@ describe("combat actions and impact feel", () => {
     const first = resolveGroundLight(performAction(run, { type: "light" }));
     const expired = stepCombat(first, {}, 1300);
     const restarted = performAction(expired, { type: "light" });
-    const restartHit = lastHitEvent(resolveGroundLight(restarted));
+    const restartHit = resolveGroundLight(restarted).events
+      .filter((event): event is CombatHitEvent => event.kind === "hit" && event.action === "light")
+      .at(-1);
+
+    if (!restartHit) {
+      throw new Error("Expected restarted normal attack hit");
+    }
 
     expect(expired.player.comboStep).toBe(0);
     expect(restarted.player.comboStep).toBe(1);
@@ -8674,6 +8680,82 @@ describe("combat actions and impact feel", () => {
 });
 
 describe("enemy attacks and player defeat", () => {
+  it("pursues the player across the belt lane before starting an out-of-range attack", () => {
+    const base = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const startingEnemy = {
+      ...base.enemies[0],
+      attackProfileId: "ash-ember-spit" as const,
+      position: { x: 820, y: 430 },
+      nextAttackAtMs: 0
+    };
+    let run: CombatRun = {
+      ...base,
+      player: { ...base.player, x: 120, y: 330 },
+      enemies: [startingEnemy]
+    };
+
+    run = stepCombat(run, {}, 48);
+
+    expect(run.enemies[0].aiState).toBe("approach");
+    expect(run.enemies[0].position.x).toBeLessThan(startingEnemy.position.x);
+    expect(run.enemies[0].position.y).toBeLessThan(startingEnemy.position.y);
+    expect(run.events.filter((event) => event.kind === "enemy-attack")).toHaveLength(0);
+
+    for (let tick = 0; tick < 220 && !run.events.some((event) => event.kind === "enemy-attack"); tick += 1) {
+      run = stepCombat(run, {}, 48);
+    }
+
+    const windup = run.events.find(
+      (event): event is CombatEnemyAttackEvent => event.kind === "enemy-attack" && event.phase === "windup"
+    );
+    const xDistance = Math.max(0, Math.abs(run.enemies[0].position.x - run.player.x) - run.enemies[0].hurtbox.width / 2);
+    const yDistance = Math.max(0, Math.abs(run.enemies[0].position.y - run.player.y) - run.enemies[0].hurtbox.height / 2);
+
+    expect(windup?.skillId).toBe("ash-ember-spit");
+    expect(xDistance).toBeLessThanOrEqual(190);
+    expect(yDistance).toBeLessThanOrEqual(58);
+    expect(run.enemies[0].aiState).toBe("idle");
+  });
+
+  it("does not apply ambient pursuit while enemy action or reaction locks are active", () => {
+    const base = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const lockCases: Array<{ label: string; patch: Partial<CombatEnemy> }> = [
+      { label: "hitstun", patch: { hitstunUntilMs: 1000 } },
+      { label: "control", patch: { controlledUntilMs: 1000 } },
+      { label: "airborne", patch: { airborne: true, airborneUntilMs: 1000 } },
+      { label: "downed", patch: { downed: true, downedUntilMs: 1000 } },
+      {
+        label: "attack",
+        patch: {
+          attackSkillId: "ash-ember-spit",
+          attackStartedAtMs: 0,
+          attackImpactAtMs: 800,
+          attackRecoverUntilMs: 1100,
+          attackHitResolved: false,
+          attackResolvedHits: 0
+        }
+      }
+    ];
+
+    for (const { label, patch } of lockCases) {
+      const enemy: CombatEnemy = {
+        ...base.enemies[0],
+        position: { x: 820, y: 430 },
+        nextAttackAtMs: 9999,
+        ...patch
+      };
+      const run: CombatRun = {
+        ...base,
+        player: { ...base.player, x: 120, y: 330 },
+        enemies: [enemy]
+      };
+      const advanced = stepCombat(run, {}, 96);
+
+      expect(advanced.enemies[0].position, label).toEqual(enemy.position);
+      expect(advanced.enemies[0].aiState, label).toBe("idle");
+    }
+  });
+
   it("spawns Liuli Furnace enemies with dungeon-specific trash, elite, and boss patterns", () => {
     const initialRun = createCombatRun(unlockLiuli(createInitialState()), "liuli-furnace");
     const dungeon = catalog.dungeons.find((item) => item.id === "liuli-furnace");
@@ -10393,15 +10475,22 @@ describe("enemy attacks and player defeat", () => {
             y: 340
           },
           armor: 0,
-          nextAttackAtMs: 1
+          nextAttackAtMs: 9999,
+          attackSkillId: "taotie-flame-breath" as const,
+          attackStartedAtMs: 0,
+          attackImpactAtMs: 420,
+          attackRecoverUntilMs: 1140,
+          attackHitResolved: false,
+          attackResolvedHits: 0,
+          attackConnectedHitIndexes: []
         }
       ]
     });
     const atEdge = makeBossAttackRun(425);
     const outsideEdge = makeBossAttackRun(426);
 
-    const edgeImpact = stepCombat(stepCombat(atEdge, {}, 80), {}, 420);
-    const outsideImpact = stepCombat(stepCombat(outsideEdge, {}, 80), {}, 420);
+    const edgeImpact = stepCombat(atEdge, {}, 420);
+    const outsideImpact = stepCombat(outsideEdge, {}, 420);
 
     expect(atEdge.enemies[0].hurtbox.width).toBe(190);
     expect(edgeImpact.events).toEqual(

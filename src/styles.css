@@ -3683,6 +3683,12 @@ p {
   animation: monster-idle-breathe 2.8s ease-in-out infinite;
 }
 
+.actor-model-approach,
+.enemy-model-frame[data-enemy-ai-state="approach"] .enemy-art {
+  animation: monster-approach-stride 460ms steps(2, end) infinite;
+  filter: drop-shadow(0 8px 10px rgba(2, 6, 23, 0.62)) brightness(1.06);
+}
+
 .combat-enemy[data-enemy-spawn-source="taotie-ash-summon"][data-enemy-motion="idle"] .enemy-art {
   animation: ash-minion-summon-emerge 720ms cubic-bezier(0.1, 0.82, 0.16, 1) both;
   filter: drop-shadow(0 0 22px rgba(251, 146, 60, 0.54)) brightness(1.12);
@@ -9456,6 +9462,12 @@ p {
 @keyframes monster-idle-breathe {
   0%, 100% { transform: translateY(0) scale(1) scaleX(var(--model-scale-x, 1)); }
   50% { transform: translateY(-3px) scale(1.012) scaleX(var(--model-scale-x, 1)); }
+}
+
+@keyframes monster-approach-stride {
+  0% { transform: translate(-2px, 0) rotate(-1.5deg) scaleX(var(--model-scale-x, 1)); }
+  50% { transform: translate(2px, -4px) rotate(1.5deg) scaleX(var(--model-scale-x, 1)); }
+  100% { transform: translate(-2px, 0) rotate(-1.5deg) scaleX(var(--model-scale-x, 1)); }
 }
 
 @keyframes monster-attack-lunge {

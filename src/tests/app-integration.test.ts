@@ -934,12 +934,12 @@ describe("playable app integration actions", () => {
         elapsedMs: model.combatRun.floorLoot.spawnedAtMs + 220,
         player: {
           ...model.combatRun.player,
-          x: model.combatRun.floorLoot.x,
+          x: model.combatRun.floorLoot.x - 20,
           y: model.combatRun.floorLoot.y
         }
       }
     };
-    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: false });
 
     expect(model.mode).toBe("combat");
     expect(model.combatRun?.roomIndex).toBe(0);
@@ -5810,6 +5810,30 @@ describe("playable app integration actions", () => {
     ]);
   });
 
+  it("renders authoritative enemy pursuit state as model and frame movement", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        enemies: model.combatRun.enemies.map((enemy, index) =>
+          index === 0 ? { ...enemy, aiState: "approach" as const } : enemy
+        )
+      }
+    };
+    const html = renderAppHtml(model);
+
+    expect(html).toContain('data-enemy-ai-state="approach"');
+    expect(html).toContain('data-enemy-motion="approach"');
+    expect(html).toContain('actor-model-approach');
+  });
+
   it("renders target-side feedback when the player dodges a monster skill", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 
@@ -6866,7 +6890,7 @@ describe("playable app integration actions", () => {
 
       let guard = 0;
 
-      while (!root.innerHTML.includes('data-enemy-motion="attack"') && guard < 30) {
+      while (!root.innerHTML.includes('data-enemy-motion="attack"') && guard < 48) {
         tickHandler?.();
         guard += 1;
       }
@@ -6878,7 +6902,7 @@ describe("playable app integration actions", () => {
 
       guard = 0;
 
-      while (!root.innerHTML.includes('data-enemy-skill-vfx="ash-ember-spit"') && guard < 30) {
+      while (!root.innerHTML.includes('data-enemy-skill-vfx="ash-ember-spit"') && guard < 48) {
         tickHandler?.();
         guard += 1;
       }

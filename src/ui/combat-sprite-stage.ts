@@ -223,6 +223,10 @@ export class CombatSpriteStage {
       frame = swordDanceEnemyReaction;
       actor.sprite.dataset.spriteSkillReaction = actor.hitPhase ?? "";
       state = actor.hitPhase === "chain-finish" ? "knockdown" : "hit";
+    } else if (actor.id !== "player" && actor.reactionStep) {
+      frame = 11 + Math.min(3, actor.reactionStep);
+      actor.sprite.dataset.spriteReactionStep = String(actor.reactionStep);
+      state = actor.reactionStep === 3 ? "knockdown" : "hit";
     } else if (actor.motion === "knockdown") {
       frame = actor.reactionStep === 3 ? 14 : 14 + Math.min(1, Math.floor((elapsedMs % 360) / 180));
       if (actor.reactionStep) actor.sprite.dataset.spriteReactionStep = String(actor.reactionStep);

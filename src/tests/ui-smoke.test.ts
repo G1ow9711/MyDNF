@@ -3648,6 +3648,17 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('@keyframes critical-screen-flash');
   });
 
+  it("defines distinct back-attack and counter-hit impact feedback", () => {
+    expect(stylesCss).toContain('.hit-impact.is-back-attack');
+    expect(stylesCss).toContain('.hit-impact.is-counter-hit');
+    expect(stylesCss).toContain('.damage-number.is-back-attack');
+    expect(stylesCss).toContain('.damage-number.is-counter-hit');
+    expect(stylesCss).toContain('[data-screen-shake="counter-hit"]');
+    expect(stylesCss).toContain('[data-screen-flash="counter-hit"]::after');
+    expect(stylesCss).toContain('@keyframes counter-hit-impact-pulse');
+    expect(stylesCss).toContain('@keyframes counter-hit-screen-shake');
+  });
+
   it("renders DNF-style dash-light with player, weapon, target, and impact hooks", () => {
     const state = createInitialState();
     const baseRun = createCombatRun(state, "cinder-kiln-alley");

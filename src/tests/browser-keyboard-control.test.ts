@@ -315,6 +315,8 @@ type BrowserRoomFlowState = {
   combatElapsedMs: string;
   playerX: string;
   playerY: string;
+  playerFacing: string;
+  playerActiveSkill: string;
   playerHp: number;
   playerMaxHp: number;
   healingPotionCount: number;
@@ -356,7 +358,22 @@ type BrowserRoomFlowState = {
     hp: number;
     x: number;
     y: number;
+    facing: number;
+    controlState: string;
+    attackStage: string;
+    attackSkillId: string;
   }>;
+};
+
+type BrowserPositionalHitState = {
+  eventId: string;
+  label: string;
+  backAttack: string;
+  counterHit: string;
+  positionalMultiplier: number;
+  screenShake: string;
+  screenFlash: string;
+  audioIds: string[];
 };
 
 type BrowserEnemyDeathEvidence = {
@@ -788,7 +805,11 @@ const readRoomFlowStateExpression = `
     kind: enemy.getAttribute("data-enemy-kind") ?? "",
     hp: Number(enemy.getAttribute("data-enemy-hp-current") || "0"),
     x: Number(enemy.getAttribute("data-enemy-x") || "0"),
-    y: Number(enemy.getAttribute("data-enemy-y") || "0")
+    y: Number(enemy.getAttribute("data-enemy-y") || "0"),
+    facing: Number(enemy.querySelector("[data-enemy-facing]")?.getAttribute("data-enemy-facing") || "0"),
+    controlState: enemy.getAttribute("data-control-state") ?? "",
+    attackStage: enemy.getAttribute("data-enemy-attack-stage") ?? "",
+    attackSkillId: enemy.getAttribute("data-enemy-attack-skill-id") ?? ""
   }));
   const rawSave = localStorage.getItem(${JSON.stringify(SAVE_KEY)});
   const saved = rawSave ? JSON.parse(rawSave) : null;
@@ -805,6 +826,8 @@ const readRoomFlowStateExpression = `
     combatElapsedMs: scene?.getAttribute("data-combat-elapsed-ms") ?? "",
     playerX: scene?.getAttribute("data-player-x") ?? "",
     playerY: scene?.getAttribute("data-player-y") ?? "",
+    playerFacing: player?.getAttribute("data-player-facing") ?? "",
+    playerActiveSkill: player?.getAttribute("data-active-skill-id") ?? "",
     playerHp: Number(scene?.getAttribute("data-player-hp") ?? "0"),
     playerMaxHp: Number(scene?.getAttribute("data-player-max-hp") ?? "0"),
     healingPotionCount: Number(consumables?.getAttribute("data-healing-potion-count") ?? "0"),
@@ -2155,6 +2178,78 @@ const readSwordDanceAudioPlaybackExpression = `
 (() => globalThis.__swordDanceAudioPlayback ?? [])()
 `;
 
+const installPositionalHitAudioRecorderExpression = `
+(() => {
+  globalThis.__positionalHitAudioPlayback = [];
+  globalThis.__positionalHitSamples = [];
+  globalThis.__allPositionalHitSamples = [];
+  if (globalThis.__positionalHitAudioListener) {
+    globalThis.removeEventListener("mydnf:audio-playback", globalThis.__positionalHitAudioListener);
+  }
+  globalThis.__positionalHitObserver?.disconnect();
+  const samplePositionalHit = () => {
+    const layer = document.querySelector(".combat-vfx-layer");
+    Array.from(document.querySelectorAll('[data-damage-number="true"]')).forEach((damage) => {
+      const eventId = damage.getAttribute("data-hit-event-id") ?? "";
+      const impact = eventId ? document.querySelector('[data-impact-spark="true"][data-hit-event-id="' + eventId + '"]') : null;
+      if (!impact || globalThis.__allPositionalHitSamples.some((sample) => sample.eventId === eventId)) {
+        return;
+      }
+      const sample = {
+        eventId,
+        label: damage.textContent?.trim() ?? "",
+        backAttack: impact.getAttribute("data-back-attack") ?? "",
+        counterHit: impact.getAttribute("data-counter-hit") ?? "",
+        positionalMultiplier: Number(impact.getAttribute("data-positional-multiplier") ?? "0"),
+        screenShake: layer?.getAttribute("data-screen-shake") ?? "",
+        screenFlash: layer?.getAttribute("data-screen-flash") ?? ""
+      };
+      globalThis.__allPositionalHitSamples.push(sample);
+      if (sample.backAttack === "true" && sample.counterHit === "true") {
+        globalThis.__positionalHitSamples.push(sample);
+      }
+    });
+  };
+  globalThis.__positionalHitObserver = new MutationObserver(samplePositionalHit);
+  globalThis.__positionalHitObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
+  globalThis.__positionalHitAudioListener = (event) => {
+    const detail = event.detail ?? {};
+    if (detail.commandId === "back-attack-confirm" || detail.commandId === "counter-hit-confirm") {
+      globalThis.__positionalHitAudioPlayback.push(detail.commandId);
+    }
+  };
+  globalThis.addEventListener("mydnf:audio-playback", globalThis.__positionalHitAudioListener);
+  return true;
+})()
+`;
+
+const readPositionalHitStateExpression = `
+(() => {
+  const recorded = (globalThis.__positionalHitSamples ?? []).at(-1);
+  const damage = Array.from(document.querySelectorAll('[data-damage-number="true"]')).find(
+    (node) => node.getAttribute("data-back-attack") === "true" && node.getAttribute("data-counter-hit") === "true"
+  );
+  const eventId = damage?.getAttribute("data-hit-event-id") ?? "";
+  const impact = eventId ? document.querySelector('[data-impact-spark="true"][data-hit-event-id="' + eventId + '"]') : null;
+  const layer = document.querySelector(".combat-vfx-layer");
+  return recorded ? {
+    ...recorded,
+    audioIds: globalThis.__positionalHitAudioPlayback ?? [],
+    debugSamples: globalThis.__allPositionalHitSamples ?? []
+  } : {
+    eventId,
+    label: damage?.textContent?.trim() ?? "",
+    backAttack: impact?.getAttribute("data-back-attack") ?? "",
+    counterHit: impact?.getAttribute("data-counter-hit") ?? "",
+    positionalMultiplier: Number(impact?.getAttribute("data-positional-multiplier") ?? "0"),
+    screenShake: layer?.getAttribute("data-screen-shake") ?? "",
+    screenFlash: layer?.getAttribute("data-screen-flash") ?? "",
+    audioIds: globalThis.__positionalHitAudioPlayback ?? [],
+    debugSamples: globalThis.__allPositionalHitSamples ?? []
+  };
+})()
+`;
+
 const readFlowingLightDebugSamplesExpression = `
 (() => globalThis.__flowingLightDebugSamples ?? [])()
 `;
@@ -2314,7 +2409,7 @@ describe("real browser keyboard control", () => {
         await enterDungeonWithKeyboard(page);
         const idle = await page.waitFor<BrowserFrameSpriteState>(
           readFrameSpriteStateExpression,
-          (state) => state.stage === "ready" && state.backgroundReady && state.enemyFrames.length === 2 && state.playerBackground.includes("ember-warden-atlas") && state.enemyBackgrounds.every((background) => background.includes("ash-cinder-imp-atlas")),
+          (state) => state.stage === "ready" && state.backgroundReady && state.enemyFrames.length === 5 && state.playerBackground.includes("ember-warden-atlas") && state.enemyBackgrounds.every((background) => background.includes("ash-cinder-imp-atlas")),
           10000
         );
         expect(idle.oldPlayerOpacity).toBe("0");
@@ -2327,9 +2422,9 @@ describe("real browser keyboard control", () => {
         expect(idle.playerShadowBackground).toContain("radial-gradient");
         expect(idle.playerShadowOpacity).toBeGreaterThan(0.5);
         expect(idle.playerRootFilter).toBe("none");
-        expect(idle.enemyShadowContents).toEqual(['\"\"', '\"\"']);
+        expect(idle.enemyShadowContents).toEqual(['\"\"', '\"\"', '\"\"', '\"\"', '\"\"']);
         expect(idle.enemyShadowBackgrounds.every((background) => background.includes("radial-gradient"))).toBe(true);
-        expect(idle.enemyRootFilters).toEqual(["none", "none"]);
+        expect(idle.enemyRootFilters).toEqual(["none", "none", "none", "none", "none"]);
         expect(idle.sceneWidth).toBeGreaterThan(900);
         expect(idle.sceneHeight).toBeGreaterThan(500);
         expect(idle.playerFrame).toBeGreaterThanOrEqual(0);
@@ -2383,7 +2478,7 @@ describe("real browser keyboard control", () => {
         await page.keyUp("ArrowLeft");
         await page.waitFor<BrowserFrameSpriteState>(
           readFrameSpriteStateExpression,
-          (state) => state.playerSpriteState === "idle" && state.enemySpriteStates.every((spriteState) => spriteState === "idle"),
+          (state) => state.playerSpriteState === "idle",
           4000
         );
         await waitInBrowser(page, 650);
@@ -2393,12 +2488,12 @@ describe("real browser keyboard control", () => {
           (state) => state.stage === "ready" && state.backgroundReady && state.playerSpriteState === "idle" && state.sceneWidth >= 350 && state.sceneWidth <= 390 && state.sceneHeight > 500,
           5000
         );
-        expect(mobile.enemyFrames.length).toBe(2);
+        expect(mobile.enemyFrames.length).toBe(5);
         expect(mobile.oldPlayerVisibility).toBe("hidden");
         expect(mobile.oldEnemyVisibility).toBe("hidden");
         expect(mobile.oldWeaponVisibility).toBe("hidden");
         expect(mobile.playerRootFilter).toBe("none");
-        expect(mobile.enemyRootFilters).toEqual(["none", "none"]);
+        expect(mobile.enemyRootFilters).toEqual(["none", "none", "none", "none", "none"]);
         expect(mobile.controlsHeight).toBeLessThanOrEqual(140);
         expect(mobile.actorVisualTop).toBeGreaterThanOrEqual(mobile.controlsBottom + 20);
         await page.captureScreenshot(`${screenshotRoot}/mobile.png`);
@@ -3701,6 +3796,100 @@ describe("real browser keyboard control", () => {
       await server.close();
     }
   }, 75000);
+
+  it("moves behind a live monster and lands a real back-attack counter hit", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
+        await seedSaveAndReload(page, createPositionalHitAcceptanceState());
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.difficultyId === "warrior" && state.liveEnemyCount === "5",
+          5000
+        );
+        await page.pressKey("KeyH");
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.playerActiveSkill === "",
+          4200
+        );
+        await reduceRoomToSingleEnemyWithKeyboard(page, 120);
+        await page.evaluate<boolean>(installPositionalHitAudioRecorderExpression);
+        await moveIntoLiveEnemyRange(page);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.liveEnemyCount === "1" && state.playerHurtLockActive === "false",
+          1800
+        );
+        const isolated = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
+        const targetId = isolated.enemies.find((enemy) => enemy.hp > 0)?.id;
+        expect(targetId).toBeDefined();
+        if (!targetId) {
+          throw new Error("Expected one live target for positional combat acceptance");
+        }
+
+        await page.keyDown("ArrowLeft");
+        try {
+          await page.waitFor<BrowserRoomFlowState>(
+            readRoomFlowStateExpression,
+            (state) => {
+              const target = state.enemies.find((enemy) => enemy.id === targetId && enemy.hp > 0);
+              return Boolean(
+                target &&
+                  Number(state.playerX) <= target.x - 10 &&
+                  Math.abs(Number(state.playerY) - target.y) <= 42 &&
+                  state.playerFacing === "-1"
+              );
+            },
+            1200
+          );
+        } finally {
+          await page.keyUp("ArrowLeft");
+        }
+
+        const windup = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => {
+            const target = state.enemies.find(
+              (enemy) => enemy.id === targetId && enemy.hp > 0 && enemy.facing === -1 && enemy.attackStage === "windup"
+            );
+            return Boolean(target && Number(state.playerX) < target.x && state.playerHurtLockActive === "false");
+          },
+          4200
+        );
+        const windupTarget = windup.enemies.find(
+          (enemy) => enemy.id === targetId && enemy.hp > 0 && enemy.facing === -1 && enemy.attackStage === "windup"
+        )!;
+        expect(Number(windup.playerX)).toBeLessThan(windupTarget.x);
+
+        await page.pressKey("KeyS");
+        const positionalHit = await page.waitFor<BrowserPositionalHitState>(
+          readPositionalHitStateExpression,
+          (state) =>
+            state.eventId.includes("shadow-roll") &&
+            state.backAttack === "true" &&
+            state.counterHit === "true" &&
+            state.audioIds.includes("back-attack-confirm") &&
+            state.audioIds.includes("counter-hit-confirm"),
+          2600
+        );
+
+        expect(positionalHit.label).toContain("背击");
+        expect(positionalHit.label).toContain("破招");
+        expect(positionalHit.positionalMultiplier).toBe(1.375);
+        expect(positionalHit.screenShake).toBe("counter-hit");
+        expect(positionalHit.screenFlash).toBe("counter-hit");
+        await page.captureScreenshot(
+          `${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/back-counter-shadow-roll.png`
+        );
+      });
+    } finally {
+      await server.close();
+    }
+  }, 110000);
 
   it("clears two rooms into the boss room while proving live action motion and VFX", async () => {
     const server = await startViteServer();
@@ -5243,6 +5432,53 @@ describe("real browser keyboard control", () => {
   }, 60000);
 });
 
+async function reduceRoomToSingleEnemyWithKeyboard(page: RealBrowserAppPage, maxAttempts = 72): Promise<BrowserRoomFlowState> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
+    if (state.objective === "active" && state.liveEnemyCount === "1") {
+      return state;
+    }
+
+    if (state.objective === "failed") {
+      await page.pressKey("Digit2");
+      await page.waitFor<BrowserRoomFlowState>(
+        readRoomFlowStateExpression,
+        (next) => next.objective === "active" && next.playerHurtLockActive === "false",
+        3000
+      );
+      continue;
+    }
+
+    if (state.playerRecoveryAvailable === "true") {
+      await page.pressKey("KeyC");
+      await waitInBrowser(page, 280);
+      continue;
+    }
+
+    if (state.playerHurtLockActive === "true") {
+      await page.waitFor<BrowserRoomFlowState>(
+        readRoomFlowStateExpression,
+        (next) => next.objective !== "active" || next.playerRecoveryAvailable === "true" || next.playerHurtLockActive === "false",
+        1200
+      );
+      continue;
+    }
+
+    if (state.playerHp / Math.max(1, state.playerMaxHp) <= 0.42 && state.healingPotionCount > 0) {
+      await page.pressKey("Digit1");
+      await waitInBrowser(page, 180);
+      continue;
+    }
+
+    await moveIntoLiveEnemyRange(page);
+    await page.pressKey("KeyX");
+    await waitInBrowser(page, 260);
+  }
+
+  const finalState = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
+  throw new Error(`Unable to reduce live room population to one monster with real keyboard attacks: ${JSON.stringify(finalState)}`);
+}
+
 async function clearCurrentRoomWithKeyboard(page: RealBrowserAppPage, maxAttempts = 18): Promise<BrowserRoomFlowState> {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
@@ -5563,6 +5799,27 @@ function createCrowdCombatAcceptanceState(): GameState {
       classResources: {
         ...baseState.player.classResources,
         "ember-warden": 100
+      }
+    }
+  };
+}
+
+function createPositionalHitAcceptanceState(): GameState {
+  const classState = selectBaseClass(createInitialState(), "ink-shadow-ranger");
+
+  return {
+    ...classState,
+    player: {
+      ...classState.player,
+      level: 60,
+      heat: 100,
+      classResources: {
+        ...classState.player.classResources,
+        "ink-shadow-ranger": 100
+      },
+      dungeonDifficultyPreferences: {
+        ...classState.player.dungeonDifficultyPreferences,
+        "cinder-kiln-alley": "warrior"
       }
     }
   };

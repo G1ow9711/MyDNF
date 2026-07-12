@@ -3105,6 +3105,10 @@ p {
   animation: critical-screen-shake 230ms steps(4, end) both;
 }
 
+.combat-vfx-layer[data-screen-shake="counter-hit"] {
+  animation: counter-hit-screen-shake 260ms steps(5, end) both;
+}
+
 .combat-vfx-layer[data-hitstop-active="true"] .hit-impact,
 .combat-vfx-layer[data-hitstop-active="true"] .damage-number,
 .combat-vfx-layer[data-hitstop-active="true"] .combat-feedback,
@@ -3650,6 +3654,10 @@ p {
   height: var(--enemy-body-height, 116px);
   display: grid;
   place-items: end center;
+}
+
+.enemy-facing-state {
+  display: none;
 }
 
 .combat-enemy-elite .enemy-model-frame {
@@ -6053,6 +6061,50 @@ p {
   font-size: 30px;
   text-shadow: 0 3px 0 #92400e, 0 0 22px rgba(250, 204, 21, 0.98), 0 0 38px rgba(255, 255, 255, 0.64);
   animation: critical-damage-float 920ms cubic-bezier(0.12, 0.82, 0.16, 1) both;
+}
+
+.hit-impact.is-back-attack {
+  filter: drop-shadow(-12px 0 18px rgba(34, 211, 238, 0.88)) brightness(1.18);
+}
+
+.hit-impact.is-back-attack .hit-slash {
+  transform: rotate(-28deg) scaleX(1.18);
+  filter: hue-rotate(128deg) saturate(1.36) brightness(1.42);
+}
+
+.hit-impact.is-counter-hit {
+  width: 154px;
+  height: 154px;
+  filter: drop-shadow(0 0 26px rgba(251, 146, 60, 0.96)) brightness(1.36);
+  animation: counter-hit-impact-pulse 420ms cubic-bezier(0.08, 0.9, 0.14, 1) both;
+}
+
+.hit-impact.is-counter-hit .hit-ring {
+  border-color: rgba(254, 215, 170, 0.98);
+  box-shadow: 0 0 30px rgba(249, 115, 22, 0.9), inset 0 0 18px rgba(255, 255, 255, 0.7);
+}
+
+.damage-number.is-back-attack {
+  color: #a5f3fc;
+  text-shadow: 0 2px 0 #155e75, 0 0 18px rgba(34, 211, 238, 0.94);
+}
+
+.damage-number.is-counter-hit {
+  margin-top: -136px;
+  color: #fed7aa;
+  font-size: 28px;
+  text-shadow: 0 3px 0 #9a3412, 0 0 24px rgba(249, 115, 22, 0.98), 0 0 38px rgba(255, 255, 255, 0.54);
+  animation: critical-damage-float 920ms cubic-bezier(0.12, 0.82, 0.16, 1) both;
+}
+
+.combat-vfx-layer[data-screen-flash="counter-hit"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 54%, rgba(255, 255, 255, 0.36), rgba(249, 115, 22, 0.18) 24%, transparent 52%);
+  mix-blend-mode: screen;
+  animation: critical-screen-flash 300ms ease-out both;
 }
 
 .combat-scene[data-screen-flash="critical"]::after {
@@ -10031,6 +10083,21 @@ p {
   25% { transform: translate(-7px, 3px); }
   50% { transform: translate(6px, -3px); }
   75% { transform: translate(-3px, 2px); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes counter-hit-impact-pulse {
+  0% { opacity: 0; transform: translate(-50%, -100%) scale(0.34) rotate(-12deg); }
+  28% { opacity: 1; transform: translate(-50%, -100%) scale(1.24) rotate(4deg); }
+  100% { opacity: 0; transform: translate(-50%, -100%) scale(1.68) rotate(18deg); }
+}
+
+@keyframes counter-hit-screen-shake {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-9px, 4px); }
+  40% { transform: translate(8px, -4px); }
+  60% { transform: translate(-5px, 3px); }
+  80% { transform: translate(3px, -2px); }
   100% { transform: translate(0, 0); }
 }
 

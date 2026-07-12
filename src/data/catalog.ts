@@ -547,7 +547,7 @@ export const epicSets: EpicSet[] = [
     theme: "crit-juggle",
     bonuses: [
       { pieces: 2, displayName: "暗窑疾步", description: "冲刺后短时提升暴击。", stats: { crit: 10 } },
-      { pieces: 3, displayName: "影中挑击", description: "对浮空和硬直目标伤害提升。", stats: { attack: 18 } },
+      { pieces: 3, displayName: "影中挑击", description: "背后攻击与浮空追击伤害提升。", stats: { backAttackDamage: 18 } },
       { pieces: 5, displayName: "窑影连环", description: "取消连段时获得攻速和移速。", stats: { crit: 14, moveSpeed: 10 } }
     ]
   },

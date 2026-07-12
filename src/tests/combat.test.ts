@@ -990,6 +990,103 @@ describe("combat actions and impact feel", () => {
     expect(missed.events.some((event) => event.kind === "miss")).toBe(true);
     expect(missed.criticalAccumulator).toBe(0);
   });
+
+  it("classifies back attacks from the impact-frame attacker position and target facing", () => {
+    const base = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const targetId = base.enemies[0].id;
+    const target = { ...base.enemies[0], position: { x: 320, y: 340 }, facing: 1 as const, hp: 1000, maxHp: 1000, armor: 0, maxArmor: 0 };
+    const front = applyHit(
+      { ...base, player: { ...base.player, x: 360, y: 340, facing: -1 }, enemies: [target] },
+      { id: "front-hit", action: "light", targetId, damage: 100, hitstopMs: 40, knockback: 0, juggle: false }
+    );
+    const back = applyHit(
+      { ...base, player: { ...base.player, x: 280, y: 340, facing: 1 }, enemies: [target] },
+      { id: "back-hit", action: "light", targetId, damage: 100, hitstopMs: 40, knockback: 0, juggle: false }
+    );
+
+    expect(lastHitEvent(front)).toMatchObject({ damage: 100, backAttack: false, counterHit: false, positionalMultiplier: 1 });
+    expect(lastHitEvent(back)).toMatchObject({ damage: 110, backAttack: true, counterHit: false, positionalMultiplier: 1.1 });
+  });
+
+  it("classifies counter hits only through the enemy's final active attack frame", () => {
+    const base = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const targetId = base.enemies[0].id;
+    const attackingTarget = {
+      ...base.enemies[0],
+      position: { x: 320, y: 340 },
+      facing: -1 as const,
+      hp: 1000,
+      maxHp: 1000,
+      armor: 0,
+      maxArmor: 0,
+      attackSkillId: "ash-ember-spit" as const,
+      attackStartedAtMs: 100,
+      attackImpactAtMs: 500,
+      attackRecoverUntilMs: 800,
+      attackHitResolved: false,
+      attackResolvedHits: 0
+    };
+    const active = applyHit(
+      { ...base, elapsedMs: 300, player: { ...base.player, x: 280, y: 340, facing: 1 }, enemies: [attackingTarget] },
+      { id: "counter-active", action: "heavy", targetId, damage: 100, hitstopMs: 40, knockback: 0, juggle: false }
+    );
+    const recovery = applyHit(
+      { ...base, elapsedMs: 600, player: { ...base.player, x: 280, y: 340, facing: 1 }, enemies: [attackingTarget] },
+      { id: "counter-recovery", action: "heavy", targetId, damage: 100, hitstopMs: 40, knockback: 0, juggle: false }
+    );
+
+    expect(lastHitEvent(active)).toMatchObject({ damage: 125, backAttack: false, counterHit: true, positionalMultiplier: 1.25 });
+    expect(lastHitEvent(recovery)).toMatchObject({ damage: 100, backAttack: false, counterHit: false, positionalMultiplier: 1 });
+  });
+
+  it("stacks back attack, counter hit, equipment, and critical multipliers", () => {
+    const base = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const targetId = base.enemies[0].id;
+    const combined = applyHit(
+      {
+        ...base,
+        elapsedMs: 300,
+        criticalAccumulator: 0,
+        combatProfile: {
+          ...base.combatProfile,
+          stats: { ...base.combatProfile.stats, crit: 100, backAttackDamage: 18 },
+          criticalChance: 100,
+          criticalDamageMultiplier: 1.5,
+          backAttackDamageMultiplier: 1.28,
+          counterHitDamageMultiplier: 1.25
+        },
+        player: { ...base.player, x: 360, y: 340, facing: -1 },
+        enemies: [
+          {
+            ...base.enemies[0],
+            position: { x: 320, y: 340 },
+            facing: -1,
+            hp: 1000,
+            maxHp: 1000,
+            armor: 0,
+            maxArmor: 0,
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 100,
+            attackImpactAtMs: 500,
+            attackRecoverUntilMs: 800,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      { id: "combined-positional-hit", action: "heavy", targetId, damage: 100, hitstopMs: 40, knockback: 0, juggle: false }
+    );
+
+    expect(lastHitEvent(combined)).toMatchObject({
+      damage: 240,
+      backAttack: true,
+      counterHit: true,
+      critical: true,
+      positionalMultiplier: 1.6,
+      criticalMultiplier: 1.5
+    });
+  });
+
   it("resolves grounded light damage, resource, and cancel window only on the real hit frame", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       hp: 180,
@@ -10113,6 +10210,29 @@ describe("enemy attacks and player defeat", () => {
       skillId: "ash-ember-spit",
       phase: "windup"
     });
+  });
+
+  it("locks enemy facing through windup when the player crosses behind it", () => {
+    const base = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const ready = withPlayerAndEnemies(
+      base,
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 320, y: 340, hp: 200, maxHp: 200, nextAttackAtMs: 0 }]
+    );
+    const windup = stepCombat(ready, {}, 1);
+    const crossed = stepCombat(
+      {
+        ...windup,
+        player: { ...windup.player, x: 380, facing: -1 }
+      },
+      {},
+      1
+    );
+
+    expect(windup.enemies[0].attackSkillId).not.toBe("");
+    expect(crossed.enemies[0].attackSkillId).toBe(windup.enemies[0].attackSkillId);
+    expect(windup.enemies[0].facing).toBe(-1);
+    expect(crossed.enemies[0].facing).toBe(-1);
   });
 
   it("damages the player on a monster attack impact frame and starts recovery", () => {

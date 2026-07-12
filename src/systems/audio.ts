@@ -215,6 +215,29 @@ const musicPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: 
 };
 
 const sfxPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: Array<Omit<AudioPlaybackNote, "channel" | "effectiveGain">> }> = {
+  "back-attack-confirm": {
+    commandId: "back-attack-confirm",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["rear-cut", "reverse-swish", "position-confirm"],
+    notes: [
+      { frequencyHz: 622.25, startMs: 0, durationMs: 84, gain: 0.13, waveform: "sawtooth" },
+      { frequencyHz: 1244.51, startMs: 28, durationMs: 112, gain: 0.11, waveform: "triangle" },
+      { frequencyHz: 1864.66, startMs: 74, durationMs: 146, gain: 0.08, waveform: "sine" }
+    ]
+  },
+  "counter-hit-confirm": {
+    commandId: "counter-hit-confirm",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["attack-break", "metal-crack", "counter-confirm"],
+    notes: [
+      { frequencyHz: 82.41, startMs: 0, durationMs: 126, gain: 0.24, waveform: "square" },
+      { frequencyHz: 493.88, startMs: 18, durationMs: 154, gain: 0.16, waveform: "sawtooth" },
+      { frequencyHz: 1479.98, startMs: 68, durationMs: 184, gain: 0.1, waveform: "triangle" },
+      { frequencyHz: 2217.46, startMs: 112, durationMs: 138, gain: 0.07, waveform: "sine" }
+    ]
+  },
   "enemy-windup-light": {
     commandId: "enemy-windup-light",
     channel: "sfx",

@@ -1668,3 +1668,16 @@
 - Final 1440x900 inspection shows the articulated swordmaster lunge, weapon-aligned cyan finisher wave, five detailed Shanhaijing monsters, damage bars, and depth-correct overlap in the decoded Chinese ruin environment.
 - Final crowd acceptance proves five unique mounted actors across three lanes, three distinct heat-bloom targets, approach movement, and no more than two simultaneous enemy attacks. Natural monster windup, model motion, VFX, and player-hit feedback also passed.
 - Final verification passed 692/692 non-keyboard and computed-style tests, focused real-keyboard crowd/sword-dance/natural-attack routes, and the production build.
+
+## Task 209 Back Attack And Counter Hit Audit
+- Player hit events currently classify criticals but carry no positional or enemy-action state. Flanking and interrupting a windup therefore deal the same damage as a neutral hit and produce identical feedback.
+- Enemy facing is authoritative and remains locked through its active attack timeline. Player dynamic hitboxes already re-sample their impact origin, so back attack can be derived at the real hit frame rather than at input time.
+- Counter hit should cover the enemy's authored attack start through its final active hit frame, not recovery. Multi-hit active end is `attackImpactAtMs + (hitCount - 1) * hitIntervalMs`.
+- Back attack requires the impact-frame attacker X to sit behind the target's current facing with a small dead zone. Neutral overlap cannot receive the bonus.
+- Base positional multipliers will be 1.10 for back attack and 1.25 for counter hit, multiplied together before critical resolution. The Kiln Shadow set can add explicit back-attack damage instead of its current generic attack proxy.
+- Feedback must expose independent `backAttack` and `counterHit` event flags, mounted data attributes, stacked Chinese labels, distinct impact classes, screen response, and authored confirmation SFX while retaining the existing contact sound.
+- Real keyboard acceptance must move around a live target, wait for a natural windup, strike before impact, and prove position, facing, event flags, boosted damage, visual label, and actual audio scheduling from the same hit.
+- Positional classification belongs after live target recheck and before critical multiplication. Dynamic skills need a distinct impact origin while retaining their cast origin for presentation.
+- Enemy facing must remain authoritative combat state through the attack-active window. Render-time comparison against the player's new side would invalidate legitimate windup flanks.
+- Accepted keyboard route: Ink Shadow Ranger starts left-facing on a monster's front-left, waits for its left-facing windup, then shadow-roll travels 86 px through the target and fires from the rear at 160 ms.
+- Mounted evidence confirmed one shadow-roll event with both flags, positional multiplier 1.375, stacked Chinese labels, counter screen response, and both dedicated confirmation sounds.

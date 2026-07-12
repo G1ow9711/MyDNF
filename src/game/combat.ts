@@ -220,6 +220,7 @@ export interface CombatEnemy {
   hurtbox: CombatHurtboxSize;
   marks: number;
   position: CombatVector;
+  facing: 1 | -1;
   airborne: boolean;
   downed: boolean;
   airborneUntilMs?: number;
@@ -351,6 +352,9 @@ export interface CombatHitEvent {
   damage: number;
   critical: boolean;
   criticalMultiplier: number;
+  backAttack: boolean;
+  counterHit: boolean;
+  positionalMultiplier: number;
   occurredAtMs: number;
   inputToHitMs: number;
   hitstopMs: number;
@@ -611,6 +615,7 @@ export interface CombatScheduledEnemyHitEffect {
   dynamicHitbox?: PlayerHitboxDefinition;
   dynamicOrigin?: CombatVector;
   dynamicFacing?: 1 | -1;
+  impactOrigin?: CombatVector;
   missOnEmpty?: boolean;
   comboStepOnHit?: number;
   resourceGainOnHit?: number;
@@ -2135,6 +2140,7 @@ function createEnemy(
       x: kind === "boss" ? 520 : formationPosition.x,
       y: kind === "boss" ? 320 : formationPosition.y
     },
+    facing: -1,
     airborne: false,
     downed: false,
     nextAttackAtMs: (kind === "boss" ? 650 : kind === "elite" ? 760 : 700) + enemyIndex * 220
@@ -2532,6 +2538,52 @@ interface CriticalHitResolution {
   critical: boolean;
   multiplier: number;
   accumulator: number;
+}
+
+interface PositionalHitResolution {
+  damage: number;
+  backAttack: boolean;
+  counterHit: boolean;
+  multiplier: number;
+}
+
+function enemyAttackActiveAt(enemy: CombatEnemy, impactAtMs: number): boolean {
+  if (
+    !enemy.attackSkillId ||
+    enemy.attackStartedAtMs === undefined ||
+    enemy.attackImpactAtMs === undefined ||
+    impactAtMs < enemy.attackStartedAtMs
+  ) {
+    return false;
+  }
+
+  const attack = enemyAttackDefinition(enemy);
+  const finalActiveAtMs = enemy.attackImpactAtMs + Math.max(0, attack.hitCount - 1) * attack.hitIntervalMs;
+
+  return impactAtMs <= finalActiveAtMs;
+}
+
+function resolvePlayerPositionalHit(
+  run: CombatRun,
+  enemy: CombatEnemy,
+  damage: number,
+  impactAtMs: number,
+  attackerPosition: CombatVector
+): PositionalHitResolution {
+  const signedOffset = (attackerPosition.x - enemy.position.x) * enemy.facing;
+  const backAttack = signedOffset < -8;
+  const counterHit = enemyAttackActiveAt(enemy, impactAtMs);
+  const rawMultiplier =
+    (backAttack ? run.combatProfile.backAttackDamageMultiplier : 1) *
+    (counterHit ? run.combatProfile.counterHitDamageMultiplier : 1);
+  const multiplier = Math.round(rawMultiplier * 1000) / 1000;
+
+  return {
+    damage: Math.max(1, Math.round(damage * multiplier)),
+    backAttack,
+    counterHit,
+    multiplier
+  };
 }
 
 function resolvePlayerCritical(run: CombatRun, damage: number): CriticalHitResolution {
@@ -5010,6 +5062,14 @@ function moveToward(current: number, target: number, maxDistance: number): numbe
   return current + Math.sign(target - current) * maxDistance;
 }
 
+function enemyFacingTowardPlayer(enemy: CombatEnemy, player: CombatPlayer): 1 | -1 {
+  if (Math.abs(player.x - enemy.position.x) <= 8) {
+    return enemy.facing;
+  }
+
+  return player.x > enemy.position.x ? 1 : -1;
+}
+
 function enemyApproachLaneOffset(enemyIndex: number): number {
   return [-22, 22, -40, 40, 0][enemyIndex % 5] ?? 0;
 }
@@ -5078,7 +5138,8 @@ function advanceEnemyApproachMovement(
   return {
     ...recovered,
     aiState: moved ? "approach" : "idle",
-    position: nextPosition
+    position: nextPosition,
+    facing: enemyFacingTowardPlayer(recovered, player)
   };
 }
 
@@ -5222,6 +5283,7 @@ function beginEnemyAttack(
       attackHitResolved: false,
       attackResolvedHits: 0,
       attackConnectedHitIndexes: [],
+      facing: player ? enemyFacingTowardPlayer(recovered, player) : recovered.facing,
       attackRushStartPosition: attackRushTargetPosition ? recovered.position : undefined,
       attackRushTargetPosition,
       attackPullStartPosition: attackPullTargetPosition && player ? { x: player.x, y: player.y } : undefined,
@@ -5409,6 +5471,9 @@ function applyEnemyImpact(
         damage: reflectDamage,
         critical: false,
         criticalMultiplier: 1,
+        backAttack: false,
+        counterHit: false,
+        positionalMultiplier: 1,
         occurredAtMs: hitTime,
         inputToHitMs: 0,
         hitstopMs: attack.hitstopMs,
@@ -5580,8 +5645,11 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     throw new Error(`Unknown combat target: ${hit.targetId}`);
   }
 
+  const impactAtMs = run.elapsedMs + (hit.inputToHitMs ?? 0);
+  const casterPosition = hit.casterPosition ?? { x: run.player.x, y: run.player.y };
   const bonusDamage = hit.consumeMarks ? target.marks * (hit.bonusDamagePerMark ?? 0) : 0;
-  const preCriticalDamage = hit.damage + bonusDamage;
+  const positionalResolution = resolvePlayerPositionalHit(run, target, hit.damage + bonusDamage, impactAtMs, casterPosition);
+  const preCriticalDamage = positionalResolution.damage;
   const criticalResolution = target.hp > 0
     ? resolvePlayerCritical(run, preCriticalDamage)
     : { damage: preCriticalDamage, critical: false, multiplier: 1, accumulator: run.criticalAccumulator };
@@ -5589,8 +5657,8 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
   const statusTags = hit.statusTags ?? [];
   const actionTags = hit.actionTags ?? [];
   const baseHitstopMs = eventHitstop(target, hit.hitstopMs);
-  const hitstopMs = criticalResolution.critical ? Math.round(baseHitstopMs * 1.25) : baseHitstopMs;
-  const impactAtMs = run.elapsedMs + (hit.inputToHitMs ?? 0);
+  const positionalHitstopMs = positionalResolution.counterHit ? Math.round(baseHitstopMs * 1.15) : baseHitstopMs;
+  const hitstopMs = criticalResolution.critical ? Math.round(positionalHitstopMs * 1.25) : positionalHitstopMs;
   const impactPosition = { x: target.position.x, y: target.position.y };
   const comboCount = run.comboCount > 0 && run.elapsedMs <= run.comboExpiresAtMs ? run.comboCount + 1 : 1;
   const comboExpiresAtMs = impactAtMs + 1200;
@@ -5650,6 +5718,9 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     damage: effectiveDamage,
     critical: criticalResolution.critical,
     criticalMultiplier: criticalResolution.multiplier,
+    backAttack: positionalResolution.backAttack,
+    counterHit: positionalResolution.counterHit,
+    positionalMultiplier: positionalResolution.multiplier,
     occurredAtMs: impactAtMs,
     inputToHitMs: hit.inputToHitMs ?? 0,
     hitstopMs,
@@ -5661,8 +5732,8 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     vfxCue: hit.vfxCue,
     vfxWindowMs: hit.vfxWindowMs,
     impactPosition,
-    casterPosition: { x: run.player.x, y: run.player.y },
-    casterFacing: run.player.facing
+    casterPosition,
+    casterFacing: hit.casterFacing ?? run.player.facing
   };
 
   return triggerBossPhaseTransitions(
@@ -5893,6 +5964,7 @@ function applyScheduledPlayerHitboxEffect(
       id: `${effect.id}-${target.id}-${index}`,
       targetId: target.id,
       hitstopMs: eventHitstop(target, hitbox.hitstopMs),
+      impactOrigin: { x: origin.x, y: origin.y },
       dynamicHitbox: undefined,
       dynamicOrigin: undefined,
       dynamicFacing: undefined
@@ -5965,9 +6037,18 @@ function applyScheduledEnemyHitEffect(
 
   const consumedMarks = effect.consumeMarks ? target.marks : 0;
   const bonusDamage = consumedMarks * (effect.bonusDamagePerMark ?? 0);
-  const criticalResolution = resolvePlayerCritical(impactResolvedRun, effect.damage + bonusDamage);
+  const casterPosition = effect.casterPosition ?? { x: impactResolvedRun.player.x, y: impactResolvedRun.player.y };
+  const positionalResolution = resolvePlayerPositionalHit(
+    impactResolvedRun,
+    target,
+    effect.damage + bonusDamage,
+    effect.applyAtMs,
+    effect.impactOrigin ?? casterPosition
+  );
+  const criticalResolution = resolvePlayerCritical(impactResolvedRun, positionalResolution.damage);
   const effectiveDamage = criticalResolution.damage;
-  const hitstopMs = criticalResolution.critical ? Math.round(effect.hitstopMs * 1.25) : effect.hitstopMs;
+  const positionalHitstopMs = positionalResolution.counterHit ? Math.round(effect.hitstopMs * 1.15) : effect.hitstopMs;
+  const hitstopMs = criticalResolution.critical ? Math.round(positionalHitstopMs * 1.25) : positionalHitstopMs;
   const statusTags = effect.statusTags ?? [];
   const actionTags = effect.actionTags ?? [];
   const comboCount =
@@ -5984,6 +6065,9 @@ function applyScheduledEnemyHitEffect(
     damage: effectiveDamage,
     critical: criticalResolution.critical,
     criticalMultiplier: criticalResolution.multiplier,
+    backAttack: positionalResolution.backAttack,
+    counterHit: positionalResolution.counterHit,
+    positionalMultiplier: positionalResolution.multiplier,
     occurredAtMs: effect.applyAtMs,
     inputToHitMs: effect.inputToHitMs,
     hitstopMs,
@@ -5995,7 +6079,7 @@ function applyScheduledEnemyHitEffect(
     vfxCue: effect.vfxCue,
     vfxWindowMs: effect.vfxWindowMs,
     impactPosition: { x: target.position.x, y: target.position.y },
-    casterPosition: effect.casterPosition,
+    casterPosition,
     casterFacing: effect.casterFacing
   };
   const nextEnemies = impactResolvedRun.enemies.map((enemy) => {

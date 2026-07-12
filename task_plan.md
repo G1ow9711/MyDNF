@@ -502,7 +502,21 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify crowd approach, area-skill multi-hit, reactions, and room clear through real keyboard play.
 - [x] Run full regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 209 DNF Back Attack And Counter Hit
+- [x] Audit hit resolution, enemy facing, attack timelines, damage feedback, audio, builds, and browser control seams.
+- [x] Lock impact-frame back-attack and counter-hit rules, multipliers, stacking, and equipment scaling.
+- [x] Add RED core, build, mounted feedback, audio, and real-keyboard positional-combat coverage.
+- [x] Implement authoritative damage classification and synchronized visual/audio feedback.
+- [x] Verify a real keyboard flank and attack-interrupt route against live monsters.
+- [x] Run full regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Final Task 209 browser review exposed a stale Task 208 KOF route that still expected two mounted enemies and a simultaneous all-idle enemy state. It now asserts five desktop/mobile actors and waits only for player recovery; the focused real-keyboard route passes.
+- Task 209's first browser preparation assumed Ink's ultimate would kill two Warrior monsters. It only softened all five; cleanup now uses the existing real-keyboard single-enemy reducer without asserting unpromised kills.
+- Task 209's live polling missed short damage labels despite both confirmation sounds. A MutationObserver now records the same mounted event, multiplier, labels, and screen response without extending gameplay timing.
+- Task 209 initially installed its recorder before cleanup, allowing historical hits to pollute evidence. Installation now occurs after one target remains.
+- Task 209 flank attempts exposed three invalid assumptions: Ink snare could kill the residual target, direction-key crossing could outlast a short windup, and a released left tap might not survive to a combat frame. The final route requires mounted left-facing state and uses shadow-roll's authored 86 px backward travel plus 160 ms shot to cross and hit in one action.
+- Task 209's first combined records showed `counterHit=true` but `backAttack=false`. Full hit diagnostics proved the skill fired while still facing right; requiring `playerFacing=-1` before cast produced both flags and multiplier 1.375 on the same shadow-roll event.
 - Task 208's earlier X320 sword-dance opener still reached the real `Space` press after the player had entered hurt state. With five rotating enemies, relying on a global idle gap is not a valid solution; the skill needs authored action armor so crowd chip damage does not cancel its 940 ms sequence.
 - Task 208's first immediate sword-dance opener still missed because two recorder installations happened after the dash and pushed the real `Space` press across the first monster impact. Recorders now install before movement and the dash stops at X320, preserving the authored keyboard input while casting earlier.
 - Task 208's six-route compatibility run passed defeat/revive, focused dungeon entry, double rechallenge, Iron Vanguard, and reward reload. Sword dance alone waited for all five monsters to report `none`, a state the two-slot queue intentionally may never produce. The route now uses its natural room-opening dash and casts before the first 700 ms enemy deadline.

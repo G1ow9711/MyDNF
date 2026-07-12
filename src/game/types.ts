@@ -22,7 +22,8 @@ export type StatKey =
   | "element"
   | "moveSpeed"
   | "goldFind"
-  | "heatGain";
+  | "heatGain"
+  | "backAttackDamage";
 
 export type AmplifyStat = "crit" | "cooldown" | "element" | "moveSpeed";
 
@@ -73,6 +74,7 @@ export interface StatBlock {
   moveSpeed?: number;
   goldFind?: number;
   heatGain?: number;
+  backAttackDamage?: number;
 }
 
 export interface GearItem {

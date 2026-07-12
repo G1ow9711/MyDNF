@@ -1091,6 +1091,47 @@ describe("playable app integration actions", () => {
     expect(ultimateHtml).toContain('data-damage-number="true" data-critical="true"');
   });
 
+  it("renders stacked back-attack and counter-hit metadata from one authoritative hit", () => {
+    const state = createInitialState();
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const target = baseRun.enemies[0];
+    const positionalRun = applyHit(
+      {
+        ...baseRun,
+        elapsedMs: 300,
+        player: { ...baseRun.player, x: 360, y: 340, facing: -1 },
+        enemies: [
+          {
+            ...target,
+            position: { x: 320, y: 340 },
+            facing: -1,
+            hp: 500,
+            maxHp: 500,
+            armor: 0,
+            maxArmor: 0,
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 100,
+            attackImpactAtMs: 500,
+            attackRecoverUntilMs: 800,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      },
+      { id: "positional-render-hit", action: "heavy", targetId: target.id, damage: 100, hitstopMs: 40, knockback: 0, juggle: false }
+    );
+    const html = renderAppHtml({ state, mode: "combat", combatRun: positionalRun });
+
+    expect(html).toContain('data-back-attack="true"');
+    expect(html).toContain('data-counter-hit="true"');
+    expect(html).toContain('data-positional-multiplier="1.375"');
+    expect(html).toContain('class="hit-impact hit-impact-heavy is-back-attack is-counter-hit"');
+    expect(html).toContain('class="damage-number is-back-attack is-counter-hit"');
+    expect(html).toContain("背击 破招 -138");
+    expect(html).toContain('data-screen-shake="counter-hit"');
+    expect(html).toContain('data-screen-flash="counter-hit"');
+  });
+
   it("keeps repeated arrow key movement while excluding repeats from command buffering", () => {
     const previousLocalStorage = globalThis.localStorage;
     const previousAddEventListener = globalThis.addEventListener;
@@ -1748,6 +1789,52 @@ describe("playable app integration actions", () => {
       "normal-hit-2",
       "attack-swing-light",
       "normal-hit-3"
+    ]);
+  });
+
+  it("queues one back-attack and counter-hit confirmation on the real contact frame", () => {
+    let model = reduceAppAction(createAppModel({ storage: new MemoryStorage() }), {
+      type: "enterDungeon",
+      dungeonId: "cinder-kiln-alley"
+    });
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+    const target = model.combatRun.enemies[0];
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: { ...model.combatRun.player, x: 360, y: 340, facing: -1 },
+        enemies: [
+          {
+            ...target,
+            position: { x: 300, y: 340 },
+            facing: -1,
+            hp: 500,
+            maxHp: 500,
+            armor: 0,
+            maxArmor: 0,
+            attackSkillId: "ash-ember-spit",
+            attackStartedAtMs: 0,
+            attackImpactAtMs: 400,
+            attackRecoverUntilMs: 700,
+            attackHitResolved: false,
+            attackResolvedHits: 0
+          }
+        ]
+      }
+    };
+    const commandStart = model.audio.commandQueue.length;
+    model = reduceAppAction(model, { type: "combatAction", action: "light" });
+    model = reduceAppAction(model, { type: "combatTick" });
+    model = reduceAppAction(model, { type: "combatTick" });
+
+    expect(model.audio.commandQueue.slice(commandStart).map((command) => command.id)).toEqual([
+      "attack-swing-light",
+      "normal-hit-1",
+      "back-attack-confirm",
+      "counter-hit-confirm"
     ]);
   });
 
@@ -4961,7 +5048,12 @@ describe("playable app integration actions", () => {
       model = reduceAppAction(model, { type: "combatTick" });
     }
 
-    expect(model.audio.commandQueue.slice(commandCountAtCast).map((command) => command.id)).toEqual([
+    expect(
+      model.audio.commandQueue
+        .slice(commandCountAtCast)
+        .map((command) => command.id)
+        .filter((id) => id.startsWith("sword-dance-"))
+    ).toEqual([
       "sword-dance-open",
       "sword-dance-left",
       "sword-dance-right",

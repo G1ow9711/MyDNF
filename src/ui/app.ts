@@ -777,14 +777,13 @@ function enemyModelMotionStyle(
   attackVisual: EnemyAttackVisualState,
   motionSkillId = enemy.attackSkillId
 ): string {
-  const directionToPlayer = enemy.position.x >= run.player.x ? -1 : 1;
-  const lungePx = enemyAttackLungePx(motionSkillId) * directionToPlayer;
+  const lungePx = enemyAttackLungePx(motionSkillId) * enemy.facing;
   const attackVars =
     attackVisual.durationMs > 0
       ? ` --enemy-attack-duration: ${attackVisual.durationMs}ms; --enemy-attack-progress: ${attackVisual.progress};`
       : "";
 
-  return `--model-scale-x: ${directionToPlayer}; --enemy-lunge-x: ${lungePx}px;${attackVars} --hit-react-x: ${18 * run.player.facing}px;`;
+  return `--model-scale-x: ${enemy.facing}; --enemy-lunge-x: ${lungePx}px;${attackVars} --hit-react-x: ${18 * run.player.facing}px;`;
 }
 
 function enemyAttackPresentationTiming(
@@ -1693,6 +1692,10 @@ function combatScreenShake(hit: CombatHitEvent | undefined, playerHit: CombatPla
     return "ultimate";
   }
 
+  if (hit?.counterHit) {
+    return "counter-hit";
+  }
+
   if (hit?.critical) {
     return "critical";
   }
@@ -1711,6 +1714,10 @@ function combatScreenFlash(hit: CombatHitEvent | undefined): string {
 
   if (hit?.vfxCue === "earth-furnace-eruption") {
     return "forge-quake";
+  }
+
+  if (hit?.counterHit) {
+    return "counter-hit";
   }
 
   if (hit?.critical) {
@@ -1778,14 +1785,19 @@ function renderCombatVfx(run: CombatRun): string {
       const groundLightImpactStep = groundLightStepForHitPhase(hitEvent.hitPhase);
       const groundLightImpactClass = groundLightImpactStep ? ` hit-impact-ground-light-${groundLightImpactStep}` : "";
       const criticalClass = hitEvent.critical ? " is-critical" : "";
+      const backAttackClass = hitEvent.backAttack ? " is-back-attack" : "";
+      const counterHitClass = hitEvent.counterHit ? " is-counter-hit" : "";
+      const damageLabels = [hitEvent.critical ? "暴击" : "", hitEvent.backAttack ? "背击" : "", hitEvent.counterHit ? "破招" : ""]
+        .filter(Boolean)
+        .join(" ");
 
       return `
         ${skillImpactVfx}
-        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}${airImpactClass}${dashImpactClass}${groundLightImpactClass}${criticalClass}" data-impact-spark="true" data-critical="${hitEvent.critical ? "true" : "false"}" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" data-impact-air-action="${airImpactAction}" data-impact-dash-action="${dashImpactAction}" data-impact-ground-light-step="${groundLightImpactStep}" data-impact-origin-x="${Math.round(impactPosition.x)}" data-impact-origin-y="${Math.round(impactPosition.y)}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">
+        <div class="hit-impact hit-impact-${hitEvent.action ?? "test"}${airImpactClass}${dashImpactClass}${groundLightImpactClass}${criticalClass}${backAttackClass}${counterHitClass}" data-impact-spark="true" data-critical="${hitEvent.critical ? "true" : "false"}" data-back-attack="${hitEvent.backAttack ? "true" : "false"}" data-counter-hit="${hitEvent.counterHit ? "true" : "false"}" data-positional-multiplier="${hitEvent.positionalMultiplier}" data-hit-event-id="${hitEvent.id}" data-vfx-action="${hitEvent.action ?? "test"}" data-hit-phase="${hitEvent.hitPhase ?? ""}" data-vfx-cue="${hitEvent.vfxCue ?? ""}" data-impact-air-action="${airImpactAction}" data-impact-dash-action="${dashImpactAction}" data-impact-ground-light-step="${groundLightImpactStep}" data-impact-origin-x="${Math.round(impactPosition.x)}" data-impact-origin-y="${Math.round(impactPosition.y)}" data-hitstop-ms="${hitEvent.hitstopMs}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">
           <span class="hit-ring"></span>
           <span class="hit-slash"></span>
         </div>
-        <div class="damage-number${criticalClass}" data-damage-number="true" data-critical="${hitEvent.critical ? "true" : "false"}" data-hit-event-id="${hitEvent.id}" data-damage-origin-x="${Math.round(impactPosition.x)}" data-damage-origin-y="${Math.round(impactPosition.y)}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">${hitEvent.critical ? "暴击 " : ""}-${hitEvent.damage}</div>
+        <div class="damage-number${criticalClass}${backAttackClass}${counterHitClass}" data-damage-number="true" data-critical="${hitEvent.critical ? "true" : "false"}" data-back-attack="${hitEvent.backAttack ? "true" : "false"}" data-counter-hit="${hitEvent.counterHit ? "true" : "false"}" data-positional-multiplier="${hitEvent.positionalMultiplier}" data-hit-event-id="${hitEvent.id}" data-damage-origin-x="${Math.round(impactPosition.x)}" data-damage-origin-y="${Math.round(impactPosition.y)}" style="${combatActorStyle(run, impactPosition.x, impactPosition.y)}">${damageLabels ? `${damageLabels} ` : ""}-${hitEvent.damage}</div>
       `;
     })
     .join("");
@@ -1889,7 +1901,7 @@ function renderCombatVfx(run: CombatRun): string {
     : "";
 
   return `
-    <div class="combat-vfx-layer" data-hitstop-active="${hitstopActive ? "true" : "false"}" data-critical-hit="${hit?.critical ? "true" : "false"}" data-screen-shake="${screenShake}" data-screen-flash="${screenFlash}" data-impact-skill-id="${impactSkillId}">
+    <div class="combat-vfx-layer" data-hitstop-active="${hitstopActive ? "true" : "false"}" data-critical-hit="${hit?.critical ? "true" : "false"}" data-back-attack="${hit?.backAttack ? "true" : "false"}" data-counter-hit="${hit?.counterHit ? "true" : "false"}" data-screen-shake="${screenShake}" data-screen-flash="${screenFlash}" data-impact-skill-id="${impactSkillId}">
       ${bossPhaseVfx}
       ${recoveryVfx}
       ${enemyVfx}
@@ -2042,6 +2054,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
         <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-kind="${enemy.kind}" data-enemy-state="${enemyState}" data-enemy-defeated-at-ms="${enemy.defeatedAtMs ?? ""}" data-enemy-death-age-ms="${deathAgeMs}" data-enemy-death-progress="${deathProgress.toFixed(3)}" data-enemy-death-phase="${deathPhase}" data-enemy-motion="${motion}" data-enemy-hitstun-active="${hitstunActive ? "true" : "false"}" data-enemy-super-armor="${superArmorActive ? "true" : "false"}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-boss-phase-skill-id="${bossPhaseSkillId}" data-enemy-model-vfx-cue="${enemyModelVfxCue}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-enemy-attack-stage="${attackVisual.stage}" data-enemy-attack-duration-ms="${attackVisual.durationMs || ""}" data-enemy-attack-progress="${attackVisual.progress}" data-hit-recent="${hitRecent ? "true" : "false"}" data-hit-action="${recentTargetHit?.action ?? ""}" data-hit-phase="${recentTargetHit?.hitPhase ?? ""}" data-hit-air-action="${hitAirAction}" data-enemy-hit-air-action="${hitAirAction}" data-hit-dash-action="${hitDashAction}" data-enemy-hit-dash-action="${hitDashAction}" data-enemy-hit-ground-light-step="${hitGroundLightStep}" data-hit-vfx-cue="${recentTargetHit?.vfxCue ?? ""}" data-enemy-hit-slide-active="${hitSlide.active ? "true" : "false"}" data-enemy-hit-slide-progress="${hitSlide.progress.toFixed(2)}" data-enemy-hit-slide-start-x="${hitSlide.start ? Math.round(hitSlide.start.x) : ""}" data-enemy-hit-slide-start-y="${hitSlide.start ? Math.round(hitSlide.start.y) : ""}" data-enemy-hit-slide-end-x="${hitSlide.end ? Math.round(hitSlide.end.x) : ""}" data-enemy-hit-slide-end-y="${hitSlide.end ? Math.round(hitSlide.end.y) : ""}" data-enemy-hit-slide-duration-ms="${enemyHitSlideDurationMs}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-enemy-x="${Math.round(enemy.position.x)}" data-enemy-y="${Math.round(enemy.position.y)}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-current="${enemy.hp}" data-enemy-hp-max="${enemy.maxHp}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy, hitSlide.position)} --enemy-death-age: ${deathAgeMs}ms; --enemy-death-progress: ${deathProgress.toFixed(3)};">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame" data-enemy-ai-state="${enemy.aiState ?? "idle"}">
+            <span class="enemy-facing-state" data-enemy-facing="${enemy.facing}" aria-hidden="true"></span>
             <img class="enemy-art actor-model actor-model-${motion}${enemySkillMotionClass ? ` ${enemySkillMotionClass}` : ""}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy, attackVisual, enemyMotionSkillId)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
             <span class="combat-frame-sprite enemy-frame-sprite" data-frame-atlas="${enemy.kind === "boss" ? "taotie-overseer" : enemy.kind === "elite" ? "zheng-guard" : "ash-cinder-imp"}" aria-hidden="true"></span>
           </div>
@@ -2840,7 +2853,9 @@ function playerHurtSfxId(event: CombatPlayerHitEvent, run: CombatRun): string {
 function combatEventSfxIds(event: CombatEvent, run: CombatRun): string[] {
   if (event.kind === "hit") {
     const sfxId = swordDanceSfxId(event) ?? normalCombatHitSfxId(event);
-    return sfxId ? [sfxId] : [];
+    return [sfxId, event.backAttack ? "back-attack-confirm" : undefined, event.counterHit ? "counter-hit-confirm" : undefined].filter(
+      (id): id is string => Boolean(id)
+    );
   }
 
   if (event.kind === "enemy-attack") {

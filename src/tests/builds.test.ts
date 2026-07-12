@@ -116,4 +116,16 @@ describe("equipment build evaluation", () => {
     expect(profile.criticalDamageMultiplier).toBe(1.5);
     expect(profile.damageMultiplier).toBeCloseTo(stableDamageMultiplier, 8);
   });
+
+  it("turns the Kiln Shadow three-piece bonus into real back-attack scaling", () => {
+    const initialProfile = evaluateCombatProfile(createInitialState());
+    const shadowState = equipSetPieces(createInitialState(), "kiln-shadow", ["weapon", "core", "head"]);
+    const profile = evaluateCombatProfile(shadowState);
+
+    expect(initialProfile.backAttackDamageMultiplier).toBe(1.1);
+    expect(initialProfile.counterHitDamageMultiplier).toBe(1.25);
+    expect(profile.stats.backAttackDamage).toBe(18);
+    expect(profile.backAttackDamageMultiplier).toBe(1.28);
+    expect(profile.counterHitDamageMultiplier).toBe(1.25);
+  });
 });

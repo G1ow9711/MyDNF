@@ -24,6 +24,8 @@ export interface CombatProfile {
   damageMultiplier: number;
   criticalChance: number;
   criticalDamageMultiplier: number;
+  backAttackDamageMultiplier: number;
+  counterHitDamageMultiplier: number;
   cooldownMultiplier: number;
   resourceGainMultiplier: number;
   damageTakenMultiplier: number;
@@ -148,6 +150,7 @@ export function evaluateCombatProfile(state: GameState): CombatProfile {
   const cooldown = stats.cooldown ?? 0;
   const element = stats.element ?? 0;
   const heatGain = stats.heatGain ?? 0;
+  const backAttackDamage = stats.backAttackDamage ?? 0;
 
   return {
     stats,
@@ -155,6 +158,8 @@ export function evaluateCombatProfile(state: GameState): CombatProfile {
     damageMultiplier: Math.max(1, 1 + attack / 100 + element / 200),
     criticalChance: clamp(crit, 0, 100),
     criticalDamageMultiplier: 1.5,
+    backAttackDamageMultiplier: 1.1 + Math.max(0, backAttackDamage) / 100,
+    counterHitDamageMultiplier: 1.25,
     cooldownMultiplier: clamp(1 - cooldown / 100, 0.55, 1),
     resourceGainMultiplier: Math.max(1, 1 + heatGain / 100),
     damageTakenMultiplier: clamp(100 / (100 + defense), 0.35, 1)

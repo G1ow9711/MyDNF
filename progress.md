@@ -4469,3 +4469,14 @@
 - Added Flowing Light action armor so monster damage and hitstop remain visible without canceling or desynchronizing the seven-stage movement, weapon, VFX, and hit timeline.
 - Real keyboard acceptance passed for five-monster heat-bloom crowd combat, natural monster attacks, and the seven-stage Flowing Light sword dance. Inspected the crowd and finisher captures at 1440x900.
 - Final app/UI coverage passed 232/232, combat passed 286/286, complete non-keyboard/computed-style regression passed 692/692, and production build passed.
+
+## Task 209 DNF Back Attack And Counter Hit
+- Audited authoritative hit resolution, dynamic impact origins, enemy facing/attack windows, critical feedback, event-driven audio, and Kiln Shadow equipment bonuses. No subagent was started.
+- Locked impact-frame back attack, active-frame counter hit, multiplicative stacking, build scaling, mounted feedback, and real-keyboard flank acceptance. RED coverage follows.
+- RED failed on every intended boundary: hit events had no positional flags or multipliers, Kiln Shadow exposed no back-attack stat, mounted damage had no labels/classes, and both confirmation sounds used the generic fallback.
+- Added authoritative enemy facing, impact-frame back attack, attack-active counter hit, multiplicative critical stacking, Kiln Shadow rear-damage scaling, event metadata, stacked feedback, counter screen response, and authored confirmation audio.
+- Focused core/build/app/UI/audio coverage passed 548/548 after correcting the facing-lock test to assert the selected live attack rather than a distance-dependent hard-coded skill id.
+- Real keyboard acceptance reduced a Warrior room to one monster, forced a left-facing windup, then used left-facing shadow-roll to travel through the target and fire from its rear on the 160 ms skill frame. The same event recorded both flags, multiplier 1.375, counter shake/flash, and both confirmation sounds.
+- Real-browser compatibility passed seven-stage Flowing Light sword dance, five-monster crowd combat, and natural monster windup/action/VFX. The focused positional route passed after isolating its recorder from cleanup hits.
+- Final verification passed: 701/701 non-keyboard and computed-style tests, production build, inspected 1440x900 positional screenshot, and no subagent use. Chinese commit and push follow this record update.
+- Final diff review restored an accidentally touched legacy `KeyX`, then exposed and fixed that route's stale two-enemy expectations. Its focused desktop/mobile KOF action rerun passed with the current five-enemy room contract.

@@ -1132,6 +1132,72 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-screen-flash="counter-hit"');
   });
 
+  it("renders authoritative airborne-protection and downed-slam feedback", () => {
+    const state = createInitialState();
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const target = baseRun.enemies[0];
+    const protectedRun = applyHit(
+      {
+        ...baseRun,
+        elapsedMs: 1500,
+        enemies: [
+          {
+            ...target,
+            hp: 500,
+            maxHp: 500,
+            armor: 0,
+            maxArmor: 0,
+            juggleCount: 3,
+            airborne: true,
+            airborneUntilMs: 2000
+          }
+        ]
+      },
+      { id: "juggle-protection-render", action: "light", targetId: target.id, damage: 20, hitstopMs: 40, knockback: 0, juggle: true }
+    );
+    const otgRun = applyHit(
+      {
+        ...baseRun,
+        elapsedMs: 500,
+        enemies: [
+          {
+            ...target,
+            hp: 500,
+            maxHp: 500,
+            armor: 0,
+            maxArmor: 0,
+            downed: true,
+            downedUntilMs: 800
+          }
+        ]
+      },
+      {
+        id: "otg-render",
+        action: "skill",
+        skillId: "anvil-crash",
+        targetId: target.id,
+        damage: 40,
+        hitstopMs: 70,
+        knockback: 0,
+        juggle: false,
+        actionTags: ["slam"]
+      }
+    );
+    const protectedHtml = renderAppHtml({ state, mode: "combat", combatRun: protectedRun });
+    const otgHtml = renderAppHtml({ state, mode: "combat", combatRun: otgRun });
+
+    expect(protectedHtml).toContain('data-enemy-juggle-count="4"');
+    expect(protectedHtml).toContain('data-enemy-juggle-protected="true"');
+    expect(protectedHtml).toContain('data-juggle-protected="true"');
+    expect(protectedHtml).toContain('class="hit-impact hit-impact-light is-juggle-protected"');
+    expect(protectedHtml).toContain('class="damage-number is-juggle-protected"');
+    expect(protectedHtml).toContain("浮空保护 -20");
+    expect(otgHtml).toContain('data-otg-hit="true"');
+    expect(otgHtml).toContain('class="hit-impact hit-impact-skill is-otg-hit"');
+    expect(otgHtml).toContain('class="damage-number is-otg-hit"');
+    expect(otgHtml).toContain("扫地 -40");
+  });
+
   it("keeps repeated arrow key movement while excluding repeats from command buffering", () => {
     const previousLocalStorage = globalThis.localStorage;
     const previousAddEventListener = globalThis.addEventListener;

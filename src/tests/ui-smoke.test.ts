@@ -3659,6 +3659,16 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('@keyframes counter-hit-screen-shake');
   });
 
+  it("defines distinct airborne-protection and OTG impact feedback", () => {
+    expect(stylesCss).toContain('.hit-impact.is-juggle-protected');
+    expect(stylesCss).toContain('.hit-impact.is-otg-hit');
+    expect(stylesCss).toContain('.damage-number.is-juggle-protected');
+    expect(stylesCss).toContain('.damage-number.is-otg-hit');
+    expect(stylesCss).toContain('.combat-enemy:has(.enemy-juggle-state[data-enemy-juggle-protected="true"])');
+    expect(stylesCss).toContain('@keyframes juggle-protection-pulse');
+    expect(stylesCss).toContain('@keyframes otg-impact-crack');
+  });
+
   it("renders DNF-style dash-light with player, weapon, target, and impact hooks", () => {
     const state = createInitialState();
     const baseRun = createCombatRun(state, "cinder-kiln-alley");

@@ -4480,3 +4480,13 @@
 - Real-browser compatibility passed seven-stage Flowing Light sword dance, five-monster crowd combat, and natural monster windup/action/VFX. The focused positional route passed after isolating its recorder from cleanup hits.
 - Final verification passed: 701/701 non-keyboard and computed-style tests, production build, inspected 1440x900 positional screenshot, and no subagent use. Chinese commit and push follow this record update.
 - Final diff review restored an accidentally touched legacy `KeyX`, then exposed and fixed that route's stale two-enemy expectations. Its focused desktop/mobile KOF action rerun passed with the current five-enemy room contract.
+
+## Task 210 DNF Airborne Protection And OTG
+- Audited the authoritative combat spec, shared hitbox selection, reaction resolver, air/down recovery, event metadata, rendering, audio, and browser-control seams. No subagent was started.
+- Locked three normal airborne hits, fourth-hit protection decay, stand-time reset, slam-only downed eligibility, and downed-preserving OTG behavior. RED coverage follows.
+- RED proved both missing boundaries: juggle count was undefined, and a normal light reduced a downed target from 500 to 474. Mounted labels/classes and both sounds were also absent.
+- Added authoritative `juggleCount`, fourth-hit protection decay, stand recovery reset, shared slam-only target filtering, downed-preserving OTG, and hit-event metadata.
+- Added mounted actor diagnostics, `浮空保护`/`扫地` labels, distinct impact/damage classes, protected-air outline, and authored `juggle-protection-confirm`/`otg-hit-confirm` sounds.
+- Focused core/render/audio/UI coverage passed 549/549. Real keyboard acceptance passed with right-edge positioning, `Z` launch, three-stage `A/J` Spark Combo protection, natural fall, and `F/U` Anvil Crash OTG.
+- Combined real-browser compatibility passed X-X-X, Spark Combo phases, seven-stage Flowing Light sword dance, and the new protection/OTG route. Computed styles proved both new animations execute in the browser.
+- Final verification passed 707/707 non-keyboard and computed-style tests, four real-keyboard routes, production build, and inspected 1440x900 combat screenshot. Chinese commit and push follow this record update.

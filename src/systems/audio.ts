@@ -238,6 +238,29 @@ const sfxPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: Ar
       { frequencyHz: 2217.46, startMs: 112, durationMs: 138, gain: 0.07, waveform: "sine" }
     ]
   },
+  "juggle-protection-confirm": {
+    commandId: "juggle-protection-confirm",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["air-guard", "pressure-release", "juggle-limit"],
+    notes: [
+      { frequencyHz: 880, startMs: 0, durationMs: 96, gain: 0.14, waveform: "triangle" },
+      { frequencyHz: 659.25, startMs: 36, durationMs: 142, gain: 0.12, waveform: "sawtooth" },
+      { frequencyHz: 329.63, startMs: 92, durationMs: 190, gain: 0.09, waveform: "sine" }
+    ]
+  },
+  "otg-hit-confirm": {
+    commandId: "otg-hit-confirm",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["ground-crack", "low-impact", "prone-confirm"],
+    notes: [
+      { frequencyHz: 55, startMs: 0, durationMs: 180, gain: 0.3, waveform: "square" },
+      { frequencyHz: 164.81, startMs: 18, durationMs: 150, gain: 0.2, waveform: "sawtooth" },
+      { frequencyHz: 493.88, startMs: 72, durationMs: 126, gain: 0.1, waveform: "triangle" },
+      { frequencyHz: 987.77, startMs: 116, durationMs: 104, gain: 0.07, waveform: "sine" }
+    ]
+  },
   "enemy-windup-light": {
     commandId: "enemy-windup-light",
     channel: "sfx",

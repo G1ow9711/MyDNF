@@ -1681,3 +1681,15 @@
 - Enemy facing must remain authoritative combat state through the attack-active window. Render-time comparison against the player's new side would invalidate legitimate windup flanks.
 - Accepted keyboard route: Ink Shadow Ranger starts left-facing on a monster's front-left, waits for its left-facing windup, then shadow-roll travels 86 px through the target and fires from the rear at 160 ms.
 - Mounted evidence confirmed one shadow-roll event with both flags, positional multiplier 1.375, stacked Chinese labels, counter screen response, and both dedicated confirmation sounds.
+
+## Task 210 Airborne Protection And OTG Audit
+- The original combat design explicitly requires reduced hitstun after three airborne hits and slam-only damage against downed enemies.
+- Current target selection accepts every live downed enemy for every hitbox, so ordinary X attacks can incorrectly hit prone targets.
+- Current reaction resolution makes any non-juggle air hit clear `airborne`, while repeated juggle hits can keep extending a full 1000 ms window indefinitely. Both behaviors break the intended combo arc.
+- `CombatActionTag` already carries `slam`, and Anvil Crash already uses it, so OTG eligibility belongs in shared target selection rather than skill-id special cases.
+- Juggle count must reset on completed stand recovery, not on fall, so protection cannot be bypassed by the airborne-to-downed transition.
+- Shared reaction resolution now preserves ordinary hits against airborne targets, increments one count per valid air hit, and stops full-duration extension after count three. The fourth hit remains visible but the target must fall shortly afterward.
+- Shared target selection rejects downed enemies before distance sorting unless the hitbox carries `slam`; this prevents another standing target from being skipped in favor of an invalid prone target.
+- A slam against an already downed target remains downed and refreshes 760 ms, avoiding the old reaction path that could make a prone target stand on impact.
+- Real crowd targeting is dynamic per skill stage. For deterministic player-facing acceptance without test mutation, pre-positioning at the right edge makes the launched actor the only forward target for Heavy and Spark Combo.
+- Real-browser evidence recorded `juggle-protection-pulse` and `otg-impact-crack` as computed animation names, plus both authored confirmation audio ids.

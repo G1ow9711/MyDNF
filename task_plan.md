@@ -510,7 +510,22 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify a real keyboard flank and attack-interrupt route against live monsters.
 - [x] Run full regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 210 DNF Airborne Protection And OTG
+- [x] Audit airborne/downed reactions, target selection, action tags, mounted feedback, and the authoritative combat spec.
+- [x] Lock three-hit normal juggle, fourth-hit protection decay, stand reset, and slam-only downed targeting.
+- [x] Add RED core, mounted feedback, audio, and real-keyboard combo coverage.
+- [x] Implement authoritative juggle accumulation, decay, OTG filtering, and synchronized feedback.
+- [x] Verify live launcher, protected air chain, knockdown, and downed slam through real keys.
+- [x] Run full regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Final Task 210 diff review found a broad `ShiftLeft` removal had touched the preceding crowd route while leaving Shift held in the new route. Restored crowd running, kept Task 210 on normal movement, and reran both real-keyboard routes together successfully.
+- Task 210's first combined UI patch matched an abbreviated fragment of the one-line enemy actor tag and was rejected atomically. Hit feedback was applied at verified short anchors, while mounted juggle state uses a hidden child diagnostic beside the existing facing node.
+- Task 210's first browser combo launched one target but Spark Combo dynamically selected three other crowd targets, so no actor reached protection. Diagnostics now record every hit event and per-target max count; the route positions at the right edge before launch so the same target remains the only forward target.
+- Task 210's second browser attempt delayed Spark Combo nearly a full airborne window while chasing the launched target. The final route performs all positioning before `Z`, then releases `A/J` immediately after heavy recovery.
+- Task 210's first safe-window-free opener was interrupted by a natural monster hit. The route now observes one real enemy cycle and waits for attack-slot recovery, preserving enemy damage and timing.
+- Task 210's first right-edge positioning used run speed and skipped across the bounded predicate between browser samples. Normal held right movement reaches the same legal position without overshoot.
+- A Task 210 title search used an unclosed alternation regex and RTK rejected it before execution. No files changed; subsequent searches use simple patterns.
 - Final Task 209 browser review exposed a stale Task 208 KOF route that still expected two mounted enemies and a simultaneous all-idle enemy state. It now asserts five desktop/mobile actors and waits only for player recovery; the focused real-keyboard route passes.
 - Task 209's first browser preparation assumed Ink's ultimate would kill two Warrior monsters. It only softened all five; cleanup now uses the existing real-keyboard single-enemy reducer without asserting unpromised kills.
 - Task 209's live polling missed short damage labels despite both confirmation sounds. A MutationObserver now records the same mounted event, multiplier, labels, and screen response without extending gameplay timing.

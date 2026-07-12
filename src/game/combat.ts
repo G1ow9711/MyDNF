@@ -221,6 +221,7 @@ export interface CombatEnemy {
   marks: number;
   position: CombatVector;
   facing: 1 | -1;
+  juggleCount: number;
   airborne: boolean;
   downed: boolean;
   airborneUntilMs?: number;
@@ -355,6 +356,9 @@ export interface CombatHitEvent {
   backAttack: boolean;
   counterHit: boolean;
   positionalMultiplier: number;
+  juggleCount: number;
+  juggleProtected: boolean;
+  otgHit: boolean;
   occurredAtMs: number;
   inputToHitMs: number;
   hitstopMs: number;
@@ -2141,6 +2145,7 @@ function createEnemy(
       y: kind === "boss" ? 320 : formationPosition.y
     },
     facing: -1,
+    juggleCount: 0,
     airborne: false,
     downed: false,
     nextAttackAtMs: (kind === "boss" ? 650 : kind === "elite" ? 760 : 700) + enemyIndex * 220
@@ -2285,6 +2290,10 @@ function selectPlayerTargets(run: CombatRun, hitbox: PlayerHitboxDefinition): Co
   return run.enemies
     .filter((enemy) => {
       if (!enemyInPlayerHitbox(run, enemy, hitbox)) {
+        return false;
+      }
+
+      if (enemy.downed && !hitbox.actionTags?.includes("slam")) {
         return false;
       }
 
@@ -2458,6 +2467,9 @@ interface EnemyHitReaction {
   downed: boolean;
   airborneUntilMs?: number;
   downedUntilMs?: number;
+  juggleCount: number;
+  juggleProtected: boolean;
+  otgHit: boolean;
 }
 
 function resolveEnemyHitReaction(
@@ -2483,14 +2495,20 @@ function resolveEnemyHitReaction(
   const activeHitstunUntilMs = (enemy.hitstunUntilMs ?? 0) > impactAtMs ? enemy.hitstunUntilMs : undefined;
   const hitstunUntilMs = Math.max(activeHitstunUntilMs ?? 0, ordinaryHitstunUntilMs ?? 0) || undefined;
   const forcedKnockdown = actionTags.includes("knockdown");
-  const slamDown = actionTags.includes("slam") && enemy.airborne;
+  const slam = actionTags.includes("slam");
+  const slamDown = slam && enemy.airborne;
+  const otgHit = slam && enemy.downed;
   const lethalDown = !juggle && !aliveAfterHit;
-  const airborne = superArmor ? enemy.airborne : juggle && !slamDown && !forcedKnockdown;
-  const downed = lethalDown || (superArmor ? enemy.downed : forcedKnockdown || slamDown);
+  const keepsAirborne = !superArmor && !slamDown && !forcedKnockdown && (juggle || enemy.airborne);
+  const juggleCount = keepsAirborne ? enemy.juggleCount + 1 : enemy.juggleCount;
+  const juggleProtected = aliveAfterHit && keepsAirborne && juggleCount > 3;
+  const airborne = superArmor ? enemy.airborne : keepsAirborne;
+  const downed = lethalDown || (superArmor ? enemy.downed : forcedKnockdown || slamDown || otgHit);
+  const airborneExtensionMs = juggleProtected ? 360 : juggle ? 1000 : 520;
   const airborneUntilMs = airborne
     ? superArmor
       ? enemy.airborneUntilMs
-      : Math.max(enemy.airborneUntilMs ?? 0, impactAtMs + 1000)
+      : Math.max(enemy.airborneUntilMs ?? 0, impactAtMs + airborneExtensionMs)
     : undefined;
   const downedUntilMs = downed
     ? lethalDown || !superArmor
@@ -2525,7 +2543,10 @@ function resolveEnemyHitReaction(
     airborne,
     downed,
     airborneUntilMs,
-    downedUntilMs
+    downedUntilMs,
+    juggleCount,
+    juggleProtected,
+    otgHit
   };
 }
 
@@ -4742,7 +4763,8 @@ function updateEnemyAirStates(run: CombatRun): CombatRun {
         return {
           ...enemy,
           downed: false,
-          downedUntilMs: undefined
+          downedUntilMs: undefined,
+          juggleCount: 0
         };
       }
 
@@ -5474,6 +5496,9 @@ function applyEnemyImpact(
         backAttack: false,
         counterHit: false,
         positionalMultiplier: 1,
+        juggleCount: nextEnemy.juggleCount,
+        juggleProtected: false,
+        otgHit: false,
         occurredAtMs: hitTime,
         inputToHitMs: 0,
         hitstopMs: attack.hitstopMs,
@@ -5662,12 +5687,13 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
   const impactPosition = { x: target.position.x, y: target.position.y };
   const comboCount = run.comboCount > 0 && run.elapsedMs <= run.comboExpiresAtMs ? run.comboCount + 1 : 1;
   const comboExpiresAtMs = impactAtMs + 1200;
+  const targetReaction = resolveEnemyHitReaction(target, impactAtMs, effectiveDamage, statusTags, actionTags, hit.juggle);
   const nextEnemies = run.enemies.map((enemy) => {
     if (enemy.id !== hit.targetId) {
       return enemy;
     }
 
-    const reaction = resolveEnemyHitReaction(enemy, impactAtMs, effectiveDamage, statusTags, actionTags, hit.juggle);
+    const reaction = targetReaction;
     const { armorDamage, hpDamage } = reaction;
     const nextMarks = hit.consumeMarks ? 0 : clamp(enemy.marks + (hit.marksApplied ?? 0), 0, 9);
     const nextPosition = hit.pullCenter
@@ -5706,7 +5732,8 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
       airborne: reaction.airborne,
       downed: reaction.downed,
       airborneUntilMs: reaction.airborneUntilMs,
-      downedUntilMs: reaction.downedUntilMs
+      downedUntilMs: reaction.downedUntilMs,
+      juggleCount: reaction.juggleCount
     };
   });
   const event: CombatHitEvent = {
@@ -5721,6 +5748,9 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     backAttack: positionalResolution.backAttack,
     counterHit: positionalResolution.counterHit,
     positionalMultiplier: positionalResolution.multiplier,
+    juggleCount: targetReaction.juggleCount,
+    juggleProtected: targetReaction.juggleProtected,
+    otgHit: targetReaction.otgHit,
     occurredAtMs: impactAtMs,
     inputToHitMs: hit.inputToHitMs ?? 0,
     hitstopMs,
@@ -6056,6 +6086,7 @@ function applyScheduledEnemyHitEffect(
       ? impactResolvedRun.comboCount + 1
       : 1;
   const comboExpiresAtMs = effect.applyAtMs + 1200;
+  const targetReaction = resolveEnemyHitReaction(target, effect.applyAtMs, effectiveDamage, statusTags, actionTags, effect.juggle);
   const event: CombatHitEvent = {
     kind: "hit",
     id: effect.id,
@@ -6068,6 +6099,9 @@ function applyScheduledEnemyHitEffect(
     backAttack: positionalResolution.backAttack,
     counterHit: positionalResolution.counterHit,
     positionalMultiplier: positionalResolution.multiplier,
+    juggleCount: targetReaction.juggleCount,
+    juggleProtected: targetReaction.juggleProtected,
+    otgHit: targetReaction.otgHit,
     occurredAtMs: effect.applyAtMs,
     inputToHitMs: effect.inputToHitMs,
     hitstopMs,
@@ -6087,7 +6121,7 @@ function applyScheduledEnemyHitEffect(
       return enemy;
     }
 
-    const reaction = resolveEnemyHitReaction(enemy, effect.applyAtMs, effectiveDamage, statusTags, actionTags, effect.juggle);
+    const reaction = targetReaction;
     const { armorDamage, hpDamage } = reaction;
     const nextMarks = effect.consumeMarks ? 0 : clamp(enemy.marks + (effect.marksApplied ?? 0), 0, 9);
     const nextPosition = effect.pullCenter
@@ -6131,7 +6165,8 @@ function applyScheduledEnemyHitEffect(
       airborne: reaction.airborne,
       downed: reaction.downed,
       airborneUntilMs: reaction.airborneUntilMs,
-      downedUntilMs: reaction.downedUntilMs
+      downedUntilMs: reaction.downedUntilMs,
+      juggleCount: reaction.juggleCount
     };
   });
 

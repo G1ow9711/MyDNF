@@ -1803,6 +1803,100 @@ describe("combat actions and impact feel", () => {
     expect(knockedDown.enemies[0].downedUntilMs).toBeGreaterThan(knockedDown.elapsedMs);
   });
 
+  it("enters airborne protection after three juggle hits and resets only after standing", () => {
+    const base = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 800,
+      maxHp: 800,
+      armor: 0,
+      maxArmor: 0,
+      nextAttackAtMs: 9999
+    });
+    const hitAt = (run: CombatRun, occurredAtMs: number, id: string): CombatRun =>
+      applyHit(
+        { ...run, elapsedMs: occurredAtMs },
+        {
+          id,
+          targetId: run.enemies[0].id,
+          damage: 5,
+          hitstopMs: 0,
+          knockback: 0,
+          juggle: true,
+          action: "test",
+          inputToHitMs: 0
+        }
+      );
+
+    const first = hitAt(base, 0, "juggle-1");
+    const second = hitAt(first, 500, "juggle-2");
+    const third = hitAt(second, 1000, "juggle-3");
+    const fourth = hitAt(third, 1500, "juggle-4");
+    const protectedHit = lastHitEvent(fourth);
+    const landed = stepCombat(fourth, {}, 501);
+    const stood = stepCombat(landed, {}, 701);
+
+    expect(first.enemies[0].juggleCount).toBe(1);
+    expect(third.enemies[0].juggleCount).toBe(3);
+    expect(fourth.enemies[0].juggleCount).toBe(4);
+    expect(protectedHit.juggleCount).toBe(4);
+    expect(protectedHit.juggleProtected).toBe(true);
+    expect((fourth.enemies[0].airborneUntilMs ?? 0) - fourth.elapsedMs).toBeLessThan(1000);
+    expect(landed.enemies[0]).toMatchObject({ airborne: false, downed: true, juggleCount: 4 });
+    expect(stood.enemies[0]).toMatchObject({ airborne: false, downed: false, juggleCount: 0 });
+  });
+
+  it("keeps ordinary follow-up hits on an airborne target inside the juggle chain", () => {
+    const base = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 300,
+      maxHp: 300,
+      armor: 0,
+      maxArmor: 0,
+      airborne: true,
+      airborneUntilMs: 1000,
+      juggleCount: 1,
+      nextAttackAtMs: 9999
+    });
+    const followed = applyHit(
+      { ...base, elapsedMs: 200 },
+      {
+        id: "air-follow-up",
+        targetId: base.enemies[0].id,
+        damage: 10,
+        hitstopMs: 0,
+        knockback: 0,
+        juggle: false,
+        action: "light"
+      }
+    );
+
+    expect(followed.enemies[0]).toMatchObject({ airborne: true, downed: false, juggleCount: 2 });
+    expect(lastHitEvent(followed)).toMatchObject({ juggleCount: 2, juggleProtected: false, otgHit: false });
+  });
+
+  it("lets only slam-tagged attacks hit downed enemies and preserves OTG knockdown", () => {
+    const base = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"), {
+      hp: 500,
+      maxHp: 500,
+      armor: 0,
+      maxArmor: 0,
+      downed: true,
+      downedUntilMs: 800,
+      nextAttackAtMs: 9999
+    });
+    const lightCast = performAction(base, { type: "light" });
+    const lightResolved = stepToElapsed(lightCast, scheduledGroundLightTimes(lightCast)[0]);
+    const slamCast = performAction(base, { type: "skill", skillId: "anvil-crash" });
+    const slamResolved = stepToElapsed(slamCast, scheduledSkillTimes(slamCast, "anvil-crash")[0]);
+    const otgHit = latestHitForSkill(slamResolved, "anvil-crash");
+
+    expect(lightResolved.enemies[0].hp).toBe(500);
+    expect(lightResolved.events.at(-1)?.kind).toBe("miss");
+    expect(slamResolved.enemies[0].hp).toBeLessThan(500);
+    expect(slamResolved.enemies[0].downed).toBe(true);
+    expect(slamResolved.enemies[0].downedUntilMs).toBeGreaterThan(800);
+    expect(otgHit.otgHit).toBe(true);
+    expect(otgHit.juggleProtected).toBe(false);
+  });
+
   it("lets slam skills knock airborne enemies down without waiting for natural fall", () => {
     const run = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 90), "cinder-kiln-alley"), {
       hp: 220,

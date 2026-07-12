@@ -362,6 +362,9 @@ type BrowserRoomFlowState = {
     controlState: string;
     attackStage: string;
     attackSkillId: string;
+    airborneState: string;
+    juggleCount: number;
+    juggleProtected: string;
   }>;
 };
 
@@ -374,6 +377,18 @@ type BrowserPositionalHitState = {
   screenShake: string;
   screenFlash: string;
   audioIds: string[];
+};
+
+type BrowserJuggleOtgEvidence = {
+  protectedEventIds: string[];
+  otgEventIds: string[];
+  protectedTargetIds: string[];
+  downedTargetIds: string[];
+  audioIds: string[];
+  hitSamples: Array<{ eventId: string; juggleCount: number; protected: string; otg: string }>;
+  maxJuggleByTarget: Record<string, number>;
+  protectedImpactAnimation: string;
+  otgImpactAnimation: string;
 };
 
 type BrowserEnemyDeathEvidence = {
@@ -809,7 +824,10 @@ const readRoomFlowStateExpression = `
     facing: Number(enemy.querySelector("[data-enemy-facing]")?.getAttribute("data-enemy-facing") || "0"),
     controlState: enemy.getAttribute("data-control-state") ?? "",
     attackStage: enemy.getAttribute("data-enemy-attack-stage") ?? "",
-    attackSkillId: enemy.getAttribute("data-enemy-attack-skill-id") ?? ""
+    attackSkillId: enemy.getAttribute("data-enemy-attack-skill-id") ?? "",
+    airborneState: enemy.getAttribute("data-airborne-state") ?? "",
+    juggleCount: Number(enemy.querySelector("[data-enemy-juggle-count]")?.getAttribute("data-enemy-juggle-count") ?? "0"),
+    juggleProtected: enemy.querySelector("[data-enemy-juggle-protected]")?.getAttribute("data-enemy-juggle-protected") ?? "false"
   }));
   const rawSave = localStorage.getItem(${JSON.stringify(SAVE_KEY)});
   const saved = rawSave ? JSON.parse(rawSave) : null;
@@ -2248,6 +2266,72 @@ const readPositionalHitStateExpression = `
     debugSamples: globalThis.__allPositionalHitSamples ?? []
   };
 })()
+`;
+
+const installJuggleOtgRecorderExpression = `
+(() => {
+  globalThis.__juggleOtgEvidence = {
+    protectedEventIds: [],
+    otgEventIds: [],
+    protectedTargetIds: [],
+    downedTargetIds: [],
+    audioIds: [],
+    hitSamples: [],
+    maxJuggleByTarget: {},
+    protectedImpactAnimation: "",
+    otgImpactAnimation: ""
+  };
+  globalThis.__juggleOtgObserver?.disconnect();
+  if (globalThis.__juggleOtgAudioListener) {
+    globalThis.removeEventListener("mydnf:audio-playback", globalThis.__juggleOtgAudioListener);
+  }
+  const addUnique = (items, value) => {
+    if (value && !items.includes(value)) items.push(value);
+  };
+  const sample = () => {
+    const evidence = globalThis.__juggleOtgEvidence;
+    for (const impact of document.querySelectorAll('[data-impact-spark="true"]')) {
+      const eventId = impact.getAttribute("data-hit-event-id") ?? "";
+      if (eventId && !evidence.hitSamples.some((sample) => sample.eventId === eventId)) {
+        evidence.hitSamples.push({
+          eventId,
+          juggleCount: Number(impact.getAttribute("data-juggle-count") ?? "0"),
+          protected: impact.getAttribute("data-juggle-protected") ?? "false",
+          otg: impact.getAttribute("data-otg-hit") ?? "false"
+        });
+      }
+      if (impact.getAttribute("data-juggle-protected") === "true") {
+        addUnique(evidence.protectedEventIds, eventId);
+        evidence.protectedImpactAnimation ||= getComputedStyle(impact).animationName;
+      }
+      if (impact.getAttribute("data-otg-hit") === "true") {
+        addUnique(evidence.otgEventIds, eventId);
+        evidence.otgImpactAnimation ||= getComputedStyle(impact).animationName;
+      }
+    }
+    for (const enemy of document.querySelectorAll(".combat-enemy")) {
+      const enemyId = enemy.getAttribute("data-enemy-id") ?? "";
+      const juggle = enemy.querySelector("[data-enemy-juggle-protected]");
+      const count = Number(enemy.querySelector("[data-enemy-juggle-count]")?.getAttribute("data-enemy-juggle-count") ?? "0");
+      evidence.maxJuggleByTarget[enemyId] = Math.max(evidence.maxJuggleByTarget[enemyId] ?? 0, count);
+      if (juggle?.getAttribute("data-enemy-juggle-protected") === "true") addUnique(evidence.protectedTargetIds, enemyId);
+      if (enemy.getAttribute("data-airborne-state") === "downed") addUnique(evidence.downedTargetIds, enemyId);
+    }
+  };
+  globalThis.__juggleOtgObserver = new MutationObserver(sample);
+  globalThis.__juggleOtgObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
+  globalThis.__juggleOtgAudioListener = (event) => {
+    const id = event.detail?.commandId;
+    if (id === "juggle-protection-confirm" || id === "otg-hit-confirm") addUnique(globalThis.__juggleOtgEvidence.audioIds, id);
+  };
+  globalThis.addEventListener("mydnf:audio-playback", globalThis.__juggleOtgAudioListener);
+  sample();
+  return true;
+})()
+`;
+
+const readJuggleOtgEvidenceExpression = `
+(() => globalThis.__juggleOtgEvidence)()
 `;
 
 const readFlowingLightDebugSamplesExpression = `
@@ -3890,6 +3974,110 @@ describe("real browser keyboard control", () => {
       await server.close();
     }
   }, 110000);
+
+  it("triggers airborne protection then slams the downed target through real skills", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
+        await seedSaveAndReload(page, createJuggleOtgAcceptanceState());
+        await enterDungeonWithKeyboard(page);
+        await moveIntoLiveEnemyRange(page);
+        await waitInBrowser(page, 420);
+        await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
+          readFlowingLightSafeCastWindowExpression,
+          (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
+          5000
+        );
+        const ready = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.difficultyId === "warrior" && state.playerHurtLockActive === "false",
+          3000
+        );
+        const targetId = [...ready.enemies].filter((enemy) => enemy.hp > 0).sort((left, right) => right.x - left.x)[0]?.id;
+        expect(targetId).toBeDefined();
+        if (!targetId) {
+          throw new Error("Expected a right-edge target for juggle acceptance");
+        }
+        await page.keyDown("ArrowRight");
+        try {
+          await page.waitFor<BrowserRoomFlowState>(
+            readRoomFlowStateExpression,
+            (state) => {
+              const target = state.enemies.find((enemy) => enemy.id === targetId && enemy.hp > 0);
+              return Boolean(
+                target &&
+                  Number(state.playerX) >= target.x - 82 &&
+                  Number(state.playerX) < target.x &&
+                  state.playerHurtLockActive === "false"
+              );
+            },
+            1800
+          );
+        } finally {
+          await page.keyUp("ArrowRight");
+        }
+        await page.evaluate<boolean>(installJuggleOtgRecorderExpression);
+
+        await page.pressKey("KeyZ");
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.enemies.some((enemy) => enemy.id === targetId && enemy.hp > 0 && enemy.airborneState === "airborne" && enemy.juggleCount === 1),
+          2200
+        );
+        await page.waitFor<BrowserNormalComboState>(
+          readNormalComboStateExpression,
+          (state) => state.normalAttackActive === "false" && state.playerHurtLockActive !== "true",
+          1200
+        );
+
+        await page.pressKey("KeyA");
+        const protectedEvidence = await page.waitFor<BrowserJuggleOtgEvidence>(
+          readJuggleOtgEvidenceExpression,
+          (evidence) =>
+            evidence.protectedEventIds.some((id) => id.includes("spark-combo")) &&
+            evidence.protectedTargetIds.includes(targetId) &&
+            evidence.audioIds.includes("juggle-protection-confirm"),
+          2600
+        );
+        expect(protectedEvidence.protectedTargetIds).toContain(targetId);
+        expect(protectedEvidence.protectedImpactAnimation).toBe("juggle-protection-pulse");
+
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => {
+            const target = state.enemies.find((enemy) => enemy.id === targetId);
+            return Boolean(
+              target &&
+                target.hp > 0 &&
+                target.airborneState === "downed" &&
+                target.juggleCount >= 4 &&
+                state.playerActiveSkill === "" &&
+                state.playerHurtLockActive === "false"
+            );
+          },
+          2600
+        );
+
+        await page.pressKey("KeyF");
+        const otgEvidence = await page.waitFor<BrowserJuggleOtgEvidence>(
+          readJuggleOtgEvidenceExpression,
+          (evidence) =>
+            evidence.otgEventIds.some((id) => id.includes("anvil-crash")) && evidence.audioIds.includes("otg-hit-confirm"),
+          1800
+        );
+
+        expect(otgEvidence.downedTargetIds).toContain(targetId);
+        expect(otgEvidence.otgImpactAnimation).toBe("otg-impact-crack");
+        await page.captureScreenshot(
+          `${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/juggle-protection-otg.png`
+        );
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
 
   it("clears two rooms into the boss room while proving live action motion and VFX", async () => {
     const server = await startViteServer();
@@ -5819,6 +6007,27 @@ function createPositionalHitAcceptanceState(): GameState {
       },
       dungeonDifficultyPreferences: {
         ...classState.player.dungeonDifficultyPreferences,
+        "cinder-kiln-alley": "warrior"
+      }
+    }
+  };
+}
+
+function createJuggleOtgAcceptanceState(): GameState {
+  const state = createInitialState();
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      equipment: {},
+      heat: 100,
+      classResources: {
+        ...state.player.classResources,
+        "ember-warden": 100
+      },
+      dungeonDifficultyPreferences: {
+        ...state.player.dungeonDifficultyPreferences,
         "cinder-kiln-alley": "warrior"
       }
     }

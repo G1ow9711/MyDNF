@@ -1573,3 +1573,15 @@
 - The gate is derived directly from all enemies being defeated. Keeping it open while floor loot exists preserves player choice; `finishRoom` must auto-claim an uncollected drop to avoid breaking existing keyboard clear helpers.
 - App settlement currently equates every new loot event with room completion. It must distinguish same-room pickup from room-index/completed transitions, or pickup would incorrectly advance the dungeon.
 - A short spawn age prevents the kill tick from creating and consuming the same drop. World-distance pickup then works through both mounted held movement and reducer movement tests.
+
+## Task 203 Enemy Death Audit
+- `CombatEnemy` has no defeat timestamp. All HP-zero actors remain in the renderer forever because room statistics still need them.
+- The frame stage selects frames 14/15 from `elapsedMs % 360`, so defeated monsters loop between two corpse frames indefinitely instead of progressing from the lethal hit.
+- CSS permanently sets defeated enemies to 62% opacity and compresses the model. The inspected floor-loot screenshot therefore shows both corpses frozen around the reward.
+- Three production paths can reduce enemy HP to zero: direct `applyHit`, scheduled hit effects, and reflected monster damage. All need first-write-only `defeatedAtMs`.
+- DOM replacement on every combat render makes ordinary CSS animation restart. A negative delay derived from authoritative death age can render stable progress despite replacement.
+- Direct, scheduled, and reflected lethal damage now record `defeatedAtMs` once. Later damage cannot rewrite the start of the death presentation.
+- Rendered death age drives impact (0-180 ms), collapse (180-520 ms), dissolve (520-1000 ms), then filters only the visual actor while retaining enemy state for room counts and settlement.
+- Cleared rooms continue idle ticks only while a timestamped death presentation remains. This lets the final enemy finish dissolving without reopening attacks, movement, or duplicate loot settlement.
+- The frame stage uses death frames 12/14/15. A lethal authored reaction can retain its contact frame during the first 180 ms, preserving X-X-X's frame-14 launcher before collapse.
+- Real keyboard evidence captured all three death phases and frames 12/14/15, then observed zero mounted enemies with the world-space rare drop still present.

@@ -454,7 +454,17 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify clear, visible drop, keyboard pickup, and saved reward in the real browser.
 - [x] Run regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 203 Enemy Death Choreography
+- [x] Audit lethal damage paths, enemy frame mapping, corpse CSS, and floor-loot browser flow.
+- [x] Lock authoritative defeat time and impact/collapse/dissolve/remove phases.
+- [x] Add RED coverage for lethal timestamps and deterministic rendered phases.
+- [x] Implement death frame choreography, ash dissolve, and visual actor removal.
+- [x] Verify all death phases and surviving floor loot through real keyboard combat.
+- [x] Run regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 203 first real-browser GREEN exposed that cleared rooms stopped dispatching idle combat ticks, freezing the final enemy at death age 0. The reducer now advances only the pending 1000 ms death presentation after clear, then returns to its prior idle behavior.
+- Task 203 compatibility initially let the generic death-impact frame hide normal combo step 3's lethal launcher reaction. The first 180 ms now preserves an authored lethal reaction frame when present, then rejoins collapse and dissolve; X-X-X, sword dance, Boss clear, and floor-loot routes pass.
 - Task 202's first viewport patch matched an earlier generic browser callback and added 1440x900 to the consumable route. Removed it immediately and applied it under the exact floor-loot test title before rerunning; no production file was affected.
 - Task 202 RED found no exported floor-loot spawn/pickup functions, no `CombatRun.floorLoot`, and no rendered drop after a cleared-room movement step. All three intended boundaries were absent.
 - Task 201 compatibility exposed a repeated sword-dance recorder miss: all seven stages, fourteen hits, contact frame 13, airborne state, and audio were present, but `requestAnimationFrame` skipped the >=310 ms recovery sample under oscillator load. Added a DOM mutation sampler while retaining the exact 310 ms/frame-14 requirement; focused and combined reruns passed.

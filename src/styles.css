@@ -3784,14 +3784,46 @@ p {
 }
 
 .combat-enemy[data-enemy-state="defeated"] {
-  opacity: 0.62;
-  filter: grayscale(0.32) drop-shadow(0 10px 12px rgba(2, 6, 23, 0.7));
-  transform: translate(-50%, -66%) rotate(-5deg);
+  pointer-events: none;
+  transform-origin: center bottom;
+}
+
+.combat-enemy[data-enemy-state="defeated"][data-enemy-defeated-at-ms]:not([data-enemy-defeated-at-ms=""]) {
+  animation: monster-death-sequence 1000ms linear both paused;
+  animation-delay: calc(var(--enemy-death-age) * -1);
 }
 
 .combat-enemy[data-enemy-state="defeated"] .enemy-model-frame {
-  transform: scaleY(0.42) rotate(4deg);
+  position: relative;
   transform-origin: center bottom;
+}
+
+.combat-enemy[data-enemy-state="defeated"][data-enemy-defeated-at-ms]:not([data-enemy-defeated-at-ms=""]) .enemy-model-frame {
+  animation: monster-death-model-sequence 1000ms cubic-bezier(0.2, 0.78, 0.22, 1) both paused;
+  animation-delay: calc(var(--enemy-death-age) * -1);
+}
+
+.combat-enemy[data-enemy-state="defeated"] .enemy-model-frame::after {
+  content: "";
+  position: absolute;
+  inset: 12% 2% 0;
+  z-index: 4;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 14% 78%, rgba(253, 186, 116, 0.92) 0 2px, transparent 3px),
+    radial-gradient(circle at 36% 52%, rgba(148, 163, 184, 0.82) 0 3px, transparent 4px),
+    radial-gradient(circle at 58% 72%, rgba(251, 146, 60, 0.84) 0 2px, transparent 3px),
+    radial-gradient(circle at 78% 38%, rgba(100, 116, 139, 0.78) 0 3px, transparent 4px),
+    radial-gradient(circle at 91% 66%, rgba(253, 186, 116, 0.76) 0 2px, transparent 3px);
+  opacity: 0;
+  animation: monster-death-ash 1000ms ease-out both paused;
+  animation-delay: calc(var(--enemy-death-age) * -1);
+}
+
+.combat-enemy[data-enemy-state="defeated"] .enemy-nameplate,
+.combat-enemy[data-enemy-state="defeated"] .enemy-health {
+  animation: monster-death-ui-fade 1000ms linear both paused;
+  animation-delay: calc(var(--enemy-death-age) * -1);
 }
 
 .combat-enemy[data-enemy-state="defeated"] .enemy-sprite {
@@ -3804,6 +3836,33 @@ p {
 .combat-enemy[data-enemy-state="defeated"] .enemy-sprite::before,
 .combat-enemy[data-enemy-state="defeated"] .enemy-core {
   display: none;
+}
+
+@keyframes monster-death-sequence {
+  0% { opacity: 1; transform: translate(-50%, -66%) translateX(0) rotate(0deg); filter: brightness(1.75) saturate(0.45) drop-shadow(0 0 24px rgba(255, 247, 237, 0.9)); }
+  8% { transform: translate(-50%, -66%) translateX(-8px) rotate(-2deg); }
+  18% { opacity: 1; transform: translate(-50%, -66%) translateX(5px) rotate(2deg); filter: brightness(1.1) saturate(0.75) drop-shadow(0 8px 14px rgba(2, 6, 23, 0.72)); }
+  52% { opacity: 0.9; transform: translate(-50%, -66%) translateY(17px) rotate(-7deg); filter: grayscale(0.38) brightness(0.8) drop-shadow(0 10px 12px rgba(2, 6, 23, 0.76)); }
+  78% { opacity: 0.48; transform: translate(-50%, -66%) translateY(6px) rotate(-7deg); filter: grayscale(0.78) brightness(0.62) blur(0.6px); }
+  100% { opacity: 0; transform: translate(-50%, -66%) translateY(-24px) rotate(-7deg) scale(0.92); filter: grayscale(1) brightness(0.38) blur(2px); }
+}
+
+@keyframes monster-death-model-sequence {
+  0%, 18% { transform: scaleY(1) rotate(0deg); }
+  52% { transform: scaleY(0.5) rotate(6deg); }
+  78% { transform: scaleY(0.42) rotate(7deg); }
+  100% { transform: scaleY(0.32) rotate(8deg); }
+}
+
+@keyframes monster-death-ash {
+  0%, 46% { opacity: 0; transform: translateY(8px) scale(0.76); }
+  58% { opacity: 0.82; }
+  100% { opacity: 0; transform: translateY(-62px) scale(1.42); }
+}
+
+@keyframes monster-death-ui-fade {
+  0%, 18% { opacity: 1; }
+  38%, 100% { opacity: 0; }
 }
 
 .combat-vfx-layer {

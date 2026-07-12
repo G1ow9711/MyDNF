@@ -979,6 +979,69 @@ describe("combat actions and impact feel", () => {
     expect(hit.player.hitstopUntilMs).toBe(hitAtMs + 42);
   });
 
+  it("records the first lethal time for direct, scheduled, and reflected enemy damage", () => {
+    const directBase = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const directTarget = directBase.enemies[0];
+    const direct = applyHit(
+      {
+        ...directBase,
+        elapsedMs: 100,
+        enemies: directBase.enemies.map((enemy, index) => ({ ...enemy, hp: index === 0 ? 1 : enemy.hp, armor: 0 }))
+      },
+      {
+        id: "lethal-direct",
+        targetId: directTarget.id,
+        damage: 99,
+        hitstopMs: 40,
+        knockback: 0,
+        juggle: false
+      }
+    );
+    const repeated = applyHit(
+      { ...direct, elapsedMs: 240 },
+      {
+        id: "lethal-repeat",
+        targetId: directTarget.id,
+        damage: 99,
+        hitstopMs: 40,
+        knockback: 0,
+        juggle: false
+      }
+    );
+
+    expect(direct.enemies[0].defeatedAtMs).toBe(100);
+    expect(repeated.enemies[0].defeatedAtMs).toBe(100);
+
+    const scheduledBase = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 1,
+      maxHp: 80,
+      armor: 0
+    });
+    const scheduledCast = performAction(scheduledBase, { type: "light" });
+    const scheduledImpactAtMs = scheduledCast.scheduledEnemyHitEffects[0].applyAtMs;
+    const scheduled = stepCombat(scheduledCast, {}, scheduledImpactAtMs - scheduledCast.elapsedMs);
+    expect(scheduled.enemies[0].defeatedAtMs).toBe(scheduledImpactAtMs);
+
+    const reflectBase = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 10,
+      maxHp: 80,
+      armor: 0,
+      nextAttackAtMs: 1
+    });
+    const reflecting: CombatRun = {
+      ...reflectBase,
+      player: { ...reflectBase.player, reflectUntilMs: 2000 }
+    };
+    const windup = stepCombat(reflecting, {}, 80);
+    const reflected = stepCombat(windup, {}, 600);
+    const reflectHit = reflected.events.find(
+      (event): event is CombatHitEvent => event.kind === "hit" && event.skillId === "mirror-reflect"
+    );
+    expect(reflectHit).toBeDefined();
+    expect(reflected.enemies[0].hp).toBe(0);
+    expect(reflected.enemies[0].defeatedAtMs).toBe(reflectHit?.occurredAtMs);
+  });
+
   it("rechecks grounded light targets at the hit frame and keeps misses from opening cancel", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       hp: 180,

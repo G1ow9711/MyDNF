@@ -341,6 +341,11 @@ type BrowserRoomFlowState = {
   }>;
 };
 
+type BrowserEnemyDeathEvidence = {
+  phases: string[];
+  frames: number[];
+};
+
 type BrowserStrictCombatState = {
   objective: string;
   roomIndex: string;
@@ -774,6 +779,37 @@ const readRoomFlowStateExpression = `
     enemies
   };
 })()
+`;
+
+const installEnemyDeathRecorderExpression = `
+(() => {
+  globalThis.__enemyDeathEvidence = { phases: [], frames: [] };
+  const addUnique = (items, value) => {
+    if (value !== "" && !items.includes(value)) {
+      items.push(value);
+    }
+  };
+  const tick = () => {
+    const evidence = globalThis.__enemyDeathEvidence;
+    for (const enemy of document.querySelectorAll('.combat-enemy[data-enemy-state="defeated"]')) {
+      addUnique(evidence.phases, enemy.getAttribute("data-enemy-death-phase") ?? "");
+      const frame = Number(enemy.querySelector(".enemy-frame-sprite")?.getAttribute("data-sprite-frame") ?? "-1");
+      if (frame >= 0) {
+        addUnique(evidence.frames, frame);
+      }
+    }
+    globalThis.__enemyDeathRecorder = requestAnimationFrame(tick);
+  };
+  if (globalThis.__enemyDeathRecorder) {
+    cancelAnimationFrame(globalThis.__enemyDeathRecorder);
+  }
+  globalThis.__enemyDeathRecorder = requestAnimationFrame(tick);
+  return true;
+})()
+`;
+
+const readEnemyDeathEvidenceExpression = `
+(() => globalThis.__enemyDeathEvidence ?? { phases: [], frames: [] })()
 `;
 
 const readStrictCombatStateExpression = `
@@ -3286,6 +3322,7 @@ describe("real browser keyboard control", () => {
       await runAppInRealBrowser(server.url, async (page) => {
         await page.setViewport(1440, 900);
         await enterDungeonWithKeyboard(page);
+        await page.evaluate<boolean>(installEnemyDeathRecorderExpression);
         await page.waitFor<BrowserRoomFlowState>(
           readRoomFlowStateExpression,
           (state) => state.objective === "active" && state.roomIndex === "0" && state.liveEnemyCount === "2",
@@ -3316,7 +3353,8 @@ describe("real browser keyboard control", () => {
             state.liveEnemyCount === "0" &&
             state.gateState === "open" &&
             state.floorLootCount === 1 &&
-            state.floorLootGearId !== "",
+            state.floorLootGearId !== "" &&
+            state.enemies.length === 0,
           5000
         );
 
@@ -3326,6 +3364,11 @@ describe("real browser keyboard control", () => {
         expect(cleared.combatLootEventCount).toBe(0);
         expect(["rare", "epic", "mythic"]).toContain(cleared.floorLootRarity);
         expect(cleared.savedGearIds).not.toContain(cleared.floorLootGearId);
+        const deathEvidence = await page.evaluate<BrowserEnemyDeathEvidence>(readEnemyDeathEvidenceExpression);
+        expect(deathEvidence.phases).toEqual(
+          expect.arrayContaining(["death-impact", "death-collapse", "death-dissolve"])
+        );
+        expect(deathEvidence.frames).toEqual(expect.arrayContaining([12, 14, 15]));
         await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/cinder-floor-loot.png`);
 
         let approaching = cleared;

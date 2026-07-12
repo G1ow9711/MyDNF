@@ -950,6 +950,46 @@ describe("playable app integration actions", () => {
     expect(renderAppHtml(model)).not.toContain('data-floor-loot="true"');
   });
 
+  it("renders lethal impact, collapse, dissolve, then removes only the defeated monster actor", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+    const defeatedId = model.combatRun.enemies[0].id;
+    const stagedRun = {
+      ...model.combatRun,
+      enemies: model.combatRun.enemies.map((enemy, index) =>
+        index === 0 ? { ...enemy, hp: 0, defeatedAtMs: 100 } : enemy
+      )
+    };
+    const renderAt = (elapsedMs: number) => renderAppHtml({ ...model, combatRun: { ...stagedRun, elapsedMs } });
+
+    expect(renderAt(100)).toContain(`data-enemy-id="${defeatedId}"`);
+    expect(renderAt(100)).toContain('data-enemy-death-phase="death-impact"');
+    expect(renderAt(300)).toContain('data-enemy-death-phase="death-collapse"');
+    expect(renderAt(700)).toContain('data-enemy-death-phase="death-dissolve"');
+    expect(renderAt(1101)).not.toContain(`data-enemy-id="${defeatedId}"`);
+    expect(renderAt(1101)).toContain('data-defeated-enemy-count="1"');
+
+    let clearedModel = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs: 100,
+        enemies: model.combatRun.enemies.map((enemy) => ({ ...enemy, hp: 0, defeatedAtMs: 100 }))
+      }
+    };
+    for (let tick = 0; tick < 24; tick += 1) {
+      clearedModel = reduceAppAction(clearedModel, { type: "combatTick" });
+    }
+
+    expect(clearedModel.combatRun?.elapsedMs).toBe(1108);
+    expect(renderAppHtml(clearedModel)).not.toContain('class="combat-actor combat-enemy');
+    expect(renderAppHtml(clearedModel)).toContain('data-defeated-enemy-count="2"');
+  });
+
   it("maps PC movement keys to combat movement actions", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

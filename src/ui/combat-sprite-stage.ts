@@ -7,6 +7,7 @@ type FrameActor = {
   progress: number;
   facing: 1 | -1;
   defeated: boolean;
+  defeatedAtMs?: number;
   skillId?: string;
   skillPhase?: string;
   skillStage?: string;
@@ -144,6 +145,7 @@ export class CombatSpriteStage {
         progress: progress(enemy.dataset.enemyAttackProgress),
         facing: x >= playerX ? -1 : 1,
         defeated: enemy.dataset.enemyState === "defeated",
+        defeatedAtMs: enemy.dataset.enemyDefeatedAtMs ? Number(enemy.dataset.enemyDefeatedAtMs) : undefined,
         skillId: enemy.dataset.enemyAttackSkillId || enemy.dataset.bossPhaseSkillId,
         skillStage: enemy.dataset.enemyAttackStage,
         atlas: sprite.dataset.frameAtlas ?? "ash-cinder-imp",
@@ -209,11 +211,19 @@ export class CombatSpriteStage {
         frame = 14 + Math.min(1, Math.floor(p * 2));
       }
       state = "skill-dance";
+    } else if (actor.defeated || actor.motion === "defeated") {
+      const deathAgeMs = actor.defeatedAtMs === undefined ? Number.POSITIVE_INFINITY : Math.max(0, elapsedMs - actor.defeatedAtMs);
+      const lethalReactionFrame = actor.reactionStep ? 11 + Math.min(3, actor.reactionStep) : undefined;
+      frame = deathAgeMs < 180 ? lethalReactionFrame ?? 12 : deathAgeMs < 520 ? 14 : 15;
+      if (deathAgeMs < 180 && actor.reactionStep) {
+        actor.sprite.dataset.spriteReactionStep = String(actor.reactionStep);
+      }
+      state = deathAgeMs < 180 ? "death-impact" : deathAgeMs < 520 ? "death-collapse" : "death-dissolve";
     } else if (swordDanceEnemyReaction !== undefined) {
       frame = swordDanceEnemyReaction;
       actor.sprite.dataset.spriteSkillReaction = actor.hitPhase ?? "";
       state = actor.hitPhase === "chain-finish" ? "knockdown" : "hit";
-    } else if (actor.defeated || actor.motion === "defeated" || actor.motion === "knockdown") {
+    } else if (actor.motion === "knockdown") {
       frame = actor.reactionStep === 3 ? 14 : 14 + Math.min(1, Math.floor((elapsedMs % 360) / 180));
       if (actor.reactionStep) actor.sprite.dataset.spriteReactionStep = String(actor.reactionStep);
       state = "knockdown";

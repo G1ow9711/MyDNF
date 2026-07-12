@@ -211,6 +211,7 @@ export interface CombatEnemy {
   ashSummonCount?: number;
   hp: number;
   maxHp: number;
+  defeatedAtMs?: number;
   armor: number;
   body: CombatBodySize;
   hurtbox: CombatHurtboxSize;
@@ -5239,6 +5240,8 @@ function applyEnemyImpact(
       const reflectedEnemy: CombatEnemy = {
         ...nextEnemy,
         hp: Math.max(0, nextEnemy.hp - hpDamage),
+        defeatedAtMs:
+          nextEnemy.defeatedAtMs ?? (nextEnemy.hp > 0 && hpDamage >= nextEnemy.hp ? hitTime : undefined),
         armor: Math.max(0, nextEnemy.armor - armorDamage)
       };
       const reflectEvent: CombatHitEvent = {
@@ -5439,6 +5442,7 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
     return {
       ...enemy,
       hp: Math.max(0, enemy.hp - hpDamage),
+      defeatedAtMs: enemy.defeatedAtMs ?? (enemy.hp > 0 && hpDamage >= enemy.hp ? impactAtMs : undefined),
       armor: Math.max(0, enemy.armor - armorDamage),
       marks: nextMarks,
       controlledUntilMs: reaction.controlledUntilMs,
@@ -5846,6 +5850,8 @@ function applyScheduledEnemyHitEffect(
     return {
       ...enemy,
       hp: Math.max(0, enemy.hp - hpDamage),
+      defeatedAtMs:
+        enemy.defeatedAtMs ?? (enemy.hp > 0 && hpDamage >= enemy.hp ? effect.applyAtMs : undefined),
       armor: Math.max(0, enemy.armor - armorDamage),
       marks: nextMarks,
       controlledUntilMs: reaction.controlledUntilMs,
@@ -7377,6 +7383,7 @@ function roomIsCleared(run: CombatRun): boolean {
 export const floorLootPickupDelayMs = 220;
 export const floorLootPickupRangeX = 46;
 export const floorLootPickupRangeY = 42;
+export const enemyDeathVisibleMs = 1000;
 
 function roomLootAlreadyClaimed(run: CombatRun): boolean {
   return run.lootEvents.some((loot) => loot.dungeonId === run.dungeonId && loot.roomIndex === run.roomIndex);

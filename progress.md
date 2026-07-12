@@ -4403,3 +4403,13 @@
 - Real 1440x900 keyboard acceptance cleared room 0, captured the blue rare beam and `稀有赤矿拳刃` label in the world, approached it with held direction input, observed same-room loot count transition 0->1, and read +120 gold plus the exact gear id from local save before entering room 1.
 - Four impacted long browser routes passed: multi-room boss entry, full boss clear, combat reward reload, and targeted Warrior epic persistence. Normal X-X-X, seven-hit sword dance, and settings persistence compatibility also passed.
 - Final verification passed: 681/681 non-keyboard and computed-style tests, eight real-keyboard routes across focused/impact/compatibility runs, production build, inspected desktop screenshot, HTTP 200, and Git whitespace validation. Chinese commit and push follow this record update.
+
+## Task 203 Enemy Death Choreography
+- Audited all lethal damage paths, current corpse rendering, sprite-frame priority, floor-loot screenshot, and clear-room browser route. No subagent was started.
+- Locked a 1000 ms impact/collapse/dissolve/remove sequence driven by first lethal time. RED coverage follows.
+- RED failed on both intended boundaries: no lethal timestamp and no rendered death phases/removal.
+- Added first-write lethal timestamps to direct, scheduled, and reflected damage; added deterministic impact, collapse, dissolve, and actor-removal rendering.
+- Added synchronized collapse, ash lift, shadow, model fade, nameplate fade, and sprite frames 12/14/15. Cleared rooms now advance only pending death presentation time.
+- Real 1440x900 keyboard acceptance recorded all death phases and frames, removed both monster actors, retained the blue rare floor drop, picked it up, and entered room 1.
+- Compatibility passed for X-X-X lethal launcher, seven-stage flowing-light sword dance, and Boss clear/return. The first combined run exposed and then fixed lethal reaction-frame priority without changing damage timing.
+- Final verification passed: 683/683 non-keyboard and computed-style tests, four real-keyboard routes, production build, inspected desktop screenshot, and Git whitespace validation. Chinese commit and push follow this record update.

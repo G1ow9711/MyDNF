@@ -6,6 +6,7 @@ import {
   combatSkillResourceCost,
   createCombatRun,
   enterRoomGate,
+  enemyDeathVisibleMs,
   enemySuperArmorActive,
   finishRoom,
   floorLootPickupDelayMs,
@@ -1939,8 +1940,24 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   const normalComboMotionClass = normalComboStep > 0 ? ` actor-model-light-${normalComboStep}` : "";
   const recentEnemyModelAttackEvents = recentEnemyAttackEvents(run);
   const enemyActors = run.enemies
+    .filter(
+      (enemy) =>
+        enemy.hp > 0 ||
+        enemy.defeatedAtMs === undefined ||
+        run.elapsedMs - enemy.defeatedAtMs < enemyDeathVisibleMs
+    )
     .map((enemy) => {
       const enemyState = enemy.hp > 0 ? "alive" : "defeated";
+      const deathAgeMs = enemy.defeatedAtMs === undefined ? 0 : Math.max(0, run.elapsedMs - enemy.defeatedAtMs);
+      const deathProgress = Math.min(1, deathAgeMs / enemyDeathVisibleMs);
+      const deathPhase =
+        enemy.hp > 0
+          ? "alive"
+          : deathAgeMs < 180
+            ? "death-impact"
+            : deathAgeMs < 520
+              ? "death-collapse"
+              : "death-dissolve";
       const hpPercent = enemyHpPercent(enemy);
       const hpPercentRounded = Math.round(hpPercent);
       const bossPhase = enemy.kind === "boss" ? enemy.bossPhase ?? 1 : "";
@@ -1974,7 +1991,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const enemyModelVfxCue = enemyModelAttackEvent?.vfxCue ?? "";
 
       return `
-        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-kind="${enemy.kind}" data-enemy-state="${enemyState}" data-enemy-motion="${motion}" data-enemy-hitstun-active="${hitstunActive ? "true" : "false"}" data-enemy-super-armor="${superArmorActive ? "true" : "false"}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-boss-phase-skill-id="${bossPhaseSkillId}" data-enemy-model-vfx-cue="${enemyModelVfxCue}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-enemy-attack-stage="${attackVisual.stage}" data-enemy-attack-duration-ms="${attackVisual.durationMs || ""}" data-enemy-attack-progress="${attackVisual.progress}" data-hit-recent="${hitRecent ? "true" : "false"}" data-hit-action="${recentTargetHit?.action ?? ""}" data-hit-phase="${recentTargetHit?.hitPhase ?? ""}" data-hit-air-action="${hitAirAction}" data-enemy-hit-air-action="${hitAirAction}" data-hit-dash-action="${hitDashAction}" data-enemy-hit-dash-action="${hitDashAction}" data-enemy-hit-ground-light-step="${hitGroundLightStep}" data-hit-vfx-cue="${recentTargetHit?.vfxCue ?? ""}" data-enemy-hit-slide-active="${hitSlide.active ? "true" : "false"}" data-enemy-hit-slide-progress="${hitSlide.progress.toFixed(2)}" data-enemy-hit-slide-start-x="${hitSlide.start ? Math.round(hitSlide.start.x) : ""}" data-enemy-hit-slide-start-y="${hitSlide.start ? Math.round(hitSlide.start.y) : ""}" data-enemy-hit-slide-end-x="${hitSlide.end ? Math.round(hitSlide.end.x) : ""}" data-enemy-hit-slide-end-y="${hitSlide.end ? Math.round(hitSlide.end.y) : ""}" data-enemy-hit-slide-duration-ms="${enemyHitSlideDurationMs}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-enemy-x="${Math.round(enemy.position.x)}" data-enemy-y="${Math.round(enemy.position.y)}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-current="${enemy.hp}" data-enemy-hp-max="${enemy.maxHp}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy, hitSlide.position)}">
+        <div class="combat-actor combat-enemy combat-enemy-${enemy.kind}" data-enemy-id="${enemy.id}" data-enemy-kind="${enemy.kind}" data-enemy-state="${enemyState}" data-enemy-defeated-at-ms="${enemy.defeatedAtMs ?? ""}" data-enemy-death-age-ms="${deathAgeMs}" data-enemy-death-progress="${deathProgress.toFixed(3)}" data-enemy-death-phase="${deathPhase}" data-enemy-motion="${motion}" data-enemy-hitstun-active="${hitstunActive ? "true" : "false"}" data-enemy-super-armor="${superArmorActive ? "true" : "false"}" data-enemy-attack-skill-id="${enemy.attackSkillId ?? ""}" data-boss-phase-skill-id="${bossPhaseSkillId}" data-enemy-model-vfx-cue="${enemyModelVfxCue}" data-enemy-attack-hit-index="${enemy.attackResolvedHits ?? ""}" data-enemy-attack-stage="${attackVisual.stage}" data-enemy-attack-duration-ms="${attackVisual.durationMs || ""}" data-enemy-attack-progress="${attackVisual.progress}" data-hit-recent="${hitRecent ? "true" : "false"}" data-hit-action="${recentTargetHit?.action ?? ""}" data-hit-phase="${recentTargetHit?.hitPhase ?? ""}" data-hit-air-action="${hitAirAction}" data-enemy-hit-air-action="${hitAirAction}" data-hit-dash-action="${hitDashAction}" data-enemy-hit-dash-action="${hitDashAction}" data-enemy-hit-ground-light-step="${hitGroundLightStep}" data-hit-vfx-cue="${recentTargetHit?.vfxCue ?? ""}" data-enemy-hit-slide-active="${hitSlide.active ? "true" : "false"}" data-enemy-hit-slide-progress="${hitSlide.progress.toFixed(2)}" data-enemy-hit-slide-start-x="${hitSlide.start ? Math.round(hitSlide.start.x) : ""}" data-enemy-hit-slide-start-y="${hitSlide.start ? Math.round(hitSlide.start.y) : ""}" data-enemy-hit-slide-end-x="${hitSlide.end ? Math.round(hitSlide.end.x) : ""}" data-enemy-hit-slide-end-y="${hitSlide.end ? Math.round(hitSlide.end.y) : ""}" data-enemy-hit-slide-duration-ms="${enemyHitSlideDurationMs}" data-ink-marks="${enemy.marks}" data-control-state="${controlState}" data-airborne-state="${airborneState}" data-enemy-airborne="${enemy.airborne ? "true" : "false"}" data-enemy-knockdown="${enemy.downed ? "true" : "false"}" data-armor-state="${armorState}" data-enemy-spawn-source="${spawnSource ?? ""}" data-enemy-spawn-state="${spawnSource ? "summoned" : "native"}" data-enemy-body-width="${enemy.body.width}" data-enemy-body-height="${enemy.body.height}" data-enemy-hurtbox-width="${enemy.hurtbox.width}" data-enemy-hurtbox-height="${enemy.hurtbox.height}" data-enemy-x="${Math.round(enemy.position.x)}" data-enemy-y="${Math.round(enemy.position.y)}" data-boss-phase="${bossPhase}" data-boss-enraged="${bossEnraged ? "true" : "false"}" data-enemy-hp-current="${enemy.hp}" data-enemy-hp-max="${enemy.maxHp}" data-enemy-hp-percent="${hpPercentRounded}" style="${enemyActorStyle(run, enemy, hitSlide.position)} --enemy-death-age: ${deathAgeMs}ms; --enemy-death-progress: ${deathProgress.toFixed(3)};">
           <div class="enemy-nameplate">${enemy.displayName}</div>
           <div class="enemy-model-frame">
             <img class="enemy-art actor-model actor-model-${motion}${enemySkillMotionClass ? ` ${enemySkillMotionClass}` : ""}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy, attackVisual, enemyMotionSkillId)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
@@ -3009,6 +3026,14 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       }
 
       const roomCleared = model.combatRun.enemies.length === 0 || model.combatRun.enemies.every((enemy) => enemy.hp <= 0);
+      const deathVisualPending =
+        roomCleared &&
+        model.combatRun.enemies.some(
+          (enemy) =>
+            enemy.hp <= 0 &&
+            enemy.defeatedAtMs !== undefined &&
+            model.combatRun!.elapsedMs - enemy.defeatedAtMs < enemyDeathVisibleMs
+        );
       const tickInput = {
         moveX: action.moveX ?? 0,
         moveY: action.moveY ?? 0,
@@ -3016,7 +3041,11 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       };
       const hasTickMovement = tickInput.moveX !== 0 || tickInput.moveY !== 0;
 
-      if ((roomCleared && !model.combatRun.roomTransition && !hasTickMovement) || model.combatRun.failed || model.combatRun.player.defeated) {
+      if (
+        (roomCleared && !deathVisualPending && !model.combatRun.roomTransition && !hasTickMovement) ||
+        model.combatRun.failed ||
+        model.combatRun.player.defeated
+      ) {
         return model;
       }
 

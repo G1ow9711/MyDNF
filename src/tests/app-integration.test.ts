@@ -682,6 +682,21 @@ describe("playable app integration actions", () => {
     expect(refused.message).toContain("击败所有怪物");
   });
 
+  it("mounts all five normal-room enemies as unique world actors", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    const html = renderAppHtml(model);
+    const mountedIds = [...html.matchAll(/data-enemy-id="([^"]+)"/g)].map((match) => match[1]);
+
+    expect(html).toContain('data-live-enemy-count="5"');
+    expect(countOccurrences(html, 'class="combat-actor combat-enemy')).toBe(5);
+    expect(new Set(mountedIds).size).toBe(5);
+    expect(html).toContain("--actor-depth: 305");
+    expect(html).toContain("--actor-depth: 345");
+    expect(html).toContain("--actor-depth: 395");
+  });
+
   it("opens a visible room gate and enters the next room by walking into it", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
     const goldBefore = model.state.player.currencies.gold;
@@ -695,7 +710,7 @@ describe("playable app integration actions", () => {
     expect(clearedHtml).toContain('data-room-index="0"');
     expect(clearedHtml).toContain('data-room-count="3"');
     expect(clearedHtml).toContain('data-live-enemy-count="0"');
-    expect(clearedHtml).toContain('data-defeated-enemy-count="2"');
+    expect(clearedHtml).toContain('data-defeated-enemy-count="5"');
     expect(clearedHtml).toContain('data-room-gate-state="open"');
     expect(clearedHtml).toContain('data-room-gate-vfx="open-rift"');
     expect(clearedHtml).toContain('data-room-gate-transition="ready"');
@@ -733,7 +748,7 @@ describe("playable app integration actions", () => {
 
     expect(nextRoomHtml).toContain('data-room-gate-state="locked"');
     expect(nextRoomHtml).toContain('data-room-index="1"');
-    expect(nextRoomHtml).toContain('data-live-enemy-count="3"');
+    expect(nextRoomHtml).toContain('data-live-enemy-count="4"');
     expect(nextRoomHtml).toContain('data-defeated-enemy-count="0"');
     expect(nextRoomHtml).toContain('data-gate-enter-ready="false"');
     expect(nextRoomHtml).not.toContain('data-room-gate-vfx="open-rift"');
@@ -987,7 +1002,7 @@ describe("playable app integration actions", () => {
 
     expect(clearedModel.combatRun?.elapsedMs).toBe(1108);
     expect(renderAppHtml(clearedModel)).not.toContain('class="combat-actor combat-enemy');
-    expect(renderAppHtml(clearedModel)).toContain('data-defeated-enemy-count="2"');
+    expect(renderAppHtml(clearedModel)).toContain('data-defeated-enemy-count="5"');
   });
 
   it("maps PC movement keys to combat movement actions", () => {
@@ -1810,12 +1825,12 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('data-impact-origin-y="340"');
     expect(hitHtml).toContain('data-damage-origin-x="405"');
     expect(hitHtml).toContain('data-damage-origin-y="340"');
-    expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%;"');
+    expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%; --actor-depth: 340;"');
     expect(hitHtml).toContain('data-enemy-hit-slide-active="true"');
     expect(hitHtml).toContain('data-enemy-hit-slide-start-x="405"');
     expect(hitHtml).toContain('data-enemy-hit-slide-end-x="427"');
     expect(hitHtml).toContain('data-enemy-hit-slide-progress="0.00"');
-    expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%; --enemy-body-width:');
+    expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%; --actor-depth: 340; --enemy-body-width:');
     expect(hitHtml).toContain('data-hit-action="light"');
     expect(hitHtml).toContain('data-hit-phase="ground-light-1"');
     expect(hitHtml).toContain('data-hit-vfx-cue="ground-light-slash-1"');
@@ -1837,10 +1852,10 @@ describe("playable app integration actions", () => {
 
     expect(slidingRun?.enemies[0].position.x).toBe(427);
     expect(slidingHtml).toContain('data-enemy-hit-slide-progress="0.50"');
-    expect(slidingHtml).toContain('style="--actor-x: 43.33%; --actor-y: 65.29%; --enemy-body-width:');
+    expect(slidingHtml).toContain('style="--actor-x: 43.33%; --actor-y: 65.29%; --actor-depth: 340; --enemy-body-width:');
     expect(settledHtml).toMatch(/<section class="combat-scene"[^>]*data-hitstop-active="false"/);
     expect(settledHtml).toContain('data-enemy-hit-slide-active="false"');
-    expect(settledHtml).toContain('style="--actor-x: 44.48%; --actor-y: 65.29%; --enemy-body-width:');
+    expect(settledHtml).toContain('style="--actor-x: 44.48%; --actor-y: 65.29%; --actor-depth: 340; --enemy-body-width:');
   });
 
   it("renders combo HUD plus enemy airborne and knockdown model states", () => {
@@ -3828,7 +3843,7 @@ describe("playable app integration actions", () => {
     expect(model.combatRun.player.x).toBe(player.x);
     expect(beforeRoarRun.player.x).toBeGreaterThan(player.x);
     expect(skillHitEvents(model.combatRun, "furnace-taunt")).toHaveLength(0);
-    expect(skillHitEvents(roarRun, "furnace-taunt")).toHaveLength(2);
+    expect(skillHitEvents(roarRun, "furnace-taunt")).toHaveLength(3);
     expect(castHtml).toContain('data-active-skill-id="furnace-taunt"');
     expect(castHtml).toContain('data-skill-animation-preset="iron-taunt"');
     expect(castHtml).toContain('data-skill-weapon-arc="taunt-ring"');
@@ -3840,7 +3855,7 @@ describe("playable app integration actions", () => {
     expect(roarHtml).toContain('data-impact-vfx-shape="furnace-roar"');
     expect(roarHtml).toContain('data-control-state="controlled"');
     expect(roarHtml).toContain('class="skill-impact-burst skill-impact-shape-furnace-roar"');
-    expect(countOccurrences(roarHtml, 'data-skill-impact-vfx="furnace-taunt"')).toBe(2);
+    expect(countOccurrences(roarHtml, 'data-skill-impact-vfx="furnace-taunt"')).toBe(3);
   });
 
   it("renders shield-quake as a delayed area slam with quake impact bursts", () => {
@@ -3900,7 +3915,7 @@ describe("playable app integration actions", () => {
     expect(model.combatRun.player.x).toBe(player.x);
     expect(beforeQuakeRun.player.x).toBeGreaterThan(player.x);
     expect(skillHitEvents(model.combatRun, "shield-quake")).toHaveLength(0);
-    expect(skillHitEvents(hitRun, "shield-quake")).toHaveLength(2);
+    expect(skillHitEvents(hitRun, "shield-quake")).toHaveLength(3);
     expect(castHtml).toContain('data-active-skill-id="shield-quake"');
     expect(castHtml).toContain('data-skill-animation-preset="iron-quake"');
     expect(castHtml).toContain('data-skill-weapon-arc="shield-slam"');
@@ -3911,7 +3926,7 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('data-vfx-cue="shield-quake-impact"');
     expect(hitHtml).toContain('data-impact-vfx-shape="shield-quake"');
     expect(hitHtml).toContain('class="skill-impact-burst skill-impact-shape-shield-quake"');
-    expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="shield-quake"')).toBe(2);
+    expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="shield-quake"')).toBe(3);
   });
 
   it("renders cinder-uppercut as a timed forward launcher with flame-column impact", () => {
@@ -4329,8 +4344,8 @@ describe("playable app integration actions", () => {
     });
 
     expect(skillHitEvents(model.combatRun, "glass-lotus")).toHaveLength(0);
-    expect(skillHitEvents(bindRun, "glass-lotus").filter((event) => event.hitPhase === "lotus-bind")).toHaveLength(2);
-    expect(skillHitEvents(bloomRun, "glass-lotus").filter((event) => event.hitPhase === "lotus-bloom")).toHaveLength(2);
+    expect(skillHitEvents(bindRun, "glass-lotus").filter((event) => event.hitPhase === "lotus-bind")).toHaveLength(3);
+    expect(skillHitEvents(bloomRun, "glass-lotus").filter((event) => event.hitPhase === "lotus-bloom")).toHaveLength(3);
     expect(castHtml).toContain('data-active-skill-id="glass-lotus"');
     expect(castHtml).toContain('data-skill-animation-preset="liuli-lotus"');
     expect(castHtml).toContain('data-skill-weapon-arc="lotus-bloom"');
@@ -4341,10 +4356,10 @@ describe("playable app integration actions", () => {
     expect(bindHtml).toContain('data-vfx-cue="glass-lotus-bind"');
     expect(bindHtml).toContain('data-impact-vfx-shape="glass-lotus"');
     expect(bindHtml).toContain('class="skill-impact-burst skill-impact-shape-glass-lotus"');
-    expect(countSkillImpactBursts(bindHtml, "glass-lotus-bind")).toBe(2);
+    expect(countSkillImpactBursts(bindHtml, "glass-lotus-bind")).toBe(3);
     expect(bloomHtml).toContain('data-hit-phase="lotus-bloom"');
     expect(bloomHtml).toContain('data-vfx-cue="glass-lotus-bloom"');
-    expect(countSkillImpactBursts(bloomHtml, "glass-lotus-bloom")).toBe(2);
+    expect(countSkillImpactBursts(bloomHtml, "glass-lotus-bloom")).toBe(3);
   });
 
   it("renders mirrorflame-burst as delayed lock and burst VFX instead of cast-frame damage", () => {
@@ -4581,12 +4596,12 @@ describe("playable app integration actions", () => {
     expect(beforeDrawHtml).not.toContain('data-skill-impact-vfx="heat-bloom"');
     expect(drawHtml).toContain('data-hit-phase="heat-draw"');
     expect(drawHtml).toContain('data-vfx-cue="heat-bloom-draw"');
-    expect(countOccurrences(drawHtml, 'data-skill-impact-vfx="heat-bloom"')).toBe(2);
+    expect(countOccurrences(drawHtml, 'data-skill-impact-vfx="heat-bloom"')).toBe(3);
     expect(eruptionHtml).toContain('data-hit-phase="heat-eruption"');
     expect(eruptionHtml).toContain('data-vfx-cue="heat-bloom-eruption"');
     expect(eruptionHtml).toContain('class="skill-impact-burst skill-impact-shape-heat-bloom"');
-    expect(countOccurrences(eruptionHtml, 'data-skill-impact-vfx="heat-bloom"')).toBe(4);
-    expect(skillHitEvents(eruptionRun, "heat-bloom")).toHaveLength(4);
+    expect(countOccurrences(eruptionHtml, 'data-skill-impact-vfx="heat-bloom"')).toBe(6);
+    expect(skillHitEvents(eruptionRun, "heat-bloom")).toHaveLength(6);
     expect(driftedHeatBloomStyle).toContain("--actor-x: 36.67%");
     expect(driftedHeatBloomStyle).not.toContain("--actor-x: 24.17%");
   });
@@ -4663,15 +4678,15 @@ describe("playable app integration actions", () => {
     expect(beforePulseHtml).not.toContain('data-skill-impact-vfx="furnace-heart-overdrive"');
     expect(pulseHtml).toContain('data-hit-phase="overdrive-pulse"');
     expect(pulseHtml).toContain('data-vfx-cue="overdrive-core-pulse"');
-    expect(countOccurrences(pulseHtml, 'data-skill-impact-vfx="furnace-heart-overdrive"')).toBe(2);
+    expect(countOccurrences(pulseHtml, 'data-skill-impact-vfx="furnace-heart-overdrive"')).toBe(3);
     expect(releaseHtml).toContain('data-hitstop-active="true"');
     expect(releaseHtml).toContain('data-screen-shake="skill"');
     expect(releaseHtml).toContain('data-hit-phase="overdrive-release"');
     expect(releaseHtml).toContain('data-vfx-cue="overdrive-core-release"');
     expect(releaseHtml).toContain('data-impact-vfx-shape="overdrive-core"');
     expect(releaseHtml).toContain('class="skill-impact-burst skill-impact-shape-overdrive-core"');
-    expect(countOccurrences(releaseHtml, 'data-skill-impact-vfx="furnace-heart-overdrive"')).toBe(4);
-    expect(skillHitEvents(releaseRun, "furnace-heart-overdrive")).toHaveLength(4);
+    expect(countOccurrences(releaseHtml, 'data-skill-impact-vfx="furnace-heart-overdrive"')).toBe(6);
+    expect(skillHitEvents(releaseRun, "furnace-heart-overdrive")).toHaveLength(6);
   });
 
   it("removes furnace-heart-overdrive cast VFX after enemy interruption", () => {
@@ -5055,8 +5070,8 @@ describe("playable app integration actions", () => {
     });
 
     expect(skillHitEvents(model.combatRun, "black-rain-volley")).toHaveLength(0);
-    expect(volleyHits).toHaveLength(6);
-    expect(targetIds).toHaveLength(2);
+    expect(volleyHits).toHaveLength(9);
+    expect(targetIds).toHaveLength(3);
     expect(castHtml).toContain('data-active-skill-id="black-rain-volley"');
     expect(castHtml).toContain('data-skill-animation-preset="ink-volley"');
     expect(castHtml).toContain('data-skill-weapon-arc="rain-volley"');
@@ -5065,18 +5080,19 @@ describe("playable app integration actions", () => {
     expect(beforeWaveHtml).not.toContain('data-skill-impact-vfx="black-rain-volley"');
     expect(firstWaveHtml).toContain('data-hit-phase="black-rain-open"');
     expect(firstWaveHtml).toContain('data-vfx-cue="black-rain-open"');
-    expect(countOccurrences(firstWaveHtml, 'data-skill-impact-vfx="black-rain-volley"')).toBe(2);
-    expect(countOccurrences(finalWaveHtml, 'data-skill-impact-vfx="black-rain-volley"')).toBe(6);
+    expect(countOccurrences(firstWaveHtml, 'data-skill-impact-vfx="black-rain-volley"')).toBe(3);
+    expect(countOccurrences(finalWaveHtml, 'data-skill-impact-vfx="black-rain-volley"')).toBe(9);
     expect(finalWaveHtml).toContain('data-impact-vfx-shape="black-rain"');
     expect(finalWaveHtml).toContain('data-vfx-cue="black-rain-fall"');
     expect(finalWaveHtml).toContain('data-hit-phase="black-rain-burst"');
     expect(finalWaveHtml).toContain('data-vfx-cue="black-rain-burst"');
-    expect(countSkillImpactBursts(finalWaveHtml, "black-rain-open")).toBe(2);
-    expect(countSkillImpactBursts(finalWaveHtml, "black-rain-fall")).toBe(2);
-    expect(countSkillImpactBursts(finalWaveHtml, "black-rain-burst")).toBe(2);
+    expect(countSkillImpactBursts(finalWaveHtml, "black-rain-open")).toBe(3);
+    expect(countSkillImpactBursts(finalWaveHtml, "black-rain-fall")).toBe(3);
+    expect(countSkillImpactBursts(finalWaveHtml, "black-rain-burst")).toBe(3);
     expect(finalWaveHtml).toContain('class="skill-impact-burst skill-impact-shape-black-rain"');
     expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[0]}"`);
     expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[1]}"`);
+    expect(finalWaveHtml).toContain(`data-impact-target-id="${targetIds[2]}"`);
   });
 
   it("renders ink-snare as delayed bind and snap target VFX", () => {
@@ -5108,7 +5124,14 @@ describe("playable app integration actions", () => {
     });
 
     expect(skillHitEvents(model.combatRun, "ink-snare")).toHaveLength(0);
-    expect(hits.map((event) => event.hitPhase)).toEqual(["trap-bind", "trap-bind", "trap-snap", "trap-snap"]);
+    expect(hits.map((event) => event.hitPhase)).toEqual([
+      "trap-bind",
+      "trap-bind",
+      "trap-bind",
+      "trap-snap",
+      "trap-snap",
+      "trap-snap"
+    ]);
     expect(castHtml).toContain('data-active-skill-id="ink-snare"');
     expect(castHtml).toContain('data-skill-animation-preset="ink-snare"');
     expect(castHtml).toContain('data-skill-weapon-arc="trap-cast"');
@@ -5116,7 +5139,7 @@ describe("playable app integration actions", () => {
     expect(castHtml).toContain('data-player-skill-vfx="ink-snare"');
     expect(castVfxStyle).toContain("--actor-x: 38.75%");
     expect(beforeBindHtml).not.toContain('data-skill-impact-vfx="ink-snare"');
-    expect(countOccurrences(html, 'data-skill-impact-vfx="ink-snare"')).toBe(4);
+    expect(countOccurrences(html, 'data-skill-impact-vfx="ink-snare"')).toBe(6);
     expect(html).toContain('data-impact-vfx-shape="ink-snare"');
     expect(html).toContain('data-hit-phase="trap-snap"');
     expect(html).toContain('data-vfx-cue="ink-snare-snap"');
@@ -5184,7 +5207,7 @@ describe("playable app integration actions", () => {
     });
 
     expect(immediateDetonationHits).toHaveLength(0);
-    expect(detonationHits).toHaveLength(4);
+    expect(detonationHits).toHaveLength(6);
     expect(castHtml).toContain('data-advancement-id="night-contract-hunter"');
     expect(castHtml).toContain('data-active-skill-id="night-mark-detonation"');
     expect(castHtml).toContain('data-skill-animation-preset="ink-detonation"');
@@ -5199,7 +5222,7 @@ describe("playable app integration actions", () => {
     expect(beforeLockHtml).not.toContain('data-skill-impact-vfx="night-mark-detonation"');
     expect(lockHtml).toContain('data-hit-phase="mark-lock"');
     expect(lockHtml).toContain('data-vfx-cue="night-mark-lock"');
-    expect(countOccurrences(lockHtml, 'data-skill-impact-vfx="night-mark-detonation"')).toBe(2);
+    expect(countOccurrences(lockHtml, 'data-skill-impact-vfx="night-mark-detonation"')).toBe(3);
     expect(lockHtml).not.toContain('data-hit-phase="detonate"');
     expect(lockHtml).toContain('data-ink-marks="3"');
     expect(lockHtml).toContain('data-ink-marks="2"');
@@ -5209,10 +5232,10 @@ describe("playable app integration actions", () => {
     expect(finalBurstHtml).toContain('data-impact-skill-id="night-mark-detonation"');
     expect(finalBurstHtml).toContain('data-hit-phase="detonate"');
     expect(finalBurstHtml).toContain('data-vfx-cue="night-mark-burst"');
-    expect(countOccurrences(finalBurstHtml, 'data-skill-impact-vfx="night-mark-detonation"')).toBe(4);
-    expect(countOccurrences(finalBurstHtml, 'data-damage-number="true"')).toBe(4);
-    expect(countOccurrences(finalBurstHtml, 'data-ink-marks="0"')).toBe(2);
-    expect(countOccurrences(finalBurstHtml, 'data-enemy-knockdown="true"')).toBe(2);
+    expect(countOccurrences(finalBurstHtml, 'data-skill-impact-vfx="night-mark-detonation"')).toBe(6);
+    expect(countOccurrences(finalBurstHtml, 'data-damage-number="true"')).toBe(6);
+    expect(countOccurrences(finalBurstHtml, 'data-ink-marks="0"')).toBe(3);
+    expect(countOccurrences(finalBurstHtml, 'data-enemy-knockdown="true"')).toBe(3);
   });
 
   it("marks with marking-bolt before detonating from the Space advancement hotkey", () => {
@@ -5391,7 +5414,7 @@ describe("playable app integration actions", () => {
     });
 
     expect(immediateNetHits).toHaveLength(0);
-    expect(netHits).toHaveLength(4);
+    expect(netHits).toHaveLength(6);
     expect(castHtml).toContain('data-advancement-id="mechanism-shadow-weaver"');
     expect(castHtml).toContain('data-active-skill-id="mechanism-shadow-net"');
     expect(castHtml).toContain('data-skill-animation-preset="ink-shadow-net"');
@@ -5407,15 +5430,15 @@ describe("playable app integration actions", () => {
     expect(bindHtml).toContain('data-hit-phase="trap-bind"');
     expect(bindHtml).toContain('data-vfx-cue="mechanism-net-bind"');
     expect(bindHtml).toContain('data-enemy-motion="controlled"');
-    expect(countOccurrences(bindHtml, 'data-skill-impact-vfx="mechanism-shadow-net"')).toBe(2);
+    expect(countOccurrences(bindHtml, 'data-skill-impact-vfx="mechanism-shadow-net"')).toBe(3);
     expect(bindHtml).not.toContain('data-hit-phase="trap-snap"');
     expect(snapHtml).toContain('data-hitstop-active="true"');
     expect(snapHtml).toContain('data-screen-shake="skill"');
     expect(snapHtml).toContain('data-hit-phase="trap-snap"');
     expect(snapHtml).toContain('data-vfx-cue="mechanism-net-snap"');
     expect(snapHtml).toContain('data-impact-vfx-shape="mechanism-net"');
-    expect(countOccurrences(snapHtml, 'data-skill-impact-vfx="mechanism-shadow-net"')).toBe(4);
-    expect(countOccurrences(snapHtml, 'data-damage-number="true"')).toBe(4);
+    expect(countOccurrences(snapHtml, 'data-skill-impact-vfx="mechanism-shadow-net"')).toBe(6);
+    expect(countOccurrences(snapHtml, 'data-damage-number="true"')).toBe(6);
   });
 
   it("renders mountain-crack-hammer as a staged iron hammer impact with knockdown feedback", () => {
@@ -5642,7 +5665,7 @@ describe("playable app integration actions", () => {
     expect(beforeCrackHtml).not.toContain('data-skill-impact-vfx="earth-furnace-breaker"');
     expect(crackHtml).toContain('data-hit-phase="earth-crack"');
     expect(crackHtml).toContain('data-vfx-cue="earth-furnace-crack"');
-    expect(countOccurrences(crackHtml, 'data-skill-impact-vfx="earth-furnace-breaker"')).toBe(2);
+    expect(countOccurrences(crackHtml, 'data-skill-impact-vfx="earth-furnace-breaker"')).toBe(3);
     expect(eruptionHtml).toContain('data-screen-shake="ultimate"');
     expect(eruptionHtml).toContain('data-screen-flash="forge-quake"');
     expect(eruptionHtml).toContain('data-hit-phase="furnace-eruption"');
@@ -5650,8 +5673,8 @@ describe("playable app integration actions", () => {
     expect(eruptionHtml).toContain('data-impact-vfx-shape="forge-quake"');
     expect(eruptionHtml).toContain('class="skill-impact-burst skill-impact-shape-forge-quake"');
     expect(eruptionHtml).toContain('data-enemy-motion="knockdown"');
-    expect(countOccurrences(eruptionHtml, 'data-skill-impact-vfx="earth-furnace-breaker"')).toBe(4);
-    expect(skillHitEvents(eruptionRun, "earth-furnace-breaker")).toHaveLength(4);
+    expect(countOccurrences(eruptionHtml, 'data-skill-impact-vfx="earth-furnace-breaker"')).toBe(6);
+    expect(skillHitEvents(eruptionRun, "earth-furnace-breaker")).toHaveLength(6);
   });
 
   it("renders sword-prism-field as a staged Liuli prism-field ultimate", () => {
@@ -5786,7 +5809,7 @@ describe("playable app integration actions", () => {
     });
 
     expect(skillHitEvents(model.combatRun, "meteor-knuckle")).toHaveLength(0);
-    expect(meteorHits).toHaveLength(4);
+    expect(meteorHits).toHaveLength(6);
     expect(castHtml).toContain('data-active-skill-id="meteor-knuckle"');
     expect(castHtml).toContain('data-skill-animation-preset="ember-meteor"');
     expect(castHtml).toContain('data-skill-weapon-arc="meteor-smash"');

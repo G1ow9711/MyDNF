@@ -384,7 +384,7 @@ function withPlayerAndEnemies(
       ...run.player,
       ...playerPatch
     },
-    enemies: run.enemies.map((enemy, index) => ({
+    enemies: run.enemies.slice(0, enemyPositions.length).map((enemy, index) => ({
       ...enemy,
       hp: enemyPositions[index]?.hp ?? enemy.hp,
       maxHp: enemyPositions[index]?.maxHp ?? enemy.maxHp,
@@ -453,7 +453,7 @@ enemies: run.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
 expect(cleared.lootEvents.at(-1)?.consumables).toEqual({ "healing-potion": 1 });
 });
 
-it("creates a dungeon run and clamps belt-scroll movement from keyboard input", () => {
+  it("creates a dungeon run and clamps belt-scroll movement from keyboard input", () => {
     const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
     const input = mapKeyboardToCombatInput(new Set(["ArrowRight", "ArrowUp"]));
     const moved = stepCombat(run, input, 100);
@@ -465,6 +465,57 @@ it("creates a dungeon run and clamps belt-scroll movement from keyboard input", 
     expect(moved.player.y).toBeLessThan(run.player.y);
     expect(moved.player.x).toBeLessThanOrEqual(moved.arena.width);
     expect(moved.player.y).toBeGreaterThanOrEqual(moved.arena.minY);
+  });
+
+  it("builds five-enemy normal rooms and four-enemy elite formations across three lanes", () => {
+    const normalRoom = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const eliteRoom = finishRoom(defeatAll(normalRoom));
+
+    expect(normalRoom.enemies).toHaveLength(5);
+    expect(normalRoom.enemies.map((enemy) => enemy.kind)).toEqual(["trash", "trash", "trash", "trash", "trash"]);
+    expect(new Set(normalRoom.enemies.map((enemy) => enemy.position.x)).size).toBe(5);
+    expect(new Set(normalRoom.enemies.map((enemy) => enemy.position.y)).size).toBeGreaterThanOrEqual(3);
+    expect(eliteRoom.roomIndex).toBe(1);
+    expect(eliteRoom.enemies).toHaveLength(4);
+    expect(eliteRoom.enemies.map((enemy) => enemy.kind)).toEqual(["elite", "elite", "trash", "trash"]);
+    expect(new Set(eliteRoom.enemies.map((enemy) => `${enemy.position.x}:${enemy.position.y}`)).size).toBe(4);
+  });
+
+  it("grants only two enemy attack slots and hands released slots to waiting enemies", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const enemies = Array.from({ length: 5 }, (_, index) => ({
+      ...baseRun.enemies[index % baseRun.enemies.length],
+      id: `crowd-slot-enemy-${index}`,
+      attackProfileId: "ash-ember-spit" as const,
+      position: { x: baseRun.player.x + 110 + index * 4, y: baseRun.player.y },
+      nextAttackAtMs: 0,
+      attackStartedAtMs: undefined,
+      attackImpactAtMs: undefined,
+      attackRecoverUntilMs: undefined,
+      attackSkillId: undefined,
+      attackHitResolved: undefined,
+      attackResolvedHits: undefined,
+      attackConnectedHitIndexes: undefined
+    }));
+    const run: CombatRun = {
+      ...baseRun,
+      player: { ...baseRun.player, invulnerableUntilMs: 9999 },
+      enemies
+    };
+    const firstPair = stepCombat(run, {}, 1);
+    const firstAttackers = firstPair.enemies.filter(
+      (enemy) => enemy.attackSkillId && (enemy.attackRecoverUntilMs ?? 0) > firstPair.elapsedMs
+    );
+    const releaseAtMs = Math.max(...firstAttackers.map((enemy) => enemy.attackRecoverUntilMs ?? 0)) + 1;
+    const secondPair = stepToElapsed(firstPair, releaseAtMs);
+    const secondAttackers = secondPair.enemies.filter(
+      (enemy) => enemy.attackSkillId && (enemy.attackRecoverUntilMs ?? 0) > secondPair.elapsedMs
+    );
+
+    expect(firstAttackers).toHaveLength(2);
+    expect(firstPair.events.filter((event) => event.kind === "enemy-attack" && event.phase === "windup")).toHaveLength(2);
+    expect(secondAttackers).toHaveLength(2);
+    expect(secondAttackers.every((enemy) => !firstAttackers.some((first) => first.id === enemy.id))).toBe(true);
   });
 
   it("maps DNF-style skill-slot keys separately from arrow movement", () => {
@@ -7130,7 +7181,7 @@ describe("combat actions and impact feel", () => {
     });
   });
 
-  it("cancels pending flowing-light-chain hits when monster damage interrupts the dash", () => {
+  it("keeps flowing-light-chain hits and movement under action armor after monster damage", () => {
     const state = advanceClass(
       readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),
       "flowing-light-swordmaster"
@@ -7138,10 +7189,9 @@ describe("combat actions and impact feel", () => {
     const run = withPlayerAndEnemies(
       createCombatRun(state, "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
-      [{ x: 294, y: 340, hp: 180, maxHp: 180 }]
+      [{ x: 294, y: 340, hp: 1200, maxHp: 1200 }]
     );
     const cast = performAction(run, { type: "skill", skillId: "flowing-light-chain" });
-    const [, , finishAtMs] = scheduledSkillTimes(cast, "flowing-light-chain");
     const interrupted = stepCombat(
       {
         ...cast,
@@ -7160,7 +7210,7 @@ describe("combat actions and impact feel", () => {
       {},
       180
     );
-    const afterQueuedWindows = stepCombat(interrupted, {}, finishAtMs);
+    const afterQueuedWindows = stepCombat(interrupted, {}, 1400);
 
     expect(interrupted.events).toEqual(
       expect.arrayContaining([
@@ -7171,12 +7221,13 @@ describe("combat actions and impact feel", () => {
         })
       ])
     );
-    expect(interrupted.player.activeSkillMovement).toBeUndefined();
-    expect(skillHitEvents(afterQueuedWindows, "flowing-light-chain")).toHaveLength(0);
-    expect(afterQueuedWindows.enemies.map((enemy) => enemy.hp)).toEqual(interrupted.enemies.map((enemy) => enemy.hp));
+    expect(interrupted.player.hp).toBeLessThan(cast.player.hp);
+    expect(interrupted.player.activeSkillMovement?.skillId).toBe("flowing-light-chain");
+    expect(skillHitEvents(afterQueuedWindows, "flowing-light-chain")).toHaveLength(7);
+    expect(afterQueuedWindows.enemies[0].hp).toBeLessThan(interrupted.enemies[0].hp);
   });
 
-  it("cancels flowing-light-chain before queued slashes when an unselected enemy hits earlier in a large frame", () => {
+  it("keeps flowing-light-chain queued slashes when an unselected enemy hits during action armor", () => {
     const state = advanceClass(
       readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),
       "flowing-light-swordmaster"
@@ -7185,8 +7236,8 @@ describe("combat actions and impact feel", () => {
       createCombatRun(state, "cinder-kiln-alley"),
       { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
       [
-        { x: 294, y: 340, hp: 180, maxHp: 180 },
-        { x: 362, y: 348, hp: 180, maxHp: 180 }
+        { x: 294, y: 340, hp: 1200, maxHp: 1200 },
+        { x: 362, y: 348, hp: 1200, maxHp: 1200 }
       ]
     );
     const run = {
@@ -7204,7 +7255,6 @@ describe("combat actions and impact feel", () => {
       ]
     };
     const cast = performAction(run, { type: "skill", skillId: "flowing-light-chain" });
-    const [, , finishAtMs] = scheduledSkillTimes(cast, "flowing-light-chain");
     const firstTwoHpBefore = cast.enemies.slice(0, 2).map((enemy) => enemy.hp);
     const jumped = stepCombat(
       {
@@ -7224,7 +7274,7 @@ describe("combat actions and impact feel", () => {
         )
       },
       {},
-      finishAtMs
+      1400
     );
 
     expect(jumped.events).toEqual(
@@ -7236,10 +7286,10 @@ describe("combat actions and impact feel", () => {
         })
       ])
     );
-    expect(skillHitEvents(jumped, "flowing-light-chain")).toHaveLength(0);
-    expect(jumped.enemies.slice(0, 2).map((enemy) => enemy.hp)).toEqual(firstTwoHpBefore);
+    expect(skillHitEvents(jumped, "flowing-light-chain")).toHaveLength(14);
+    expect(jumped.enemies.slice(0, 2).every((enemy, index) => enemy.hp < firstTwoHpBefore[index])).toBe(true);
     expect(jumped.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "flowing-light-chain")).toHaveLength(0);
-    expect(jumped.player.hitstopUntilMs).toBeLessThan(finishAtMs);
+    expect(jumped.player.hitstopUntilMs).toBeLessThan(jumped.elapsedMs);
   });
 
   it("clears active prism-step movement when an enemy hit interrupts the dash", () => {
@@ -8777,11 +8827,18 @@ describe("enemy attacks and player defeat", () => {
       "taotie-ash-summon"
     ]);
 
-    expect(initialRun.enemies.map((enemy) => enemy.attackProfileId)).toEqual(["liuli-glass-spray", "liuli-splinter-rush"]);
+    expect(initialRun.enemies.map((enemy) => enemy.attackProfileId)).toEqual([
+      "liuli-glass-spray",
+      "liuli-splinter-rush",
+      "liuli-glass-spray",
+      "liuli-splinter-rush",
+      "liuli-glass-spray"
+    ]);
     expect(eliteRun.enemies.map((enemy) => enemy.attackProfileId)).toEqual([
       "liuli-crucible-wave",
       "liuli-prism-charge",
-      "liuli-glass-spray"
+      "liuli-glass-spray",
+      "liuli-splinter-rush"
     ]);
     expect(boss.attackProfileId).toBe("liuli-prism-barrage");
     expect(boss.attackPatternIds).toEqual(["liuli-prism-barrage", "liuli-kiln-gravity", "liuli-crucible-shards"]);
@@ -8791,21 +8848,25 @@ describe("enemy attacks and player defeat", () => {
   it("creates mixed trash attack profiles in normal rooms", () => {
     const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
 
-    expect(run.enemies.map((enemy) => enemy.kind)).toEqual(["trash", "trash"]);
+    expect(run.enemies.map((enemy) => enemy.kind)).toEqual(["trash", "trash", "trash", "trash", "trash"]);
     expect(run.enemies.map((enemy) => (enemy as { attackProfileId?: string }).attackProfileId)).toEqual([
       "ash-ember-spit",
-      "ash-crawler-burst"
+      "ash-crawler-burst",
+      "ash-ember-spit",
+      "ash-crawler-burst",
+      "ash-ember-spit"
     ]);
   });
 
   it("creates mixed elite attack profiles in elite rooms", () => {
     const run = reachEliteRoom(createCombatRun(createInitialState(), "cinder-kiln-alley"));
 
-    expect(run.enemies.map((enemy) => enemy.kind)).toEqual(["elite", "elite", "trash"]);
+    expect(run.enemies.map((enemy) => enemy.kind)).toEqual(["elite", "elite", "trash", "trash"]);
     expect(run.enemies.map((enemy) => (enemy as { attackProfileId?: string }).attackProfileId)).toEqual([
       "zheng-shockwave",
       "zheng-horn-charge",
-      "ash-ember-spit"
+      "ash-ember-spit",
+      "ash-crawler-burst"
     ]);
   });
 

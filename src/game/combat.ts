@@ -843,9 +843,41 @@ function shiftEnemyTimersForHitstop(enemy: CombatEnemy, originMs: number, deltaM
 }
 
 function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: number): CombatRun {
+  const actionArmorSkillId = playerActionArmorActiveAt(run.player, originMs) ? run.player.lastSkillId : undefined;
+  const activeSkillMovement =
+    actionArmorSkillId && run.player.activeSkillMovement?.skillId === actionArmorSkillId
+      ? {
+          ...run.player.activeSkillMovement,
+          startAtMs: run.player.activeSkillMovement.startAtMs + deltaMs,
+          endAtMs: run.player.activeSkillMovement.endAtMs + deltaMs
+        }
+      : run.player.activeSkillMovement;
+
   return {
     ...run,
+    player: actionArmorSkillId
+      ? {
+          ...run.player,
+          actionLockUntilMs: shiftFutureTime(run.player.actionLockUntilMs, originMs, deltaMs),
+          cancelWindowUntilMs: shiftFutureTime(run.player.cancelWindowUntilMs, originMs, deltaMs),
+          skillCooldowns: {
+            ...run.player.skillCooldowns,
+            [actionArmorSkillId]: shiftFutureTime(run.player.skillCooldowns[actionArmorSkillId] ?? 0, originMs, deltaMs)
+          },
+          activeSkillMovement
+        }
+      : run.player,
     enemies: run.enemies.map((enemy) => shiftEnemyTimersForHitstop(enemy, originMs, deltaMs)),
+    scheduledEnemyHitEffects: run.scheduledEnemyHitEffects.map((effect) =>
+      effect.skillId === actionArmorSkillId
+        ? { ...effect, applyAtMs: shiftFutureTime(effect.applyAtMs, originMs, deltaMs) }
+        : effect
+    ),
+    scheduledMissEffects: run.scheduledMissEffects.map((effect) =>
+      effect.skillId === actionArmorSkillId
+        ? { ...effect, applyAtMs: shiftFutureTime(effect.applyAtMs, originMs, deltaMs) }
+        : effect
+    ),
     scheduledArenaHazards: run.scheduledArenaHazards.map((hazard) => ({
       ...hazard,
       impactAtMs: hazard.impactAtMs >= originMs ? hazard.impactAtMs + deltaMs : hazard.impactAtMs
@@ -1145,6 +1177,10 @@ function interruptedActiveSkillId(before: CombatPlayer, after: CombatPlayer, fal
   }
 
   return tookHit ? skillId : undefined;
+}
+
+function playerActionArmorActiveAt(player: CombatPlayer, elapsedMs: number): boolean {
+  return player.lastSkillId === "flowing-light-chain" && elapsedMs < player.actionLockUntilMs;
 }
 
 function skillMovementIdAt(movement: CombatMovementSample | undefined, elapsedMs: number): string | undefined {
@@ -2066,6 +2102,14 @@ function createEnemy(
       ? attackPatternIds.indexOf(attackProfileId)
       : 0
     : undefined;
+  const formation = [
+    { x: 520, y: 305 },
+    { x: 590, y: 350 },
+    { x: 660, y: 395 },
+    { x: 730, y: 305 },
+    { x: 800, y: 395 }
+  ] as const;
+  const formationPosition = formation[enemyIndex % formation.length] ?? formation[0];
 
   return {
     id: `${dungeonId}-room-${roomIndex}-enemy-${enemyIndex}`,
@@ -2088,8 +2132,8 @@ function createEnemy(
     nextAttackPatternIndex,
     marks: 0,
     position: {
-      x: 520 + enemyIndex * 74,
-      y: 320 + (enemyIndex % 2) * 34
+      x: kind === "boss" ? 520 : formationPosition.x,
+      y: kind === "boss" ? 320 : formationPosition.y
     },
     airborne: false,
     downed: false,
@@ -2122,27 +2166,35 @@ function createRoomEnemies(dungeonId: DungeonId, roomIndex: number, difficultyId
       return [
         createEnemy(dungeonId, roomIndex, 0, "elite", "liuli-crucible-wave", difficultyId),
         createEnemy(dungeonId, roomIndex, 1, "elite", "liuli-prism-charge", difficultyId),
-        createEnemy(dungeonId, roomIndex, 2, "trash", "liuli-glass-spray", difficultyId)
+        createEnemy(dungeonId, roomIndex, 2, "trash", "liuli-glass-spray", difficultyId),
+        createEnemy(dungeonId, roomIndex, 3, "trash", "liuli-splinter-rush", difficultyId)
       ];
     }
 
     return [
       createEnemy(dungeonId, roomIndex, 0, "elite", "zheng-shockwave", difficultyId),
       createEnemy(dungeonId, roomIndex, 1, "elite", "zheng-horn-charge", difficultyId),
-      createEnemy(dungeonId, roomIndex, 2, "trash", "ash-ember-spit", difficultyId)
+      createEnemy(dungeonId, roomIndex, 2, "trash", "ash-ember-spit", difficultyId),
+      createEnemy(dungeonId, roomIndex, 3, "trash", "ash-crawler-burst", difficultyId)
     ];
   }
 
   if (dungeonId === "liuli-furnace") {
     return [
       createEnemy(dungeonId, roomIndex, 0, "trash", "liuli-glass-spray", difficultyId),
-      createEnemy(dungeonId, roomIndex, 1, "trash", "liuli-splinter-rush", difficultyId)
+      createEnemy(dungeonId, roomIndex, 1, "trash", "liuli-splinter-rush", difficultyId),
+      createEnemy(dungeonId, roomIndex, 2, "trash", "liuli-glass-spray", difficultyId),
+      createEnemy(dungeonId, roomIndex, 3, "trash", "liuli-splinter-rush", difficultyId),
+      createEnemy(dungeonId, roomIndex, 4, "trash", "liuli-glass-spray", difficultyId)
     ];
   }
 
   return [
     createEnemy(dungeonId, roomIndex, 0, "trash", "ash-ember-spit", difficultyId),
-    createEnemy(dungeonId, roomIndex, 1, "trash", "ash-crawler-burst", difficultyId)
+    createEnemy(dungeonId, roomIndex, 1, "trash", "ash-crawler-burst", difficultyId),
+    createEnemy(dungeonId, roomIndex, 2, "trash", "ash-ember-spit", difficultyId),
+    createEnemy(dungeonId, roomIndex, 3, "trash", "ash-crawler-burst", difficultyId),
+    createEnemy(dungeonId, roomIndex, 4, "trash", "ash-ember-spit", difficultyId)
   ];
 }
 
@@ -4986,7 +5038,8 @@ function advanceEnemyApproachMovement(
   player: CombatPlayer,
   elapsedMs: number,
   dtMs: number,
-  enemyIndex: number
+  enemyIndex: number,
+  waitingForAttackSlot: boolean
 ): CombatEnemy {
   const recovered = clearRecoveredAttack(enemy, elapsedMs);
   const movementLocked =
@@ -5005,13 +5058,14 @@ function advanceEnemyApproachMovement(
   const attackProfileId = nextEnemyAttackProfile(recovered);
   const attack = enemyAttackDefinition({ ...recovered, attackProfileId });
 
-  if (attack.summonProfileIds?.length || enemyCanStartAttack(recovered, player, attack)) {
+  if (attack.summonProfileIds?.length || (!waitingForAttackSlot && enemyCanStartAttack(recovered, player, attack))) {
     return recovered.aiState === "idle" ? recovered : { ...recovered, aiState: "idle" };
   }
 
   const engagement = enemyAttackEngagementRange(attack);
   const side = recovered.position.x >= player.x ? 1 : -1;
-  const preferredOutsideX = Math.max(54, engagement.rangeX * 0.78);
+  const waitingDepth = waitingForAttackSlot ? 84 + (enemyIndex % 3) * 38 : 0;
+  const preferredOutsideX = Math.max(54, engagement.rangeX * 0.78) + waitingDepth;
   const targetX = clamp(player.x + side * (recovered.hurtbox.width / 2 + preferredOutsideX), 0, arena.width);
   const targetY = clamp(player.y + enemyApproachLaneOffset(enemyIndex), arena.minY, arena.maxY);
   const speed = enemyApproachSpeedByKind[recovered.kind];
@@ -5393,6 +5447,8 @@ function applyEnemyImpact(
     const shieldAbsorbedImpact = shieldActive && mitigation > 0;
     const damage = Math.max(1, Math.round(difficultyDamage * combatProfile.damageTakenMultiplier * (1 - mitigation)));
     const nextHp = Math.max(0, nextPlayer.hp - damage);
+    const actionArmorActive = nextHp > 0 && playerActionArmorActiveAt(nextPlayer, hitTime);
+    const controlProtectedImpact = shieldAbsorbedImpact || actionArmorActive;
     const nextFacing: 1 | -1 = nextEnemy.position.x >= nextPlayer.x ? 1 : -1;
     const quickRecoverReadyUntilMs =
       nextHp > 0 && playerHitAllowsQuickRecover(hitFeedbackCue, hitKnockback, hitBoundMs)
@@ -5414,22 +5470,22 @@ function applyEnemyImpact(
     const damagedPlayer: CombatPlayer = {
       ...nextPlayer,
       hp: nextHp,
-      x: shieldAbsorbedImpact ? nextPlayer.x : clamp(nextPlayer.x - nextFacing * hitKnockback, 0, arena.width),
-      facing: shieldAbsorbedImpact ? nextPlayer.facing : nextFacing,
+      x: controlProtectedImpact ? nextPlayer.x : clamp(nextPlayer.x - nextFacing * hitKnockback, 0, arena.width),
+      facing: controlProtectedImpact ? nextPlayer.facing : nextFacing,
       hitstopUntilMs: Math.max(nextPlayer.hitstopUntilMs, hitTime + attack.hitstopMs),
       invulnerableStartedAtMs: hitTime,
       invulnerableUntilMs: hitTime + hitInvulnerabilityMs,
-      hurtLockUntilMs: shieldAbsorbedImpact ? nextPlayer.hurtLockUntilMs : hitTime + Math.max(attack.hitstopMs, hitHurtLockMs),
-      boundUntilMs: shieldAbsorbedImpact ? nextPlayer.boundUntilMs : Math.max(nextPlayer.boundUntilMs, hitBoundMs > 0 ? hitTime + hitBoundMs : 0),
-      quickRecoverReadyUntilMs: shieldAbsorbedImpact ? nextPlayer.quickRecoverReadyUntilMs : quickRecoverReadyUntilMs,
-      quickRecoverStartedAtMs: shieldAbsorbedImpact ? nextPlayer.quickRecoverStartedAtMs : 0,
-      quickRecoverUntilMs: shieldAbsorbedImpact ? nextPlayer.quickRecoverUntilMs : 0,
+      hurtLockUntilMs: controlProtectedImpact ? nextPlayer.hurtLockUntilMs : hitTime + Math.max(attack.hitstopMs, hitHurtLockMs),
+      boundUntilMs: controlProtectedImpact ? nextPlayer.boundUntilMs : Math.max(nextPlayer.boundUntilMs, hitBoundMs > 0 ? hitTime + hitBoundMs : 0),
+      quickRecoverReadyUntilMs: controlProtectedImpact ? nextPlayer.quickRecoverReadyUntilMs : quickRecoverReadyUntilMs,
+      quickRecoverStartedAtMs: controlProtectedImpact ? nextPlayer.quickRecoverStartedAtMs : 0,
+      quickRecoverUntilMs: controlProtectedImpact ? nextPlayer.quickRecoverUntilMs : 0,
       shieldUntilMs: nextPlayer.shieldUntilMs,
       shieldReduction: nextPlayer.shieldReduction,
-      bufferedAction: shieldAbsorbedImpact ? nextPlayer.bufferedAction : undefined,
-      bufferedActionQueuedAtMs: shieldAbsorbedImpact ? nextPlayer.bufferedActionQueuedAtMs : undefined,
-      bufferedActionExecuteAtMs: shieldAbsorbedImpact ? nextPlayer.bufferedActionExecuteAtMs : undefined,
-      activeSkillMovement: shieldAbsorbedImpact ? nextPlayer.activeSkillMovement : undefined,
+      bufferedAction: controlProtectedImpact ? nextPlayer.bufferedAction : undefined,
+      bufferedActionQueuedAtMs: controlProtectedImpact ? nextPlayer.bufferedActionQueuedAtMs : undefined,
+      bufferedActionExecuteAtMs: controlProtectedImpact ? nextPlayer.bufferedActionExecuteAtMs : undefined,
+      activeSkillMovement: controlProtectedImpact ? nextPlayer.activeSkillMovement : undefined,
       defeated: nextHp <= 0
     };
 
@@ -5457,11 +5513,25 @@ function advanceEnemyAttacks(run: CombatRun, dtMs: number): CombatRun {
   const canceledSkillIds = new Set<string>();
   const events: CombatEvent[] = [];
   const spawnedEnemies: CombatEnemy[] = [];
+  const maxConcurrentEnemyAttacks = 2;
+  let activeEnemyAttackCount = run.enemies.filter((enemy) => hasActiveEnemyAttack(enemy, run.elapsedMs)).length;
   const enemies = run.enemies.map((enemy, enemyIndex) => {
-    const approached = advanceEnemyApproachMovement(enemy, player, run.elapsedMs, dtMs, enemyIndex);
-    const started = beginEnemyAttack(approached, run.elapsedMs, player);
+    const ownsAttackSlot = hasActiveEnemyAttack(enemy, run.elapsedMs);
+    const canClaimAttackSlot = ownsAttackSlot || activeEnemyAttackCount < maxConcurrentEnemyAttacks;
+    const approached = advanceEnemyApproachMovement(
+      enemy,
+      player,
+      run.elapsedMs,
+      dtMs,
+      enemyIndex,
+      !canClaimAttackSlot
+    );
+    const started = canClaimAttackSlot
+      ? beginEnemyAttack(approached, run.elapsedMs, player)
+      : { enemy: approached };
 
     if (started.event) {
+      activeEnemyAttackCount += 1;
       events.push(started.event);
     }
 

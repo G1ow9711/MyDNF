@@ -4459,3 +4459,13 @@
 - Complete non-keyboard and computed-style regression passed 689/689; production build passed. The full browser suite passed 36/37, with every camera, Boss, combat, campaign, economy, quest, loot, and save route green.
 - The remaining Iron Vanguard route used a stale generic motion assertion and exposed a pursuit-time defensive ordering race. It now proves the persistent shield pose and chains Aegis -> Anvil Guard -> Iron Palm through real keys; the focused rerun passed.
 - Final combined real-browser rerun passed both room-camera travel/reset and Iron Vanguard action/VFX routes in one process. Final app/UI coverage passed 231/231 and the production build passed again.
+
+## Task 208 DNF Crowd Rooms and Attack Director
+- Audited room population, spawn geometry, multi-target resolution, pursuit, and concurrent enemy attacks. No subagent was started.
+- Locked five-monster normal rooms, four-monster elite rooms, authored three-lane formations, and a two-slot attack director. Boss room and scripted summon counts remain unchanged.
+- RED failed on all intended boundaries: normal rooms had two actors, five due in-range enemies opened five attacks, and rendered combat mounted only two enemy nodes.
+- Added five-point normal formations, two-elite/two-trash elite formations, deterministic two-slot arbitration, outer waiting depths, and render-only Y-depth actor ordering.
+- Updated mounted diagnostics and room-count contracts; broad area skills now resolve their authored three-target caps against real crowds while single-target attacks remain unchanged.
+- Added Flowing Light action armor so monster damage and hitstop remain visible without canceling or desynchronizing the seven-stage movement, weapon, VFX, and hit timeline.
+- Real keyboard acceptance passed for five-monster heat-bloom crowd combat, natural monster attacks, and the seven-stage Flowing Light sword dance. Inspected the crowd and finisher captures at 1440x900.
+- Final app/UI coverage passed 232/232, combat passed 286/286, complete non-keyboard/computed-style regression passed 692/692, and production build passed.

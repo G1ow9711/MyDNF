@@ -616,8 +616,9 @@ function combatActorStyle(run: CombatRun, x: number, y: number): string {
   const laneRange = Math.max(1, run.arena.maxY - run.arena.minY);
   const laneProgress = Math.min(1, Math.max(0, (y - run.arena.minY) / laneRange));
   const yPercent = (54 + laneProgress * 24).toFixed(2);
+  const depth = Math.round(y);
 
-  return `--actor-x: ${xPercent}%; --actor-y: ${yPercent}%;`;
+  return `--actor-x: ${xPercent}%; --actor-y: ${yPercent}%; --actor-depth: ${depth};`;
 }
 
 function enemyHitSlideState(run: CombatRun, enemy: CombatEnemy, hitEvent: CombatHitEvent | undefined): EnemyHitSlideState {
@@ -2176,6 +2177,9 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const combatDifficulty = getDungeonDifficulty(run.difficultyId);
   const roomCount = dungeon?.rooms ?? 0;
   const liveEnemyCount = run.enemies.filter((enemy) => enemy.hp > 0).length;
+  const activeEnemyAttackCount = run.enemies.filter(
+    (enemy) => enemy.hp > 0 && enemy.attackSkillId && (enemy.attackRecoverUntilMs ?? 0) > run.elapsedMs
+  ).length;
   const defeatedEnemyCount = run.enemies.filter((enemy) => enemy.hp <= 0).length;
   const gateEnterReady = canEnterRoomGate(run);
   const transitionFromRoom = run.roomTransition?.fromRoomIndex ?? "";
@@ -2364,7 +2368,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
         ${roomFailed ? `<div class="arena-hazard-layer" data-arena-hazard-layer="true" data-arena-hazard-count="0"></div>` : renderArenaHazards(run)}
         ${renderCombatVfx(run)}
       </div>
-      <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
+      <div class="render-layer-count" data-active-enemy-attack-count="${activeEnemyAttackCount}">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
       ${comboMeter}
       ${bossCombatHud}
       ${defeatOverlay}

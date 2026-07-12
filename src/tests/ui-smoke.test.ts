@@ -610,6 +610,7 @@ describe("town app shell", () => {
     expect(html).toContain('data-combat-camera-layer="world"');
     expect(stylesCss).toContain(".combat-world");
     expect(stylesCss).toContain("width: var(--combat-world-width)");
+    expect(stylesCss).toContain("z-index: var(--actor-depth)");
     expect(stylesCss).toContain("left: var(--combat-camera-left)");
   });
 
@@ -662,7 +663,7 @@ describe("town app shell", () => {
     const html = renderAppHtml({ state, mode: "combat", combatRun: eliteRun });
 
     expect(countOccurrences(html, 'class="combat-actor combat-enemy combat-enemy-elite"')).toBe(2);
-    expect(countOccurrences(html, 'class="combat-actor combat-enemy combat-enemy-trash"')).toBe(1);
+    expect(countOccurrences(html, 'class="combat-actor combat-enemy combat-enemy-trash"')).toBe(2);
     expect(html).toContain("窑巷卫士 HP 180/180");
     expect(html).toContain("雷角狰 HP 180/180");
     expect(html).toContain("灰烬小妖 HP 80/80");
@@ -1383,8 +1384,8 @@ describe("town app shell", () => {
     });
 
     expect(skillHitEvents(castRun, "black-rain-volley")).toHaveLength(0);
-    expect(volleyHits).toHaveLength(6);
-    expect(countOccurrences(html, 'data-skill-impact-vfx="black-rain-volley"')).toBe(6);
+    expect(volleyHits).toHaveLength(9);
+    expect(countOccurrences(html, 'data-skill-impact-vfx="black-rain-volley"')).toBe(9);
     expect(html).toContain('data-impact-vfx-shape="black-rain"');
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-black-rain"');
   });
@@ -1583,10 +1584,10 @@ describe("town app shell", () => {
     });
 
     expect(skillHitEvents(castRun, "furnace-taunt")).toHaveLength(0);
-    expect(skillHitEvents(roarRun, "furnace-taunt")).toHaveLength(2);
+    expect(skillHitEvents(roarRun, "furnace-taunt")).toHaveLength(3);
     expect(beforeRoarHtml).toContain('data-player-skill-move="furnace-taunt"');
     expect(beforeRoarHtml).not.toContain('data-skill-impact-vfx="furnace-taunt"');
-    expect(countOccurrences(html, 'data-skill-impact-vfx="furnace-taunt"')).toBe(2);
+    expect(countOccurrences(html, 'data-skill-impact-vfx="furnace-taunt"')).toBe(3);
     expect(html).toContain('data-impact-vfx-shape="furnace-roar"');
     expect(html).toContain('data-vfx-cue="furnace-roar-impact"');
     expect(html).toContain('data-hit-phase="furnace-roar"');
@@ -1642,10 +1643,10 @@ describe("town app shell", () => {
     });
 
     expect(skillHitEvents(castRun, "shield-quake")).toHaveLength(0);
-    expect(skillHitEvents(hitRun, "shield-quake")).toHaveLength(2);
+    expect(skillHitEvents(hitRun, "shield-quake")).toHaveLength(3);
     expect(beforeQuakeHtml).toContain('data-player-skill-move="shield-quake"');
     expect(beforeQuakeHtml).not.toContain('data-skill-impact-vfx="shield-quake"');
-    expect(countOccurrences(html, 'data-skill-impact-vfx="shield-quake"')).toBe(2);
+    expect(countOccurrences(html, 'data-skill-impact-vfx="shield-quake"')).toBe(3);
     expect(html).toContain('data-impact-vfx-shape="shield-quake"');
     expect(html).toContain('data-vfx-cue="shield-quake-impact"');
     expect(html).toContain('data-hit-phase="shield-quake"');
@@ -2443,11 +2444,11 @@ describe("town app shell", () => {
     });
 
     expect(immediateDetonationHits).toHaveLength(0);
-    expect(detonationHits).toHaveLength(4);
-    expect(castRun.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
-    expect(lockRun.enemies.map((enemy) => enemy.marks)).toEqual([3, 2]);
-    expect(burstRun.enemies.map((enemy) => enemy.marks)).toEqual([0, 0]);
-    expect(countOccurrences(html, 'data-skill-impact-vfx="night-mark-detonation"')).toBe(4);
+    expect(detonationHits).toHaveLength(6);
+    expect(castRun.enemies.map((enemy) => enemy.marks)).toEqual([3, 2, 2, 2, 2]);
+    expect(lockRun.enemies.map((enemy) => enemy.marks)).toEqual([3, 2, 2, 2, 2]);
+    expect(burstRun.enemies.map((enemy) => enemy.marks)).toEqual([0, 0, 0, 2, 2]);
+    expect(countOccurrences(html, 'data-skill-impact-vfx="night-mark-detonation"')).toBe(6);
     expect(html).toContain('data-impact-vfx-shape="night-detonation"');
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-night-detonation"');
     expect(html).toContain('data-hit-phase="detonate"');
@@ -2502,8 +2503,8 @@ describe("town app shell", () => {
     });
 
     expect(immediateNetHits).toHaveLength(0);
-    expect(netHits).toHaveLength(4);
-    expect(countOccurrences(html, 'data-skill-impact-vfx="mechanism-shadow-net"')).toBe(4);
+    expect(netHits).toHaveLength(6);
+    expect(countOccurrences(html, 'data-skill-impact-vfx="mechanism-shadow-net"')).toBe(6);
     expect(html).toContain('data-impact-vfx-shape="mechanism-net"');
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-mechanism-net"');
     expect(html).toContain('data-hit-phase="trap-snap"');
@@ -2683,10 +2684,10 @@ describe("town app shell", () => {
     });
 
     expect(skillHitEvents(castRun, "earth-furnace-breaker")).toHaveLength(0);
-    expect(earthHits).toHaveLength(4);
+    expect(earthHits).toHaveLength(6);
     expect(beforeCrackHtml).toContain('data-player-skill-move="earth-furnace-breaker"');
     expect(beforeCrackHtml).not.toContain('data-skill-impact-vfx="earth-furnace-breaker"');
-    expect(countOccurrences(html, 'data-skill-impact-vfx="earth-furnace-breaker"')).toBe(4);
+    expect(countOccurrences(html, 'data-skill-impact-vfx="earth-furnace-breaker"')).toBe(6);
     expect(html).toContain('data-impact-vfx-shape="forge-quake"');
     expect(html).toContain('data-vfx-cue="earth-furnace-eruption"');
     expect(html).toContain('data-screen-shake="ultimate"');
@@ -2948,7 +2949,7 @@ describe("town app shell", () => {
       combatRun: releaseRun
     });
 
-    expect(skillHitEvents(releaseRun, "furnace-heart-overdrive")).toHaveLength(4);
+    expect(skillHitEvents(releaseRun, "furnace-heart-overdrive")).toHaveLength(6);
     expect(html).toContain('data-impact-vfx-shape="overdrive-core"');
     expect(html).toContain('data-vfx-cue="overdrive-core-release"');
     expect(html).toContain('data-hit-phase="overdrive-release"');
@@ -3166,7 +3167,7 @@ describe("town app shell", () => {
     });
 
     expect(skillHitEvents(castRun, "meteor-knuckle")).toHaveLength(0);
-    expect(meteorHits).toHaveLength(4);
+    expect(meteorHits).toHaveLength(6);
     expect(html).toContain('class="player-skill-vfx skill-vfx-meteor-knuckle skill-vfx-shape-meteor-impact"');
     expect(html).toContain('class="skill-impact-burst skill-impact-shape-meteor-impact"');
     expect(html).toContain('data-weapon-arc="meteor-smash"');
@@ -3257,7 +3258,7 @@ describe("town app shell", () => {
     expect(html).toContain('data-room-index="0"');
     expect(html).toContain('data-room-count="3"');
     expect(html).toContain('data-live-enemy-count="0"');
-    expect(html).toContain('data-defeated-enemy-count="2"');
+    expect(html).toContain('data-defeated-enemy-count="5"');
     expect(html).toContain('data-gate-enter-ready="false"');
     expect(html).toContain('data-room-transition-from-room=""');
     expect(html).toContain('data-room-transition-target-room=""');
@@ -3597,12 +3598,12 @@ describe("town app shell", () => {
     expect(hitHtml).toContain('data-impact-origin-y="340"');
     expect(hitHtml).toContain('data-damage-origin-x="405"');
     expect(hitHtml).toContain('data-damage-origin-y="340"');
-    expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%;"');
+    expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%; --actor-depth: 340;"');
     expect(hitHtml).toContain('data-enemy-hit-slide-active="true"');
     expect(hitHtml).toContain('data-enemy-hit-slide-start-x="405"');
     expect(hitHtml).toContain('data-enemy-hit-slide-end-x="427"');
     expect(hitHtml).toContain('data-enemy-hit-slide-progress="0.00"');
-    expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%; --enemy-body-width:');
+    expect(hitHtml).toContain('style="--actor-x: 42.19%; --actor-y: 65.29%; --actor-depth: 340; --enemy-body-width:');
     expect(hitHtml).toContain('data-hit-phase="ground-light-1"');
     expect(hitHtml).toContain('data-hit-vfx-cue="ground-light-slash-1"');
     expect(hitHtml).toContain('data-enemy-hit-ground-light-step="1"');

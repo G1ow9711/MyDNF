@@ -2997,6 +2997,7 @@ p {
 
 .combat-actor {
   position: absolute;
+  z-index: var(--actor-depth);
   left: var(--actor-x);
   top: var(--actor-y);
   display: grid;

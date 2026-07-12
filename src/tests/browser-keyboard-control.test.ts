@@ -317,6 +317,14 @@ type BrowserRoomFlowState = {
   playerY: string;
   playerRecoveryAvailable: string;
   playerHurtLockActive: string;
+  cameraX: number;
+  cameraState: string;
+  cameraWorldLeft: number;
+  cameraWorldWidth: number;
+  sceneLeft: number;
+  sceneWidth: number;
+  playerScreenX: number;
+  gateScreenX: number;
   gateState: string;
   gateTransition: string;
   gateTargetRoom: string;
@@ -591,6 +599,7 @@ type BrowserIronVanguardState = {
   skillMove: string;
   skillStage: string;
   shieldActive: string;
+  playerHurtLockActive: string;
   skillVfx: string;
   skillVfxCue: string;
   statusVfx: string;
@@ -756,6 +765,11 @@ const readRoomFlowStateExpression = `
   const gate = document.querySelector("[data-room-gate='true']");
   const player = document.querySelector(".combat-player");
   const floorLoot = document.querySelector("[data-floor-loot='true']");
+  const world = document.querySelector("[data-combat-camera-layer='world']");
+  const sceneRect = scene?.getBoundingClientRect();
+  const worldRect = world?.getBoundingClientRect();
+  const playerRect = player?.getBoundingClientRect();
+  const gateRect = gate?.getBoundingClientRect();
   const enemies = Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => ({
     id: enemy.getAttribute("data-enemy-id") ?? "",
     kind: enemy.getAttribute("data-enemy-kind") ?? "",
@@ -780,6 +794,14 @@ const readRoomFlowStateExpression = `
     playerY: scene?.getAttribute("data-player-y") ?? "",
     playerRecoveryAvailable: player?.getAttribute("data-player-recovery-available") ?? "false",
     playerHurtLockActive: player?.getAttribute("data-player-hurt-lock-active") ?? "false",
+    cameraX: Number(scene?.getAttribute("data-combat-camera-x") ?? "0"),
+    cameraState: scene?.getAttribute("data-combat-camera-state") ?? "",
+    cameraWorldLeft: worldRect?.left ?? 0,
+    cameraWorldWidth: worldRect?.width ?? 0,
+    sceneLeft: sceneRect?.left ?? 0,
+    sceneWidth: sceneRect?.width ?? 0,
+    playerScreenX: playerRect ? playerRect.left + playerRect.width / 2 : 0,
+    gateScreenX: gateRect ? gateRect.left + gateRect.width / 2 : 0,
     gateState: gate?.getAttribute("data-room-gate-state") ?? "",
     gateTransition: gate?.getAttribute("data-room-gate-transition") ?? "",
     gateTargetRoom: gate?.getAttribute("data-room-gate-target-room") ?? "",
@@ -1287,6 +1309,7 @@ const readIronVanguardStateExpression = `
     skillMove: player?.getAttribute("data-player-skill-move") ?? "",
     skillStage: player?.getAttribute("data-player-skill-stage") ?? "",
     shieldActive: player?.getAttribute("data-shield-active") ?? "",
+    playerHurtLockActive: player?.getAttribute("data-player-hurt-lock-active") ?? "false",
     skillVfx: skillVfx?.getAttribute("data-player-skill-vfx") ?? "",
     skillVfxCue: skillVfx?.getAttribute("data-vfx-cue") ?? "",
     statusVfx: statusVfx?.getAttribute("data-player-status-vfx") ?? "",
@@ -3485,8 +3508,33 @@ describe("real browser keyboard control", () => {
         expect(approaching.savedGold).toBe(cleared.savedGold + 120);
         expect(approaching.savedGearIds).toContain(cleared.floorLootGearId);
 
+        await page.keyDown("ArrowLeft");
+        let cameraStart: BrowserRoomFlowState;
+        try {
+          cameraStart = await page.waitFor<BrowserRoomFlowState>(
+            readRoomFlowStateExpression,
+            (state) => Number(state.playerX) <= 180 && state.cameraX === 0 && state.transitionState === "none",
+            4000
+          );
+        } finally {
+          await page.keyUp("ArrowLeft");
+        }
+        expect(cameraStart.cameraState).toBe("start");
+        expect(cameraStart.cameraWorldWidth / cameraStart.sceneWidth).toBeGreaterThan(1.3);
+
         await page.keyDown("ArrowRight");
         try {
+          const tracking = await page.waitFor<BrowserRoomFlowState>(
+            readRoomFlowStateExpression,
+            (state) => state.cameraX >= 80 && state.transitionState === "none",
+            4000
+          );
+          const playerScreenRatio = (tracking.playerScreenX - tracking.sceneLeft) / tracking.sceneWidth;
+          expect(tracking.cameraState).toBe("tracking");
+          expect(tracking.cameraWorldLeft).toBeLessThan(tracking.sceneLeft - 40);
+          expect(playerScreenRatio).toBeGreaterThan(0.34);
+          expect(playerScreenRatio).toBeLessThan(0.58);
+
           const entering = await page.waitFor<BrowserRoomFlowState>(
             readRoomFlowStateExpression,
             (state) => state.gateTransition === "entering" && state.transitionState === "entering",
@@ -3509,6 +3557,9 @@ describe("real browser keyboard control", () => {
         expect(nextRoom.gateState).toBe("locked");
         expect(nextRoom.defeatedEnemyCount).toBe("0");
         expect(nextRoom.gateTargetRoom).toBe("");
+        expect(nextRoom.cameraX).toBe(0);
+        expect(nextRoom.cameraState).toBe("start");
+        expect(Math.abs(nextRoom.cameraWorldLeft - nextRoom.sceneLeft)).toBeLessThan(2);
       });
     } finally {
       await server.close();
@@ -4524,6 +4575,9 @@ describe("real browser keyboard control", () => {
     evidence.push({
       activeSkill: player?.getAttribute("data-active-skill-id") ?? "",
       cue: vfx?.getAttribute("data-vfx-cue") ?? "",
+      motion: player?.getAttribute("data-player-motion") ?? "",
+      move: player?.getAttribute("data-player-skill-move") ?? "",
+      skillVfx: vfx?.getAttribute("data-player-skill-vfx") ?? "",
       stage: player?.getAttribute("data-player-skill-stage") ?? ""
     });
   };
@@ -4534,28 +4588,26 @@ describe("real browser keyboard control", () => {
   globalThis.__ironPalmObserver = observer;
 })()
 `);
-        await page.pressKey("KeyA");
-        const palmWindup = await page.waitFor<BrowserIronVanguardState>(
+        await page.pressKey("Space");
+        const aegis = await page.waitFor<BrowserIronVanguardState>(
           readIronVanguardStateExpression,
           (state) =>
-            state.classId === "iron-forge-guardian" &&
-            state.advancementId === "black-furnace-vanguard" &&
-            state.activeSkill === "iron-palm" &&
-            state.playerMotion === "skill" &&
-            state.skillMove === "iron-palm" &&
-            state.skillStage === "windup" &&
-            state.skillVfx === "iron-palm",
+            state.activeSkill === "black-furnace-aegis" &&
+            state.shieldActive === "true" &&
+            state.statusVfx === "black-furnace-aegis" &&
+            state.statusVfxCue === "black-aegis-open",
           3000
         );
-        expect(palmWindup.skillMove).toBe("iron-palm");
-        const palmImpactSeen = await page.waitFor<boolean>(
-          `Boolean(globalThis.__ironPalmEvidence?.some((entry) => entry.activeSkill === "iron-palm" && entry.stage === "active" && entry.cue === "iron-shield-jab"))`,
-          Boolean,
-          1000
-        );
-        expect(palmImpactSeen).toBe(true);
+        expect(aegis.skillVfx).toBe("black-furnace-aegis");
 
-        await waitInBrowser(page, 480);
+        await page.waitFor<BrowserIronVanguardState>(
+          readIronVanguardStateExpression,
+          (state) =>
+            state.activeSkill === "" &&
+            state.playerHurtLockActive === "false" &&
+            state.shieldActive === "true",
+          1400
+        );
         await page.pressKey("KeyS");
         const guard = await page.waitFor<BrowserIronVanguardState>(
           readIronVanguardStateExpression,
@@ -4568,19 +4620,37 @@ describe("real browser keyboard control", () => {
         );
         expect(guard.playerMotion).toBe("shield");
 
-        await waitInBrowser(page, 560);
-        await page.pressKey("Space");
-        const aegis = await page.waitFor<BrowserIronVanguardState>(
+        await page.waitFor<BrowserIronVanguardState>(
           readIronVanguardStateExpression,
           (state) =>
-            state.activeSkill === "black-furnace-aegis" &&
-            state.shieldActive === "true" &&
-            state.statusVfx === "black-furnace-aegis" &&
-            state.statusVfxCue === "black-aegis-open",
-          3000
+            state.activeSkill === "" &&
+            state.playerHurtLockActive === "false" &&
+            state.shieldActive === "true",
+          1200
         );
-
-        expect(aegis.skillVfx).toBe("black-furnace-aegis");
+        await page.pressKey("KeyA");
+        const palmWindupEvidence = await page.waitFor<
+          Array<{ activeSkill: string; cue: string; motion: string; move: string; skillVfx: string; stage: string }>
+        >(
+          `globalThis.__ironPalmEvidence ?? []`,
+          (entries) =>
+            entries.some(
+              (entry) =>
+                entry.activeSkill === "iron-palm" &&
+                entry.motion === "shield" &&
+                entry.move === "iron-palm" &&
+                entry.stage === "windup" &&
+                entry.skillVfx === "iron-palm"
+            ),
+          1000
+        );
+        expect(palmWindupEvidence.some((entry) => entry.activeSkill === "iron-palm" && entry.stage === "windup")).toBe(true);
+        const palmImpactSeen = await page.waitFor<boolean>(
+          `Boolean(globalThis.__ironPalmEvidence?.some((entry) => entry.activeSkill === "iron-palm" && entry.stage === "active" && entry.cue === "iron-shield-jab"))`,
+          Boolean,
+          1000
+        );
+        expect(palmImpactSeen).toBe(true);
 
         await moveIntoLiveEnemyRange(page);
         const enemyAttack = await page.waitFor<BrowserIronVanguardState>(

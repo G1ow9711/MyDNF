@@ -607,6 +607,10 @@ describe("town app shell", () => {
     expect(html).toContain('data-enemy-state="alive"');
     expect(html).toContain('class="quest-tracker quest-tracker-prominent"');
     expect(html).toContain('data-combat-objective="active"');
+    expect(html).toContain('data-combat-camera-layer="world"');
+    expect(stylesCss).toContain(".combat-world");
+    expect(stylesCss).toContain("width: var(--combat-world-width)");
+    expect(stylesCss).toContain("left: var(--combat-camera-left)");
   });
 
   it("renders a responsive segmented Boss HUD only in the Boss room", () => {

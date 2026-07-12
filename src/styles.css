@@ -2398,6 +2398,19 @@ p {
   padding: 20px;
 }
 
+.combat-world {
+  position: absolute;
+  left: var(--combat-camera-left);
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  width: var(--combat-world-width);
+  overflow: visible;
+  transition: left 48ms linear;
+  will-change: left;
+  pointer-events: none;
+}
+
 .combat-backdrop {
   background: linear-gradient(180deg, #172554, #1f2937 50%, #171717);
 }

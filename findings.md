@@ -1616,3 +1616,16 @@
 - The desktop 1440x900 screenshot shows the global Boss bar above the actor field and clear of the left status and right combo meter. Taotie remains fully visible beneath it; the bar reads the live first cast rather than a static label.
 - Phase-three keyboard acceptance proves maximum armor 120, world-devour windup id/stage/progress, and the dodge-created zero-armor break window. The same mounted HUD stays within 390px mobile bounds without intersecting status or combo surfaces.
 - The full 37-route browser run passed 36 routes and only missed the legacy backstep/elite setup after a natural horn-charge hit under suite load. Its isolated rerun passed unchanged, while every Boss, campaign, sword-dance, economy, quest, loot, and save route passed in the full run.
+
+## Task 207 Belt-Scroll Camera Audit
+- `combatActorStyle()` projects every world X directly to 0-100% of the scene. The 960-unit arena is therefore compressed into one screen and cannot produce DNF-style camera travel.
+- Background, actors, gate, floor loot, hazards, and VFX are sibling nodes. Wrapping only actors would detach impacts, telegraphs, drops, and the environment from their authoritative positions; all world nodes must share one camera container.
+- HUD nodes follow the world nodes in markup but use absolute scene coordinates. They must remain outside the new container so controls and Boss information do not drift.
+- Existing room completion resets player X to the entrance. A render-only camera derived from current player X naturally resets without changing the save or combat model.
+- The existing clear-and-walk browser route already holds real ArrowRight through gate entry. It can prove camera travel before transition and camera reset in the next room without synthetic reducer calls.
+- A 720-unit viewport over the 960-unit room yields a 133.33% world width and a 240-unit maximum camera offset. Following starts at player X 280, then clamps at the room end.
+- Initial, tracking, and end projections are deterministic: player X 180/480/900 produces camera X 0/200/240 and world left 0/-27.78%/-33.33%.
+- Background, actors, enemy effects, floor loot, hazards, and gate now move through one `combat-world`; controls, status, quest tracker, combo, and Boss HUD remain fixed to the scene.
+- Real held-arrow acceptance proved the world wider than the viewport, a shifted world during travel, a stable player screen zone, gate entry, and camera reset to zero in room 2.
+- Desktop inspection shows materially wider actor spacing and a room that reveals as the player advances instead of compressing the entire 960-unit arena into one static image.
+- The full 37-route run passed 36 routes under the final production code. The sole Iron Vanguard test failure was a stale generic-pose assertion plus a defensive-skill ordering race; class-specific shield evidence and Aegis -> Guard -> Palm ordering passed in focused real-keyboard rerun.

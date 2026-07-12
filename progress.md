@@ -4447,3 +4447,15 @@
 - Real keyboard Boss entry proved 520/520 HP, 80/80 armor, correct Taotie name, desktop width, and no status/combo overlap. Inspected `boss-hud-phase-one.png` at 1440x900.
 - Real keyboard phase-three acceptance proved max armor 120, world-devour windup progress, zero armor after dodge, active break countdown, and non-overlapping 390x844 mobile layout.
 - Final non-keyboard and computed-style regression passed 688/688. The full 37-route browser suite passed 36/37; its only legacy backstep/elite timing miss passed immediately in focused rerun without production changes. Build, HTTP, and Git validation follow.
+
+## Task 207 DNF Belt-Scroll Combat Camera
+- Audited world projection, scene markup, background, actor/VFX positioning, room transition reset, and real-browser room-flow geometry. No subagent was started.
+- Added the camera design and implementation plan. Combat coordinates and gameplay rules remain authoritative and unchanged.
+- RED coverage confirmed the scene had no world container, camera state, viewport contract, projection offset, or room-reset geometry evidence.
+- Added a render-only 720-unit camera over the 960-unit arena with start/tracking/end states, a 280-unit follow line, and a 240-unit clamp.
+- Moved every world-space layer into one scrolling container while keeping controls, status, quest, combo, defeat, and Boss HUD layers fixed.
+- Focused app/UI coverage passed 231/231. Real held-arrow room flow proved camera travel, stable screen-space player placement, gate entry, and zero-offset reset in the next room.
+- KOF action frames, seven-stage sword dance, Boss entry, phase-three world devour, and natural monster VFX compatibility routes passed with the camera enabled. Desktop, floor-loot, sword-dance, and Boss captures were inspected.
+- Complete non-keyboard and computed-style regression passed 689/689; production build passed. The full browser suite passed 36/37, with every camera, Boss, combat, campaign, economy, quest, loot, and save route green.
+- The remaining Iron Vanguard route used a stale generic motion assertion and exposed a pursuit-time defensive ordering race. It now proves the persistent shield pose and chains Aegis -> Anvil Guard -> Iron Palm through real keys; the focused rerun passed.
+- Final combined real-browser rerun passed both room-camera travel/reset and Iron Vanguard action/VFX routes in one process. Final app/UI coverage passed 231/231 and the production build passed again.

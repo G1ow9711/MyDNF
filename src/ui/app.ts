@@ -590,6 +590,27 @@ function renderDungeonPrep(model: AppViewModel): string {
   `;
 }
 
+const combatCameraViewportWidth = 720;
+const combatCameraFollowStartX = 280;
+
+function combatCameraProjection(run: CombatRun): {
+  cameraX: number;
+  leftPercent: number;
+  state: "start" | "tracking" | "end";
+  worldWidthPercent: number;
+} {
+  const maxCameraX = Math.max(0, run.arena.width - combatCameraViewportWidth);
+  const cameraX = Math.min(maxCameraX, Math.max(0, run.player.x - combatCameraFollowStartX));
+  const state = cameraX <= 0 ? "start" : cameraX >= maxCameraX ? "end" : "tracking";
+
+  return {
+    cameraX,
+    leftPercent: -(cameraX / combatCameraViewportWidth) * 100,
+    state,
+    worldWidthPercent: (run.arena.width / combatCameraViewportWidth) * 100
+  };
+}
+
 function combatActorStyle(run: CombatRun, x: number, y: number): string {
   const xPercent = (Math.min(1, Math.max(0, x / run.arena.width)) * 100).toFixed(2);
   const laneRange = Math.max(1, run.arena.maxY - run.arena.minY);
@@ -2285,6 +2306,8 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const bossPhase = bossEnemy ? bossEnemy.bossPhase ?? 1 : "";
   const bossPhaseTriggered = Boolean(bossEnemy?.bossPhaseTriggeredAtMs !== undefined || (bossEnemy?.bossPhase ?? 1) >= 2);
   const bossCombatHud = bossEnemy && bossEnemy.hp > 0 ? renderBossCombatHud(run, bossEnemy) : "";
+  const camera = combatCameraProjection(run);
+  const cameraX = Math.round(camera.cameraX);
   const activeArenaHazards = roomFailed ? [] : recentArenaHazardEvents(run);
   const arenaHazardIds = new Set([
     ...activeArenaHazards.map((hazard) => hazard.hazardId),
@@ -2330,16 +2353,18 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
     : "";
 
   return `
-    <section class="combat-scene" aria-label="战斗 · ${combatDifficulty.displayName}" data-combat-difficulty="${run.difficultyId}" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-combat-event-count="${run.events.length}" data-combat-loot-event-count="${run.lootEvents.length}" data-floor-loot-count="${run.floorLoot ? 1 : 0}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-hp="${run.player.hp}" data-player-max-hp="${run.player.maxHp}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-critical-chance="${criticalChance}" data-critical-accumulator="${Math.round(run.criticalAccumulator * 100) / 100}" data-critical-hit="${sceneHit?.critical ? "true" : "false"}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
-      <div class="combat-backdrop scene-${run.dungeonId}">
-        <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
-        <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
+    <section class="combat-scene" aria-label="战斗 · ${combatDifficulty.displayName}" data-combat-difficulty="${run.difficultyId}" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-combat-event-count="${run.events.length}" data-combat-loot-event-count="${run.lootEvents.length}" data-floor-loot-count="${run.floorLoot ? 1 : 0}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-hp="${run.player.hp}" data-player-max-hp="${run.player.maxHp}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-combat-camera-x="${cameraX}" data-combat-camera-state="${camera.state}" data-combat-camera-viewport-width="${combatCameraViewportWidth}" data-combat-camera-world-width="${run.arena.width}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-critical-chance="${criticalChance}" data-critical-accumulator="${Math.round(run.criticalAccumulator * 100) / 100}" data-critical-hit="${sceneHit?.critical ? "true" : "false"}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
+      <div class="combat-world" data-combat-camera-layer="world" data-combat-camera-x="${cameraX}" data-combat-camera-state="${camera.state}" style="--combat-world-width: ${camera.worldWidthPercent.toFixed(2)}%; --combat-camera-left: ${camera.leftPercent.toFixed(2)}%;">
+        <div class="combat-backdrop scene-${run.dungeonId}">
+          <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
+        </div>
+        ${renderCombatActors(run, state)}
+        ${floorLootMarkup}
+        ${roomGateMarkup}
+        ${roomFailed ? `<div class="arena-hazard-layer" data-arena-hazard-layer="true" data-arena-hazard-count="0"></div>` : renderArenaHazards(run)}
+        ${renderCombatVfx(run)}
       </div>
-      ${renderCombatActors(run, state)}
-      ${floorLootMarkup}
-      ${roomGateMarkup}
-      ${roomFailed ? `<div class="arena-hazard-layer" data-arena-hazard-layer="true" data-arena-hazard-count="0"></div>` : renderArenaHazards(run)}
-      ${renderCombatVfx(run)}
+      <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
       ${comboMeter}
       ${bossCombatHud}
       ${defeatOverlay}

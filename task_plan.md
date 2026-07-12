@@ -486,7 +486,16 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify Boss entry and phase changes through real keyboard play.
 - [x] Run regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 207 DNF Belt-Scroll Combat Camera
+- [x] Audit world-coordinate projection, render layers, room gates, VFX, and browser geometry readers.
+- [x] Lock the 720/960 viewport, player safe line, camera clamp, and HUD isolation contract.
+- [x] Add RED projection, markup, reset, and browser geometry coverage.
+- [x] Implement the shared scrolling world, background movement, and scene camera hooks.
+- [x] Verify camera follow and room entry through held real keyboard movement.
+- [x] Run regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 207 full 37-route browser regression passed 36 routes. The only failure was the Iron Vanguard route waiting for a generic skill pose while Black Furnace Aegis correctly kept the actor in its shield pose, then allowing a pursuing monster to interrupt Anvil Guard after the shield expired. The route now asserts the class-specific shield pose and chains Aegis -> Anvil Guard -> Iron Palm inside the defensive window; its focused real-keyboard rerun passed with all action and VFX evidence.
 - Task 206 full 37-route browser regression passed 36 and missed only the legacy backstep/elite safe-attack window after a natural horn-charge hit under suite load. The exact focused route then passed unchanged; all Boss HUD, phase-three, campaign, combat, economy, quest, loot, and save routes passed in the full run.
 - Task 204 full 37-route browser regression passed 32 and exposed five route assumptions. One lacked a desktop viewport, one waited on a fixed player coordinate while monsters now close distance, one attacked elite coordinates only once despite ongoing pursuit, one used a non-confirmed prep click, and Ink waited after positioning so its delayed mark target moved. Routes now use desktop geometry, current-target repositioning, safe attack windows, state-confirmed real clicks, and position immediately before cast.
 - Task 204 combined browser compatibility passed sword dance and Boss clear but exposed two dynamic-battle assumptions: X-X-X could launch a still-alive pursued target whose airborne motion masked reaction frame 14, and a pursued enemy could die directly beside the player so idle death ticks auto-picked floor loot before visual acceptance. Normal-combo reaction metadata now outranks airborne idle presentation, and floor pickup requires a real movement tick while gate auto-claim remains intact.

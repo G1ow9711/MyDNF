@@ -1415,6 +1415,45 @@ describe("playable app integration actions", () => {
     expect(html).toContain("冷却");
   });
 
+  it("projects the 960-unit room through a clamped 720-unit belt-scroll camera", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+
+    const initialHtml = renderAppHtml(model);
+    expect(initialHtml).toContain('class="combat-world"');
+    expect(initialHtml).toContain('data-combat-camera-x="0"');
+    expect(initialHtml).toContain('data-combat-camera-state="start"');
+    expect(initialHtml).toContain('data-combat-camera-viewport-width="720"');
+    expect(initialHtml).toContain('--combat-world-width: 133.33%; --combat-camera-left: 0.00%;');
+
+    const trackingHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: { ...model.combatRun.player, x: 480 }
+      }
+    });
+    expect(trackingHtml).toContain('data-combat-camera-x="200"');
+    expect(trackingHtml).toContain('data-combat-camera-state="tracking"');
+    expect(trackingHtml).toContain('--combat-camera-left: -27.78%;');
+
+    const endHtml = renderAppHtml({
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: { ...model.combatRun.player, x: 900 }
+      }
+    });
+    expect(endHtml).toContain('data-combat-camera-x="240"');
+    expect(endHtml).toContain('data-combat-camera-state="end"');
+    expect(endHtml).toContain('--combat-camera-left: -33.33%;');
+  });
+
   it("renders an authoritative Boss HUD for identity, HP, armor, break window, phase, and cast state", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

@@ -1489,6 +1489,48 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-combo-count="3"');
   });
 
+  it("queues distinct swing and contact sounds across the three-step X combo", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    const commandStart = model.audio.commandQueue.length;
+
+    for (const step of [1, 2, 3]) {
+      model = reduceAppAction(model, { type: "combatAction", action: "light" });
+      for (let tick = 0; tick < 30; tick += 1) {
+        const hasContact = model.audio.commandQueue.some((command) => command.id === `normal-hit-${step}`);
+        const ready = Boolean(model.combatRun && model.combatRun.elapsedMs >= model.combatRun.player.actionLockUntilMs);
+        if (hasContact && ready) {
+          break;
+        }
+        model = reduceAppAction(model, { type: "combatTick" });
+      }
+    }
+
+    expect(model.audio.commandQueue.slice(commandStart).map((command) => command.id)).toEqual([
+      "attack-swing-light",
+      "normal-hit-1",
+      "attack-swing-light",
+      "normal-hit-2",
+      "attack-swing-light",
+      "normal-hit-3"
+    ]);
+  });
+
+  it("uses action-specific input sounds instead of hit clicks for heavy, jump, and backstep", () => {
+    const createCombatModel = () =>
+      reduceAppAction(createAppModel({ storage: new MemoryStorage() }), { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+
+    const heavy = reduceAppAction(createCombatModel(), { type: "combatAction", action: "heavy" });
+    const jump = reduceAppAction(createCombatModel(), { type: "combatAction", action: "jump" });
+    const backstep = reduceAppAction(createCombatModel(), { type: "combatAction", action: "backstep" });
+
+    expect(heavy.audio.commandQueue.at(-1)?.id).toBe("attack-swing-heavy");
+    expect(jump.audio.commandQueue.at(-1)?.id).toBe("movement-jump");
+    expect(backstep.audio.commandQueue.at(-1)?.id).toBe("movement-backstep");
+  });
+
   it("renders grounded light model-following movement hooks before impact", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

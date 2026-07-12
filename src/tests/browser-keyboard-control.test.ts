@@ -250,6 +250,13 @@ type BrowserNormalComboEvidence = {
   lowestEnemyHp: number;
 };
 
+type BrowserNormalComboAudioPlayback = {
+  commandId: string;
+  channel: string;
+  noteCount: number;
+  textureTags: string[];
+};
+
 type BrowserComboCancelState = {
   objective: string;
   playerX: number;
@@ -1561,6 +1568,38 @@ const installNormalComboRecorderExpression = `
 })()
 `;
 
+const installNormalComboAudioRecorderExpression = `
+(() => {
+  globalThis.__normalComboAudioPlayback = [];
+  if (globalThis.__normalComboAudioListener) {
+    globalThis.removeEventListener("mydnf:audio-playback", globalThis.__normalComboAudioListener);
+  }
+  globalThis.__normalComboAudioListener = (event) => {
+    const detail = event.detail ?? {};
+    if (
+      detail.commandId === "attack-swing-light" ||
+      detail.commandId === "attack-swing-heavy" ||
+      detail.commandId === "dash-hit" ||
+      detail.commandId === "heavy-launch" ||
+      String(detail.commandId ?? "").startsWith("normal-hit-")
+    ) {
+      globalThis.__normalComboAudioPlayback.push({
+        commandId: detail.commandId,
+        channel: detail.channel ?? "",
+        noteCount: Number(detail.noteCount ?? 0),
+        textureTags: Array.isArray(detail.textureTags) ? detail.textureTags : []
+      });
+    }
+  };
+  globalThis.addEventListener("mydnf:audio-playback", globalThis.__normalComboAudioListener);
+  return true;
+})()
+`;
+
+const readNormalComboAudioPlaybackExpression = `
+(() => globalThis.__normalComboAudioPlayback ?? [])()
+`;
+
 const readNormalComboEvidenceExpression = `
 (() => globalThis.__normalComboEvidence)()
 `;
@@ -2309,6 +2348,7 @@ describe("real browser keyboard control", () => {
         await page.waitFor<BrowserCombatState>(readCombatStateExpression, (state) => state.playerX >= 27, 2500);
         await page.keyUp("ArrowRight");
         await page.evaluate<void>("new Promise((resolve) => setTimeout(resolve, 760))");
+        await page.evaluate<boolean>(installNormalComboAudioRecorderExpression);
         await page.pressKey("KeyZ");
 
         const heavyWindup = await page.waitFor<BrowserCombatState>(
@@ -2328,6 +2368,13 @@ describe("real browser keyboard control", () => {
 
         expect(heavyImpact.screenShake).toBe("heavy");
         expect(heavyImpact.impactCue).toBe("ground-heavy-impact");
+        const heavyAudio = await page.waitFor<BrowserNormalComboAudioPlayback[]>(
+          readNormalComboAudioPlaybackExpression,
+          (state) => state.length === 2,
+          1200
+        );
+        expect(heavyAudio.map((event) => event.commandId)).toEqual(["attack-swing-heavy", "heavy-launch"]);
+        expect(heavyAudio.every((event) => event.channel === "sfx" && event.noteCount >= 3)).toBe(true);
       });
     } finally {
       await server.close();
@@ -2381,6 +2428,7 @@ describe("real browser keyboard control", () => {
         expect(running.spriteDustAnimation).toBe("sprite-double-tap-dust");
 
         await page.evaluate<boolean>(installDoubleTapRunRecorderExpression);
+        await page.evaluate<boolean>(installNormalComboAudioRecorderExpression);
         await page.pressKey("KeyX");
         const evidence = await page.waitFor<BrowserDoubleTapRunEvidence>(
           readDoubleTapRunEvidenceExpression,
@@ -2389,6 +2437,12 @@ describe("real browser keyboard control", () => {
         );
         expect(evidence.sawDashLightMotion).toBe(true);
         expect(evidence.sawDashLightImpact).toBe(true);
+        const dashAudio = await page.waitFor<BrowserNormalComboAudioPlayback[]>(
+          readNormalComboAudioPlaybackExpression,
+          (state) => state.length === 2,
+          1200
+        );
+        expect(dashAudio.map((event) => event.commandId)).toEqual(["attack-swing-light", "dash-hit"]);
 
         await page.keyUp("ArrowRight");
         await page.waitFor<BrowserDoubleTapRunState>(
@@ -2421,6 +2475,7 @@ describe("real browser keyboard control", () => {
           1500
         );
         await page.evaluate<boolean>(installNormalComboRecorderExpression);
+        await page.evaluate<boolean>(installNormalComboAudioRecorderExpression);
 
         for (const step of [1, 2, 3]) {
           await page.pressKey("KeyX");
@@ -2468,6 +2523,21 @@ describe("real browser keyboard control", () => {
         expect(evidence.maxComboCount).toBe(3);
         expect(evidence.sawFinisherAirborne).toBe(true);
         expect(evidence.lowestEnemyHp).toBeLessThan(80);
+        const audioPlayback = await page.waitFor<BrowserNormalComboAudioPlayback[]>(
+          readNormalComboAudioPlaybackExpression,
+          (state) => state.length === 6,
+          1200
+        );
+        expect(audioPlayback.map((event) => event.commandId)).toEqual([
+          "attack-swing-light",
+          "normal-hit-1",
+          "attack-swing-light",
+          "normal-hit-2",
+          "attack-swing-light",
+          "normal-hit-3"
+        ]);
+        expect(audioPlayback.every((event) => event.channel === "sfx" && event.noteCount >= 3)).toBe(true);
+        expect(audioPlayback.every((event) => event.textureTags.length >= 3)).toBe(true);
       });
     } finally {
       await server.close();

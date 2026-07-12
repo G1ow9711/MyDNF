@@ -215,6 +215,130 @@ const musicPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: 
 };
 
 const sfxPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: Array<Omit<AudioPlaybackNote, "channel" | "effectiveGain">> }> = {
+  "attack-swing-light": {
+    commandId: "attack-swing-light",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["air-whoosh", "blade-edge", "short-tail"],
+    notes: [
+      { frequencyHz: 740, startMs: 0, durationMs: 70, gain: 0.13, waveform: "sawtooth" },
+      { frequencyHz: 1110, startMs: 26, durationMs: 92, gain: 0.11, waveform: "triangle" },
+      { frequencyHz: 1568, startMs: 64, durationMs: 108, gain: 0.08, waveform: "sine" }
+    ]
+  },
+  "attack-swing-heavy": {
+    commandId: "attack-swing-heavy",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["low-whoosh", "weapon-weight", "air-tail"],
+    notes: [
+      { frequencyHz: 180, startMs: 0, durationMs: 112, gain: 0.18, waveform: "square" },
+      { frequencyHz: 420, startMs: 28, durationMs: 148, gain: 0.16, waveform: "sawtooth" },
+      { frequencyHz: 840, startMs: 76, durationMs: 178, gain: 0.1, waveform: "triangle" }
+    ]
+  },
+  "movement-jump": {
+    commandId: "movement-jump",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["foot-release", "cloth-rise", "air-lift"],
+    notes: [
+      { frequencyHz: 196, startMs: 0, durationMs: 72, gain: 0.12, waveform: "square" },
+      { frequencyHz: 392, startMs: 32, durationMs: 118, gain: 0.1, waveform: "triangle" },
+      { frequencyHz: 784, startMs: 74, durationMs: 132, gain: 0.07, waveform: "sine" }
+    ]
+  },
+  "movement-backstep": {
+    commandId: "movement-backstep",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["heel-scrape", "cloth-snap", "air-retreat"],
+    notes: [
+      { frequencyHz: 130.81, startMs: 0, durationMs: 84, gain: 0.13, waveform: "square" },
+      { frequencyHz: 523.25, startMs: 24, durationMs: 98, gain: 0.1, waveform: "sawtooth" },
+      { frequencyHz: 1046.5, startMs: 62, durationMs: 120, gain: 0.07, waveform: "triangle" }
+    ]
+  },
+  "normal-hit-1": {
+    commandId: "normal-hit-1",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["blade-contact", "body-impact-light", "spark-short"],
+    notes: [
+      { frequencyHz: 146.83, startMs: 0, durationMs: 82, gain: 0.22, waveform: "square" },
+      { frequencyHz: 659.25, startMs: 18, durationMs: 104, gain: 0.14, waveform: "sawtooth" },
+      { frequencyHz: 1318.51, startMs: 58, durationMs: 126, gain: 0.09, waveform: "triangle" }
+    ]
+  },
+  "normal-hit-2": {
+    commandId: "normal-hit-2",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["blade-contact-hard", "body-impact-mid", "spark-cross"],
+    notes: [
+      { frequencyHz: 123.47, startMs: 0, durationMs: 96, gain: 0.26, waveform: "square" },
+      { frequencyHz: 783.99, startMs: 20, durationMs: 126, gain: 0.16, waveform: "sawtooth" },
+      { frequencyHz: 1567.98, startMs: 64, durationMs: 148, gain: 0.1, waveform: "triangle" }
+    ]
+  },
+  "normal-hit-3": {
+    commandId: "normal-hit-3",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["launcher-body", "rising-blade", "impact-ring"],
+    notes: [
+      { frequencyHz: 82.41, startMs: 0, durationMs: 132, gain: 0.34, waveform: "square" },
+      { frequencyHz: 587.33, startMs: 20, durationMs: 162, gain: 0.2, waveform: "sawtooth" },
+      { frequencyHz: 1760, startMs: 76, durationMs: 210, gain: 0.12, waveform: "triangle" },
+      { frequencyHz: 2637.02, startMs: 138, durationMs: 184, gain: 0.08, waveform: "sine" }
+    ]
+  },
+  "dash-hit": {
+    commandId: "dash-hit",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["rush-contact", "speed-blade", "stagger-tail"],
+    notes: [
+      { frequencyHz: 110, startMs: 0, durationMs: 104, gain: 0.28, waveform: "square" },
+      { frequencyHz: 987.77, startMs: 18, durationMs: 132, gain: 0.16, waveform: "sawtooth" },
+      { frequencyHz: 1975.53, startMs: 72, durationMs: 168, gain: 0.1, waveform: "triangle" }
+    ]
+  },
+  "air-hit": {
+    commandId: "air-hit",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["air-contact", "light-blade", "high-spark"],
+    notes: [
+      { frequencyHz: 164.81, startMs: 0, durationMs: 82, gain: 0.2, waveform: "square" },
+      { frequencyHz: 880, startMs: 18, durationMs: 112, gain: 0.14, waveform: "sawtooth" },
+      { frequencyHz: 2093, startMs: 62, durationMs: 148, gain: 0.09, waveform: "sine" }
+    ]
+  },
+  "heavy-launch": {
+    commandId: "heavy-launch",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["heavy-contact", "launcher-rise", "metal-ring"],
+    notes: [
+      { frequencyHz: 65.41, startMs: 0, durationMs: 158, gain: 0.4, waveform: "square" },
+      { frequencyHz: 329.63, startMs: 18, durationMs: 190, gain: 0.24, waveform: "sawtooth" },
+      { frequencyHz: 1318.51, startMs: 72, durationMs: 228, gain: 0.14, waveform: "triangle" },
+      { frequencyHz: 2637.02, startMs: 142, durationMs: 188, gain: 0.08, waveform: "sine" }
+    ]
+  },
+  "heavy-slam": {
+    commandId: "heavy-slam",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["ground-crush", "slam-bass", "debris-tail"],
+    notes: [
+      { frequencyHz: 49, startMs: 0, durationMs: 220, gain: 0.46, waveform: "square" },
+      { frequencyHz: 98, startMs: 16, durationMs: 250, gain: 0.3, waveform: "sawtooth" },
+      { frequencyHz: 392, startMs: 58, durationMs: 210, gain: 0.16, waveform: "triangle" },
+      { frequencyHz: 1174.66, startMs: 124, durationMs: 248, gain: 0.1, waveform: "sine" }
+    ]
+  },
   "sword-dance-open": {
     commandId: "sword-dance-open",
     channel: "sfx",

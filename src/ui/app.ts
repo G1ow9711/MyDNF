@@ -2592,6 +2592,44 @@ function swordDanceSfxId(event: CombatHitEvent): string | undefined {
   }
 }
 
+function normalCombatHitSfxId(event: CombatHitEvent): string | undefined {
+  switch (event.hitPhase) {
+    case "ground-light-1":
+      return "normal-hit-1";
+    case "ground-light-2":
+      return "normal-hit-2";
+    case "ground-light-3":
+      return "normal-hit-3";
+    case "dash-light":
+      return "dash-hit";
+    case "air-light":
+      return "air-hit";
+    case "ground-heavy-launch":
+      return "heavy-launch";
+    case "air-heavy-slam":
+      return "heavy-slam";
+    default:
+      return undefined;
+  }
+}
+
+function combatInputSfxId(inputType: CombatActionInput["type"]): string {
+  switch (inputType) {
+    case "light":
+      return "attack-swing-light";
+    case "heavy":
+      return "attack-swing-heavy";
+    case "jump":
+      return "movement-jump";
+    case "backstep":
+      return "movement-backstep";
+    case "skill":
+      return "skill-burst";
+    default:
+      return "ui-select";
+  }
+}
+
 function enqueueNewCombatEventSfx(audio: AudioState, previousRun: CombatRun, nextRun: CombatRun): AudioState {
   let nextAudio = audio;
   const playedStageKeys = new Set<string>();
@@ -2601,7 +2639,7 @@ function enqueueNewCombatEventSfx(audio: AudioState, previousRun: CombatRun, nex
       continue;
     }
 
-    const sfxId = swordDanceSfxId(event);
+    const sfxId = swordDanceSfxId(event) ?? normalCombatHitSfxId(event);
     if (!sfxId) {
       continue;
     }
@@ -2979,7 +3017,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
             ...model,
             combatRun: queuedRun,
             message: queued ? "输入已缓冲" : executed ? undefined : "动作硬直中",
-            audio: playSfx(model.audio, executed ? (directInput.type === "skill" ? "skill-burst" : "hit-light") : "ui-select")
+            audio: playSfx(model.audio, executed ? combatInputSfxId(directInput.type) : "ui-select")
           };
         } catch (error) {
           const message = error instanceof Error && /cooldown/i.test(error.message) ? "鎶€鑳藉喎鍗翠腑" : error instanceof Error ? error.message : String(error);
@@ -3036,7 +3074,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         ...model,
         combatRun,
         message: undefined,
-        audio: playSfx(model.audio, action.action === "skill" ? "skill-burst" : "hit-light")
+        audio: playSfx(model.audio, combatInputSfxId(action.action))
       };
     }
     case "useConsumable": {

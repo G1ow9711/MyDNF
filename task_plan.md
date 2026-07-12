@@ -430,7 +430,16 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify all seven sounds through real Space input.
 - [x] Run regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 200 Normal Combat Contact Audio
+- [x] Audit normal attack input sounds, hit events, playback plans, and browser evidence.
+- [x] Lock distinct input and contact sound families for X combo, Z launcher, jump, and backstep.
+- [x] Add RED coverage for hit-derived commands and non-fallback procedural plans.
+- [x] Implement contact-frame audio mapping and replace generic input clicks.
+- [x] Verify X-X-X playback through real keyboard input.
+- [x] Run regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 200 RED received only three input-time `hit-light` commands for X-X-X, used the same id for heavy/jump/backstep, and resolved all eleven new ids through the two-note `ui-click` fallback. This proves both timing and authored texture gaps.
 - Task 199 RED received no event-derived audio commands and all five sword-dance ids resolved to the two-note `ui-click` fallback, proving both the timing bridge and authored sound textures were absent.
 - Task 198 first GREEN proved frame 13 in runtime metadata, but visual inspection still showed frame 14 because the 120 ms body clock expired during screenshot encoding. Expanded the real body phase and added 180/310 ms frame assertions rather than freezing browser time.
 - Task 198 GREEN captured frame 13 correctly, but a post-screenshot live-DOM wait missed the 360 ms recovery window because screenshot encoding outlasted it. Moved the 150 ms recovery sample into the existing animation-frame evidence recorder instead of extending gameplay timing again.

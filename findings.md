@@ -1553,3 +1553,9 @@
 - Combat actions currently enqueue only generic `skill-burst` at input time. Delayed hit events do not enqueue any sound, so all seven sword-dance impacts are silent relative to their actual frames.
 - Combat events append immutably. Comparing the new event suffix after each tick and deduplicating by occurrence time plus SFX id can synchronize audio without adding gameplay timers or target-count amplification.
 - Mounted dispatch flushes audio commands immediately, so DOM state cannot prove playback. The browser sink now emits evidence only after oscillator scheduling succeeds; the real route can verify actual playback plans without retaining mutable audio queues in production state.
+
+## Task 200 Normal Combat Audio Audit
+- Ground light, heavy, jump, and backstep inputs all enqueue `hit-light` immediately, so movement actions sound like attacks and contact timing is not represented.
+- `hit-light` is absent from the authored SFX table and resolves to the two-note `ui-click` fallback. Existing normal attacks therefore have neither useful weight nor light/heavy distinction.
+- Ground-light 1/2/3, dash-light, air-light, ground-heavy-launch, and air-heavy-slam already expose authoritative hit phases and occurrence times. The sword-dance event bridge can safely generalize to these phases while preserving per-stage multi-target deduplication.
+- The existing real X-X-X route already proves body contact frames 9/10/11 and enemy reactions 12/13/14. Capturing browser playback in that same route gives direct action, reaction, and actual-audio evidence without synthetic input.

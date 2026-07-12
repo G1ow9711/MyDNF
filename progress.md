@@ -4370,3 +4370,13 @@
 - Added five procedural SFX plans with distinct blade, impact, bass, and Liuli-tail layers. Combat tick and movement reducers now derive stage sounds from newly appended hit events and deduplicate two-target hits by occurrence time plus sound id.
 - Added a browser playback event emitted only after WebAudio oscillator scheduling succeeds. Real Space acceptance captured seven actual SFX plans in open/left/right/left/right/cross/finish order, each with at least three authored notes and texture tags.
 - Final verification passed: focused audio unit/integration coverage, 673/673 non-keyboard and computed-style tests, three real-browser compatibility routes in 52.00 seconds, and production build. Chinese commit and push follow this record update.
+
+## Task 200 Normal Combat Contact Audio
+- Audited normal combat reducer audio, authoritative hit phases, procedural playback plans, and the existing real X-X-X acceptance route. No subagent was started.
+- Locked separate input swing/movement sounds plus seven contact families. RED tests follow before production timing changes.
+- RED failed on all three intended boundaries: no contact commands, one generic id for unrelated actions, and fallback playback plans for every new sound family.
+- Added eleven authored procedural plans. Inputs now distinguish light swing, heavy swing, jump, and backstep; authoritative hit phases now emit seven contact families with occurrence-time plus sound-id multi-target deduplication.
+- Focused application and playback-plan GREEN passed, and the production TypeScript/Vite build succeeded. Real keyboard acceptance follows.
+- Real browser X-X-X acceptance captured `swing/hit-1/swing/hit-2/swing/hit-3` through actual WebAudio scheduling while retaining frames 9/10/11, enemy reactions 12/13/14, 3 CHAIN, and airborne finisher evidence.
+- The real Z route captured `attack-swing-heavy/heavy-launch` while retaining grounded-heavy windup, hitstop, heavy screen shake, and the launcher impact cue. The full app/audio suite passed 152/152.
+- Real double-tap dash-light captured `attack-swing-light/dash-hit`; sword-dance and settings compatibility routes also passed. Final verification passed: 676/676 non-keyboard and computed-style tests, five real-keyboard routes across the focused and compatibility runs, production build, HTTP 200, and Git whitespace validation.

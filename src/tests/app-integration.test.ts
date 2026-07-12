@@ -5675,6 +5675,7 @@ describe("playable app integration actions", () => {
 
     model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
     model = readyFirstEnemyAttack(model);
+    const commandStart = model.audio.commandQueue.length;
     model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
 
     const windupHtml = renderAppHtml(model);
@@ -5687,6 +5688,7 @@ describe("playable app integration actions", () => {
     expect(windupHtml).toContain('data-telegraph-phase="windup"');
     expect(windupHtml).toContain('data-telegraph-shape="cone"');
     expect(windupHtml).not.toContain('data-enemy-skill-vfx="ash-ember-spit"');
+    expect(model.audio.commandQueue.slice(commandStart).map((command) => command.id)).toEqual(["enemy-windup-light"]);
 
     const hpBeforeImpact = model.combatRun?.player.hp ?? 0;
 
@@ -5706,6 +5708,11 @@ describe("playable app integration actions", () => {
     expect(hitHtml).toContain('data-feedback-result="hit"');
     expect(hitHtml).toContain('class="combat-feedback combat-feedback-hit combat-feedback-skill-ash-ember-spit"');
     expect(hitHtml).not.toContain('data-enemy-telegraph="ash-ember-spit"');
+    expect(model.audio.commandQueue.slice(commandStart).map((command) => command.id)).toEqual([
+      "enemy-windup-light",
+      "enemy-impact-light",
+      "player-hurt-light"
+    ]);
   });
 
   it("renders target-side feedback when the player dodges a monster skill", () => {
@@ -5713,6 +5720,7 @@ describe("playable app integration actions", () => {
 
     model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
     model = readyFirstEnemyAttack(model);
+    const commandStart = model.audio.commandQueue.length;
     model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
 
     if (!model.combatRun) {
@@ -5741,6 +5749,44 @@ describe("playable app integration actions", () => {
     expect(missHtml).toContain('data-feedback-skill-id="ash-ember-spit"');
     expect(missHtml).toContain('data-feedback-result="miss"');
     expect(missHtml).toContain('class="combat-feedback combat-feedback-miss combat-feedback-skill-ash-ember-spit"');
+    expect(model.audio.commandQueue.slice(commandStart).map((command) => command.id)).toEqual([
+      "enemy-windup-light",
+      "enemy-impact-light",
+      "evade-confirm"
+    ]);
+  });
+
+  it("plays a guard impact instead of a hurt sound when a shield absorbs a monster hit", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = readyFirstEnemyAttack(model);
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: {
+          ...model.combatRun.player,
+          shieldUntilMs: 9999,
+          shieldReduction: 0.6
+        }
+      }
+    };
+    const commandStart = model.audio.commandQueue.length;
+
+    for (let tick = 0; tick < 3; tick += 1) {
+      model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+    }
+
+    expect(model.audio.commandQueue.slice(commandStart).map((command) => command.id)).toEqual([
+      "enemy-windup-light",
+      "enemy-impact-light",
+      "guard-impact"
+    ]);
+    expect(model.audio.commandQueue.some((command) => command.id.startsWith("player-hurt-"))).toBe(false);
   });
 
   it("renders skill-specific target feedback for each sustained boss breath tick", () => {
@@ -5750,6 +5796,7 @@ describe("playable app integration actions", () => {
     model = settleClearedRoom(model);
     model = settleClearedRoom(model);
     model = readyFirstEnemyAttack(model);
+    const commandStart = model.audio.commandQueue.length;
 
     model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
 
@@ -5791,6 +5838,16 @@ describe("playable app integration actions", () => {
         'class="combat-feedback combat-feedback-hit combat-feedback-skill-taotie-flame-breath"'
       );
     }
+
+    expect(model.audio.commandQueue.slice(commandStart).map((command) => command.id)).toEqual([
+      "enemy-windup-boss",
+      "enemy-impact-boss",
+      "player-hurt-boss",
+      "enemy-impact-boss",
+      "player-hurt-boss",
+      "enemy-impact-boss",
+      "player-hurt-boss"
+    ]);
   });
 
   it("renders taotie half-health phase change and forge collapse arena hazards", () => {

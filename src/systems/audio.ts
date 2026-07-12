@@ -215,6 +215,131 @@ const musicPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: 
 };
 
 const sfxPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: Array<Omit<AudioPlaybackNote, "channel" | "effectiveGain">> }> = {
+  "enemy-windup-light": {
+    commandId: "enemy-windup-light",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["enemy-inhale", "claw-ready", "warning-rise"],
+    notes: [
+      { frequencyHz: 174.61, startMs: 0, durationMs: 130, gain: 0.14, waveform: "sawtooth" },
+      { frequencyHz: 349.23, startMs: 58, durationMs: 160, gain: 0.12, waveform: "triangle" },
+      { frequencyHz: 698.46, startMs: 128, durationMs: 180, gain: 0.08, waveform: "sine" }
+    ]
+  },
+  "enemy-windup-heavy": {
+    commandId: "enemy-windup-heavy",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["beast-growl", "armor-tension", "danger-pulse"],
+    notes: [
+      { frequencyHz: 73.42, startMs: 0, durationMs: 220, gain: 0.28, waveform: "square" },
+      { frequencyHz: 220, startMs: 64, durationMs: 230, gain: 0.18, waveform: "sawtooth" },
+      { frequencyHz: 440, startMs: 148, durationMs: 210, gain: 0.12, waveform: "triangle" }
+    ]
+  },
+  "enemy-windup-boss": {
+    commandId: "enemy-windup-boss",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["boss-roar", "arena-pressure", "doom-rise"],
+    notes: [
+      { frequencyHz: 41.2, startMs: 0, durationMs: 340, gain: 0.42, waveform: "square" },
+      { frequencyHz: 110, startMs: 72, durationMs: 360, gain: 0.3, waveform: "sawtooth" },
+      { frequencyHz: 329.63, startMs: 190, durationMs: 300, gain: 0.18, waveform: "triangle" },
+      { frequencyHz: 987.77, startMs: 310, durationMs: 260, gain: 0.1, waveform: "sine" }
+    ]
+  },
+  "enemy-impact-light": {
+    commandId: "enemy-impact-light",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["claw-snap", "ember-pop", "impact-short"],
+    notes: [
+      { frequencyHz: 130.81, startMs: 0, durationMs: 92, gain: 0.24, waveform: "square" },
+      { frequencyHz: 523.25, startMs: 18, durationMs: 118, gain: 0.16, waveform: "sawtooth" },
+      { frequencyHz: 1567.98, startMs: 62, durationMs: 142, gain: 0.09, waveform: "triangle" }
+    ]
+  },
+  "enemy-impact-heavy": {
+    commandId: "enemy-impact-heavy",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["beast-crash", "armor-impact", "debris-ring"],
+    notes: [
+      { frequencyHz: 61.74, startMs: 0, durationMs: 180, gain: 0.4, waveform: "square" },
+      { frequencyHz: 185, startMs: 20, durationMs: 210, gain: 0.26, waveform: "sawtooth" },
+      { frequencyHz: 740, startMs: 74, durationMs: 230, gain: 0.15, waveform: "triangle" },
+      { frequencyHz: 1480, startMs: 142, durationMs: 190, gain: 0.08, waveform: "sine" }
+    ]
+  },
+  "enemy-impact-boss": {
+    commandId: "enemy-impact-boss",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["boss-impact", "furnace-bass", "arena-shock"],
+    notes: [
+      { frequencyHz: 36.71, startMs: 0, durationMs: 300, gain: 0.5, waveform: "square" },
+      { frequencyHz: 82.41, startMs: 18, durationMs: 330, gain: 0.36, waveform: "sawtooth" },
+      { frequencyHz: 329.63, startMs: 80, durationMs: 280, gain: 0.2, waveform: "triangle" },
+      { frequencyHz: 1318.51, startMs: 170, durationMs: 320, gain: 0.12, waveform: "sine" }
+    ]
+  },
+  "evade-confirm": {
+    commandId: "evade-confirm",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["evade-air", "near-miss", "confirm-chime"],
+    notes: [
+      { frequencyHz: 880, startMs: 0, durationMs: 70, gain: 0.1, waveform: "sawtooth" },
+      { frequencyHz: 1320, startMs: 36, durationMs: 92, gain: 0.09, waveform: "triangle" },
+      { frequencyHz: 2093, startMs: 82, durationMs: 120, gain: 0.07, waveform: "sine" }
+    ]
+  },
+  "player-hurt-light": {
+    commandId: "player-hurt-light",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["body-hit-light", "cloth-jolt", "hurt-short"],
+    notes: [
+      { frequencyHz: 116.54, startMs: 0, durationMs: 96, gain: 0.25, waveform: "square" },
+      { frequencyHz: 349.23, startMs: 24, durationMs: 118, gain: 0.15, waveform: "sawtooth" },
+      { frequencyHz: 698.46, startMs: 66, durationMs: 132, gain: 0.08, waveform: "triangle" }
+    ]
+  },
+  "player-hurt-heavy": {
+    commandId: "player-hurt-heavy",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["body-hit-heavy", "armor-rattle", "hurt-fall"],
+    notes: [
+      { frequencyHz: 55, startMs: 0, durationMs: 178, gain: 0.4, waveform: "square" },
+      { frequencyHz: 164.81, startMs: 18, durationMs: 210, gain: 0.26, waveform: "sawtooth" },
+      { frequencyHz: 659.25, startMs: 78, durationMs: 218, gain: 0.13, waveform: "triangle" }
+    ]
+  },
+  "player-hurt-boss": {
+    commandId: "player-hurt-boss",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["boss-crush", "player-impact", "low-shock"],
+    notes: [
+      { frequencyHz: 43.65, startMs: 0, durationMs: 260, gain: 0.48, waveform: "square" },
+      { frequencyHz: 130.81, startMs: 20, durationMs: 280, gain: 0.32, waveform: "sawtooth" },
+      { frequencyHz: 523.25, startMs: 90, durationMs: 260, gain: 0.17, waveform: "triangle" },
+      { frequencyHz: 1046.5, startMs: 170, durationMs: 220, gain: 0.09, waveform: "sine" }
+    ]
+  },
+  "guard-impact": {
+    commandId: "guard-impact",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["shield-ring", "guard-spark", "absorbed-impact"],
+    notes: [
+      { frequencyHz: 196, startMs: 0, durationMs: 128, gain: 0.24, waveform: "square" },
+      { frequencyHz: 987.77, startMs: 18, durationMs: 168, gain: 0.18, waveform: "triangle" },
+      { frequencyHz: 1975.53, startMs: 76, durationMs: 220, gain: 0.12, waveform: "sine" }
+    ]
+  },
   "attack-swing-light": {
     commandId: "attack-swing-light",
     channel: "sfx",

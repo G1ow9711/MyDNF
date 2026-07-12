@@ -438,7 +438,17 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify X-X-X playback through real keyboard input.
 - [x] Run regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 201 Enemy Attack and Player Hurt Audio
+- [x] Audit enemy windup/active/miss events, player-hit feedback, and browser evidence.
+- [x] Lock light, heavy, boss, evade, hurt, and guard sound contracts.
+- [x] Add RED coverage for event-derived commands and authored playback plans.
+- [x] Implement enemy event audio mapping with same-frame deduplication.
+- [x] Verify natural enemy windup, impact, and player hurt through the real browser.
+- [x] Run regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 201 compatibility exposed a repeated sword-dance recorder miss: all seven stages, fourteen hits, contact frame 13, airborne state, and audio were present, but `requestAnimationFrame` skipped the >=310 ms recovery sample under oscillator load. Added a DOM mutation sampler while retaining the exact 310 ms/frame-14 requirement; focused and combined reruns passed.
+- Task 201 RED produced empty audio queues for both natural enemy hit and miss routes, while all eleven new ids resolved through the two-note `ui-click` fallback. Enemy event audio was entirely absent.
 - Task 200 RED received only three input-time `hit-light` commands for X-X-X, used the same id for heavy/jump/backstep, and resolved all eleven new ids through the two-note `ui-click` fallback. This proves both timing and authored texture gaps.
 - Task 199 RED received no event-derived audio commands and all five sword-dance ids resolved to the two-note `ui-click` fallback, proving both the timing bridge and authored sound textures were absent.
 - Task 198 first GREEN proved frame 13 in runtime metadata, but visual inspection still showed frame 14 because the 120 ms body clock expired during screenshot encoding. Expanded the real body phase and added 180/310 ms frame assertions rather than freezing browser time.

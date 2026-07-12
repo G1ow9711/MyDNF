@@ -184,6 +184,13 @@ type BrowserEnemyAttackState = {
   playerAnimation: string;
 };
 
+type BrowserEnemyAudioPlayback = {
+  commandId: string;
+  channel: string;
+  noteCount: number;
+  textureTags: string[];
+};
+
 type BrowserCommandState = {
   objective: string;
   activeSkill: string;
@@ -1404,6 +1411,39 @@ const readEnemyAttackStateExpression = `
 })()
 `;
 
+const installEnemyAudioRecorderExpression = `
+(() => {
+  globalThis.__enemyAudioPlayback = [];
+  if (globalThis.__enemyAudioListener) {
+    globalThis.removeEventListener("mydnf:audio-playback", globalThis.__enemyAudioListener);
+  }
+  globalThis.__enemyAudioListener = (event) => {
+    const detail = event.detail ?? {};
+    const commandId = String(detail.commandId ?? "");
+    if (
+      commandId.startsWith("enemy-windup-") ||
+      commandId.startsWith("enemy-impact-") ||
+      commandId.startsWith("player-hurt-") ||
+      commandId === "evade-confirm" ||
+      commandId === "guard-impact"
+    ) {
+      globalThis.__enemyAudioPlayback.push({
+        commandId,
+        channel: detail.channel ?? "",
+        noteCount: Number(detail.noteCount ?? 0),
+        textureTags: Array.isArray(detail.textureTags) ? detail.textureTags : []
+      });
+    }
+  };
+  globalThis.addEventListener("mydnf:audio-playback", globalThis.__enemyAudioListener);
+  return true;
+})()
+`;
+
+const readEnemyAudioPlaybackExpression = `
+(() => globalThis.__enemyAudioPlayback ?? [])()
+`;
+
 const readCommandStateExpression = `
 (() => {
   const scene = document.querySelector(".combat-scene");
@@ -1784,6 +1824,17 @@ const installFlowingLightPhaseRecorderExpression = `
       })
     };
   };
+  const captureFinisherFrames = (sample) => {
+    const evidence = globalThis.__flowingLightSwordDanceEvidence;
+    const sceneElapsedMs = Number(document.querySelector(".combat-scene")?.getAttribute("data-combat-elapsed-ms") ?? "0");
+    const skillHitAtMs = Number(document.querySelector(".combat-player")?.getAttribute("data-player-skill-hit-at-ms") ?? "0");
+    if (sample.hitPhase === "chain-finish" && skillHitAtMs > 0 && sceneElapsedMs - skillHitAtMs >= 180) {
+      evidence.finisherContactHoldFrame = evidence.finisherContactHoldFrame < 0 ? sample.spriteFrame : evidence.finisherContactHoldFrame;
+    }
+    if (sample.hitPhase === "chain-finish" && skillHitAtMs > 0 && sceneElapsedMs - skillHitAtMs >= 310) {
+      evidence.finisherRecoveryFrame = sample.spriteFrame;
+    }
+  };
   const tick = () => {
     const sample = readSample();
     const evidence = globalThis.__flowingLightSwordDanceEvidence;
@@ -1823,14 +1874,7 @@ const installFlowingLightPhaseRecorderExpression = `
     evidence.sawFinisherAirborne ||=
       sample.hitPhase === "chain-finish" &&
       Array.from(document.querySelectorAll(".combat-enemy")).some((enemy) => enemy.getAttribute("data-enemy-airborne") === "true");
-    const sceneElapsedMs = Number(document.querySelector(".combat-scene")?.getAttribute("data-combat-elapsed-ms") ?? "0");
-    const skillHitAtMs = Number(document.querySelector(".combat-player")?.getAttribute("data-player-skill-hit-at-ms") ?? "0");
-    if (sample.hitPhase === "chain-finish" && skillHitAtMs > 0 && sceneElapsedMs - skillHitAtMs >= 180) {
-      evidence.finisherContactHoldFrame = evidence.finisherContactHoldFrame < 0 ? sample.spriteFrame : evidence.finisherContactHoldFrame;
-    }
-    if (sample.hitPhase === "chain-finish" && skillHitAtMs > 0 && sceneElapsedMs - skillHitAtMs >= 310) {
-      evidence.finisherRecoveryFrame = sample.spriteFrame;
-    }
+    captureFinisherFrames(sample);
     if (
       globalThis.__flowingLightPhaseSamples.length < 5 ||
       evidence.stagePhases.length < 7 ||
@@ -1843,6 +1887,15 @@ const installFlowingLightPhaseRecorderExpression = `
   if (globalThis.__flowingLightPhaseRecorder) {
     cancelAnimationFrame(globalThis.__flowingLightPhaseRecorder);
   }
+  if (globalThis.__flowingLightPhaseObserver) {
+    globalThis.__flowingLightPhaseObserver.disconnect();
+  }
+  globalThis.__flowingLightPhaseObserver = new MutationObserver(() => captureFinisherFrames(readSample()));
+  globalThis.__flowingLightPhaseObserver.observe(document.body, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["data-combat-elapsed-ms", "data-player-skill-hit-phase", "data-player-skill-hit-at-ms", "data-sprite-frame"]
+  });
   globalThis.__flowingLightPhaseRecorder = requestAnimationFrame(tick);
   return true;
 })()
@@ -4631,6 +4684,7 @@ describe("real browser keyboard control", () => {
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
+        await page.evaluate<boolean>(installEnemyAudioRecorderExpression);
         await enterDungeonWithKeyboard(page);
         await page.waitFor<BrowserCombatState>(readCombatStateExpression, (state) => state.objective === "active", 5000);
 
@@ -4693,6 +4747,25 @@ describe("real browser keyboard control", () => {
 
         expect(["player-hurt-light", "player-hurt-heavy"]).toContain(playerHit.playerHurtCue);
         expect(playerHit.playerAnimation).toBe(playerHit.playerHurtCue);
+        const audioPlayback = await page.waitFor<BrowserEnemyAudioPlayback[]>(
+          readEnemyAudioPlaybackExpression,
+          (state) =>
+            state.some((event) => event.commandId.startsWith("enemy-windup-")) &&
+            state.some((event) => event.commandId.startsWith("enemy-impact-")) &&
+            state.some((event) => event.commandId.startsWith("player-hurt-")),
+          1800
+        );
+        const hurtIndex = audioPlayback.findIndex((event) => event.commandId.startsWith("player-hurt-"));
+        const impactIndex = audioPlayback.findLastIndex(
+          (event, index) => index < hurtIndex && event.commandId.startsWith("enemy-impact-")
+        );
+        const windupIndex = audioPlayback.findLastIndex(
+          (event, index) => index < impactIndex && event.commandId.startsWith("enemy-windup-")
+        );
+        expect(windupIndex).toBeGreaterThanOrEqual(0);
+        expect(impactIndex).toBeGreaterThan(windupIndex);
+        expect(hurtIndex).toBeGreaterThan(impactIndex);
+        expect(audioPlayback.every((event) => event.channel === "sfx" && event.noteCount >= 3)).toBe(true);
       });
     } finally {
       await server.close();

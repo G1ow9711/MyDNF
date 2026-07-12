@@ -1559,3 +1559,10 @@
 - `hit-light` is absent from the authored SFX table and resolves to the two-note `ui-click` fallback. Existing normal attacks therefore have neither useful weight nor light/heavy distinction.
 - Ground-light 1/2/3, dash-light, air-light, ground-heavy-launch, and air-heavy-slam already expose authoritative hit phases and occurrence times. The sword-dance event bridge can safely generalize to these phases while preserving per-stage multi-target deduplication.
 - The existing real X-X-X route already proves body contact frames 9/10/11 and enemy reactions 12/13/14. Capturing browser playback in that same route gives direct action, reaction, and actual-audio evidence without synthetic input.
+
+## Task 201 Enemy Combat Audio Audit
+- Enemy combat already emits authoritative `enemy-attack` events for windup, active, and miss plus separate `player-hit` events with skill, damage, occurrence time, hit index, and feedback cue.
+- The application audio bridge currently ignores all of these events. Natural monster attacks are visually animated but silent, including telegraphs, explosions, player hurt reactions, and successful evasions.
+- Enemy kind plus heavy skill semantics can classify attacks into light, heavy, and boss families without changing combat data. `player-hit` feedback cues already separate light, heavy, and boss-specific reactions.
+- A miss event still represents a real attack explosion. It should play the attack impact texture plus a short evade confirmation rather than replacing the impact with silence.
+- The existing natural-monster browser route proves windup model motion, active skill VFX, and skill-specific player hurt animation. Extending it with playback recording provides direct end-to-end evidence.

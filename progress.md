@@ -4380,3 +4380,15 @@
 - Real browser X-X-X acceptance captured `swing/hit-1/swing/hit-2/swing/hit-3` through actual WebAudio scheduling while retaining frames 9/10/11, enemy reactions 12/13/14, 3 CHAIN, and airborne finisher evidence.
 - The real Z route captured `attack-swing-heavy/heavy-launch` while retaining grounded-heavy windup, hitstop, heavy screen shake, and the launcher impact cue. The full app/audio suite passed 152/152.
 - Real double-tap dash-light captured `attack-swing-light/dash-hit`; sword-dance and settings compatibility routes also passed. Final verification passed: 676/676 non-keyboard and computed-style tests, five real-keyboard routes across the focused and compatibility runs, production build, HTTP 200, and Git whitespace validation.
+
+## Task 201 Enemy Attack and Player Hurt Audio
+- Audited enemy event generation, feedback cues, reducer audio flow, and the natural-monster real-browser route. No subagent was started.
+- Locked light/heavy/boss windup and impact families plus evade, player-hurt, and guard confirmation. RED coverage follows.
+- RED proved the enemy event bridge and authored plans were both absent: hit and miss routes queued nothing, and every new sound id used the fallback click.
+- Added eleven authored procedural sounds and generalized the combat event bridge. Enemy windup/active/miss and player-hit events now produce weighted telegraph, impact, evade, hurt, or guard sounds with occurrence-time deduplication.
+- Focused hit, miss, and playback-plan GREEN passed; production TypeScript/Vite build passed. Real natural-attack acceptance follows.
+- Real browser natural combat captured ordered enemy windup, impact, and player-hurt WebAudio playback while retaining telegraph shape, non-idle monster animation, active skill VFX, and skill-specific player hurt animation.
+- Added shield coverage proving an absorbed monster hit emits `guard-impact` and suppresses player-hurt audio. The focused app/audio suite passed 153/153 before this additional guard case.
+- Boss breath coverage proves one boss windup followed by three impact/hurt pairs. Final app/audio suite passed 154/154 and the complete non-keyboard/computed-style suite passed 678/678.
+- Compatibility initially missed only the sword-dance >=310 ms recovery sample under audio load. Added DOM-mutation sampling alongside animation frames without changing the 310 ms/frame-14 contract; focused and combined reruns passed, together with normal combo and settings persistence.
+- Final verification passed: natural enemy browser route, three compatibility routes, 678/678 non-keyboard tests, production build, HTTP 200, and Git whitespace validation. Chinese commit and push follow this record update.

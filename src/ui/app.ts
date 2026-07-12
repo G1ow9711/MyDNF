@@ -19,6 +19,7 @@ import {
   type CombatEnemy,
   type CombatEnemyAttackEvent,
   type CombatEnemySummonEvent,
+  type CombatEvent,
   type CombatHitEvent,
   type CombatLootEvent,
   type CombatMissEvent,
@@ -2613,6 +2614,63 @@ function normalCombatHitSfxId(event: CombatHitEvent): string | undefined {
   }
 }
 
+type EnemyAudioWeight = "light" | "heavy" | "boss";
+
+function enemyAudioWeight(event: CombatEnemyAttackEvent, run: CombatRun): EnemyAudioWeight {
+  const enemy = run.enemies.find((candidate) => candidate.id === event.enemyId);
+  if (enemy?.kind === "boss") {
+    return "boss";
+  }
+
+  if (
+    enemy?.kind === "elite" ||
+    ["burst", "charge", "shockwave", "slam", "cleave", "shackle", "devour"].some((token) => event.skillId.includes(token))
+  ) {
+    return "heavy";
+  }
+
+  return "light";
+}
+
+function enemyAttackSfxIds(event: CombatEnemyAttackEvent, run: CombatRun): string[] {
+  const weight = enemyAudioWeight(event, run);
+  if (event.phase === "windup") {
+    return [`enemy-windup-${weight}`];
+  }
+
+  const impactId = `enemy-impact-${weight}`;
+  return event.phase === "miss" ? [impactId, "evade-confirm"] : [impactId];
+}
+
+function playerHurtSfxId(event: CombatPlayerHitEvent, run: CombatRun): string {
+  if (run.player.shieldUntilMs > event.occurredAtMs) {
+    return "guard-impact";
+  }
+
+  if (event.feedbackCue === "player-hurt-light") {
+    return "player-hurt-light";
+  }
+
+  if (event.feedbackCue === "player-hurt-heavy") {
+    return "player-hurt-heavy";
+  }
+
+  return "player-hurt-boss";
+}
+
+function combatEventSfxIds(event: CombatEvent, run: CombatRun): string[] {
+  if (event.kind === "hit") {
+    const sfxId = swordDanceSfxId(event) ?? normalCombatHitSfxId(event);
+    return sfxId ? [sfxId] : [];
+  }
+
+  if (event.kind === "enemy-attack") {
+    return enemyAttackSfxIds(event, run);
+  }
+
+  return event.kind === "player-hit" ? [playerHurtSfxId(event, run)] : [];
+}
+
 function combatInputSfxId(inputType: CombatActionInput["type"]): string {
   switch (inputType) {
     case "light":
@@ -2635,22 +2693,15 @@ function enqueueNewCombatEventSfx(audio: AudioState, previousRun: CombatRun, nex
   const playedStageKeys = new Set<string>();
 
   for (const event of nextRun.events.slice(previousRun.events.length)) {
-    if (event.kind !== "hit") {
-      continue;
-    }
+    for (const sfxId of combatEventSfxIds(event, nextRun)) {
+      const stageKey = `${"occurredAtMs" in event ? event.occurredAtMs : nextRun.elapsedMs}:${sfxId}`;
+      if (playedStageKeys.has(stageKey)) {
+        continue;
+      }
 
-    const sfxId = swordDanceSfxId(event) ?? normalCombatHitSfxId(event);
-    if (!sfxId) {
-      continue;
+      playedStageKeys.add(stageKey);
+      nextAudio = playSfx(nextAudio, sfxId);
     }
-
-    const stageKey = `${event.occurredAtMs}:${sfxId}`;
-    if (playedStageKeys.has(stageKey)) {
-      continue;
-    }
-
-    playedStageKeys.add(stageKey);
-    nextAudio = playSfx(nextAudio, sfxId);
   }
 
   return nextAudio;

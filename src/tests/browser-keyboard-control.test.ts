@@ -398,6 +398,25 @@ type BrowserStrictCombatEvidence = {
   sawBossSkillVfx: boolean;
 };
 
+type BrowserBossHudState = {
+  visible: boolean;
+  name: string;
+  phase: string;
+  hpCurrent: number;
+  hpMax: number;
+  hpPercent: number;
+  armorCurrent: number;
+  armorMax: number;
+  armorState: string;
+  breakRemainingMs: number;
+  castSkillId: string;
+  castStage: string;
+  castProgress: number;
+  width: number;
+  overlapsStatus: boolean;
+  overlapsCombo: boolean;
+};
+
 type BrowserLiuliEnemyState = {
   dungeonId: string;
   roomIndex: string;
@@ -857,6 +876,39 @@ const readStrictCombatStateExpression = `
     enemies,
     enemyVfx: enemyVfx?.getAttribute("data-enemy-skill-vfx") ?? "",
     enemyVfxCue: enemyVfx?.getAttribute("data-enemy-vfx-cue") ?? ""
+  };
+})()
+`;
+
+const readBossHudStateExpression = `
+(() => {
+  const hud = document.querySelector("[data-boss-combat-hud='true']");
+  const status = document.querySelector(".combat-status");
+  const combo = document.querySelector(".combo-meter");
+  const overlaps = (left, right) => {
+    if (!left || !right) return false;
+    const a = left.getBoundingClientRect();
+    const b = right.getBoundingClientRect();
+    return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  };
+  const rect = hud?.getBoundingClientRect();
+  return {
+    visible: Boolean(hud && rect && rect.width > 0 && rect.height > 0),
+    name: hud?.getAttribute("data-boss-name") ?? "",
+    phase: hud?.getAttribute("data-boss-phase") ?? "",
+    hpCurrent: Number(hud?.getAttribute("data-boss-hp-current") ?? "0"),
+    hpMax: Number(hud?.getAttribute("data-boss-hp-max") ?? "0"),
+    hpPercent: Number(hud?.getAttribute("data-boss-hp-percent") ?? "0"),
+    armorCurrent: Number(hud?.getAttribute("data-boss-armor-current") ?? "0"),
+    armorMax: Number(hud?.getAttribute("data-boss-armor-max") ?? "0"),
+    armorState: hud?.getAttribute("data-boss-armor-state") ?? "",
+    breakRemainingMs: Number(hud?.getAttribute("data-boss-break-remaining-ms") ?? "0"),
+    castSkillId: hud?.getAttribute("data-boss-cast-skill-id") ?? "",
+    castStage: hud?.getAttribute("data-boss-cast-stage") ?? "",
+    castProgress: Number(hud?.getAttribute("data-boss-cast-progress") ?? "0"),
+    width: rect?.width ?? 0,
+    overlapsStatus: overlaps(hud, status),
+    overlapsCombo: overlaps(hud, combo)
   };
 })()
 `;
@@ -3468,6 +3520,7 @@ describe("real browser keyboard control", () => {
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
         await enterDungeonWithKeyboard(page);
         await page.evaluate<boolean>(installStrictCombatRecorderExpression);
         await page.waitFor<BrowserRoomFlowState>(
@@ -3494,6 +3547,21 @@ describe("real browser keyboard control", () => {
         expect(bossRoom.roomIndex).toBe("2");
         expect(bossRoom.liveEnemyCount).toBe("1");
         expect(bossRoom.enemies.some((enemy) => enemy.kind === "boss" && enemy.hp > 0)).toBe(true);
+
+        const bossHud = await page.waitFor<BrowserBossHudState>(
+          readBossHudStateExpression,
+          (state) => state.visible && state.name === "饕餮监工" && state.hpCurrent === 520 && state.armorMax === 80,
+          3000
+        );
+        expect(bossHud.phase).toBe("1");
+        expect(bossHud.hpMax).toBe(520);
+        expect(bossHud.hpPercent).toBe(100);
+        expect(bossHud.armorCurrent).toBe(80);
+        expect(bossHud.armorState).toBe("super-armor");
+        expect(bossHud.width).toBeGreaterThan(500);
+        expect(bossHud.overlapsStatus).toBe(false);
+        expect(bossHud.overlapsCombo).toBe(false);
+        await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/boss-hud-phase-one.png`);
 
         const evidence = await page.waitFor<BrowserStrictCombatEvidence>(
           readStrictCombatEvidenceExpression,
@@ -4029,6 +4097,12 @@ describe("real browser keyboard control", () => {
 
         const phaseThree = await triggerBossPhaseThreeWithKeyboard(page);
         expect(phaseThree.bossPhase).toBe("3");
+        const phaseThreeHud = await page.waitFor<BrowserBossHudState>(
+          readBossHudStateExpression,
+          (state) => state.visible && state.phase === "3" && state.armorMax === 120,
+          3000
+        );
+        expect(phaseThreeHud.name).toBe("饕餮监工");
         const phaseThreeEvidence = await page.waitFor<BrowserStrictCombatEvidence>(
           readStrictCombatEvidenceExpression,
           (evidence) => evidence.sawBossPhaseThree && evidence.sawBossPhaseThreeVfx,
@@ -4053,6 +4127,12 @@ describe("real browser keyboard control", () => {
               ),
             9000
           );
+          const windupHud = await page.waitFor<BrowserBossHudState>(
+            readBossHudStateExpression,
+            (state) => state.castSkillId === "taotie-world-devour" && state.castStage === "windup" && state.castProgress > 0,
+            1200
+          );
+          expect(windupHud.phase).toBe("3");
           const taotieWindup = await page.waitFor<BrowserMonsterSpriteState>(
             readMonsterSpriteStateExpression,
             (state) => state.enemies.some((enemy) =>
@@ -4101,6 +4181,21 @@ describe("real browser keyboard control", () => {
         expect(windup.enemies.some((enemy) => enemy.skill === "taotie-world-devour")).toBe(true);
         expect(broken.sawWorldDevourVfx).toBe(true);
         expect(broken.sawWorldDevourArmorBreak).toBe(true);
+        const brokenHud = await page.waitFor<BrowserBossHudState>(
+          readBossHudStateExpression,
+          (state) => state.armorState === "broken" && state.breakRemainingMs > 0,
+          1200
+        );
+        expect(brokenHud.armorCurrent).toBe(0);
+
+        await page.setViewport(390, 844);
+        const mobileHud = await page.waitFor<BrowserBossHudState>(
+          readBossHudStateExpression,
+          (state) => state.visible && state.width > 340 && state.width <= 374,
+          1200
+        );
+        expect(mobileHud.overlapsStatus).toBe(false);
+        expect(mobileHud.overlapsCombo).toBe(false);
       });
     } finally {
       await server.close();

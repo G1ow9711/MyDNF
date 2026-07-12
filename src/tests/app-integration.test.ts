@@ -1415,6 +1415,90 @@ describe("playable app integration actions", () => {
     expect(html).toContain("冷却");
   });
 
+  it("renders an authoritative Boss HUD for identity, HP, armor, break window, phase, and cast state", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    expect(renderAppHtml(model)).not.toContain('data-boss-combat-hud="true"');
+
+    model = settleClearedRoom(model);
+    model = settleClearedRoom(model);
+
+    if (!model.combatRun) {
+      throw new Error("Expected Boss combat run");
+    }
+
+    const initialHtml = renderAppHtml(model);
+
+    expect(initialHtml).toContain('data-boss-combat-hud="true"');
+    expect(initialHtml).toContain('data-boss-name="饕餮监工"');
+    expect(initialHtml).toContain('data-boss-hp-current="520"');
+    expect(initialHtml).toContain('data-boss-hp-max="520"');
+    expect(initialHtml).toContain('data-boss-hp-percent="100"');
+    expect(initialHtml).toContain('data-boss-phase="1"');
+    expect(initialHtml).toContain('data-boss-armor-current="80"');
+    expect(initialHtml).toContain('data-boss-armor-max="80"');
+    expect(initialHtml).toContain('data-boss-armor-state="super-armor"');
+    expect(initialHtml).toContain('data-boss-cast-stage="none"');
+
+    const bossId = model.combatRun.enemies.find((enemy) => enemy.kind === "boss")?.id;
+    const castModel = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs: 200,
+        enemies: model.combatRun.enemies.map((enemy) =>
+          enemy.id === bossId
+            ? {
+                ...enemy,
+                bossPhase: 3 as const,
+                hp: 150,
+                armor: 120,
+                maxArmor: 120,
+                attackSkillId: "taotie-world-devour" as CombatEnemy["attackSkillId"],
+                attackStartedAtMs: 100,
+                attackImpactAtMs: 500,
+                attackRecoverUntilMs: 900,
+                attackHitResolved: false
+              }
+            : enemy
+        )
+      }
+    };
+    const castHtml = renderAppHtml(castModel);
+
+    expect(castHtml).toContain('data-boss-phase="3"');
+    expect(castHtml).toContain('data-boss-armor-max="120"');
+    expect(castHtml).toContain('data-boss-cast-skill-id="taotie-world-devour"');
+    expect(castHtml).toContain('data-boss-cast-stage="windup"');
+    expect(castHtml).toContain("饕餮吞界");
+
+    const brokenHtml = renderAppHtml({
+      ...castModel,
+      combatRun: {
+        ...castModel.combatRun,
+        elapsedMs: 600,
+        enemies: castModel.combatRun.enemies.map((enemy) =>
+          enemy.id === bossId
+            ? {
+                ...enemy,
+                armor: 0,
+                armorBrokenUntilMs: 1500,
+                attackSkillId: undefined,
+                attackStartedAtMs: undefined,
+                attackImpactAtMs: undefined,
+                attackRecoverUntilMs: undefined
+              }
+            : enemy
+        )
+      }
+    });
+
+    expect(brokenHtml).toContain('data-boss-armor-state="broken"');
+    expect(brokenHtml).toContain('data-boss-break-remaining-ms="900"');
+    expect(brokenHtml).toContain("破防窗口");
+  });
+
   it("prompts gate entry instead of attacking an already cleared combat room", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

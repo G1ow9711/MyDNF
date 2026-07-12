@@ -1606,3 +1606,13 @@
 - Open-source PixiJS patterns support tick-driven rendering, but this scoped upgrade does not justify replacing the established sprite stage. Original DOM/CSS layers can prove the action-effect contract without importing third-party assets.
 - The first tuned finisher still read as a large oval because the old sprite pseudo-element dominated the new wave. Reducing that near-body arc and shaping the dedicated finisher layer into a forward split fan keeps the sword posture and airborne monsters readable.
 - Real keyboard acceptance preserved all seven stages, fourteen hits, alternating enemy reactions, frame-13 contact hold, frame-14 recovery, airborne finisher state, and seven hit-timed sound families.
+
+## Task 206 Boss Combat HUD Audit
+- Boss combat state already owns HP/maxHP, phase 1/2/3, consumable armor, break-window time, active attack id, impact/recovery times, and phase events. The HUD can remain a pure projection of authoritative state.
+- `CombatEnemy` has current armor but no maximum armor. Phase three raises current armor to 120, so a stable percentage requires a tracked maximum that changes with the phase reset.
+- `enemyStats("boss")` always names the actor “琉璃监工”; Cinder's actual catalog Boss is Taotie, so the actor and future HUD are currently wrong in that dungeon.
+- The existing desktop status occupies left 20/top 194 and the combo meter occupies the upper right. A centered bar from left 480 to right 150 avoids both while remaining above the actor field.
+- The existing mobile controls end near 124px, status/combo start at 132px, so the compact Boss bar belongs below them around 178px.
+- The desktop 1440x900 screenshot shows the global Boss bar above the actor field and clear of the left status and right combo meter. Taotie remains fully visible beneath it; the bar reads the live first cast rather than a static label.
+- Phase-three keyboard acceptance proves maximum armor 120, world-devour windup id/stage/progress, and the dodge-created zero-armor break window. The same mounted HUD stays within 390px mobile bounds without intersecting status or combo surfaces.
+- The full 37-route browser run passed 36 routes and only missed the legacy backstep/elite setup after a natural horn-charge hit under suite load. Its isolated rerun passed unchanged, while every Boss, campaign, sword-dance, economy, quest, loot, and save route passed in the full run.

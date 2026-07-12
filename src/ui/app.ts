@@ -1454,6 +1454,18 @@ function enemyArmorState(enemy: CombatEnemy, elapsedMs: number): string {
   return enemySuperArmorActive(enemy, elapsedMs) ? "super-armor" : "normal";
 }
 
+function bossArmorHudState(enemy: CombatEnemy, elapsedMs: number): "broken" | "depleted" | "super-armor" | "normal" {
+  if (elapsedMs < (enemy.armorBrokenUntilMs ?? 0)) {
+    return "broken";
+  }
+
+  if (enemy.armor <= 0) {
+    return "depleted";
+  }
+
+  return enemySuperArmorActive(enemy, elapsedMs) ? "super-armor" : "normal";
+}
+
 function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { id: string; label: string } {
   if (skillId === "liuli-glass-spray") {
     return { id: skillId, label: "琉璃碎雾" };
@@ -1509,6 +1521,14 @@ function enemySkillEffect(enemy: CombatEnemy, skillId = enemy.attackSkillId): { 
 
   if (skillId === "taotie-world-devour") {
     return { id: "taotie-world-devour", label: "饕餮吞界" };
+  }
+
+  if (skillId === "taotie-forge-collapse") {
+    return { id: "taotie-forge-collapse", label: "炉天崩塌" };
+  }
+
+  if (skillId === "taotie-armor-pulse") {
+    return { id: "taotie-armor-pulse", label: "饕餮甲胄" };
   }
 
   if (skillId === "taotie-flame-breath" || enemy.kind === "boss") {
@@ -2025,6 +2045,78 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   `;
 }
 
+function bossPhaseLabel(phase: 1 | 2 | 3): string {
+  return phase === 3 ? "阶段 III" : phase === 2 ? "阶段 II" : "阶段 I";
+}
+
+function bossCastStageLabel(stage: EnemyAttackVisualState["stage"]): string {
+  if (stage === "windup") {
+    return "蓄势";
+  }
+
+  if (stage === "active") {
+    return "释放";
+  }
+
+  if (stage === "recovery") {
+    return "收招";
+  }
+
+  return "观察中";
+}
+
+function renderBossCombatHud(run: CombatRun, boss: CombatEnemy): string {
+  const phase = boss.bossPhase ?? 1;
+  const hpPercent = enemyHpPercent(boss);
+  const maxArmor = Math.max(0, boss.maxArmor);
+  const armorPercent = maxArmor > 0 ? Math.round(Math.min(1, Math.max(0, boss.armor / maxArmor)) * 100) : 0;
+  const armorState = bossArmorHudState(boss, run.elapsedMs);
+  const breakRemainingMs = Math.max(0, (boss.armorBrokenUntilMs ?? 0) - run.elapsedMs);
+  const armorLabel =
+    armorState === "broken"
+      ? `破防窗口 ${(breakRemainingMs / 1000).toFixed(1)}s`
+      : armorState === "depleted"
+        ? "护甲耗尽"
+        : armorState === "super-armor"
+          ? "霸体护甲"
+          : "护甲稳定";
+  const activePhaseEvent = latestBossPhaseEvent(run);
+  const phaseSkillId =
+    !boss.attackSkillId && activePhaseEvent?.enemyId === boss.id ? activePhaseEvent.skillId : undefined;
+  const castSkillId = boss.attackSkillId ?? phaseSkillId;
+  const castVisual = boss.attackSkillId
+    ? enemyAttackVisualState(boss, run.elapsedMs)
+    : bossPhaseAttackVisualState(phaseSkillId ? activePhaseEvent : undefined, run.elapsedMs);
+  const castProgress = castVisual.progress === "" ? 0 : Math.round(Number(castVisual.progress) * 100);
+  const castEffect = castSkillId ? enemySkillEffect(boss, castSkillId) : undefined;
+
+  return `
+    <section class="boss-combat-hud" data-boss-combat-hud="true" data-boss-id="${boss.id}" data-boss-name="${boss.displayName}" data-boss-phase="${phase}" data-boss-hp-current="${boss.hp}" data-boss-hp-max="${boss.maxHp}" data-boss-hp-percent="${hpPercent}" data-boss-armor-current="${boss.armor}" data-boss-armor-max="${maxArmor}" data-boss-armor-percent="${armorPercent}" data-boss-armor-state="${armorState}" data-boss-break-remaining-ms="${breakRemainingMs}" data-boss-cast-skill-id="${castSkillId ?? ""}" data-boss-cast-stage="${castVisual.stage}" data-boss-cast-progress="${castProgress}" aria-label="${boss.displayName} Boss状态">
+      <header class="boss-hud-heading">
+        <strong>${boss.displayName}</strong>
+        <span>${bossPhaseLabel(phase)}</span>
+        <output>${boss.hp} / ${boss.maxHp}</output>
+      </header>
+      <div class="boss-hp-track" aria-label="生命 ${boss.hp}/${boss.maxHp}">
+        <span class="boss-hp-fill" style="--boss-hp: ${hpPercent}%;"></span>
+        <span class="boss-hp-segments" aria-hidden="true"></span>
+      </div>
+      <div class="boss-hud-detail">
+        <div class="boss-armor-status" data-boss-armor-label="${armorLabel}">
+          <span>${armorLabel}</span>
+          <div class="boss-armor-track"><span class="boss-armor-fill" style="--boss-armor: ${armorPercent}%;"></span></div>
+          <output>${boss.armor} / ${maxArmor}</output>
+        </div>
+        <div class="boss-cast-status" data-boss-cast-active="${castSkillId ? "true" : "false"}">
+          <span>${castEffect?.label ?? "观察中"}</span>
+          <div class="boss-cast-track"><span class="boss-cast-progress" style="--boss-cast: ${castProgress}%;"></span></div>
+          <output>${bossCastStageLabel(castVisual.stage)}</output>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderCombatFloorLoot(run: CombatRun): string {
   const floorLoot = run.floorLoot;
   if (!floorLoot) {
@@ -2192,6 +2284,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
   const bossEnemy = run.enemies.find((enemy) => enemy.kind === "boss");
   const bossPhase = bossEnemy ? bossEnemy.bossPhase ?? 1 : "";
   const bossPhaseTriggered = Boolean(bossEnemy?.bossPhaseTriggeredAtMs !== undefined || (bossEnemy?.bossPhase ?? 1) >= 2);
+  const bossCombatHud = bossEnemy && bossEnemy.hp > 0 ? renderBossCombatHud(run, bossEnemy) : "";
   const activeArenaHazards = roomFailed ? [] : recentArenaHazardEvents(run);
   const arenaHazardIds = new Set([
     ...activeArenaHazards.map((hazard) => hazard.hazardId),
@@ -2248,6 +2341,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
       ${roomFailed ? `<div class="arena-hazard-layer" data-arena-hazard-layer="true" data-arena-hazard-count="0"></div>` : renderArenaHazards(run)}
       ${renderCombatVfx(run)}
       ${comboMeter}
+      ${bossCombatHud}
       ${defeatOverlay}
       ${commandReductionApplied ? `<div class="command-input-toast" data-command-toast="true">COMMAND INPUT</div>` : ""}
       ${comboCancelCast ? `<div class="skill-cancel-toast" data-skill-cancel-toast="true" data-combo-cancel-skill-id="${comboCancelCast.skillId}">CANCEL</div>` : ""}

@@ -9644,6 +9644,7 @@ describe("enemy attacks and player defeat", () => {
 
     expect((phased.enemies[0] as { bossPhase?: number }).bossPhase).toBe(3);
     expect(phased.enemies[0].armor).toBeGreaterThan(0);
+    expect(phased.enemies[0].maxArmor).toBe(120);
     expect((phaseEvents[0] as { phase?: number; skillId?: string; hazardCount?: number } | undefined)).toMatchObject({
       phase: 3,
       skillId: "taotie-armor-pulse",

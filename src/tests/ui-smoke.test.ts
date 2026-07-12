@@ -609,6 +609,23 @@ describe("town app shell", () => {
     expect(html).toContain('data-combat-objective="active"');
   });
 
+  it("renders a responsive segmented Boss HUD only in the Boss room", () => {
+    const state = createInitialState();
+    const trashRun = createCombatRun(state, "cinder-kiln-alley");
+    const bossRun = reachCombatRoom(trashRun, 2);
+    const trashHtml = renderAppHtml({ state, mode: "combat", combatRun: trashRun });
+    const bossHtml = renderAppHtml({ state, mode: "combat", combatRun: bossRun });
+
+    expect(trashHtml).not.toContain('data-boss-combat-hud="true"');
+    expect(bossHtml).toContain('class="boss-combat-hud"');
+    expect(bossHtml).toContain('class="boss-hp-segments"');
+    expect(bossHtml).toContain('class="boss-armor-fill"');
+    expect(bossHtml).toContain('class="boss-cast-progress"');
+    expect(stylesCss).toContain(".boss-combat-hud");
+    expect(stylesCss).toContain(".boss-hp-segments");
+    expect(stylesCss).toContain('@media (max-width: 720px)');
+  });
+
   it("renders Shan Hai Jing inspired bitmap monster models by enemy tier", () => {
     const state = createInitialState();
     const trashRun = createCombatRun(state, "cinder-kiln-alley");

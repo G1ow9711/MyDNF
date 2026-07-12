@@ -2547,6 +2547,162 @@ p {
   box-shadow: none;
 }
 
+.boss-combat-hud {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 178px;
+  z-index: 5;
+  display: grid;
+  gap: 5px;
+  padding: 7px 10px;
+  border: 1px solid rgba(248, 113, 113, 0.66);
+  border-radius: 6px;
+  color: #f8fafc;
+  background: rgba(3, 7, 18, 0.88);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.52), inset 0 0 0 1px rgba(254, 226, 226, 0.06);
+  pointer-events: none;
+}
+
+.boss-combat-hud[data-boss-phase="2"] {
+  border-color: rgba(251, 146, 60, 0.76);
+}
+
+.boss-combat-hud[data-boss-phase="3"] {
+  border-color: rgba(239, 68, 68, 0.9);
+  box-shadow: 0 10px 26px rgba(69, 10, 10, 0.58), inset 0 0 0 1px rgba(254, 226, 226, 0.1);
+}
+
+.boss-hud-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.boss-hud-heading strong {
+  overflow: hidden;
+  color: #fff7ed;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boss-hud-heading span {
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.boss-hud-heading output {
+  color: #fecaca;
+  font: 700 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.boss-hp-track,
+.boss-armor-track,
+.boss-cast-track {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.24);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.boss-hp-track {
+  height: 14px;
+  border-radius: 3px;
+}
+
+.boss-hp-fill,
+.boss-armor-fill,
+.boss-cast-progress {
+  position: absolute;
+  inset: 0 auto 0 0;
+  transition: width 120ms linear;
+}
+
+.boss-hp-fill {
+  width: var(--boss-hp, 0%);
+  background: linear-gradient(90deg, #7f1d1d, #dc2626 64%, #fb7185);
+  box-shadow: inset 0 1px rgba(254, 226, 226, 0.34), 0 0 12px rgba(239, 68, 68, 0.36);
+}
+
+.boss-hp-segments {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), rgba(2, 6, 23, 0.72) calc(10% - 1px) 10%);
+}
+
+.boss-hud-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 12px;
+}
+
+.boss-armor-status,
+.boss-cast-status {
+  display: grid;
+  grid-template-columns: minmax(64px, auto) minmax(44px, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #cbd5e1;
+  font-size: 10px;
+}
+
+.boss-armor-status > span,
+.boss-cast-status > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boss-armor-track,
+.boss-cast-track {
+  height: 7px;
+  border-radius: 2px;
+}
+
+.boss-armor-fill {
+  width: var(--boss-armor, 0%);
+  background: linear-gradient(90deg, #0e7490, #67e8f9 74%, #fef08a);
+}
+
+.boss-cast-progress {
+  width: var(--boss-cast, 0%);
+  background: linear-gradient(90deg, #f59e0b, #fef3c7);
+}
+
+.boss-armor-status output,
+.boss-cast-status output {
+  color: #e2e8f0;
+  font: 700 10px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.boss-combat-hud[data-boss-armor-state="broken"] .boss-armor-status > span,
+.boss-combat-hud[data-boss-armor-state="broken"] .boss-armor-status output {
+  color: #fef08a;
+}
+
+.boss-combat-hud[data-boss-armor-state="broken"] .boss-armor-fill,
+.boss-combat-hud[data-boss-armor-state="depleted"] .boss-armor-fill {
+  background: #64748b;
+}
+
+.boss-cast-status[data-boss-cast-active="true"] > span,
+.boss-cast-status[data-boss-cast-active="true"] output {
+  color: #fde68a;
+}
+
+@media (min-width: 721px) {
+  .boss-combat-hud {
+    left: 480px;
+    right: 150px;
+    top: 194px;
+  }
+}
+
 .combat-actors {
   position: absolute;
   inset: 0;
@@ -13922,6 +14078,44 @@ p {
 
   .combo-meter span {
     font-size: 9px;
+  }
+
+  .boss-combat-hud {
+    gap: 3px;
+    padding: 5px 7px;
+  }
+
+  .boss-hud-heading {
+    gap: 6px;
+  }
+
+  .boss-hud-heading strong {
+    font-size: 12px;
+  }
+
+  .boss-hud-heading span,
+  .boss-hud-heading output {
+    font-size: 9px;
+  }
+
+  .boss-hp-track {
+    height: 10px;
+  }
+
+  .boss-hud-detail {
+    gap: 6px;
+  }
+
+  .boss-armor-status,
+  .boss-cast-status {
+    grid-template-columns: minmax(50px, auto) minmax(24px, 1fr) auto;
+    gap: 4px;
+    font-size: 8px;
+  }
+
+  .boss-armor-status output,
+  .boss-cast-status output {
+    font-size: 8px;
   }
 
   .quest-tracker {

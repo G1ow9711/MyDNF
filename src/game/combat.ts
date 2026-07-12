@@ -215,6 +215,7 @@ export interface CombatEnemy {
   maxHp: number;
   defeatedAtMs?: number;
   armor: number;
+  maxArmor: number;
   body: CombatBodySize;
   hurtbox: CombatHurtboxSize;
   marks: number;
@@ -1323,6 +1324,7 @@ function triggerBossPhaseTransitions(run: CombatRun, occurredAtMs = run.elapsedM
         bossPhase: 3 as const,
         bossPhaseTriggeredAtMs: occurredAtMs,
         armor: Math.max(enemy.armor, 120),
+        maxArmor: Math.max(enemy.maxArmor, 120),
         attackProfileId: "taotie-world-devour" as const,
         attackPatternIds: taotieBossPhaseThreePattern,
         nextAttackPatternIndex: 0,
@@ -1518,13 +1520,14 @@ function getDungeon(dungeonId: string) {
   return catalog.dungeons.find((dungeon) => dungeon.id === dungeonId);
 }
 
-function enemyStats(kind: EnemyKind): Pick<CombatEnemy, "displayName" | "hp" | "maxHp" | "armor" | "body" | "hurtbox"> {
+function enemyStats(kind: EnemyKind): Pick<CombatEnemy, "displayName" | "hp" | "maxHp" | "armor" | "maxArmor" | "body" | "hurtbox"> {
   if (kind === "boss") {
     return {
       displayName: "琉璃监工",
       hp: 520,
       maxHp: 520,
       armor: 80,
+      maxArmor: 80,
       body: { width: 260, height: 216 },
       hurtbox: { width: 190, height: 128 }
     };
@@ -1536,6 +1539,7 @@ function enemyStats(kind: EnemyKind): Pick<CombatEnemy, "displayName" | "hp" | "
       hp: 180,
       maxHp: 180,
       armor: 30,
+      maxArmor: 30,
       body: { width: 188, height: 148 },
       hurtbox: { width: 132, height: 96 }
     };
@@ -1546,6 +1550,7 @@ function enemyStats(kind: EnemyKind): Pick<CombatEnemy, "displayName" | "hp" | "
     hp: 80,
     maxHp: 80,
     armor: 0,
+    maxArmor: 0,
     body: { width: 144, height: 116 },
     hurtbox: { width: 82, height: 52 }
   };
@@ -2069,7 +2074,11 @@ function createEnemy(
     hp: scaledHp,
     maxHp: scaledHp,
     displayName:
-      attackProfileId === "ash-crawler-burst"
+      kind === "boss"
+        ? dungeonId === "cinder-kiln-alley"
+          ? "饕餮监工"
+          : "琉璃监工"
+        : attackProfileId === "ash-crawler-burst"
         ? "灰烬爬妖"
         : attackProfileId === "zheng-horn-charge"
           ? "雷角狰"

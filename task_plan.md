@@ -478,7 +478,16 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify all seven stages and visual readability in a real browser.
 - [x] Run regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 206 Boss Combat HUD
+- [x] Audit Boss HP, phase, armor, break window, cast state, names, and combat layout.
+- [x] Lock the authoritative Boss HUD contract and responsive placement.
+- [x] Add RED state/render/style coverage.
+- [x] Implement max armor, correct Boss identity, segmented HP, armor, and cast HUD.
+- [x] Verify Boss entry and phase changes through real keyboard play.
+- [x] Run regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 206 full 37-route browser regression passed 36 and missed only the legacy backstep/elite safe-attack window after a natural horn-charge hit under suite load. The exact focused route then passed unchanged; all Boss HUD, phase-three, campaign, combat, economy, quest, loot, and save routes passed in the full run.
 - Task 204 full 37-route browser regression passed 32 and exposed five route assumptions. One lacked a desktop viewport, one waited on a fixed player coordinate while monsters now close distance, one attacked elite coordinates only once despite ongoing pursuit, one used a non-confirmed prep click, and Ink waited after positioning so its delayed mark target moved. Routes now use desktop geometry, current-target repositioning, safe attack windows, state-confirmed real clicks, and position immediately before cast.
 - Task 204 combined browser compatibility passed sword dance and Boss clear but exposed two dynamic-battle assumptions: X-X-X could launch a still-alive pursued target whose airborne motion masked reaction frame 14, and a pursued enemy could die directly beside the player so idle death ticks auto-picked floor loot before visual acceptance. Normal-combo reaction metadata now outranks airborne idle presentation, and floor pickup requires a real movement tick while gate auto-claim remains intact.
 - Task 204 pursuit browser acceptance first captured a dark fallback because the combat background image had not decoded during the 48 ms DOM replacement loop. After adding an image-ready wait, the initial coordinate sample happened after lane correction and lost the Y-delta proof. The route now samples spawn coordinates immediately, then waits for background readiness only before visual capture.

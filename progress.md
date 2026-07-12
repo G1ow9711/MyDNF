@@ -4436,3 +4436,14 @@
 - Focused app/UI GREEN passed 228/228. Real-browser computed styles passed 25/25 and proved distinct animation names for every added layer.
 - Real keyboard sword-dance acceptance passed twice after final tuning with all seven phases, fourteen hits, two airborne targets, frame-13 contact, frame-14 recovery, and seven distinct sound events.
 - Final verification passed: 686/686 non-keyboard and computed-style tests, focused real-keyboard route, production build, and Git whitespace validation. Chinese commit and push follow this record update.
+
+## Task 206 Boss Combat HUD
+- Audited Boss identity, HP, phase transitions, armor consumption, break windows, attack presentation, and desktop/mobile combat geometry. No subagent was started.
+- Added the authoritative Boss HUD design and implementation plan. RED coverage follows.
+- RED failed on all intended boundaries: no maximum armor, no Boss HUD markup, and no Boss HUD styles. It also exposed Cinder's Boss actor using the Liuli name.
+- Added required `maxArmor`, initial 80/80 armor, phase-three 120/120 reset, and dungeon-correct Boss identity.
+- Added a segmented HP bar, phase label, armor/break bar, real break countdown, current skill, cast stage, and cast progress. Boss death removes the HUD with no change to the death/loot flow.
+- Focused combat/app/UI tests passed 514/514; production build passed.
+- Real keyboard Boss entry proved 520/520 HP, 80/80 armor, correct Taotie name, desktop width, and no status/combo overlap. Inspected `boss-hud-phase-one.png` at 1440x900.
+- Real keyboard phase-three acceptance proved max armor 120, world-devour windup progress, zero armor after dodge, active break countdown, and non-overlapping 390x844 mobile layout.
+- Final non-keyboard and computed-style regression passed 688/688. The full 37-route browser suite passed 36/37; its only legacy backstep/elite timing miss passed immediately in focused rerun without production changes. Build, HTTP, and Git validation follow.

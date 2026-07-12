@@ -2571,6 +2571,53 @@ function syncCombatConsumablesToState(state: GameState, run: CombatRun): GameSta
   };
 }
 
+function swordDanceSfxId(event: CombatHitEvent): string | undefined {
+  if (event.skillId !== "flowing-light-chain") {
+    return undefined;
+  }
+
+  switch (event.vfxCue) {
+    case "flowing-chain-open":
+      return "sword-dance-open";
+    case "flowing-chain-dance-left":
+      return "sword-dance-left";
+    case "flowing-chain-dance-right":
+      return "sword-dance-right";
+    case "flowing-chain-cross":
+      return "sword-dance-cross";
+    case "flowing-chain-finish":
+      return "sword-dance-finish";
+    default:
+      return undefined;
+  }
+}
+
+function enqueueNewCombatEventSfx(audio: AudioState, previousRun: CombatRun, nextRun: CombatRun): AudioState {
+  let nextAudio = audio;
+  const playedStageKeys = new Set<string>();
+
+  for (const event of nextRun.events.slice(previousRun.events.length)) {
+    if (event.kind !== "hit") {
+      continue;
+    }
+
+    const sfxId = swordDanceSfxId(event);
+    if (!sfxId) {
+      continue;
+    }
+
+    const stageKey = `${event.occurredAtMs}:${sfxId}`;
+    if (playedStageKeys.has(stageKey)) {
+      continue;
+    }
+
+    playedStageKeys.add(stageKey);
+    nextAudio = playSfx(nextAudio, sfxId);
+  }
+
+  return nextAudio;
+}
+
 function applyFinishedRoom(model: AppModel, finishedRun: CombatRun, roomMessage: string): AppModel {
   const latestLoot = finishedRun.lootEvents[finishedRun.lootEvents.length - 1];
   const resourceState = syncCombatResourceToState(model.state, finishedRun);
@@ -2824,13 +2871,14 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       }
 
       const combatRun = stepCombat(model.combatRun, hasTickMovement ? tickInput : {}, combatTickMs);
-      const completedTransition = applyFinishedRoomIfResolved(model, model.combatRun, combatRun);
+      const combatAudio = enqueueNewCombatEventSfx(model.audio, model.combatRun, combatRun);
+      const completedTransition = applyFinishedRoomIfResolved({ ...model, audio: combatAudio }, model.combatRun, combatRun);
 
       if (completedTransition) {
         return completedTransition;
       }
 
-      const gateTransition = hasTickMovement ? enterGateIfReady({ ...model, combatRun }, combatRun) : undefined;
+      const gateTransition = hasTickMovement ? enterGateIfReady({ ...model, combatRun, audio: combatAudio }, combatRun) : undefined;
 
       if (gateTransition) {
         return gateTransition;
@@ -2840,7 +2888,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         ...model,
         combatRun,
         message: combatRun.failed ? "角色倒地，请返回城镇整备" : model.message,
-        audio: combatRun.failed ? playSfx(model.audio, "hit-light") : model.audio
+        audio: combatRun.failed ? playSfx(combatAudio, "hit-light") : combatAudio
       };
     }
     case "combatMove":
@@ -2865,13 +2913,14 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           },
           160
         );
-        const completedTransition = applyFinishedRoomIfResolved(model, model.combatRun, combatRun);
+        const combatAudio = enqueueNewCombatEventSfx(model.audio, model.combatRun, combatRun);
+        const completedTransition = applyFinishedRoomIfResolved({ ...model, audio: combatAudio }, model.combatRun, combatRun);
 
         if (completedTransition) {
           return completedTransition;
         }
 
-        const gateTransition = enterGateIfReady({ ...model, combatRun }, combatRun);
+        const gateTransition = enterGateIfReady({ ...model, combatRun, audio: combatAudio }, combatRun);
 
         if (gateTransition) {
           return gateTransition;
@@ -2881,7 +2930,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           ...model,
           combatRun,
           message: combatRun.failed ? "角色倒地，请返回城镇整备" : undefined,
-          audio: combatRun.failed ? playSfx(model.audio, "hit-light") : model.audio
+          audio: combatRun.failed ? playSfx(combatAudio, "hit-light") : combatAudio
         };
       }
 

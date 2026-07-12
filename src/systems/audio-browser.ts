@@ -2,6 +2,25 @@ import type { AudioPlaybackPlan, AudioPlaybackSink } from "./audio";
 
 type BrowserAudioContextCtor = typeof AudioContext;
 
+const audioPlaybackEventName = "mydnf:audio-playback";
+
+function emitAudioPlayback(plan: AudioPlaybackPlan): void {
+  if (typeof globalThis.dispatchEvent !== "function" || typeof globalThis.CustomEvent !== "function") {
+    return;
+  }
+
+  globalThis.dispatchEvent(
+    new CustomEvent(audioPlaybackEventName, {
+      detail: {
+        commandId: plan.commandId,
+        channel: plan.channel,
+        noteCount: plan.notes.length,
+        textureTags: [...plan.textureTags]
+      }
+    })
+  );
+}
+
 function noopSink(): AudioPlaybackSink {
   return {
     startMusic: () => undefined,
@@ -119,7 +138,10 @@ export function createBrowserAudioSink(): AudioPlaybackSink {
       });
     },
     playSfx(plan: AudioPlaybackPlan): void {
-      withAudioGuard(() => schedulePlan(ensureContext(), plan));
+      withAudioGuard(() => {
+        schedulePlan(ensureContext(), plan);
+        emitAudioPlayback(plan);
+      });
     }
   };
 }

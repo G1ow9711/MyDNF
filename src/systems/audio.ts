@@ -215,6 +215,65 @@ const musicPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: 
 };
 
 const sfxPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: Array<Omit<AudioPlaybackNote, "channel" | "effectiveGain">> }> = {
+  "sword-dance-open": {
+    commandId: "sword-dance-open",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["blade-draw", "air-cut", "glass-tail"],
+    notes: [
+      { frequencyHz: 1320, startMs: 0, durationMs: 72, gain: 0.2, waveform: "triangle" },
+      { frequencyHz: 1760, startMs: 34, durationMs: 96, gain: 0.17, waveform: "sawtooth" },
+      { frequencyHz: 180, startMs: 52, durationMs: 110, gain: 0.22, waveform: "square" },
+      { frequencyHz: 2637.02, startMs: 96, durationMs: 150, gain: 0.1, waveform: "sine" }
+    ]
+  },
+  "sword-dance-left": {
+    commandId: "sword-dance-left",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["low-blade-whoosh", "left-cut", "light-impact"],
+    notes: [
+      { frequencyHz: 880, startMs: 0, durationMs: 82, gain: 0.17, waveform: "sawtooth" },
+      { frequencyHz: 1318.51, startMs: 24, durationMs: 112, gain: 0.15, waveform: "triangle" },
+      { frequencyHz: 130.81, startMs: 46, durationMs: 90, gain: 0.18, waveform: "square" }
+    ]
+  },
+  "sword-dance-right": {
+    commandId: "sword-dance-right",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["high-blade-whoosh", "right-cut", "light-impact"],
+    notes: [
+      { frequencyHz: 1174.66, startMs: 0, durationMs: 78, gain: 0.17, waveform: "sawtooth" },
+      { frequencyHz: 1760, startMs: 22, durationMs: 108, gain: 0.15, waveform: "triangle" },
+      { frequencyHz: 146.83, startMs: 44, durationMs: 92, gain: 0.18, waveform: "square" }
+    ]
+  },
+  "sword-dance-cross": {
+    commandId: "sword-dance-cross",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["crossed-blades", "double-cut", "stagger-impact"],
+    notes: [
+      { frequencyHz: 987.77, startMs: 0, durationMs: 90, gain: 0.18, waveform: "sawtooth" },
+      { frequencyHz: 1479.98, startMs: 26, durationMs: 116, gain: 0.16, waveform: "triangle" },
+      { frequencyHz: 1975.53, startMs: 58, durationMs: 128, gain: 0.14, waveform: "triangle" },
+      { frequencyHz: 110, startMs: 44, durationMs: 130, gain: 0.24, waveform: "square" }
+    ]
+  },
+  "sword-dance-finish": {
+    commandId: "sword-dance-finish",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["finisher-bass", "heavy-blade", "liuli-shatter"],
+    notes: [
+      { frequencyHz: 55, startMs: 0, durationMs: 180, gain: 0.4, waveform: "square" },
+      { frequencyHz: 164.81, startMs: 18, durationMs: 210, gain: 0.3, waveform: "sawtooth" },
+      { frequencyHz: 1046.5, startMs: 54, durationMs: 170, gain: 0.2, waveform: "triangle" },
+      { frequencyHz: 2093, startMs: 112, durationMs: 240, gain: 0.16, waveform: "sine" },
+      { frequencyHz: 3135.96, startMs: 184, durationMs: 260, gain: 0.1, waveform: "sine" }
+    ]
+  },
   "skill-impact-heavy": {
     commandId: "skill-impact-heavy",
     channel: "sfx",

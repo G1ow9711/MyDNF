@@ -1547,3 +1547,9 @@
 - Visual inspection of the original 4x4 skill atlas shows frame 13 is the actual forward contact pose; frame 14 is recovery and frame 15 is idle.
 - The current `12 + floor(progress * 4)` mapping reaches frame 15 while `chain-finish` is still active. This explains why a valid effect-and-airborne screenshot can still make the character look static.
 - Detecting frame 13 was not enough: screenshot encoding outlasted the old 120 ms body-phase clock and captured frame 14. The finisher body clock now spans 360 ms, aligned with action recovery and the 420 ms target VFX instead of freezing test time.
+
+## Task 199 Sword Dance Audio Audit
+- The audio system already has adaptive Chinese-style BGM, master/music/SFX volume mixing, a WebAudio oscillator sink, and queue flushing after mounted dispatch.
+- Combat actions currently enqueue only generic `skill-burst` at input time. Delayed hit events do not enqueue any sound, so all seven sword-dance impacts are silent relative to their actual frames.
+- Combat events append immutably. Comparing the new event suffix after each tick and deduplicating by occurrence time plus SFX id can synchronize audio without adding gameplay timers or target-count amplification.
+- Mounted dispatch flushes audio commands immediately, so DOM state cannot prove playback. The browser sink now emits evidence only after oscillator scheduling succeeds; the real route can verify actual playback plans without retaining mutable audio queues in production state.

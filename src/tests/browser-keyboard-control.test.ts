@@ -157,6 +157,13 @@ type BrowserFlowingLightLiveState = {
   hitAtMs: number;
 };
 
+type BrowserSwordDanceAudioPlayback = {
+  commandId: string;
+  channel: string;
+  noteCount: number;
+  textureTags: string[];
+};
+
 type BrowserEnemyAttackState = {
   objective: string;
   enemies: Array<{
@@ -1827,6 +1834,32 @@ const readFlowingLightLiveStateExpression = `
 })()
 `;
 
+const installSwordDanceAudioRecorderExpression = `
+(() => {
+  globalThis.__swordDanceAudioPlayback = [];
+  if (globalThis.__swordDanceAudioListener) {
+    globalThis.removeEventListener("mydnf:audio-playback", globalThis.__swordDanceAudioListener);
+  }
+  globalThis.__swordDanceAudioListener = (event) => {
+    const detail = event.detail ?? {};
+    if (typeof detail.commandId === "string" && detail.commandId.startsWith("sword-dance-")) {
+      globalThis.__swordDanceAudioPlayback.push({
+        commandId: detail.commandId,
+        channel: detail.channel ?? "",
+        noteCount: Number(detail.noteCount ?? 0),
+        textureTags: Array.isArray(detail.textureTags) ? detail.textureTags : []
+      });
+    }
+  };
+  globalThis.addEventListener("mydnf:audio-playback", globalThis.__swordDanceAudioListener);
+  return true;
+})()
+`;
+
+const readSwordDanceAudioPlaybackExpression = `
+(() => globalThis.__swordDanceAudioPlayback ?? [])()
+`;
+
 const readFlowingLightDebugSamplesExpression = `
 (() => globalThis.__flowingLightDebugSamples ?? [])()
 `;
@@ -2689,6 +2722,7 @@ describe("real browser keyboard control", () => {
           (state) => state.sawAttack && state.stages.length === 2 && state.stages.every((stage) => stage === "none"),
           4000
         );
+        await page.evaluate<boolean>(installSwordDanceAudioRecorderExpression);
         await page.evaluate<boolean>(installFlowingLightPhaseRecorderExpression);
         await page.pressKey("Space");
         await page.waitFor<BrowserFlowingLightPhaseSample[]>(
@@ -2803,6 +2837,22 @@ describe("real browser keyboard control", () => {
         ]);
         expect(evidence.maxComboCount).toBe(14);
         expect(evidence.maxX - evidence.startX).toBeGreaterThan(140);
+        const audioPlayback = await page.waitFor<BrowserSwordDanceAudioPlayback[]>(
+          readSwordDanceAudioPlaybackExpression,
+          (state) => state.length === 7,
+          1600
+        );
+        expect(audioPlayback.map((event) => event.commandId)).toEqual([
+          "sword-dance-open",
+          "sword-dance-left",
+          "sword-dance-right",
+          "sword-dance-left",
+          "sword-dance-right",
+          "sword-dance-cross",
+          "sword-dance-finish"
+        ]);
+        expect(audioPlayback.every((event) => event.channel === "sfx" && event.noteCount >= 3)).toBe(true);
+        expect(audioPlayback.every((event) => event.textureTags.length >= 3)).toBe(true);
       });
     } finally {
       await server.close();

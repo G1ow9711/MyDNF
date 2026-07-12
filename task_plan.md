@@ -422,7 +422,16 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Re-run real Space input and inspect the contact screenshot.
 - [x] Run regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 199 Sword Dance Hit-Synchronized Audio
+- [x] Audit combat audio queues, WebAudio sink behavior, and sword-dance hit events.
+- [x] Lock five sound families, seven-stage order, and per-stage multi-target deduplication.
+- [x] Add RED coverage for event-derived commands and non-fallback playback plans.
+- [x] Implement hit-time SFX queuing and browser playback evidence.
+- [x] Verify all seven sounds through real Space input.
+- [x] Run regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 199 RED received no event-derived audio commands and all five sword-dance ids resolved to the two-note `ui-click` fallback, proving both the timing bridge and authored sound textures were absent.
 - Task 198 first GREEN proved frame 13 in runtime metadata, but visual inspection still showed frame 14 because the 120 ms body clock expired during screenshot encoding. Expanded the real body phase and added 180/310 ms frame assertions rather than freezing browser time.
 - Task 198 GREEN captured frame 13 correctly, but a post-screenshot live-DOM wait missed the 360 ms recovery window because screenshot encoding outlasted it. Moved the 150 ms recovery sample into the existing animation-frame evidence recorder instead of extending gameplay timing again.
 - Task 198 RED never observed player frame 13 during the live finisher and eventually reached idle, proving the equal four-way split made the authored contact pose too short for the real 50 ms render cadence.

@@ -4361,3 +4361,12 @@
 - Replaced the 120 ms equal split with a 360 ms authored-pose clock: frame 12 through 12%, frame 13 through 82%, then frame 14 for recovery; frame 15 is excluded while the skill remains active.
 - The true-browser recorder proves frame 13 still holds at 180 ms and frame 14 takes over after 310 ms. Visual inspection now shows the player in the forward thrust pose while both monsters rotate airborne inside the cyan finisher arc.
 - Final verification passed: focused real Space acceptance, 671/671 non-keyboard and computed-style tests, base-frame plus sword-dance real-browser compatibility in 33.71 seconds, and production build. Chinese commit and push follow this record update.
+
+## Task 199 Sword Dance Hit-Synchronized Audio
+- Audited audio state, procedural plans, browser sink, mounted command flushing, combat reducer tick paths, and sword-dance hit event metadata. No subagent was started.
+- Locked five original sound textures and the seven-stage open/left/right/left/right/cross/finish playback contract with multi-target deduplication.
+- Added design and implementation records. RED coverage follows.
+- Added fast RED coverage for seven ordered, deduplicated combat commands and five distinct layered playback plans. The old implementation failed both boundaries exactly as expected.
+- Added five procedural SFX plans with distinct blade, impact, bass, and Liuli-tail layers. Combat tick and movement reducers now derive stage sounds from newly appended hit events and deduplicate two-target hits by occurrence time plus sound id.
+- Added a browser playback event emitted only after WebAudio oscillator scheduling succeeds. Real Space acceptance captured seven actual SFX plans in open/left/right/left/right/cross/finish order, each with at least three authored notes and texture tags.
+- Final verification passed: focused audio unit/integration coverage, 673/673 non-keyboard and computed-style tests, three real-browser compatibility routes in 52.00 seconds, and production build. Chinese commit and push follow this record update.

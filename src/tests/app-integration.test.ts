@@ -4512,7 +4512,6 @@ describe("playable app integration actions", () => {
     model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
     model = placeAliveEnemiesInFront(model);
     model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "flowing-light-chain" });
-
     if (!model.combatRun) {
       throw new Error("Expected active combat run after flowing-light-chain");
     }
@@ -4662,6 +4661,33 @@ describe("playable app integration actions", () => {
     expect(openHtml).toContain('data-player-skill-vfx="flowing-light-chain" data-skill-vfx-shape="flowing-chain"');
     expect(openHtml).toContain('data-hit-phase="chain-open" data-vfx-cue="flowing-chain-open" data-vfx-action="skill"');
     expect(openHtml).not.toContain('data-skill-impact-vfx="flowing-light-chain"');
+  });
+
+  it("queues one hit-timed sword sound for each of the seven flowing-light-chain stages", () => {
+    const advancedState = advanceClass(
+      readyForAdvancement(withHeat(selectBaseClass(createInitialState(), "liuli-blademage"), 100)),
+      "flowing-light-swordmaster"
+    );
+    let model = createAppModel({ storage: new MemoryStorage(), initialState: advancedState });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "flowing-light-chain" });
+    const commandCountAtCast = model.audio.commandQueue.length;
+
+    for (let tick = 0; tick < 40; tick += 1) {
+      model = reduceAppAction(model, { type: "combatTick" });
+    }
+
+    expect(model.audio.commandQueue.slice(commandCountAtCast).map((command) => command.id)).toEqual([
+      "sword-dance-open",
+      "sword-dance-left",
+      "sword-dance-right",
+      "sword-dance-left",
+      "sword-dance-right",
+      "sword-dance-cross",
+      "sword-dance-finish"
+    ]);
   });
 
   it("renders per-target impact sparks, hitstop shake, and player motion trails for multi-target skills", () => {

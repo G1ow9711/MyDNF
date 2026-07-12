@@ -4392,3 +4392,14 @@
 - Boss breath coverage proves one boss windup followed by three impact/hurt pairs. Final app/audio suite passed 154/154 and the complete non-keyboard/computed-style suite passed 678/678.
 - Compatibility initially missed only the sword-dance >=310 ms recovery sample under audio load. Added DOM-mutation sampling alongside animation frames without changing the 310 ms/frame-14 contract; focused and combined reruns passed, together with normal combo and settings persistence.
 - Final verification passed: natural enemy browser route, three compatibility routes, 678/678 non-keyboard tests, production build, HTTP 200, and Git whitespace validation. Chinese commit and push follow this record update.
+
+## Task 202 Floor Loot Pickup
+- Audited deterministic room loot, `finishRoom`, gate entry, app reward application, world rendering, autosave, and real keyboard room flow. No subagent was started.
+- Locked a real floor-state design with 220 ms minimum visibility, proximity pickup, and gate auto-claim fallback. RED tests follow.
+- RED failed on missing core functions, missing combat state, and missing world rendering exactly as intended; no production behavior was changed before observing it.
+- Added `CombatFloorLoot`, deterministic spawn, 220 ms pickup delay, proximity claim, and gate auto-claim without duplicate loot events.
+- App settlement now distinguishes same-room pickup from room completion, applies inventory/quest/currency only on claim, and preserves preclaimed state through later gate transitions.
+- Added a world-space rarity beam, rotating gear core, material shards, item label, and stable floor-loot hooks. Focused core/app tests passed 3/3, full combat/app suites passed 419/419, and production build passed.
+- Real 1440x900 keyboard acceptance cleared room 0, captured the blue rare beam and `稀有赤矿拳刃` label in the world, approached it with held direction input, observed same-room loot count transition 0->1, and read +120 gold plus the exact gear id from local save before entering room 1.
+- Four impacted long browser routes passed: multi-room boss entry, full boss clear, combat reward reload, and targeted Warrior epic persistence. Normal X-X-X, seven-hit sword dance, and settings persistence compatibility also passed.
+- Final verification passed: 681/681 non-keyboard and computed-style tests, eight real-keyboard routes across focused/impact/compatibility runs, production build, inspected desktop screenshot, HTTP 200, and Git whitespace validation. Chinese commit and push follow this record update.

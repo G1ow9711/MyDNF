@@ -320,10 +320,18 @@ type BrowserRoomFlowState = {
   transitionTargetRoom: string;
   combatEventCount: number;
   combatLootEventCount: number;
+  floorLootCount: number;
+  floorLootId: string;
+  floorLootGearId: string;
+  floorLootRarity: string;
+  floorLootX: number;
+  floorLootY: number;
+  floorLootCollectible: string;
   resultVisible: boolean;
   savedFatigue: number;
   savedGold: number;
   savedIronDust: number;
+  savedGearIds: string[];
   enemies: Array<{
     id: string;
     kind: string;
@@ -717,6 +725,7 @@ const readRoomFlowStateExpression = `
   const scene = document.querySelector(".combat-scene");
   const gate = document.querySelector("[data-room-gate='true']");
   const player = document.querySelector(".combat-player");
+  const floorLoot = document.querySelector("[data-floor-loot='true']");
   const enemies = Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => ({
     id: enemy.getAttribute("data-enemy-id") ?? "",
     kind: enemy.getAttribute("data-enemy-kind") ?? "",
@@ -750,10 +759,18 @@ const readRoomFlowStateExpression = `
     transitionTargetRoom: scene?.getAttribute("data-room-transition-target-room") ?? "",
     combatEventCount: Number(scene?.getAttribute("data-combat-event-count") ?? "-1"),
     combatLootEventCount: Number(scene?.getAttribute("data-combat-loot-event-count") ?? "-1"),
+    floorLootCount: Number(scene?.getAttribute("data-floor-loot-count") ?? "-1"),
+    floorLootId: floorLoot?.getAttribute("data-floor-loot-id") ?? "",
+    floorLootGearId: floorLoot?.getAttribute("data-floor-loot-gear-id") ?? "",
+    floorLootRarity: floorLoot?.getAttribute("data-floor-loot-rarity") ?? "",
+    floorLootX: Number(floorLoot?.getAttribute("data-floor-loot-x") ?? "-1"),
+    floorLootY: Number(floorLoot?.getAttribute("data-floor-loot-y") ?? "-1"),
+    floorLootCollectible: floorLoot?.getAttribute("data-floor-loot-collectible") ?? "false",
     resultVisible: Boolean(document.querySelector("[data-dungeon-result='true']")),
     savedFatigue: Number(saved?.player?.fatigue?.current ?? -1),
     savedGold: Number(saved?.player?.currencies?.gold ?? -1),
     savedIronDust: Number(saved?.player?.currencies?.ironDust ?? -1),
+    savedGearIds: Array.isArray(saved?.player?.inventory) ? saved.player.inventory.map((item) => item.catalogGearId) : [],
     enemies
   };
 })()
@@ -2107,7 +2124,6 @@ describe("real browser keyboard control", () => {
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
-        await page.setViewport(1440, 900);
         await enterDungeonWithKeyboard(page);
         const idle = await page.waitFor<BrowserFrameSpriteState>(
           readFrameSpriteStateExpression,
@@ -2206,6 +2222,7 @@ describe("real browser keyboard control", () => {
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
         await enterDungeonWithKeyboard(page);
         await page.waitFor<BrowserConsumableState>(
           readConsumableStateExpression,
@@ -3267,6 +3284,7 @@ describe("real browser keyboard control", () => {
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
         await enterDungeonWithKeyboard(page);
         await page.waitFor<BrowserRoomFlowState>(
           readRoomFlowStateExpression,
@@ -3293,13 +3311,57 @@ describe("real browser keyboard control", () => {
 
         const cleared = await page.waitFor<BrowserRoomFlowState>(
           readRoomFlowStateExpression,
-          (state) => state.objective === "cleared" && state.liveEnemyCount === "0" && state.gateState === "open",
+          (state) =>
+            state.objective === "cleared" &&
+            state.liveEnemyCount === "0" &&
+            state.gateState === "open" &&
+            state.floorLootCount === 1 &&
+            state.floorLootGearId !== "",
           5000
         );
 
         expect(cleared.defeatedEnemyCount).toBe("2");
         expect(cleared.gateTargetRoom).toBe("1");
         expect(cleared.transitionState).toBe("none");
+        expect(cleared.combatLootEventCount).toBe(0);
+        expect(["rare", "epic", "mythic"]).toContain(cleared.floorLootRarity);
+        expect(cleared.savedGearIds).not.toContain(cleared.floorLootGearId);
+        await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/cinder-floor-loot.png`);
+
+        let approaching = cleared;
+        if (Math.abs(approaching.floorLootY - Number(approaching.playerY)) > 34) {
+          const verticalKey = approaching.floorLootY > Number(approaching.playerY) ? "ArrowDown" : "ArrowUp";
+          await page.keyDown(verticalKey);
+          try {
+            approaching = await page.waitFor<BrowserRoomFlowState>(
+              readRoomFlowStateExpression,
+              (state) => state.floorLootCount === 0 || Math.abs(state.floorLootY - Number(state.playerY)) <= 34,
+              2200
+            );
+          } finally {
+            await page.keyUp(verticalKey);
+          }
+        }
+
+        if (approaching.floorLootCount > 0) {
+          const horizontalKey = approaching.floorLootX > Number(approaching.playerX) ? "ArrowRight" : "ArrowLeft";
+          await page.keyDown(horizontalKey);
+          try {
+            approaching = await page.waitFor<BrowserRoomFlowState>(
+              readRoomFlowStateExpression,
+              (state) => state.floorLootCount === 0 && state.combatLootEventCount === 1,
+              3200
+            );
+          } finally {
+            await page.keyUp(horizontalKey);
+          }
+        }
+
+        expect(approaching.floorLootCount).toBe(0);
+        expect(approaching.combatLootEventCount).toBe(1);
+        expect(approaching.roomIndex).toBe("0");
+        expect(approaching.savedGold).toBe(cleared.savedGold + 120);
+        expect(approaching.savedGearIds).toContain(cleared.floorLootGearId);
 
         await page.keyDown("ArrowRight");
         try {

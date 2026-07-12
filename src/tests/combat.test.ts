@@ -7,11 +7,13 @@ import { advanceClass, selectBaseClass, upgradeSkill } from "../systems/classes"
 import { applyQuestEvent, claimQuestReward } from "../systems/quests";
 import {
   applyHit,
-  createCombatRun,
-  enterRoomGate,
-  finishRoom,
-  performAction,
-  roomGateForRun,
+createCombatRun,
+enterRoomGate,
+finishRoom,
+pickupRoomFloorLoot,
+performAction,
+roomGateForRun,
+spawnRoomFloorLoot,
   skillCooldownRemaining,
   stepCombat,
   type CombatArenaHazardEvent,
@@ -11044,6 +11046,54 @@ describe("room completion", () => {
     });
     expect(next.enemies.length).toBeGreaterThan(0);
     expect(next.events.at(-1)?.kind).toBe("room-cleared");
+  });
+
+  it("spawns delayed floor loot and claims it once through player proximity", () => {
+    const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const defeated = defeatAll({ ...run, elapsedMs: 100 });
+    const spawned = spawnRoomFloorLoot(defeated);
+
+    expect(spawned.floorLoot).toMatchObject({
+      id: "floor-loot-cinder-kiln-alley-0",
+      spawnedAtMs: 100,
+      reward: { dungeonId: "cinder-kiln-alley", roomIndex: 0, gold: 120, ironDust: 6 }
+    });
+    expect(spawned.lootEvents).toHaveLength(0);
+
+    const atDrop = {
+      ...spawned,
+      elapsedMs: 319,
+      player: {
+        ...spawned.player,
+        x: spawned.floorLoot?.x ?? 0,
+        y: spawned.floorLoot?.y ?? 0
+      }
+    };
+    expect(pickupRoomFloorLoot(atDrop).floorLoot).toBeDefined();
+
+    const picked = pickupRoomFloorLoot({ ...atDrop, elapsedMs: 320 });
+    expect(picked.floorLoot).toBeUndefined();
+    expect(picked.lootEvents).toHaveLength(1);
+    expect(picked.lootEvents[0]).toEqual(spawned.floorLoot?.reward);
+
+    const finished = finishRoom(picked);
+    expect(finished.lootEvents).toHaveLength(1);
+    expect(finished.roomIndex).toBe(1);
+  });
+
+  it("auto-claims an unpicked floor drop when the player leaves through the room gate", () => {
+    const run = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const spawned = spawnRoomFloorLoot(defeatAll(run));
+    const gate = roomGateForRun(spawned);
+    const entering = enterRoomGate({
+      ...spawned,
+      player: { ...spawned.player, x: gate.x, y: gate.y }
+    });
+    const next = completeRoomGateTransition(entering);
+
+    expect(next.floorLoot).toBeUndefined();
+    expect(next.lootEvents).toHaveLength(1);
+    expect(next.lootEvents[0]).toEqual(spawned.floorLoot?.reward);
   });
 
   it("retains authoritative combat events across room settlement for final grading", () => {

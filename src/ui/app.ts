@@ -8,9 +8,12 @@ import {
   enterRoomGate,
   enemySuperArmorActive,
   finishRoom,
+  floorLootPickupDelayMs,
+  pickupRoomFloorLoot,
   performAction,
   roomGateForRun,
   roomTransitionActive,
+  spawnRoomFloorLoot,
   skillCooldownRemaining,
   stepCombat,
   type CombatActionInput,
@@ -1999,6 +2002,34 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
   `;
 }
 
+function renderCombatFloorLoot(run: CombatRun): string {
+  const floorLoot = run.floorLoot;
+  if (!floorLoot) {
+    return "";
+  }
+
+  const gear = catalog.gear.find((item) => item.id === floorLoot.reward.gearDropId);
+  const rarity = gear?.rarity ?? "rare";
+  const rarityColor: Record<Rarity, string> = {
+    common: "#cbd5e1",
+    uncommon: "#86efac",
+    rare: "#60a5fa",
+    epic: "#facc15",
+    mythic: "#fb7185"
+  };
+  const collectible = run.elapsedMs >= floorLoot.spawnedAtMs + floorLootPickupDelayMs;
+
+  return `
+    <div class="floor-loot floor-loot-${rarity}" data-floor-loot="true" data-floor-loot-id="${floorLoot.id}" data-floor-loot-gear-id="${gear?.id ?? ""}" data-floor-loot-rarity="${rarity}" data-floor-loot-x="${Math.round(floorLoot.x)}" data-floor-loot-y="${Math.round(floorLoot.y)}" data-floor-loot-collectible="${collectible ? "true" : "false"}" style="${combatActorStyle(run, floorLoot.x, floorLoot.y)} --floor-loot-color: ${rarityColor[rarity]};" aria-label="掉落 · ${gear?.displayName ?? "战利品"}">
+      <span class="floor-loot-beam"></span>
+      <span class="floor-loot-core"></span>
+      <span class="floor-loot-shard floor-loot-shard-left"></span>
+      <span class="floor-loot-shard floor-loot-shard-right"></span>
+      <span class="floor-loot-label">${gear?.displayName ?? "战利品"}</span>
+    </div>
+  `;
+}
+
 function renderCombatScene(run: CombatRun, state: GameState): string {
   const plan = createRenderPlan(run, run.dungeonId);
   const roomCleared = run.enemies.length === 0 || run.enemies.every((enemy) => enemy.hp <= 0);
@@ -2037,6 +2068,7 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
       <span class="room-gate-label">${roomGate.label}</span>
     </div>
   `;
+  const floorLootMarkup = renderCombatFloorLoot(run);
   const doorStatusLabel =
     activeRoomTransition
       ? "穿越房门"
@@ -2182,12 +2214,13 @@ function renderCombatScene(run: CombatRun, state: GameState): string {
     : "";
 
   return `
-    <section class="combat-scene" aria-label="战斗 · ${combatDifficulty.displayName}" data-combat-difficulty="${run.difficultyId}" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-combat-event-count="${run.events.length}" data-combat-loot-event-count="${run.lootEvents.length}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-hp="${run.player.hp}" data-player-max-hp="${run.player.maxHp}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-critical-chance="${criticalChance}" data-critical-accumulator="${Math.round(run.criticalAccumulator * 100) / 100}" data-critical-hit="${sceneHit?.critical ? "true" : "false"}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
+    <section class="combat-scene" aria-label="战斗 · ${combatDifficulty.displayName}" data-combat-difficulty="${run.difficultyId}" data-combat-objective="${objective}" data-dungeon-id="${run.dungeonId}" data-room-index="${run.roomIndex}" data-room-count="${roomCount}" data-combat-elapsed-ms="${run.elapsedMs}" data-combat-event-count="${run.events.length}" data-combat-loot-event-count="${run.lootEvents.length}" data-floor-loot-count="${run.floorLoot ? 1 : 0}" data-live-enemy-count="${liveEnemyCount}" data-defeated-enemy-count="${defeatedEnemyCount}" data-player-hp="${run.player.hp}" data-player-max-hp="${run.player.maxHp}" data-player-x="${Math.round(run.player.x)}" data-player-y="${Math.round(run.player.y)}" data-gate-enter-ready="${gateEnterReady ? "true" : "false"}" data-class-id="${state.player.classId}" data-advancement-id="${state.player.advancementId ?? ""}" data-resource-id="${run.player.resource.id}" data-resource-current="${run.player.resource.current}" data-resource-max="${run.player.resource.max}" data-combo-count="${run.comboCount}" data-critical-chance="${criticalChance}" data-critical-accumulator="${Math.round(run.criticalAccumulator * 100) / 100}" data-critical-hit="${sceneHit?.critical ? "true" : "false"}" data-room-gate-state="${roomGate.state}" data-room-gate-target-room="${roomGate.targetRoomIndex ?? ""}" data-room-transition-state="${run.roomTransition?.state ?? "none"}" data-room-transition-from-room="${transitionFromRoom}" data-room-transition-target-room="${transitionTargetRoom}" data-room-transition-gate-state="${transitionGateState}" data-room-transition-progress="${roomTransitionProgress || ""}" data-screen-shake="${sceneScreenShake}" data-screen-flash="${sceneScreenFlash}" data-hitstop-active="${sceneHitstopActive ? "true" : "false"}" data-impact-skill-id="${sceneImpactSkillId}" data-action-buffer-state="${bufferState}" data-buffered-action="${bufferedActionName(bufferedAction)}" data-buffered-skill-id="${bufferedSkillId(bufferedAction)}" data-buffered-execute-at-ms="${bufferExecuteAtMs ?? ""}" data-buffer-ms-remaining="${bufferRemainingMs}" data-buffer-window-ms="${actionBufferWindowMs}" data-combo-cancel-window-active="${comboCancelWindow ? "true" : "false"}" data-combo-cancel-available="${comboCancelAvailable ? "true" : "false"}" data-combo-cancel-state="${comboCancelState}" data-combo-cancel-active="${comboCancelCast ? "true" : "false"}" data-combo-cancel-skill-id="${comboCancelCast?.skillId ?? ""}" data-combo-cancel-ms-remaining="${comboCancelWindow ? Math.max(0, run.player.cancelWindowUntilMs - run.elapsedMs) : 0}" data-boss-phase="${bossPhase}" data-boss-phase-triggered="${bossPhaseTriggered ? "true" : "false"}" data-arena-danger="${arenaDanger}" data-arena-hazard-count="${arenaHazardCount}" data-command-release-source="${commandReleaseSource}" data-command-match-skill-id="${commandReductionApplied ? latestCast?.skillId ?? "" : ""}" data-command-reduction-applied="${commandReductionApplied ? "true" : "false"}" data-last-input-method="${latestCast?.inputMethod ?? (latestCast ? "hotkey" : "none")}">
       <div class="combat-backdrop scene-${run.dungeonId}">
         <img class="combat-background-art" src="${dungeonBackgroundAsset(run.dungeonId)}" alt="" aria-hidden="true" />
         <div class="render-layer-count">${plan.palette.displayName} · ${plan.palette.layers.length}层 · 火花 ${sparks}</div>
       </div>
       ${renderCombatActors(run, state)}
+      ${floorLootMarkup}
       ${roomGateMarkup}
       ${roomFailed ? `<div class="arena-hazard-layer" data-arena-hazard-layer="true" data-arena-hazard-count="0"></div>` : renderArenaHazards(run)}
       ${renderCombatVfx(run)}
@@ -2707,10 +2740,27 @@ function enqueueNewCombatEventSfx(audio: AudioState, previousRun: CombatRun, nex
   return nextAudio;
 }
 
-function applyFinishedRoom(model: AppModel, finishedRun: CombatRun, roomMessage: string): AppModel {
+function applyPickedFloorLoot(model: AppModel, combatRun: CombatRun, loot: CombatLootEvent): AppModel {
+  const resourceState = syncCombatResourceToState(model.state, combatRun);
+  const nextState = applyCombatLoot(resourceState, loot);
+
+  return {
+    ...model,
+    state: nextState,
+    combatRun: {
+      ...combatRun,
+      state: nextState
+    },
+    lastLoot: loot,
+    message: "战利品已拾取",
+    audio: playSfx(model.audio, "loot-drop")
+  };
+}
+
+function applyFinishedRoom(model: AppModel, finishedRun: CombatRun, roomMessage: string, applyLatestLoot = true): AppModel {
   const latestLoot = finishedRun.lootEvents[finishedRun.lootEvents.length - 1];
   const resourceState = syncCombatResourceToState(model.state, finishedRun);
-  let nextState = latestLoot ? applyCombatLoot(resourceState, latestLoot) : resourceState;
+  let nextState = latestLoot && applyLatestLoot ? applyCombatLoot(resourceState, latestLoot) : resourceState;
 
   if (finishedRun.completed) {
     const evaluation = evaluateDungeonClear(finishedRun);
@@ -2753,11 +2803,22 @@ function roomTransitionCompleteMessage(previousRun: CombatRun): string {
 }
 
 function applyFinishedRoomIfResolved(model: AppModel, previousRun: CombatRun, combatRun: CombatRun): AppModel | undefined {
-  if (combatRun.lootEvents.length <= previousRun.lootEvents.length) {
-    return undefined;
+  const hasNewLoot = combatRun.lootEvents.length > previousRun.lootEvents.length;
+  const roomFinished = combatRun.completed !== previousRun.completed || combatRun.roomIndex !== previousRun.roomIndex;
+
+  if (roomFinished) {
+    return applyFinishedRoom(model, combatRun, roomTransitionCompleteMessage(previousRun), hasNewLoot);
   }
 
-  return applyFinishedRoom(model, combatRun, roomTransitionCompleteMessage(previousRun));
+  if (hasNewLoot) {
+    return applyPickedFloorLoot(model, combatRun, combatRun.lootEvents[combatRun.lootEvents.length - 1]);
+  }
+
+  return undefined;
+}
+
+function advanceFloorLoot(run: CombatRun): CombatRun {
+  return pickupRoomFloorLoot(spawnRoomFloorLoot(run));
 }
 
 function enterGateIfReady(model: AppModel, run: CombatRun): AppModel | undefined {
@@ -2778,7 +2839,7 @@ function enterGateIfReady(model: AppModel, run: CombatRun): AppModel | undefined
     };
   }
 
-  return applyFinishedRoom(model, enteredRun, message);
+  return applyFinishedRoom(model, enteredRun, message, enteredRun.lootEvents.length > run.lootEvents.length);
 }
 
 function finishStoryDialogue(model: AppModel): AppModel {
@@ -2959,7 +3020,7 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
         return model;
       }
 
-      const combatRun = stepCombat(model.combatRun, hasTickMovement ? tickInput : {}, combatTickMs);
+      const combatRun = advanceFloorLoot(stepCombat(model.combatRun, hasTickMovement ? tickInput : {}, combatTickMs));
       const combatAudio = enqueueNewCombatEventSfx(model.audio, model.combatRun, combatRun);
       const completedTransition = applyFinishedRoomIfResolved({ ...model, audio: combatAudio }, model.combatRun, combatRun);
 
@@ -2993,14 +3054,16 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
       }
 
       {
-        const combatRun = stepCombat(
-          model.combatRun,
-          {
-            moveX: action.moveX,
-            moveY: action.moveY,
-            dash: action.dash
-          },
-          160
+        const combatRun = advanceFloorLoot(
+          stepCombat(
+            model.combatRun,
+            {
+              moveX: action.moveX,
+              moveY: action.moveY,
+              dash: action.dash
+            },
+            160
+          )
         );
         const combatAudio = enqueueNewCombatEventSfx(model.audio, model.combatRun, combatRun);
         const completedTransition = applyFinishedRoomIfResolved({ ...model, audio: combatAudio }, model.combatRun, combatRun);
@@ -3045,7 +3108,13 @@ export function reduceAppAction(model: AppModel, action: AppAction): AppModel {
           };
         }
 
-        return applyFinishedRoom(model, finishRoom(model.combatRun), "房间结算完成");
+        const finishedRun = finishRoom(model.combatRun);
+        return applyFinishedRoom(
+          model,
+          finishedRun,
+          "房间结算完成",
+          finishedRun.lootEvents.length > model.combatRun.lootEvents.length
+        );
       }
 
       if (model.combatRun.enemies.every((enemy) => enemy.hp <= 0)) {

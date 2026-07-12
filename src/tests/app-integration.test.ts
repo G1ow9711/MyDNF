@@ -895,6 +895,61 @@ describe("playable app integration actions", () => {
     expect(model.combatRun?.player.bufferedAction).toBeUndefined();
   });
 
+  it("renders a real floor drop before applying its reward and picks it up by proximity", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    if (!model.combatRun) {
+      throw new Error("Expected active combat run");
+    }
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        player: { ...model.combatRun.player, x: 220, y: 340 },
+        enemies: model.combatRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          hp: 0,
+          position: { x: 430 + index * 40, y: 340 }
+        }))
+      }
+    };
+    const goldBefore = model.state.player.currencies.gold;
+    const inventoryBefore = model.state.player.inventory.length;
+    model = reduceAppAction(model, { type: "combatMove", moveX: 1, moveY: 0, dash: false });
+
+    expect(model.combatRun?.floorLoot).toBeDefined();
+    expect(model.combatRun?.lootEvents).toHaveLength(0);
+    expect(model.state.player.currencies.gold).toBe(goldBefore);
+    expect(model.state.player.inventory).toHaveLength(inventoryBefore);
+    expect(renderAppHtml(model)).toContain('data-floor-loot="true"');
+
+    if (!model.combatRun?.floorLoot) {
+      throw new Error("Expected spawned floor loot");
+    }
+    model = {
+      ...model,
+      combatRun: {
+        ...model.combatRun,
+        elapsedMs: model.combatRun.floorLoot.spawnedAtMs + 220,
+        player: {
+          ...model.combatRun.player,
+          x: model.combatRun.floorLoot.x,
+          y: model.combatRun.floorLoot.y
+        }
+      }
+    };
+    model = reduceAppAction(model, { type: "combatMove", moveX: 0, moveY: 0, dash: false });
+
+    expect(model.mode).toBe("combat");
+    expect(model.combatRun?.roomIndex).toBe(0);
+    expect(model.combatRun?.floorLoot).toBeUndefined();
+    expect(model.combatRun?.lootEvents).toHaveLength(1);
+    expect(model.state.player.currencies.gold).toBe(goldBefore + 120);
+    expect(model.state.player.inventory).toHaveLength(inventoryBefore + 1);
+    expect(renderAppHtml(model)).not.toContain('data-floor-loot="true"');
+  });
+
   it("maps PC movement keys to combat movement actions", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

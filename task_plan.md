@@ -446,7 +446,17 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify natural enemy windup, impact, and player hurt through the real browser.
 - [x] Run regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 202 Floor Loot Pickup
+- [x] Audit room settlement, deterministic loot, gate transitions, state application, and browser flow.
+- [x] Lock spawn delay, pickup range, world rendering, and gate auto-claim behavior.
+- [x] Add RED core and application coverage for spawn, pickup, and no-duplicate settlement.
+- [x] Implement floor loot state, pickup application, and world-space rendering.
+- [x] Verify clear, visible drop, keyboard pickup, and saved reward in the real browser.
+- [x] Run regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 202's first viewport patch matched an earlier generic browser callback and added 1440x900 to the consumable route. Removed it immediately and applied it under the exact floor-loot test title before rerunning; no production file was affected.
+- Task 202 RED found no exported floor-loot spawn/pickup functions, no `CombatRun.floorLoot`, and no rendered drop after a cleared-room movement step. All three intended boundaries were absent.
 - Task 201 compatibility exposed a repeated sword-dance recorder miss: all seven stages, fourteen hits, contact frame 13, airborne state, and audio were present, but `requestAnimationFrame` skipped the >=310 ms recovery sample under oscillator load. Added a DOM mutation sampler while retaining the exact 310 ms/frame-14 requirement; focused and combined reruns passed.
 - Task 201 RED produced empty audio queues for both natural enemy hit and miss routes, while all eleven new ids resolved through the two-note `ui-click` fallback. Enemy event audio was entirely absent.
 - Task 200 RED received only three input-time `hit-light` commands for X-X-X, used the same id for heavy/jump/backstep, and resolved all eleven new ids through the two-note `ui-click` fallback. This proves both timing and authored texture gaps.

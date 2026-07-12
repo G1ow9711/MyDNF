@@ -522,6 +522,14 @@ export interface CombatLootEvent {
   gearDropId?: string;
 }
 
+export interface CombatFloorLoot {
+  id: string;
+  x: number;
+  y: number;
+  spawnedAtMs: number;
+  reward: CombatLootEvent;
+}
+
 export interface CombatRun {
   state: GameState;
   dungeonId: DungeonId;
@@ -537,6 +545,7 @@ export interface CombatRun {
   enemies: CombatEnemy[];
   events: CombatEvent[];
   lootEvents: CombatLootEvent[];
+  floorLoot?: CombatFloorLoot;
   scheduledEnemyHitEffects: CombatScheduledEnemyHitEffect[];
   scheduledMissEffects: CombatScheduledMissEffect[];
   scheduledArenaHazards: CombatScheduledArenaHazard[];
@@ -4702,6 +4711,7 @@ export function createCombatRun(
     enemies: createRoomEnemies(dungeon.id, 0, difficulty.id),
     events: [],
     lootEvents: [],
+    floorLoot: undefined,
     scheduledEnemyHitEffects: [],
     scheduledMissEffects: [],
     scheduledArenaHazards: [],
@@ -7364,6 +7374,54 @@ function roomIsCleared(run: CombatRun): boolean {
   return run.enemies.length === 0 || run.enemies.every((enemy) => enemy.hp <= 0);
 }
 
+export const floorLootPickupDelayMs = 220;
+export const floorLootPickupRangeX = 46;
+export const floorLootPickupRangeY = 42;
+
+function roomLootAlreadyClaimed(run: CombatRun): boolean {
+  return run.lootEvents.some((loot) => loot.dungeonId === run.dungeonId && loot.roomIndex === run.roomIndex);
+}
+
+export function spawnRoomFloorLoot(run: CombatRun): CombatRun {
+  if (run.floorLoot || run.failed || run.player.defeated || !roomIsCleared(run) || roomLootAlreadyClaimed(run)) {
+    return run;
+  }
+
+  const anchor = [...run.enemies].reverse().find((enemy) => enemy.hp <= 0)?.position ?? {
+    x: run.player.x + 96 * run.player.facing,
+    y: run.player.y
+  };
+
+  return {
+    ...run,
+    floorLoot: {
+      id: `floor-loot-${run.dungeonId}-${run.roomIndex}`,
+      x: clamp(anchor.x, 64, run.arena.width - 64),
+      y: clamp(anchor.y, run.arena.minY, run.arena.maxY),
+      spawnedAtMs: run.elapsedMs,
+      reward: createLootEvent(run)
+    }
+  };
+}
+
+export function pickupRoomFloorLoot(run: CombatRun): CombatRun {
+  const floorLoot = run.floorLoot;
+  if (
+    !floorLoot ||
+    run.elapsedMs < floorLoot.spawnedAtMs + floorLootPickupDelayMs ||
+    Math.abs(run.player.x - floorLoot.x) > floorLootPickupRangeX ||
+    Math.abs(run.player.y - floorLoot.y) > floorLootPickupRangeY
+  ) {
+    return run;
+  }
+
+  return {
+    ...run,
+    floorLoot: undefined,
+    lootEvents: [...run.lootEvents, floorLoot.reward]
+  };
+}
+
 export function roomGateForRun(run: CombatRun): CombatRoomGate {
   const dungeon = getDungeon(run.dungeonId);
 
@@ -7464,7 +7522,8 @@ export function finishRoom(run: CombatRun): CombatRun {
     throw new Error(`Unknown dungeon: ${run.dungeonId}`);
   }
 
-  const lootEvent = createLootEvent(run);
+  const existingLoot = run.lootEvents.find((loot) => loot.dungeonId === run.dungeonId && loot.roomIndex === run.roomIndex);
+  const lootEvent = existingLoot ?? run.floorLoot?.reward ?? createLootEvent(run);
   const clearedEvent: CombatRoomClearedEvent = {
     kind: "room-cleared",
     dungeonId: run.dungeonId,
@@ -7515,7 +7574,8 @@ export function finishRoom(run: CombatRun): CombatRun {
     },
     enemies: completed ? [] : createRoomEnemies(run.dungeonId, nextRoomIndex, run.difficultyId),
     events: [...run.events, clearedEvent],
-    lootEvents: [...run.lootEvents, lootEvent],
+    lootEvents: existingLoot ? run.lootEvents : [...run.lootEvents, lootEvent],
+    floorLoot: undefined,
     scheduledEnemyHitEffects: [],
     scheduledMissEffects: [],
     scheduledArenaHazards: [],

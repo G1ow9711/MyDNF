@@ -1566,3 +1566,10 @@
 - Enemy kind plus heavy skill semantics can classify attacks into light, heavy, and boss families without changing combat data. `player-hit` feedback cues already separate light, heavy, and boss-specific reactions.
 - A miss event still represents a real attack explosion. It should play the attack impact texture plus a short evade confirmation rather than replacing the impact with silence.
 - The existing natural-monster browser route proves windup model motion, active skill VFX, and skill-specific player hurt animation. Extending it with playback recording provides direct end-to-end evidence.
+
+## Task 202 Floor Loot Audit
+- `createLootEvent` is deterministic and already selects room/difficulty gear correctly, but it is private and only called by `finishRoom` after the room-gate transition completes.
+- `applyFinishedRoom` immediately applies the latest event to inventory and currencies. No combat state, renderer, or browser hook represents a floor item, so players cannot see or pick up drops.
+- The gate is derived directly from all enemies being defeated. Keeping it open while floor loot exists preserves player choice; `finishRoom` must auto-claim an uncollected drop to avoid breaking existing keyboard clear helpers.
+- App settlement currently equates every new loot event with room completion. It must distinguish same-room pickup from room-index/completed transitions, or pickup would incorrectly advance the dungeon.
+- A short spawn age prevents the kill tick from creating and consuming the same drop. World-distance pickup then works through both mounted held movement and reducer movement tests.

@@ -415,7 +415,17 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify the complete interaction through real Space input and inspect final evidence.
 - [x] Run broad regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 198 Sword Dance Finisher Contact Pose
+- [x] Inspect the skill atlas and identify frame 12 windup, 13 contact, 14 recovery, and 15 idle semantics.
+- [x] Add RED browser coverage for frame 13 contact and frame 14 sustained recovery.
+- [x] Replace equal finish-frame stepping with explicit windup/contact/recovery thresholds.
+- [x] Re-run real Space input and inspect the contact screenshot.
+- [x] Run regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 198 first GREEN proved frame 13 in runtime metadata, but visual inspection still showed frame 14 because the 120 ms body clock expired during screenshot encoding. Expanded the real body phase and added 180/310 ms frame assertions rather than freezing browser time.
+- Task 198 GREEN captured frame 13 correctly, but a post-screenshot live-DOM wait missed the 360 ms recovery window because screenshot encoding outlasted it. Moved the 150 ms recovery sample into the existing animation-frame evidence recorder instead of extending gameplay timing again.
+- Task 198 RED never observed player frame 13 during the live finisher and eventually reached idle, proving the equal four-way split made the authored contact pose too short for the real 50 ms render cadence.
 - Task 197 real-browser RED captured all player phases and happened to see expected generic enemy frame numbers, but every enemy `data-sprite-skill-reaction` was empty. This proved monster frames were incidental elapsed-time results rather than sword-dance-driven reactions.
 - Task 196 real-browser finisher capture first timed out after the earlier mid-dance screenshot encoding consumed the remaining live skill window. Removed the pre-finisher capture from the acceptance path and prioritized same-frame finisher evidence; the previously inspected mid-dance image remains valid.
 - Task 196 integration diagnostics found stages 1-6 landed twelve hits but reduced both normal enemies to zero HP before stage 7, so the live target recheck correctly skipped the finisher. Redistributed the same overall damage budget toward the final strike instead of weakening the acceptance requirement.

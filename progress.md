@@ -4353,3 +4353,11 @@
 - Extended the action to 1300 ms for a 360 ms finisher recovery and the finisher target VFX window to 420 ms, keeping the character arc and monster reaction visible together while all seven hit times remain unchanged.
 - Real Space acceptance proves both monsters use the expected frame and reaction on every phase, left/right transforms differ, the combo reaches 14, and both targets are airborne. The inspected final screenshot shows the wide cyan arc and both monsters rotating in the air without covering the Chinese-fantasy environment.
 - Final verification passed: six focused sword-dance core routes, the focused true-browser interaction, 671/671 non-keyboard and computed-style tests, three real-browser compatibility routes in 48.96 seconds, and final production build. Chinese commit and push follow this record update.
+
+## Task 198 Sword Dance Finisher Contact Pose
+- Inspected the original atlas at full resolution and identified the semantic mismatch between the runtime finish mapping and authored poses. No subagent was started.
+- Added design and implementation records. Browser RED coverage follows.
+- Added real-browser contact/recovery assertions. The old mapping failed before screenshot capture because frame 13 was skipped entirely at the actual render cadence.
+- Replaced the 120 ms equal split with a 360 ms authored-pose clock: frame 12 through 12%, frame 13 through 82%, then frame 14 for recovery; frame 15 is excluded while the skill remains active.
+- The true-browser recorder proves frame 13 still holds at 180 ms and frame 14 takes over after 310 ms. Visual inspection now shows the player in the forward thrust pose while both monsters rotate airborne inside the cyan finisher arc.
+- Final verification passed: focused real Space acceptance, 671/671 non-keyboard and computed-style tests, base-frame plus sword-dance real-browser compatibility in 33.71 seconds, and production build. Chinese commit and push follow this record update.

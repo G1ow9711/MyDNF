@@ -104,7 +104,11 @@ export class CombatSpriteStage {
     if (playerElement && playerSprite && ["ember-warden", "liuli-blademage"].includes(playerSprite.dataset.frameClassId ?? "")) {
       const skillHitAtMs = Number(playerElement.dataset.playerSkillHitAtMs ?? "0");
       const skillProgress = playerElement.dataset.playerSkillHitPhase && skillHitAtMs > 0
-        ? intervalProgress(skillHitAtMs, skillHitAtMs + 120, elapsedMs)
+        ? intervalProgress(
+            skillHitAtMs,
+            skillHitAtMs + (playerElement.dataset.playerSkillHitPhase === "chain-finish" ? 360 : 120),
+            elapsedMs
+          )
         : progress(playerElement.dataset.playerSkillStageProgress);
       const normalAttackStartedAtMs = Number(playerElement.dataset.playerNormalAttackStartedAtMs ?? "0");
       const normalAttackUntilMs = Number(playerElement.dataset.playerNormalAttackUntilMs ?? "0");
@@ -196,7 +200,7 @@ export class CombatSpriteStage {
       } else if (actor.skillPhase === "chain-cross") {
         frame = 6 + Math.min(5, Math.floor(p * 6));
       } else if (actor.skillPhase === "chain-finish") {
-        frame = 12 + Math.min(3, Math.floor(p * 4));
+        frame = p < 0.12 ? 12 : p < 0.82 ? 13 : 14;
       } else if (actor.skillStage === "windup") {
         frame = Math.min(3, Math.floor(p * 4));
       } else if (actor.skillStage === "active") {

@@ -1542,3 +1542,8 @@
 - The existing monster atlases reserve frames 12-15 for hit and down states. Directional transforms plus phase-specific selection can create readable alternating reactions without changing combat control or introducing fake timers.
 - The 1120 ms skill duration left only 180 ms after the 940 ms finisher, shorter than browser capture and visually abrupt. A 1300 ms action lock preserves all hit timings while giving the finisher 360 ms of readable recovery.
 - Extending only the player action was insufficient because enemy hit-phase mounting expires with each hit event's VFX window. The finisher now owns a 420 ms target window while rapid cuts remain 260 ms, keeping both actors synchronized without accumulating all seven effects.
+
+## Task 198 Sword Dance Finisher Pose Audit
+- Visual inspection of the original 4x4 skill atlas shows frame 13 is the actual forward contact pose; frame 14 is recovery and frame 15 is idle.
+- The current `12 + floor(progress * 4)` mapping reaches frame 15 while `chain-finish` is still active. This explains why a valid effect-and-airborne screenshot can still make the character look static.
+- Detecting frame 13 was not enough: screenshot encoding outlasted the old 120 ms body-phase clock and captured frame 14. The finisher body clock now spans 360 ms, aligned with action recovery and the 420 ms target VFX instead of freezing test time.

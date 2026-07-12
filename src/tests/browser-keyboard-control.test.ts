@@ -143,6 +143,8 @@ type BrowserFlowingLightSwordDanceEvidence = {
   sawFinisherAirborne: boolean;
   startX: number;
   maxX: number;
+  finisherContactHoldFrame: number;
+  finisherRecoveryFrame: number;
 };
 
 type BrowserFlowingLightLiveState = {
@@ -151,6 +153,8 @@ type BrowserFlowingLightLiveState = {
   spriteFrame: number;
   comboCount: number;
   airborne: string[];
+  elapsedMs: number;
+  hitAtMs: number;
 };
 
 type BrowserEnemyAttackState = {
@@ -1347,7 +1351,7 @@ const flowingLightPhases = [
     waveAnimation: "flowing-chain-finish-wave",
     sparksAnimation: "flowing-chain-finish-sparks",
     minFrame: 12,
-    maxFrame: 15,
+    maxFrame: 14,
     enemyFrame: 14,
     enemyReaction: "chain-finish"
   }
@@ -1672,7 +1676,9 @@ const installFlowingLightPhaseRecorderExpression = `
     maxComboCount: 0,
     sawFinisherAirborne: false,
     startX: Number(document.querySelector(".combat-scene")?.getAttribute("data-player-x") || "0"),
-    maxX: Number(document.querySelector(".combat-scene")?.getAttribute("data-player-x") || "0")
+    maxX: Number(document.querySelector(".combat-scene")?.getAttribute("data-player-x") || "0"),
+    finisherContactHoldFrame: -1,
+    finisherRecoveryFrame: -1
   };
   const readSample = () => {
     const shell = document.querySelector(".app-shell");
@@ -1771,7 +1777,20 @@ const installFlowingLightPhaseRecorderExpression = `
     evidence.sawFinisherAirborne ||=
       sample.hitPhase === "chain-finish" &&
       Array.from(document.querySelectorAll(".combat-enemy")).some((enemy) => enemy.getAttribute("data-enemy-airborne") === "true");
-    if (globalThis.__flowingLightPhaseSamples.length < 5 || evidence.stagePhases.length < 7) {
+    const sceneElapsedMs = Number(document.querySelector(".combat-scene")?.getAttribute("data-combat-elapsed-ms") ?? "0");
+    const skillHitAtMs = Number(document.querySelector(".combat-player")?.getAttribute("data-player-skill-hit-at-ms") ?? "0");
+    if (sample.hitPhase === "chain-finish" && skillHitAtMs > 0 && sceneElapsedMs - skillHitAtMs >= 180) {
+      evidence.finisherContactHoldFrame = evidence.finisherContactHoldFrame < 0 ? sample.spriteFrame : evidence.finisherContactHoldFrame;
+    }
+    if (sample.hitPhase === "chain-finish" && skillHitAtMs > 0 && sceneElapsedMs - skillHitAtMs >= 310) {
+      evidence.finisherRecoveryFrame = sample.spriteFrame;
+    }
+    if (
+      globalThis.__flowingLightPhaseSamples.length < 5 ||
+      evidence.stagePhases.length < 7 ||
+      evidence.finisherContactHoldFrame < 0 ||
+      evidence.finisherRecoveryFrame < 0
+    ) {
       globalThis.__flowingLightPhaseRecorder = requestAnimationFrame(tick);
     }
   };
@@ -1801,7 +1820,9 @@ const readFlowingLightLiveStateExpression = `
     cue: player?.getAttribute("data-player-skill-vfx-cue") ?? "",
     spriteFrame: Number(sprite?.getAttribute("data-sprite-frame") ?? "-1"),
     comboCount: Number(scene?.getAttribute("data-combo-count") ?? "0"),
-    airborne: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => enemy.getAttribute("data-enemy-airborne") ?? "")
+    airborne: Array.from(document.querySelectorAll(".combat-enemy")).map((enemy) => enemy.getAttribute("data-enemy-airborne") ?? ""),
+    elapsedMs: Number(scene?.getAttribute("data-combat-elapsed-ms") ?? "0"),
+    hitAtMs: Number(player?.getAttribute("data-player-skill-hit-at-ms") ?? "0")
   };
 })()
 `;
@@ -2685,14 +2706,20 @@ describe("real browser keyboard control", () => {
           (state) =>
             state.phase === "chain-finish" &&
             state.cue === "flowing-chain-finish" &&
-            state.spriteFrame >= 14 &&
-            state.spriteFrame <= 15 &&
+            state.spriteFrame === 13 &&
             state.comboCount === 14 &&
             state.airborne.includes("true"),
           2600
         );
         expect(liveFinisher.airborne.filter((state) => state === "true")).toHaveLength(2);
         await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/liuli-flowing-sword-dance-finish.png`);
+        const finisherRecovery = await page.waitFor<BrowserFlowingLightSwordDanceEvidence>(
+          readFlowingLightSwordDanceEvidenceExpression,
+          (state) => state.finisherContactHoldFrame >= 0 && state.finisherRecoveryFrame >= 0,
+          1200
+        );
+        expect(finisherRecovery.finisherContactHoldFrame).toBe(13);
+        expect(finisherRecovery.finisherRecoveryFrame).toBe(14);
 
         let samples: BrowserFlowingLightPhaseSample[];
         try {

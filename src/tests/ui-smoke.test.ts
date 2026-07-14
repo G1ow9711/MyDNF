@@ -1492,7 +1492,7 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes ember-spark-finish-impact-core");
   });
 
-  it("defines dedicated iron-palm player, weapon, sparks, and shield-jab animations", () => {
+  it("mounts Iron Palm catch, held target, throw, resistance, and synchronized animation hooks", () => {
     const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
     const baseRun = createCombatRun(state, "cinder-kiln-alley");
     const player = { ...baseRun.player, x: 240, y: 340, facing: 1 as const, actionLockUntilMs: 0, hurtLockUntilMs: 0 };
@@ -1510,38 +1510,70 @@ describe("town app shell", () => {
       },
       { type: "skill", skillId: "iron-palm" }
     );
-    const [jabAtMs] = scheduledSkillTimes(castRun, "iron-palm");
-    const beforeJabHtml = renderAppHtml({
+    const [catchAtMs] = scheduledSkillTimes(castRun, "iron-palm");
+    const beforeCatchHtml = renderAppHtml({
       state,
       mode: "combat",
-      combatRun: stepToElapsed(castRun, jabAtMs - 1)
+      combatRun: stepToElapsed(castRun, catchAtMs - 1)
     });
-    const hitRun = stepToElapsed(castRun, jabAtMs);
-    const html = renderAppHtml({
+    const caughtRun = stepToElapsed(castRun, catchAtMs);
+    const caughtHtml = renderAppHtml({
       state,
       mode: "combat",
-      combatRun: hitRun
+      combatRun: caughtRun
     });
+    const releasedRun = stepCombat(caughtRun, {}, caughtRun.player.hitstopUntilMs - caughtRun.elapsedMs);
+    const throwRun = stepToElapsed(releasedRun, scheduledSkillTimes(releasedRun, "iron-palm")[0]);
+    const throwHtml = renderAppHtml({ state, mode: "combat", combatRun: throwRun });
+    const eliteCast = performAction(
+      {
+        ...baseRun,
+        player,
+        enemies: baseRun.enemies.map((enemy, index) => ({
+          ...enemy,
+          kind: index === 0 ? ("elite" as const) : enemy.kind,
+          hp: 240,
+          maxHp: 240,
+          armor: index === 0 ? 30 : enemy.armor,
+          maxArmor: index === 0 ? 30 : enemy.maxArmor,
+          position: { x: player.x + 78 + index * 120, y: player.y + index * 8 },
+          nextAttackAtMs: 9999
+        }))
+      },
+      { type: "skill", skillId: "iron-palm" }
+    );
+    const resistedRun = stepToElapsed(eliteCast, scheduledSkillTimes(eliteCast, "iron-palm")[0]);
+    const resistedHtml = renderAppHtml({ state, mode: "combat", combatRun: resistedRun });
 
     expect(skillHitEvents(castRun, "iron-palm")).toHaveLength(0);
-    expect(skillHitEvents(hitRun, "iron-palm")).toHaveLength(1);
-    expect(beforeJabHtml).toContain('data-player-skill-move="iron-palm"');
-    expect(beforeJabHtml).not.toContain('data-skill-impact-vfx="iron-palm"');
-    expect(countOccurrences(html, 'data-skill-impact-vfx="iron-palm"')).toBe(1);
-    expect(html).toContain('data-impact-vfx-shape="iron-spark"');
-    expect(html).toContain('data-vfx-cue="iron-shield-jab"');
-    expect(html).toContain('data-hit-phase="shield-jab"');
-    expect(html).toContain('class="skill-impact-burst skill-impact-shape-iron-spark"');
-    expect(stylesCss).toContain('.combat-player[data-player-skill-move="iron-palm"]');
+    expect(skillHitEvents(caughtRun, "iron-palm")).toHaveLength(1);
+    expect(skillHitEvents(throwRun, "iron-palm")).toHaveLength(2);
+    expect(beforeCatchHtml).toContain('data-player-skill-move="iron-palm"');
+    expect(beforeCatchHtml).not.toContain('data-skill-impact-vfx="iron-palm"');
+    expect(caughtHtml).toContain('data-player-grab-phase="hold"');
+    expect(caughtHtml).toContain('data-player-grab-target-id="cinder-kiln-alley-room-0-enemy-0"');
+    expect(caughtHtml).toContain('data-enemy-grab-phase="held"');
+    expect(caughtHtml).toContain('data-grab-result="caught"');
+    expect(caughtHtml).toContain('data-vfx-cue="iron-grab-catch"');
+    expect(caughtHtml).toContain('擒拿');
+    expect(throwHtml).toContain('data-player-grab-phase="release"');
+    expect(throwHtml).toContain('data-enemy-grab-phase="thrown"');
+    expect(throwHtml).toContain('data-grab-result="thrown"');
+    expect(throwHtml).toContain('data-vfx-cue="iron-grab-slam"');
+    expect(throwHtml).toContain('投掷');
+    expect(resistedHtml).toContain('data-grab-result="resisted"');
+    expect(resistedHtml).toContain('data-vfx-cue="iron-grab-resist"');
+    expect(resistedHtml).toContain('抓取抵抗');
+    expect(resistedHtml).not.toContain('data-enemy-grab-phase="held"');
     expect(stylesCss).toContain('[data-skill-animation-preset="iron-palm"]');
-    expect(stylesCss).toContain('[data-skill-weapon-arc="shield-jab"]');
-    expect(stylesCss).toContain(".skill-vfx-shape-iron-spark");
-    expect(stylesCss).toContain(".skill-impact-shape-iron-spark");
-    expect(stylesCss).toContain("@keyframes player-iron-palm-jab");
-    expect(stylesCss).toContain("@keyframes weapon-shield-jab");
-    expect(stylesCss).toContain("var(--weapon-facing, 1) * var(--weapon-skill-lunge, 24px) * 1.34");
-    expect(stylesCss).toContain("@keyframes iron-spark-cast-core");
-    expect(stylesCss).toContain("@keyframes iron-shield-jab-impact-core");
+    expect(stylesCss).toContain('[data-player-grab-phase="hold"]');
+    expect(stylesCss).toContain('[data-enemy-grab-phase="held"]');
+    expect(stylesCss).toContain('[data-enemy-grab-phase="thrown"]');
+    expect(stylesCss).toContain("@keyframes player-iron-palm-grab-throw");
+    expect(stylesCss).toContain("@keyframes player-frame-grab-hold");
+    expect(stylesCss).toContain("@keyframes monster-grabbed-hold");
+    expect(stylesCss).toContain("@keyframes monster-grab-throw-arc");
+    expect(stylesCss).toContain("@keyframes iron-grab-slam-impact-core");
   });
 
   it("defines dedicated furnace-taunt player, weapon, roar field, and control impact animations", () => {

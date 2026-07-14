@@ -281,6 +281,16 @@ describe("adaptive audio hooks", () => {
     expect(plan.textureTags).not.toContain("ui-click");
   });
 
+  it("builds distinct authored catch, throw, and grab-resistance sounds", () => {
+    const ids = ["grab-catch-confirm", "grab-throw-impact", "grab-resist-confirm"];
+    const plans = ids.map((id) => createAudioPlaybackPlan({ type: "sfx", id }, createAudioState().volumes));
+
+    expect(plans.map((plan) => plan.commandId)).toEqual(ids);
+    expect(plans.every((plan) => plan.notes.length >= 3)).toBe(true);
+    expect(plans.every((plan) => !plan.textureTags.includes("ui-click"))).toBe(true);
+    expect(new Set(plans.map((plan) => plan.textureTags.join(":"))).size).toBe(ids.length);
+  });
+
   it("processes audio command queues once and restarts music after volume changes", () => {
     const calls: Array<{ kind: "music" | "sfx"; plan: AudioPlaybackPlan }> = [];
     const sink: AudioPlaybackSink = {

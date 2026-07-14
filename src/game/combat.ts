@@ -34,7 +34,8 @@ export type CombatActionInput =
   | { type: "consume"; consumableId: ConsumableId }
   | { type: "skill"; skillId: string; inputMethod?: CombatSkillInputMethod };
 export type CombatSkillStatusTag = "shield" | "guard" | "evade" | "reflect" | "trap" | "control" | "guard-break" | "stagger";
-export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown";
+export type CombatActionTag = "launcher" | "slam" | "pull" | "knockdown" | "grab" | "throw";
+export type CombatGrabResult = "caught" | "resisted" | "thrown";
 export type CombatHitPhase =
   | "ground-light-1"
   | "ground-light-2"
@@ -76,6 +77,9 @@ export type CombatHitPhase =
   | "spark-cross"
   | "spark-finish"
   | "shield-jab"
+  | "grab-catch"
+  | "grab-resist"
+  | "grab-throw"
   | "shield-quake"
   | "furnace-roar"
   | "roll-shot"
@@ -136,6 +140,9 @@ export type CombatVfxCue =
   | "ember-spark-cross"
   | "ember-spark-finish"
   | "iron-shield-jab"
+  | "iron-grab-catch"
+  | "iron-grab-resist"
+  | "iron-grab-slam"
   | "shield-quake-impact"
   | "anvil-guard-open"
   | "molten-wall-open"
@@ -226,6 +233,13 @@ export interface CombatEnemy {
   wallBounceStartedAtMs?: number;
   wallBounceUntilMs?: number;
   wallBounceSide?: "left" | "right";
+  grabbedBySkillId?: string;
+  grabbedStartedAtMs?: number;
+  grabbedUntilMs?: number;
+  grabbedFacing?: 1 | -1;
+  grabThrowStartedAtMs?: number;
+  grabThrowUntilMs?: number;
+  grabThrowFacing?: 1 | -1;
   airborne: boolean;
   downed: boolean;
   airborneUntilMs?: number;
@@ -299,6 +313,10 @@ export interface CombatPlayer {
   lastSkillId?: string;
   prismChain: number;
   activeSkillMovement?: CombatPlayerSkillMovement;
+  activeGrabSkillId?: string;
+  activeGrabTargetId?: string;
+  activeGrabStartedAtMs?: number;
+  activeGrabUntilMs?: number;
 }
 
 export interface CombatResource {
@@ -365,6 +383,7 @@ export interface CombatHitEvent {
   otgHit: boolean;
   wallBounce: boolean;
   wallBounceSide?: "left" | "right";
+  grabResult?: CombatGrabResult;
   occurredAtMs: number;
   inputToHitMs: number;
   hitstopMs: number;
@@ -635,6 +654,9 @@ export interface CombatScheduledEnemyHitEffect {
   playerShieldReduction?: number;
   playerStatusVfxCue?: CombatVfxCue;
   playerStatusVfxWindowMs?: number;
+  grabPhase?: "attempt" | "throw";
+  grabDefinition?: CombatGrabDefinition;
+  grabResult?: CombatGrabResult;
 }
 
 export interface CombatScheduledMissEffect {
@@ -740,6 +762,16 @@ interface PlayerHitboxDefinition {
   actionTags?: CombatActionTag[];
   requiresStatusSourceSkillId?: string;
   requiresMarks?: boolean;
+  grabDefinition?: CombatGrabDefinition;
+}
+
+interface CombatGrabDefinition {
+  holdMs: number;
+  throwDamage: number;
+  throwHitstopMs: number;
+  throwKnockback: number;
+  throwVfxWindowMs: number;
+  resistDamage: number;
 }
 
 const arena: CombatArena = {
@@ -843,6 +875,8 @@ function shiftEnemyTimersForHitstop(enemy: CombatEnemy, originMs: number, deltaM
     enemy.attackImpactAtMs !== undefined &&
     (enemy.attackRecoverUntilMs ?? enemy.attackImpactAtMs) > originMs;
   const wallBounceActive = enemy.wallBounceUntilMs !== undefined && enemy.wallBounceUntilMs > originMs;
+  const grabActive = enemy.grabbedUntilMs !== undefined && enemy.grabbedUntilMs > originMs;
+  const grabThrowActive = enemy.grabThrowUntilMs !== undefined && enemy.grabThrowUntilMs > originMs;
 
   return {
     ...enemy,
@@ -851,6 +885,14 @@ function shiftEnemyTimersForHitstop(enemy: CombatEnemy, originMs: number, deltaM
     wallBounceStartedAtMs:
       wallBounceActive && enemy.wallBounceStartedAtMs !== undefined ? enemy.wallBounceStartedAtMs + deltaMs : enemy.wallBounceStartedAtMs,
     wallBounceUntilMs: wallBounceActive ? enemy.wallBounceUntilMs! + deltaMs : enemy.wallBounceUntilMs,
+    grabbedStartedAtMs:
+      grabActive && enemy.grabbedStartedAtMs !== undefined ? enemy.grabbedStartedAtMs + deltaMs : enemy.grabbedStartedAtMs,
+    grabbedUntilMs: grabActive ? enemy.grabbedUntilMs! + deltaMs : enemy.grabbedUntilMs,
+    grabThrowStartedAtMs:
+      grabThrowActive && enemy.grabThrowStartedAtMs !== undefined
+        ? enemy.grabThrowStartedAtMs + deltaMs
+        : enemy.grabThrowStartedAtMs,
+    grabThrowUntilMs: grabThrowActive ? enemy.grabThrowUntilMs! + deltaMs : enemy.grabThrowUntilMs,
     nextAttackAtMs: shiftFutureTime(enemy.nextAttackAtMs, originMs, deltaMs),
     attackStartedAtMs: attackActive ? enemy.attackStartedAtMs! + deltaMs : enemy.attackStartedAtMs,
     attackImpactAtMs: attackActive ? enemy.attackImpactAtMs! + deltaMs : enemy.attackImpactAtMs,
@@ -883,7 +925,10 @@ function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: 
             ...run.player.skillCooldowns,
             [actionArmorSkillId]: shiftFutureTime(run.player.skillCooldowns[actionArmorSkillId] ?? 0, originMs, deltaMs)
           },
-          activeSkillMovement
+          activeSkillMovement,
+          activeGrabStartedAtMs:
+            run.player.activeGrabStartedAtMs !== undefined ? run.player.activeGrabStartedAtMs + deltaMs : undefined,
+          activeGrabUntilMs: shiftFutureOptionalTime(run.player.activeGrabUntilMs, originMs, deltaMs)
         }
       : run.player,
     enemies: run.enemies.map((enemy) => shiftEnemyTimersForHitstop(enemy, originMs, deltaMs)),
@@ -1199,7 +1244,10 @@ function interruptedActiveSkillId(before: CombatPlayer, after: CombatPlayer, fal
 }
 
 function playerActionArmorActiveAt(player: CombatPlayer, elapsedMs: number): boolean {
-  return player.lastSkillId === "flowing-light-chain" && elapsedMs < player.actionLockUntilMs;
+  return (
+    (player.lastSkillId === "flowing-light-chain" && elapsedMs < player.actionLockUntilMs) ||
+    Boolean(player.activeGrabTargetId && elapsedMs < (player.activeGrabUntilMs ?? 0))
+  );
 }
 
 function skillMovementIdAt(movement: CombatMovementSample | undefined, elapsedMs: number): string | undefined {
@@ -2941,6 +2989,8 @@ function applySparkCombo(run: CombatRun, skill: ClassSkillDefinition, canceledFr
 }
 
 function ironPalmHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
+  const totalDamage = Math.max(1, Math.round(skillDamage(run, skill) * 1.08));
+
   return {
     action: "skill",
     skillId: skill.id,
@@ -2948,13 +2998,21 @@ function ironPalmHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFro
     laneRange: 54,
     targetCap: 1,
     frontOnly: true,
-    damage: Math.max(1, Math.round(skillDamage(run, skill) * 0.98)),
-    hitstopMs: 58,
-    knockback: 34,
+    damage: 0,
+    hitstopMs: 48,
+    knockback: 0,
     juggle: false,
     inputToHitMs: skill.animation.hitFrameMs,
     canceledFromCombo,
-    statusTags: ["stagger"]
+    actionTags: ["grab"],
+    grabDefinition: {
+      holdMs: 320,
+      throwDamage: totalDamage,
+      throwHitstopMs: 76,
+      throwKnockback: 96,
+      throwVfxWindowMs: 420,
+      resistDamage: Math.max(1, Math.round(totalDamage * 0.45))
+    }
   };
 }
 
@@ -2970,10 +3028,10 @@ function applyIronPalm(run: CombatRun, skill: ClassSkillDefinition, canceledFrom
   );
 
   return schedulePlayerHitboxEffect(movingRun, ironPalmHitbox(run, skill, canceledFromCombo), endPosition, run.player.facing, {
-    id: `hit-${run.elapsedMs}-skill-${skill.id}-shield-jab`,
-    hitPhase: "shield-jab",
-    vfxCue: "iron-shield-jab",
-    vfxWindowMs: 260
+    id: `hit-${run.elapsedMs}-skill-${skill.id}-grab-catch`,
+    hitPhase: "grab-catch",
+    vfxCue: "iron-grab-catch",
+    vfxWindowMs: 300
   });
 }
 
@@ -6077,6 +6135,8 @@ function applyScheduledPlayerHitboxEffect(
       targetId: target.id,
       hitstopMs: eventHitstop(target, hitbox.hitstopMs),
       impactOrigin: { x: origin.x, y: origin.y },
+      grabPhase: hitbox.grabDefinition ? "attempt" : effect.grabPhase,
+      grabDefinition: hitbox.grabDefinition ?? effect.grabDefinition,
       dynamicHitbox: undefined,
       dynamicOrigin: undefined,
       dynamicFacing: undefined
@@ -6084,6 +6144,131 @@ function applyScheduledPlayerHitboxEffect(
 
     return applyScheduledEnemyHitEffect(nextRun, fixedEffect, activeMovementSkillId);
   }, sampledRun);
+}
+
+function applySuccessfulGrab(
+  run: CombatRun,
+  effect: CombatScheduledEnemyHitEffect,
+  target: CombatEnemy
+): CombatRun {
+  const grab = effect.grabDefinition;
+
+  if (!grab || !effect.skillId) {
+    return run;
+  }
+
+  const throwAtMs = effect.applyAtMs + grab.holdMs;
+  const anchor = effect.impactOrigin ?? { x: run.player.x, y: run.player.y };
+  const heldPosition = {
+    x: clamp(anchor.x + effect.playerFacing * 48, 0, run.arena.width),
+    y: clamp(anchor.y - 18, run.arena.minY, run.arena.maxY)
+  };
+  const comboCount = run.comboCount > 0 && effect.applyAtMs <= run.comboExpiresAtMs ? run.comboCount + 1 : 1;
+  const catchEvent: CombatHitEvent = {
+    kind: "hit",
+    id: effect.id,
+    action: effect.action ?? "skill",
+    skillId: effect.skillId,
+    targetId: target.id,
+    damage: 0,
+    critical: false,
+    criticalMultiplier: 1,
+    backAttack: false,
+    counterHit: false,
+    positionalMultiplier: 1,
+    juggleCount: target.juggleCount,
+    juggleProtected: false,
+    otgHit: false,
+    wallBounce: false,
+    grabResult: "caught",
+    occurredAtMs: effect.applyAtMs,
+    inputToHitMs: effect.inputToHitMs,
+    hitstopMs: effect.hitstopMs,
+    canceledFromCombo: effect.canceledFromCombo,
+    comboCount,
+    actionTags: ["grab"],
+    hitPhase: "grab-catch",
+    vfxCue: "iron-grab-catch",
+    vfxWindowMs: 300,
+    impactPosition: heldPosition,
+    casterPosition: effect.casterPosition ?? anchor,
+    casterFacing: effect.casterFacing ?? effect.playerFacing
+  };
+  const throwEffect: CombatScheduledEnemyHitEffect = {
+    ...effect,
+    id: `${effect.id}-throw`,
+    targetId: target.id,
+    applyAtMs: throwAtMs,
+    inputToHitMs: effect.inputToHitMs + grab.holdMs,
+    damage: grab.throwDamage,
+    hitstopMs: grab.throwHitstopMs,
+    knockback: grab.throwKnockback,
+    juggle: false,
+    statusTags: undefined,
+    actionTags: ["throw", "knockdown"],
+    hitPhase: "grab-throw",
+    vfxCue: "iron-grab-slam",
+    vfxWindowMs: grab.throwVfxWindowMs,
+    impactOrigin: anchor,
+    dynamicHitbox: undefined,
+    dynamicOrigin: undefined,
+    dynamicFacing: undefined,
+    grabPhase: "throw",
+    grabDefinition: undefined,
+    grabResult: "thrown"
+  };
+
+  return {
+    ...run,
+    comboCount,
+    comboExpiresAtMs: effect.applyAtMs + 1200,
+    enemies: run.enemies.map((enemy) =>
+      enemy.id === target.id
+        ? {
+            ...enemy,
+            position: heldPosition,
+            airborne: false,
+            airborneUntilMs: undefined,
+            downed: false,
+            downedUntilMs: undefined,
+            controlledUntilMs: Math.max(enemy.controlledUntilMs ?? 0, throwAtMs),
+            hitstunUntilMs: Math.max(enemy.hitstunUntilMs ?? 0, throwAtMs),
+            nextAttackAtMs: Math.max(enemy.nextAttackAtMs, throwAtMs + 760),
+            attackStartedAtMs: undefined,
+            attackImpactAtMs: undefined,
+            attackRecoverUntilMs: undefined,
+            attackSkillId: undefined,
+            attackHitResolved: undefined,
+            attackResolvedHits: undefined,
+            attackConnectedHitIndexes: undefined,
+            attackRushStartPosition: undefined,
+            attackRushTargetPosition: undefined,
+            attackPullStartPosition: undefined,
+            attackPullTargetPosition: undefined,
+            grabbedBySkillId: effect.skillId,
+            grabbedStartedAtMs: effect.applyAtMs,
+            grabbedUntilMs: throwAtMs,
+            grabbedFacing: effect.playerFacing,
+            grabThrowStartedAtMs: undefined,
+            grabThrowUntilMs: undefined,
+            grabThrowFacing: undefined,
+            wallBounceStartedAtMs: undefined,
+            wallBounceUntilMs: undefined,
+            wallBounceSide: undefined
+          }
+        : enemy
+    ),
+    events: [...run.events, catchEvent],
+    scheduledEnemyHitEffects: [...run.scheduledEnemyHitEffects, throwEffect],
+    player: {
+      ...run.player,
+      hitstopUntilMs: Math.max(run.player.hitstopUntilMs, effect.applyAtMs + effect.hitstopMs),
+      activeGrabSkillId: effect.skillId,
+      activeGrabTargetId: target.id,
+      activeGrabStartedAtMs: effect.applyAtMs,
+      activeGrabUntilMs: throwAtMs
+    }
+  };
 }
 
 function applyScheduledEnemyHitEffect(
@@ -6147,6 +6332,44 @@ function applyScheduledEnemyHitEffect(
     return impactResolvedRun;
   }
 
+  if (effect.grabPhase === "attempt" && effect.grabDefinition) {
+    if (target.kind === "trash" && !target.downed && !enemySuperArmorActive(target, effect.applyAtMs)) {
+      return applySuccessfulGrab(impactResolvedRun, effect, target);
+    }
+
+    return applyScheduledEnemyHitEffect(
+      impactResolvedRun,
+      {
+        ...effect,
+        damage: effect.grabDefinition.resistDamage,
+        hitstopMs: 44,
+        knockback: 0,
+        statusTags: undefined,
+        actionTags: ["grab"],
+        hitPhase: "grab-resist",
+        vfxCue: "iron-grab-resist",
+        vfxWindowMs: 300,
+        grabPhase: undefined,
+        grabDefinition: undefined,
+        grabResult: "resisted"
+      },
+      activeMovementSkillId
+    );
+  }
+
+  if (effect.grabPhase === "throw" && target.grabbedBySkillId !== effect.skillId) {
+    return {
+      ...impactResolvedRun,
+      player: {
+        ...impactResolvedRun.player,
+        activeGrabSkillId: undefined,
+        activeGrabTargetId: undefined,
+        activeGrabStartedAtMs: undefined,
+        activeGrabUntilMs: undefined
+      }
+    };
+  }
+
   const consumedMarks = effect.consumeMarks ? target.marks : 0;
   const bonusDamage = consumedMarks * (effect.bonusDamagePerMark ?? 0);
   const casterPosition = effect.casterPosition ?? { x: impactResolvedRun.player.x, y: impactResolvedRun.player.y };
@@ -6203,6 +6426,7 @@ function applyScheduledEnemyHitEffect(
     otgHit: targetReaction.otgHit,
     wallBounce: targetMovement.wallBounce,
     wallBounceSide: targetMovement.wallBounce ? targetMovement.wallBounceSide : undefined,
+    grabResult: effect.grabResult,
     occurredAtMs: effect.applyAtMs,
     inputToHitMs: effect.inputToHitMs,
     hitstopMs,
@@ -6213,7 +6437,7 @@ function applyScheduledEnemyHitEffect(
     hitPhase: effect.hitPhase,
     vfxCue: effect.vfxCue,
     vfxWindowMs: effect.vfxWindowMs,
-    impactPosition: { x: target.position.x, y: target.position.y },
+    impactPosition: effect.grabResult === "thrown" ? targetMovement.position : { x: target.position.x, y: target.position.y },
     casterPosition,
     casterFacing: effect.casterFacing
   };
@@ -6258,7 +6482,14 @@ function applyScheduledEnemyHitEffect(
       wallBounceCount: targetMovement.wallBounceCount,
       wallBounceStartedAtMs: targetMovement.wallBounceStartedAtMs,
       wallBounceUntilMs: targetMovement.wallBounceUntilMs,
-      wallBounceSide: targetMovement.wallBounceSide
+      wallBounceSide: targetMovement.wallBounceSide,
+      grabbedBySkillId: effect.grabResult === "thrown" ? undefined : enemy.grabbedBySkillId,
+      grabbedStartedAtMs: effect.grabResult === "thrown" ? undefined : enemy.grabbedStartedAtMs,
+      grabbedUntilMs: effect.grabResult === "thrown" ? undefined : enemy.grabbedUntilMs,
+      grabbedFacing: effect.grabResult === "thrown" ? undefined : enemy.grabbedFacing,
+      grabThrowStartedAtMs: effect.grabResult === "thrown" ? effect.applyAtMs : enemy.grabThrowStartedAtMs,
+      grabThrowUntilMs: effect.grabResult === "thrown" ? effect.applyAtMs + 420 : enemy.grabThrowUntilMs,
+      grabThrowFacing: effect.grabResult === "thrown" ? effect.playerFacing : enemy.grabThrowFacing
     };
   });
 
@@ -6284,7 +6515,11 @@ function applyScheduledEnemyHitEffect(
           effect.cancelWindowUntilMsOnHit !== undefined
             ? Math.max(nextPlayerWithResource.cancelWindowUntilMs, effect.cancelWindowUntilMsOnHit)
             : nextPlayerWithResource.cancelWindowUntilMs,
-        hitstopUntilMs: Math.max(impactResolvedRun.player.hitstopUntilMs, effect.applyAtMs + hitstopMs)
+        hitstopUntilMs: Math.max(impactResolvedRun.player.hitstopUntilMs, effect.applyAtMs + hitstopMs),
+        activeGrabSkillId: effect.grabResult === "thrown" ? undefined : nextPlayerWithResource.activeGrabSkillId,
+        activeGrabTargetId: effect.grabResult === "thrown" ? undefined : nextPlayerWithResource.activeGrabTargetId,
+        activeGrabStartedAtMs: effect.grabResult === "thrown" ? undefined : nextPlayerWithResource.activeGrabStartedAtMs,
+        activeGrabUntilMs: effect.grabResult === "thrown" ? undefined : nextPlayerWithResource.activeGrabUntilMs
       }
     },
     effect.applyAtMs

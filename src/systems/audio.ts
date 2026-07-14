@@ -273,6 +273,40 @@ const sfxPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: Ar
       { frequencyHz: 1244.51, startMs: 108, durationMs: 116, gain: 0.08, waveform: "sine" }
     ]
   },
+  "grab-catch-confirm": {
+    commandId: "grab-catch-confirm",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["gauntlet-lock", "cloth-tension", "grab-confirm"],
+    notes: [
+      { frequencyHz: 98, startMs: 0, durationMs: 128, gain: 0.24, waveform: "square" },
+      { frequencyHz: 392, startMs: 20, durationMs: 116, gain: 0.16, waveform: "sawtooth" },
+      { frequencyHz: 1174.66, startMs: 54, durationMs: 142, gain: 0.09, waveform: "triangle" }
+    ]
+  },
+  "grab-throw-impact": {
+    commandId: "grab-throw-impact",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["body-arc", "forge-slam", "stone-impact"],
+    notes: [
+      { frequencyHz: 49, startMs: 0, durationMs: 220, gain: 0.34, waveform: "square" },
+      { frequencyHz: 146.83, startMs: 14, durationMs: 194, gain: 0.24, waveform: "sawtooth" },
+      { frequencyHz: 440, startMs: 58, durationMs: 150, gain: 0.14, waveform: "triangle" },
+      { frequencyHz: 1318.51, startMs: 112, durationMs: 132, gain: 0.08, waveform: "sine" }
+    ]
+  },
+  "grab-resist-confirm": {
+    commandId: "grab-resist-confirm",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["armor-repel", "grip-break", "resist-confirm"],
+    notes: [
+      { frequencyHz: 73.42, startMs: 0, durationMs: 164, gain: 0.28, waveform: "square" },
+      { frequencyHz: 293.66, startMs: 24, durationMs: 146, gain: 0.18, waveform: "sawtooth" },
+      { frequencyHz: 880, startMs: 72, durationMs: 138, gain: 0.1, waveform: "triangle" }
+    ]
+  },
   "enemy-windup-light": {
     commandId: "enemy-windup-light",
     channel: "sfx",

@@ -526,7 +526,19 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify a live right-wall bounce through real keys and same-combo suppression through core state.
 - [x] Run full regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 212 DNF Grab And Throw Synchronization
+- [x] Audit skill profiles, target eligibility, enemy armor classes, actor mounting, VFX/audio timing, and real-keyboard seams.
+- [x] Lock a close-range grab skill, synchronous hold/throw motion, immunity rules, release reaction, and hitstop behavior.
+- [x] Add RED core, mounted feedback, audio, browser-computed, and real-keyboard grab coverage.
+- [x] Implement authoritative grab state plus synchronized player/enemy pose, throw arc, impact VFX, and sound.
+- [x] Verify one live normal-monster grab and one elite/Boss immunity result using real keys.
+- [x] Run full regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 212's first Boss-resistance route cast Iron Palm during a natural Boss attack, so its interruptible 150 ms startup was canceled before the resistance frame. The accepted route opens Black Furnace Aegis first, then casts during the real shield window without changing Boss timing.
+- Task 212's first visual capture exposed the unsupported Iron class rendering an idle Ember frame atlas over its own portrait. Unsupported player frame atlases are now hidden; Iron retains its own animated fallback art until a dedicated atlas exists.
+- Task 212's first full non-keyboard run exposed two old attribute-order assertions and one shield-jab integration assertion. They now assert independent critical metadata and the new catch/throw phases.
+- Task 212's first RTK grouped test produced no output and left the Vitest process active. The exact process tree was stopped, then raw Vitest runs provided stable results.
 - Task 211's first core GREEN carried the actor's stale wall side on a later non-bounce event. Event-side metadata now describes only the current impact while actor state retains the active recoil side.
 - Task 211 compatibility probing exposed Task 210's crowd route as timing-sensitive under repeated runs. Experimental heavy-cancel and route changes were fully reverted; the committed Task 210 keyboard file remained unchanged until the dedicated wall route was added.
 - Task 211's first dedicated wall route used two normal attacks, but dynamic crowd targeting pushed a different monster. The final route uses lane movement to lure a full-health monster to the right boundary without test-state mutation.

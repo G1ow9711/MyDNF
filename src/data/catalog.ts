@@ -366,7 +366,7 @@ const skillAnimationById: Record<string, SkillAnimationDefinition> = {
   },
   "iron-palm": {
     preset: "iron-palm",
-    durationMs: 440,
+    durationMs: 720,
     hitFrameMs: 150,
     lungePx: 24,
     weaponArc: "shield-jab",

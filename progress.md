@@ -4500,3 +4500,15 @@
 - Real keyboard acceptance lured a live Warrior monster to the right wall, turned the Liuli model toward it, and cast seven-stage Flowing Light Chain with `Space`; mounted event/model/VFX/audio evidence passed and the screenshot was inspected.
 - Compatibility rerun passed both the existing seven-stage sword-dance route and the new wall-bounce route. Full non-keyboard and computed-style regression passed 712/712 before the final browser-computed fixture was added; final verification follows.
 - Final verification passed 713/713 non-keyboard and real-browser computed-style tests, both real-keyboard sword-dance routes, production build, HTTP 200, screenshot inspection, and diff/whitespace review. Chinese commit and push follow this record update.
+
+## Task 212 DNF Grab And Throw Synchronization
+- Audited the authoritative combat state and current DNF-style reaction stack. No subagent was started.
+- Selected Iron Forge Guardian's real-keyboard `iron-palm` as the close-range grab/throw skill so model synchronization becomes gameplay-authoritative rather than decorative.
+- Locked initial scope: trash grab success, elite/Boss or active-super-armor resistance, timed hold/release, shared actor motion, impact VFX/audio, and real-browser acceptance. RED coverage follows.
+- Core RED passed as a failure proof: all three new tests fail because Iron Palm has no held-target state, no queued throw, and no elite/Boss resistance classification; 295 existing combat tests remain green.
+- Implemented authoritative catch/hold/throw state, same-target release, resistance rules, hitstop-safe timer shifting, player action armor only after a successful catch, and 720 ms Iron Palm presentation timing.
+- Added mounted grab phases, target ids, Chinese catch/throw/resist labels, three authored SFX patterns, player/enemy pose keyframes, clamp VFX, throw arc, and three cue-specific impact families.
+- Focused verification passed 298/298 combat tests, 113/113 render/UI/audio tests, TypeScript, and real Chromium computed animation checks.
+- Real keyboard acceptance passed with a live trash grab/throw and a live Boss resistance cast under Black Furnace Aegis. The compatibility Iron Vanguard route also passed after updating its expected catch cue.
+- Visual review removed the incorrect Ember atlas duplicate from Iron. The fallback Iron portrait remains intentionally lightweight for this phase while motion and effect timing stay strict.
+- Final verification passed 718/718 non-keyboard and real-browser computed-style tests, both focused real-keyboard Iron routes, production build, HTTP 200 on port 5174, screenshot inspection, and diff/whitespace review. Chinese commit and push follow this record update.

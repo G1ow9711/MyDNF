@@ -20,6 +20,7 @@ export type EnemyModelMotionFixture = {
   cue?: string;
   durationMs?: number;
   wallBounceSide?: "left" | "right";
+  grabPhase?: "held" | "thrown" | "none";
 };
 
 export type ComputedVfxPartStyle = {
@@ -40,7 +41,9 @@ export type ComputedEnemyModelMotionStyles = Record<
   string,
   {
     art: ComputedVfxPartStyle;
+    frame: ComputedVfxPartStyle;
     crack: ComputedVfxPartStyle;
+    grab: ComputedVfxPartStyle;
   }
 >;
 
@@ -60,6 +63,7 @@ export type PlayerSkillPhaseFixture = {
   phase?: string;
   cue?: string;
   durationMs?: number;
+  grabPhase?: "hold" | "release" | "none";
 };
 
 export type PlayerHurtMotionFixture = {
@@ -101,6 +105,7 @@ export type ComputedPlayerSkillPhaseStyles = Record<
   string,
   {
     player: ComputedVfxPartStyle;
+    frame: ComputedVfxPartStyle;
     weapon: ComputedVfxPartStyle;
     skillVfx: {
       bladeEchoes: ComputedVfxPartStyle;
@@ -643,15 +648,25 @@ export async function computeEnemyModelMotionStylesInRealBrowser(
         const result = {};
         for (const root of document.querySelectorAll("[data-enemy-model-fixture]")) {
           const style = getComputedStyle(root.querySelector(".enemy-art"));
+          const frameStyle = getComputedStyle(root.querySelector(".enemy-frame-sprite"));
           const crackStyle = getComputedStyle(root.querySelector(".enemy-wall-bounce-crack"));
+          const grabStyle = getComputedStyle(root.querySelector(".enemy-grab-clamp-vfx"));
           result[root.getAttribute("data-enemy-model-fixture")] = {
             art: {
               animationName: style.animationName,
               animationDuration: style.animationDuration
             },
+            frame: {
+              animationName: frameStyle.animationName,
+              animationDuration: frameStyle.animationDuration
+            },
             crack: {
               animationName: crackStyle.animationName,
               animationDuration: crackStyle.animationDuration
+            },
+            grab: {
+              animationName: grabStyle.animationName,
+              animationDuration: grabStyle.animationDuration
             }
           };
         }
@@ -727,6 +742,7 @@ export async function computePlayerSkillPhaseStylesInRealBrowser(
         const result = {};
         for (const root of document.querySelectorAll("[data-player-phase-fixture]")) {
           const playerStyle = getComputedStyle(root.querySelector(".combat-player-art"));
+          const frameStyle = getComputedStyle(root.querySelector(".player-frame-sprite"));
           const weaponStyle = getComputedStyle(root.querySelector(".combat-weapon"));
           const skillVfxParts = [
             ["bladeEchoes", ".flowing-chain-blade-echoes"],
@@ -741,6 +757,10 @@ export async function computePlayerSkillPhaseStylesInRealBrowser(
             player: {
               animationName: playerStyle.animationName,
               animationDuration: playerStyle.animationDuration
+            },
+            frame: {
+              animationName: frameStyle.animationName,
+              animationDuration: frameStyle.animationDuration
             },
             weapon: {
               animationName: weaponStyle.animationName,
@@ -1090,11 +1110,14 @@ function enemyModelMotionFixtureMarkup(fixture: EnemyModelMotionFixture): string
     data-enemy-attack-skill-id="${escapeAttribute(fixture.skillId ?? "")}"
     data-boss-phase-skill-id="${escapeAttribute(fixture.bossPhaseSkillId ?? "")}"
     data-enemy-model-vfx-cue="${escapeAttribute(fixture.cue ?? "")}"
+    data-enemy-grab-phase="${escapeAttribute(fixture.grabPhase ?? "none")}"
     style="--enemy-attack-duration: ${durationMs}ms; --model-scale-x: -1;"
   >
     <span class="enemy-art actor-model actor-model-${escapeAttribute(fixture.motion)}${skillClass}"></span>
+    <span class="combat-frame-sprite enemy-frame-sprite"></span>
     ${wallBounceState}
     <span class="enemy-wall-bounce-crack"></span>
+    <span class="enemy-grab-clamp-vfx"></span>
   </div>`;
 }
 
@@ -1127,9 +1150,11 @@ function playerSkillPhaseFixtureMarkup(fixture: PlayerSkillPhaseFixture): string
     data-skill-weapon-arc="${escapeAttribute(weaponArc)}"
     data-player-skill-hit-phase="${escapeAttribute(phase)}"
     data-player-skill-vfx-cue="${escapeAttribute(cue)}"
+    data-player-grab-phase="${escapeAttribute(fixture.grabPhase ?? "none")}"
     style="--skill-duration: ${durationMs}ms;"
   >
     <span class="combat-player-art"></span>
+    <span class="combat-frame-sprite player-frame-sprite"></span>
     <span class="combat-weapon" data-weapon-hit-phase="${escapeAttribute(phase)}" data-weapon-vfx-cue="${escapeAttribute(cue)}"></span>
     <span
       class="player-skill-vfx skill-vfx-${escapeAttribute(skillId)} skill-vfx-shape-${escapeAttribute(vfxShape)}"

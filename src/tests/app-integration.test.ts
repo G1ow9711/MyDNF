@@ -1058,9 +1058,10 @@ describe("playable app integration actions", () => {
     expect(html).toContain('data-screen-shake="critical"');
     expect(html).toContain('data-screen-flash="critical"');
     expect(html).toContain('class="hit-impact hit-impact-heavy is-critical"');
-    expect(html).toContain('data-impact-spark="true" data-critical="true"');
+    expect(html).toContain('data-impact-spark="true"');
+    expect(html).toContain('data-critical="true"');
     expect(html).toContain('class="damage-number is-critical"');
-    expect(html).toContain('data-damage-number="true" data-critical="true"');
+    expect(html).toContain('data-damage-number="true"');
     expect(html).toContain("暴击 -30");
 
     const criticalUltimate = applyHit(
@@ -1088,7 +1089,8 @@ describe("playable app integration actions", () => {
     expect(ultimateHtml).toContain('data-critical-hit="true"');
     expect(ultimateHtml).toContain('data-screen-shake="ultimate"');
     expect(ultimateHtml).toContain('data-screen-flash="meteor"');
-    expect(ultimateHtml).toContain('data-damage-number="true" data-critical="true"');
+    expect(ultimateHtml).toContain('data-damage-number="true"');
+    expect(ultimateHtml).toContain('data-critical="true"');
   });
 
   it("renders stacked back-attack and counter-hit metadata from one authoritative hit", () => {
@@ -3908,7 +3910,7 @@ describe("playable app integration actions", () => {
     expect(countOccurrences(finishHtml, 'data-skill-impact-vfx="spark-combo"')).toBe(3);
   });
 
-  it("renders iron-palm as a timed shield jab with target iron sparks", () => {
+  it("renders iron-palm as a synchronized grab and throw with target iron sparks", () => {
     let model = createAppModel({
       storage: new MemoryStorage(),
       initialState: selectBaseClass(createInitialState(), "iron-forge-guardian")
@@ -3937,7 +3939,7 @@ describe("playable app integration actions", () => {
           ...enemy,
           hp: 190,
           maxHp: 190,
-          position: { x: player.x + 78 + index * 120, y: player.y + index * 8 },
+          position: index === 0 ? { x: player.x + 78, y: player.y } : { x: player.x + 500 + index * 40, y: player.y + index * 8 },
           nextAttackAtMs: 9999
         }))
       }
@@ -3948,34 +3950,47 @@ describe("playable app integration actions", () => {
       throw new Error("Expected active combat run after iron-palm");
     }
 
-    const [jabAtMs] = scheduledSkillTimes(model.combatRun, "iron-palm");
+    const [catchAtMs] = scheduledSkillTimes(model.combatRun, "iron-palm");
     const castHtml = renderAppHtml(model);
-    const beforeJabRun = stepToElapsed(model.combatRun, jabAtMs - 1);
-    const beforeJabHtml = renderAppHtml({
+    const beforeCatchRun = stepToElapsed(model.combatRun, catchAtMs - 1);
+    const beforeCatchHtml = renderAppHtml({
       ...model,
-      combatRun: beforeJabRun
+      combatRun: beforeCatchRun
     });
-    const hitRun = stepToElapsed(model.combatRun, jabAtMs);
-    const hitHtml = renderAppHtml({
+    const caughtRun = stepToElapsed(model.combatRun, catchAtMs);
+    const caughtHtml = renderAppHtml({
       ...model,
-      combatRun: hitRun
+      combatRun: caughtRun
     });
+    let thrownRun = caughtRun;
+    for (let guard = 0; guard < 8 && skillHitEvents(thrownRun, "iron-palm").at(-1)?.grabResult !== "thrown"; guard += 1) {
+      thrownRun = stepCombat(thrownRun, {}, 100);
+    }
+    const thrownHtml = renderAppHtml({ ...model, combatRun: thrownRun });
 
     expect(model.combatRun.player.x).toBe(player.x);
-    expect(beforeJabRun.player.x).toBeGreaterThan(player.x);
+    expect(beforeCatchRun.player.x).toBeGreaterThan(player.x);
     expect(skillHitEvents(model.combatRun, "iron-palm")).toHaveLength(0);
-    expect(skillHitEvents(hitRun, "iron-palm")).toHaveLength(1);
+    expect(skillHitEvents(caughtRun, "iron-palm")).toHaveLength(1);
+    expect(skillHitEvents(caughtRun, "iron-palm")[0]?.grabResult).toBe("caught");
+    expect(skillHitEvents(thrownRun, "iron-palm").at(-1)?.grabResult).toBe("thrown");
     expect(castHtml).toContain('data-active-skill-id="iron-palm"');
     expect(castHtml).toContain('data-skill-animation-preset="iron-palm"');
     expect(castHtml).toContain('data-skill-weapon-arc="shield-jab"');
     expect(castHtml).toContain('data-skill-vfx-shape="iron-spark"');
     expect(castHtml).toContain('data-player-skill-move="iron-palm"');
-    expect(beforeJabHtml).not.toContain('data-skill-impact-vfx="iron-palm"');
-    expect(hitHtml).toContain('data-hit-phase="shield-jab"');
-    expect(hitHtml).toContain('data-vfx-cue="iron-shield-jab"');
-    expect(hitHtml).toContain('data-impact-vfx-shape="iron-spark"');
-    expect(hitHtml).toContain('class="skill-impact-burst skill-impact-shape-iron-spark"');
-    expect(countOccurrences(hitHtml, 'data-skill-impact-vfx="iron-palm"')).toBe(1);
+    expect(beforeCatchHtml).not.toContain('data-skill-impact-vfx="iron-palm"');
+    expect(caughtHtml).toContain('data-hit-phase="grab-catch"');
+    expect(caughtHtml).toContain('data-vfx-cue="iron-grab-catch"');
+    expect(caughtHtml).toContain('data-player-grab-phase="hold"');
+    expect(caughtHtml).toContain('data-enemy-grab-phase="held"');
+    expect(caughtHtml).toContain('data-impact-vfx-shape="iron-spark"');
+    expect(thrownHtml).toContain('data-hit-phase="grab-throw"');
+    expect(thrownHtml).toContain('data-vfx-cue="iron-grab-slam"');
+    expect(thrownHtml).toContain('data-player-grab-phase="release"');
+    expect(thrownHtml).toContain('data-enemy-grab-phase="thrown"');
+    expect(thrownHtml).toContain('class="skill-impact-burst skill-impact-shape-iron-spark"');
+    expect(countOccurrences(thrownHtml, 'data-skill-impact-vfx="iron-palm"')).toBe(1);
   });
 
   it("renders furnace-taunt as a delayed roar control field with target bursts", () => {

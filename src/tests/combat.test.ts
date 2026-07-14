@@ -1970,6 +1970,109 @@ describe("combat actions and impact feel", () => {
     expect(lastHitEvent(armored)).toMatchObject({ wallBounce: false, wallBounceSide: undefined });
   });
 
+  it("catches one trash target, holds it on the player, then throws the same target into knockdown", () => {
+    const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
+    const base = withEnemyInRange(createCombatRun(state, "cinder-kiln-alley"), {
+      hp: 400,
+      maxHp: 400,
+      armor: 0,
+      maxArmor: 0,
+      nextAttackAtMs: 9999
+    });
+    const cast = performAction(base, { type: "skill", skillId: "iron-palm" });
+    const [catchAtMs] = scheduledSkillTimes(cast, "iron-palm");
+    const caught = stepToElapsed(cast, catchAtMs);
+    const caughtTarget = caught.enemies[0];
+    const catchEvent = latestHitForSkill(caught, "iron-palm");
+    const [throwAtMs] = scheduledSkillTimes(caught, "iron-palm");
+    const released = stepCombat(caught, {}, caught.player.hitstopUntilMs - caught.elapsedMs);
+    const [shiftedThrowAtMs] = scheduledSkillTimes(released, "iron-palm");
+    const thrown = stepToElapsed(released, shiftedThrowAtMs);
+    const throwEvents = skillHitEvents(thrown, "iron-palm");
+
+    expect(catchEvent).toMatchObject({
+      grabResult: "caught",
+      damage: 0,
+      hitPhase: "grab-catch",
+      vfxCue: "iron-grab-catch"
+    });
+    expect(caughtTarget).toMatchObject({
+      grabbedBySkillId: "iron-palm",
+      grabbedFacing: 1,
+      position: { x: caught.player.x + 48, y: caught.player.y - 18 }
+    });
+    expect(caughtTarget.grabbedUntilMs).toBe(throwAtMs);
+    expect(caughtTarget.attackSkillId).toBeUndefined();
+    expect(caughtTarget.hp).toBe(400);
+    expect(throwEvents).toHaveLength(2);
+    expect(throwEvents[1]).toMatchObject({
+      targetId: caughtTarget.id,
+      grabResult: "thrown",
+      hitPhase: "grab-throw",
+      vfxCue: "iron-grab-slam"
+    });
+    expect(throwEvents[1].damage).toBeGreaterThan(0);
+    expect(thrown.enemies[0]).toMatchObject({
+      downed: true,
+      airborne: false,
+      grabbedBySkillId: undefined,
+      grabThrowFacing: 1
+    });
+    expect(thrown.enemies[0].grabThrowUntilMs).toBeGreaterThan(thrown.elapsedMs);
+  });
+
+  it("lets elites and bosses resist Iron Palm without position snapping or grab control", () => {
+    const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
+    const assertResistance = (kind: "elite" | "boss"): void => {
+      const base = withEnemyInRange(createCombatRun(state, "cinder-kiln-alley"), {
+        kind,
+        hp: 500,
+        maxHp: 500,
+        armor: kind === "boss" ? 80 : 30,
+        maxArmor: kind === "boss" ? 80 : 30,
+        nextAttackAtMs: 9999
+      });
+      const initialPosition = { ...base.enemies[0].position };
+      const cast = performAction(base, { type: "skill", skillId: "iron-palm" });
+      const resisted = stepToElapsed(cast, scheduledSkillTimes(cast, "iron-palm")[0]);
+      const event = latestHitForSkill(resisted, "iron-palm");
+
+      expect(event).toMatchObject({
+        grabResult: "resisted",
+        hitPhase: "grab-resist",
+        vfxCue: "iron-grab-resist"
+      });
+      expect(event.damage).toBeGreaterThan(0);
+      expect(resisted.enemies[0].position).toEqual(initialPosition);
+      expect(resisted.enemies[0].grabbedBySkillId).toBeUndefined();
+      expect(resisted.enemies[0].grabbedUntilMs).toBeUndefined();
+      expect(resisted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "iron-palm")).toHaveLength(0);
+    };
+
+    assertResistance("elite");
+    assertResistance("boss");
+  });
+
+  it("shifts the held target and queued throw together while catch hitstop is active", () => {
+    const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
+    const base = withEnemyInRange(createCombatRun(state, "cinder-kiln-alley"), {
+      hp: 400,
+      maxHp: 400,
+      armor: 0,
+      maxArmor: 0,
+      nextAttackAtMs: 9999
+    });
+    const cast = performAction(base, { type: "skill", skillId: "iron-palm" });
+    const caught = stepToElapsed(cast, scheduledSkillTimes(cast, "iron-palm")[0]);
+    const originalThrowAtMs = scheduledSkillTimes(caught, "iron-palm")[0];
+    const originalGrabUntilMs = caught.enemies[0].grabbedUntilMs;
+    const frozen = stepCombat(caught, {}, 20);
+
+    expect(frozen.player.x).toBe(caught.player.x);
+    expect(frozen.enemies[0].grabbedUntilMs).toBe((originalGrabUntilMs ?? 0) + 20);
+    expect(scheduledSkillTimes(frozen, "iron-palm")[0]).toBe(originalThrowAtMs + 20);
+  });
+
   it("lets slam skills knock airborne enemies down without waiting for natural fall", () => {
     const run = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 90), "cinder-kiln-alley"), {
       hp: 220,
@@ -2349,7 +2452,7 @@ describe("combat actions and impact feel", () => {
     expect(missed.enemies[0].hp).toBe(run.enemies[0].hp);
   });
 
-  it("delays iron-palm into a forward shield-jab hit frame", () => {
+  it("delays iron-palm into a forward grab-catch frame", () => {
     const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
     const run = withPlayerAndEnemies(
       createCombatRun(state, "cinder-kiln-alley"),
@@ -2362,7 +2465,7 @@ describe("combat actions and impact feel", () => {
     const midJab = stepToElapsed(cast, 75);
     const beforeJab = stepToElapsed(cast, jabAtMs - 1);
     const hit = stepToElapsed(cast, jabAtMs);
-    const [shieldHit] = skillHitEvents(hit, "iron-palm");
+    const [grabHit] = skillHitEvents(hit, "iron-palm");
 
     expect(cast.player.x).toBe(run.player.x);
     expect(cast.player.activeSkillMovement?.skillId).toBe("iron-palm");
@@ -2371,18 +2474,20 @@ describe("combat actions and impact feel", () => {
     expect(midJab.player.x).toBeGreaterThan(run.player.x);
     expect(midJab.player.x).toBeLessThan(run.player.x + 34);
     expect(beforeJab.enemies[0].hp).toBe(run.enemies[0].hp);
-    expect(shieldHit).toMatchObject({
+    expect(grabHit).toMatchObject({
       targetId: run.enemies[0].id,
-      hitPhase: "shield-jab",
-      vfxCue: "iron-shield-jab",
-      vfxWindowMs: 260
+      grabResult: "caught",
+      hitPhase: "grab-catch",
+      vfxCue: "iron-grab-catch",
+      vfxWindowMs: 300
     });
     expect(hit.player.activeSkillMovement).toBeUndefined();
     expect(hit.player.x).toBe(274);
-    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(hit.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(hit.enemies[0]).toMatchObject({ grabbedBySkillId: "iron-palm", position: { x: 322, y: 322 } });
   });
 
-  it("uses the iron-palm left-facing endpoint as the shield-jab hitbox origin", () => {
+  it("uses the iron-palm left-facing endpoint as the grab-catch origin", () => {
     const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
     const run = withPlayerAndEnemies(
       createCombatRun(state, "cinder-kiln-alley"),
@@ -2393,16 +2498,18 @@ describe("combat actions and impact feel", () => {
     const cast = performAction(run, { type: "skill", skillId: "iron-palm" });
     const [jabAtMs] = scheduledSkillTimes(cast, "iron-palm");
     const hit = stepToElapsed(cast, jabAtMs);
-    const [shieldHit] = skillHitEvents(hit, "iron-palm");
+    const [grabHit] = skillHitEvents(hit, "iron-palm");
 
     expect(hit.player.x).toBe(326);
-    expect(shieldHit).toMatchObject({
+    expect(grabHit).toMatchObject({
       targetId: run.enemies[0].id,
-      hitPhase: "shield-jab",
-      vfxCue: "iron-shield-jab"
+      grabResult: "caught",
+      hitPhase: "grab-catch",
+      vfxCue: "iron-grab-catch"
     });
     expect(skillMissEvents(hit, "iron-palm")).toHaveLength(0);
-    expect(hit.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(hit.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(hit.enemies[0].position).toEqual({ x: 278, y: 322 });
   });
 
   it("lets same-frame monster impact interrupt iron-palm before the shield jab resolves", () => {
@@ -2494,7 +2601,7 @@ describe("combat actions and impact feel", () => {
     expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "iron-palm")).toHaveLength(0);
   });
 
-  it("keeps iron-palm's shield jab scheduled when a guard window absorbs monster damage", () => {
+  it("keeps iron-palm's grab and throw scheduled when a guard window absorbs monster damage", () => {
     const state = selectBaseClass(createInitialState(), "iron-forge-guardian");
     const run = withPlayerAndEnemies(
       createCombatRun(state, "cinder-kiln-alley"),
@@ -2526,11 +2633,16 @@ describe("combat actions and impact feel", () => {
     const cast = performAction(guardedRun, { type: "skill", skillId: "iron-palm" });
     const [jabAtMs] = scheduledSkillTimes(cast, "iron-palm");
     const resolved = stepToElapsed(cast, jabAtMs);
+    const released = stepCombat(resolved, {}, resolved.player.hitstopUntilMs - resolved.elapsedMs);
+    const thrown = stepToElapsed(released, scheduledSkillTimes(released, "iron-palm")[0]);
 
     expect(resolved.player.hurtLockUntilMs).toBeLessThanOrEqual(resolved.elapsedMs);
     expect(resolved.player.shieldUntilMs).toBeGreaterThan(resolved.elapsedMs);
     expect(skillHitEvents(resolved, "iron-palm")).toHaveLength(1);
-    expect(resolved.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
+    expect(latestHitForSkill(resolved, "iron-palm").grabResult).toBe("caught");
+    expect(resolved.enemies[0].hp).toBe(run.enemies[0].hp);
+    expect(skillHitEvents(thrown, "iron-palm").at(-1)?.grabResult).toBe("thrown");
+    expect(thrown.enemies[0].hp).toBeLessThan(run.enemies[0].hp);
   });
 
   it("cancels spark-combo jab when monster damage interrupts before the jab frame", () => {

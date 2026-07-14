@@ -1703,3 +1703,16 @@
 - Collision must use the visible model edge (`position.x +/- body.width / 2`), not wait for the actor center to leave the 960 px arena; otherwise large Shanhai monsters visibly pass through the wall before reacting.
 - The final real-keyboard route lures whichever live monster actually reaches X820+, repositions to its left, clears hurt lock, and casts the existing seven-stage Flowing Light Chain with real `Space` input.
 - Mounted evidence ties the same right-wall event to count 1, `monster-wall-bounce-right`, `wall-bounce-crack-flash`, and `wall-bounce-confirm`; core coverage proves later same-combo crossings stay suppressed and fresh combos restore the budget.
+
+## Task 212 Grab And Throw Audit
+- Current combat already covers launch, juggle protection, knockdown/OTG, back/counter classification, super armor, quick recovery, and once-per-combo wall bounce, but has no authoritative grab/throw state.
+- Grab/throw best advances the user's current motion requirement because player and monster must share one timed action instead of receiving unrelated hit reactions.
+- Existing Iron Forge Guardian is the natural owner: its close-range `iron-palm` starter can become a two-part grab/throw while preserving class identity and real `J` hotkey access.
+- First implementation boundary: normal and trash targets can be seized; elite/Boss targets and active super armor resist the hold without being teleported. Damage, resource, cooldown, and hit feedback remain explicit for both outcomes.
+- Required proof: core timing and immunity tests, mounted synchronized state, real Chromium computed motion/VFX, authored audio, live keyboard success against trash, and live keyboard resist feedback against an elite/Boss.
+- Core RED confirms the old Iron Palm resolves one `shield-jab` event and consumes its only scheduled effect at 150 ms. It has no way to retain the selected target for a later throw.
+- Hitstop shifts enemy reaction timers for every target, but shifts queued player effects only for an active action-armor skill. Grab flow needs an explicit active-grab shift path so hold state and queued release cannot separate during freeze.
+- Successful catch now owns one target id, anchors it to the player's facing side, shifts both actors and the queued release through hitstop, then resolves a separate knockdown throw event against that same target.
+- Elite, Boss, and active-super-armor targets take reduced resistance damage but never receive grab coordinates or held-state timers.
+- Real-browser recording proved the live trash target entered held and thrown states with player/enemy model animations, clamp VFX, slam VFX, and both authored sounds; the Boss produced only resistance VFX/audio.
+- Iron has no authored frame atlas. Showing the default Ember atlas created a duplicate character, so unsupported player atlases must stay hidden while the class-specific fallback art carries the action animation.

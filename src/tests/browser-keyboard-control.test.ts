@@ -403,6 +403,29 @@ type BrowserWallBounceEvidence = {
   crackAnimation: string;
 };
 
+type BrowserGrabThrowEvidence = {
+  caughtEventIds: string[];
+  thrownEventIds: string[];
+  resistedEventIds: string[];
+  caughtTargetIds: string[];
+  thrownTargetIds: string[];
+  resistedTargetIds: string[];
+  heldTargetIds: string[];
+  releasedTargetIds: string[];
+  resistedKinds: string[];
+  playerPhases: string[];
+  audioIds: string[];
+  playerHoldAnimation: string;
+  playerReleaseAnimation: string;
+  heldModelAnimation: string;
+  heldFrameAnimation: string;
+  heldClampAnimation: string;
+  throwModelAnimation: string;
+  throwFrameAnimation: string;
+  throwImpactAnimation: string;
+  resistImpactAnimation: string;
+};
+
 type BrowserEnemyDeathEvidence = {
   phases: string[];
   frames: number[];
@@ -2407,6 +2430,112 @@ const readWallBounceEvidenceExpression = `
 (() => globalThis.__wallBounceEvidence)()
 `;
 
+const installGrabThrowRecorderExpression = `
+(() => {
+  globalThis.__grabThrowEvidence = {
+    caughtEventIds: [],
+    thrownEventIds: [],
+    resistedEventIds: [],
+    caughtTargetIds: [],
+    thrownTargetIds: [],
+    resistedTargetIds: [],
+    heldTargetIds: [],
+    releasedTargetIds: [],
+    resistedKinds: [],
+    playerPhases: [],
+    audioIds: [],
+    playerHoldAnimation: "",
+    playerReleaseAnimation: "",
+    heldModelAnimation: "",
+    heldFrameAnimation: "",
+    heldClampAnimation: "",
+    throwModelAnimation: "",
+    throwFrameAnimation: "",
+    throwImpactAnimation: "",
+    resistImpactAnimation: ""
+  };
+  globalThis.__grabThrowObserver?.disconnect();
+  if (globalThis.__grabThrowAudioListener) {
+    globalThis.removeEventListener("mydnf:audio-playback", globalThis.__grabThrowAudioListener);
+  }
+  const addUnique = (items, value) => {
+    if (value && !items.includes(value)) items.push(value);
+  };
+  const sample = () => {
+    const evidence = globalThis.__grabThrowEvidence;
+    const player = document.querySelector(".combat-player");
+    const playerPhase = player?.getAttribute("data-player-grab-phase") ?? "";
+    addUnique(evidence.playerPhases, playerPhase);
+    if (playerPhase === "hold") {
+      const art = player?.querySelector(".combat-player-art");
+      if (art) evidence.playerHoldAnimation ||= getComputedStyle(art).animationName;
+    }
+    if (playerPhase === "release") {
+      const frame = player?.querySelector(".player-frame-sprite");
+      if (frame) evidence.playerReleaseAnimation ||= getComputedStyle(frame).animationName;
+    }
+    for (const impact of document.querySelectorAll('[data-impact-spark="true"][data-grab-result]')) {
+      const result = impact.getAttribute("data-grab-result") ?? "";
+      const eventId = impact.getAttribute("data-hit-event-id") ?? "";
+      const target = eventId
+        ? document.querySelector('[data-skill-impact-vfx][data-hit-event-id="' + eventId + '"]')
+        : null;
+      const targetId = target?.getAttribute("data-impact-target-id") ?? "";
+      if (result === "caught") {
+        addUnique(evidence.caughtEventIds, eventId);
+        addUnique(evidence.caughtTargetIds, targetId);
+      } else if (result === "thrown") {
+        addUnique(evidence.thrownEventIds, eventId);
+        addUnique(evidence.thrownTargetIds, targetId);
+        const core = target?.querySelector(".skill-impact-core");
+        if (core) evidence.throwImpactAnimation ||= getComputedStyle(core).animationName;
+      } else if (result === "resisted") {
+        addUnique(evidence.resistedEventIds, eventId);
+        addUnique(evidence.resistedTargetIds, targetId);
+        const core = target?.querySelector(".skill-impact-core");
+        if (core) evidence.resistImpactAnimation ||= getComputedStyle(core).animationName;
+      }
+    }
+    for (const enemy of document.querySelectorAll(".combat-enemy")) {
+      const enemyId = enemy.getAttribute("data-enemy-id") ?? "";
+      const phase = enemy.getAttribute("data-enemy-grab-phase") ?? "none";
+      const art = enemy.querySelector(".enemy-art");
+      const frame = enemy.querySelector(".enemy-frame-sprite");
+      if (phase === "held") {
+        addUnique(evidence.heldTargetIds, enemyId);
+        const clamp = enemy.querySelector(".enemy-grab-clamp-vfx");
+        if (art) evidence.heldModelAnimation ||= getComputedStyle(art).animationName;
+        if (frame) evidence.heldFrameAnimation ||= getComputedStyle(frame).animationName;
+        if (clamp) evidence.heldClampAnimation ||= getComputedStyle(clamp).animationName;
+      }
+      if (phase === "thrown") {
+        addUnique(evidence.releasedTargetIds, enemyId);
+        if (art) evidence.throwModelAnimation ||= getComputedStyle(art).animationName;
+        if (frame) evidence.throwFrameAnimation ||= getComputedStyle(frame).animationName;
+      }
+      const resisted = Array.from(document.querySelectorAll('[data-impact-spark="true"][data-grab-result="resisted"]'))
+        .some((impact) => (impact.getAttribute("data-hit-event-id") ?? "").includes(enemyId));
+      if (resisted) addUnique(evidence.resistedKinds, enemy.getAttribute("data-enemy-kind") ?? "");
+    }
+  };
+  globalThis.__grabThrowObserver = new MutationObserver(sample);
+  globalThis.__grabThrowObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
+  globalThis.__grabThrowAudioListener = (event) => {
+    const id = event.detail?.commandId;
+    if (["grab-catch-confirm", "grab-throw-impact", "grab-resist-confirm"].includes(id)) {
+      addUnique(globalThis.__grabThrowEvidence.audioIds, id);
+    }
+  };
+  globalThis.addEventListener("mydnf:audio-playback", globalThis.__grabThrowAudioListener);
+  sample();
+  return true;
+})()
+`;
+
+const readGrabThrowEvidenceExpression = `
+(() => globalThis.__grabThrowEvidence)()
+`;
+
 const readFlowingLightDebugSamplesExpression = `
 (() => globalThis.__flowingLightDebugSamples ?? [])()
 `;
@@ -4264,6 +4393,110 @@ describe("real browser keyboard control", () => {
     }
   }, 60000);
 
+  it("grabs and throws live trash then proves Boss grab resistance through real skill keys", async () => {
+    const server = await startViteServer();
+    const screenshotRoot = `${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance`;
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
+        await seedSaveAndReload(page, createGrabThrowAcceptanceState());
+        await enterDungeonWithKeyboard(page);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.objective === "active" && state.roomIndex === "0" && state.liveEnemyCount === "5",
+          5000
+        );
+        await moveIntoLiveEnemyRange(page);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.playerHurtLockActive === "false" && state.enemies.some((enemy) => enemy.kind === "trash" && enemy.hp > 0),
+          2500
+        );
+        await page.waitFor<boolean>(
+          `(() => { const image = document.querySelector(".combat-background-art"); return Boolean(image && image.complete && image.naturalWidth > 0); })()`,
+          Boolean,
+          3000
+        );
+        await page.evaluate<boolean>(installGrabThrowRecorderExpression);
+
+        await page.pressKey("KeyA");
+        await page.waitFor<boolean>(
+          `Boolean(document.querySelector('.combat-enemy[data-enemy-grab-phase="held"]'))`,
+          Boolean,
+          1400
+        );
+        await page.captureScreenshot(`${screenshotRoot}/iron-palm-live-hold.png`);
+        const thrown = await page.waitFor<BrowserGrabThrowEvidence>(
+          readGrabThrowEvidenceExpression,
+          (evidence) =>
+            evidence.caughtTargetIds.some((id) => evidence.thrownTargetIds.includes(id)) &&
+            evidence.heldTargetIds.some((id) => evidence.releasedTargetIds.includes(id)) &&
+            evidence.audioIds.includes("grab-catch-confirm") &&
+            evidence.audioIds.includes("grab-throw-impact"),
+          3200
+        );
+        const grabbedTargetId = thrown.caughtTargetIds.find((id) => thrown.thrownTargetIds.includes(id));
+        expect(grabbedTargetId).toBeDefined();
+        expect(thrown.heldTargetIds).toContain(grabbedTargetId);
+        expect(thrown.releasedTargetIds).toContain(grabbedTargetId);
+        expect(thrown.playerPhases).toEqual(expect.arrayContaining(["hold", "release"]));
+        expect(thrown.playerHoldAnimation).toBe("player-iron-palm-grab-throw");
+        expect(thrown.playerReleaseAnimation).toBe("player-frame-grab-release");
+        expect(thrown.heldModelAnimation).toBe("monster-grabbed-hold");
+        expect(thrown.heldFrameAnimation).toBe("monster-frame-grabbed-hold");
+        expect(thrown.heldClampAnimation).toBe("enemy-grab-clamp-pulse");
+        expect(thrown.throwModelAnimation).toBe("monster-grab-throw-arc");
+        expect(thrown.throwFrameAnimation).toBe("monster-frame-grab-throw-arc");
+        expect(thrown.throwImpactAnimation).toBe("iron-grab-slam-impact-core");
+
+        await clearCurrentRoomWithKeyboard(page, 40);
+        await walkThroughOpenGate(page);
+        await clearCurrentRoomWithKeyboard(page, 56);
+        const bossRoom = await walkThroughOpenGate(page);
+        expect(bossRoom.enemies.some((enemy) => enemy.kind === "boss" && enemy.hp > 0)).toBe(true);
+        await moveIntoLiveEnemyRange(page);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) =>
+            state.playerHurtLockActive === "false" &&
+            state.playerActiveSkill === "" &&
+            state.enemies.some((enemy) => enemy.kind === "boss" && enemy.hp > 0),
+          4500
+        );
+        await page.pressKey("Space");
+        await page.waitFor<BrowserIronVanguardState>(
+          readIronVanguardStateExpression,
+          (state) => state.activeSkill === "black-furnace-aegis" && state.shieldActive === "true",
+          2600
+        );
+        await page.waitFor<BrowserIronVanguardState>(
+          readIronVanguardStateExpression,
+          (state) => state.activeSkill === "" && state.shieldActive === "true" && state.playerHurtLockActive === "false",
+          1800
+        );
+        await moveIntoLiveEnemyRange(page);
+        await page.evaluate<boolean>(installGrabThrowRecorderExpression);
+
+        await page.pressKey("KeyA");
+        const resisted = await page.waitFor<BrowserGrabThrowEvidence>(
+          readGrabThrowEvidenceExpression,
+          (evidence) =>
+            evidence.resistedTargetIds.length === 1 &&
+            evidence.resistedKinds.includes("boss") &&
+            evidence.audioIds.includes("grab-resist-confirm"),
+          2400
+        );
+        expect(resisted.heldTargetIds).toHaveLength(0);
+        expect(resisted.releasedTargetIds).toHaveLength(0);
+        expect(resisted.resistImpactAnimation).toBe("iron-grab-resist-impact-core");
+        await page.captureScreenshot(`${screenshotRoot}/iron-palm-boss-resist.png`);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 150000);
+
   it("clears two rooms into the boss room while proving live action motion and VFX", async () => {
     const server = await startViteServer();
 
@@ -5344,7 +5577,7 @@ describe("real browser keyboard control", () => {
         );
         expect(palmWindupEvidence.some((entry) => entry.activeSkill === "iron-palm" && entry.stage === "windup")).toBe(true);
         const palmImpactSeen = await page.waitFor<boolean>(
-          `Boolean(globalThis.__ironPalmEvidence?.some((entry) => entry.activeSkill === "iron-palm" && entry.stage === "active" && entry.cue === "iron-shield-jab"))`,
+          `Boolean(globalThis.__ironPalmEvidence?.some((entry) => entry.activeSkill === "iron-palm" && entry.stage === "active" && entry.cue === "iron-grab-catch"))`,
           Boolean,
           1000
         );
@@ -6230,6 +6463,24 @@ function createWallBounceAcceptanceState(): GameState {
       dungeonDifficultyPreferences: {
         ...state.player.dungeonDifficultyPreferences,
         "cinder-kiln-alley": "warrior"
+      }
+    }
+  };
+}
+
+function createGrabThrowAcceptanceState(): GameState {
+  const selected = selectBaseClass(createReadyIronVanguardState(), "iron-forge-guardian");
+  const advanced = advanceClass(selected, "black-furnace-vanguard");
+
+  return {
+    ...advanced,
+    player: {
+      ...advanced.player,
+      level: 60,
+      heat: 100,
+      classResources: {
+        ...advanced.player.classResources,
+        "iron-forge-guardian": 100
       }
     }
   };

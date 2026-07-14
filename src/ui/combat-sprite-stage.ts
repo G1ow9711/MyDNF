@@ -219,6 +219,12 @@ export class CombatSpriteStage {
         actor.sprite.dataset.spriteReactionStep = String(actor.reactionStep);
       }
       state = deathAgeMs < 180 ? "death-impact" : deathAgeMs < 520 ? "death-collapse" : "death-dissolve";
+    } else if (actor.id !== "player" && actor.motion === "grabbed") {
+      frame = 13;
+      state = "grabbed";
+    } else if (actor.id !== "player" && actor.motion === "grab-throw") {
+      frame = 14;
+      state = "grab-throw";
     } else if (swordDanceEnemyReaction !== undefined) {
       frame = swordDanceEnemyReaction;
       actor.sprite.dataset.spriteSkillReaction = actor.hitPhase ?? "";

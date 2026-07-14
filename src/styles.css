@@ -6,6 +6,227 @@
   text-rendering: optimizeLegibility;
 }
 
+/* Iron Palm grab/throw: player and target share one authored action timeline. */
+.combat-player[data-player-grab-phase="hold"] .player-frame-sprite {
+  animation: player-frame-grab-hold 320ms cubic-bezier(0.12, 0.84, 0.18, 1) both;
+}
+
+.combat-player[data-player-grab-phase="release"] .player-frame-sprite {
+  animation: player-frame-grab-release 420ms cubic-bezier(0.08, 0.86, 0.14, 1) both;
+}
+
+.combat-enemy[data-enemy-grab-phase="held"] .actor-model-grabbed {
+  transform-origin: 50% 72%;
+  animation: monster-grabbed-hold 320ms cubic-bezier(0.12, 0.82, 0.18, 1) both;
+}
+
+.combat-enemy[data-enemy-grab-phase="held"] .enemy-frame-sprite {
+  transform-origin: 50% 72%;
+  animation: monster-frame-grabbed-hold 320ms cubic-bezier(0.12, 0.82, 0.18, 1) both;
+}
+
+.combat-enemy[data-enemy-grab-phase="thrown"] .actor-model-grab-throw {
+  transform-origin: 50% 78%;
+  animation: monster-grab-throw-arc 420ms cubic-bezier(0.08, 0.78, 0.14, 1) both;
+}
+
+.combat-enemy[data-enemy-grab-phase="thrown"] .enemy-frame-sprite {
+  transform-origin: 50% 78%;
+  animation: monster-frame-grab-throw-arc 420ms cubic-bezier(0.08, 0.78, 0.14, 1) both;
+}
+
+.enemy-grab-clamp-vfx {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  z-index: 4;
+  display: none;
+  width: 86px;
+  height: 52px;
+  border: 4px solid rgba(253, 224, 71, 0.92);
+  border-left-color: rgba(45, 212, 191, 0.86);
+  border-right-color: rgba(251, 146, 60, 0.94);
+  border-radius: 50%;
+  box-shadow: 0 0 22px rgba(250, 204, 21, 0.84), inset 0 0 16px rgba(45, 212, 191, 0.38);
+  pointer-events: none;
+}
+
+.combat-enemy[data-enemy-grab-phase="held"] .enemy-grab-clamp-vfx {
+  display: block;
+  animation: enemy-grab-clamp-pulse 320ms ease-in-out both;
+}
+
+.skill-impact-shape-iron-spark[data-vfx-cue="iron-grab-catch"] .skill-impact-core {
+  animation: iron-grab-catch-impact-core var(--skill-duration, 300ms) cubic-bezier(0.1, 0.86, 0.14, 1) both;
+}
+
+.skill-impact-shape-iron-spark[data-vfx-cue="iron-grab-catch"] .skill-impact-ring {
+  animation: iron-grab-catch-impact-ring var(--skill-duration, 300ms) ease-out both;
+}
+
+.skill-impact-shape-iron-spark[data-vfx-cue="iron-grab-catch"] .skill-impact-shards {
+  animation: iron-grab-catch-impact-shards var(--skill-duration, 300ms) ease-out both;
+}
+
+.skill-impact-shape-iron-spark[data-vfx-cue="iron-grab-resist"] .skill-impact-core {
+  animation: iron-grab-resist-impact-core var(--skill-duration, 300ms) cubic-bezier(0.08, 0.82, 0.16, 1) both;
+}
+
+.skill-impact-shape-iron-spark[data-vfx-cue="iron-grab-resist"] .skill-impact-ring {
+  animation: iron-grab-resist-impact-ring var(--skill-duration, 300ms) ease-out both;
+}
+
+.skill-impact-shape-iron-spark[data-vfx-cue="iron-grab-resist"] .skill-impact-shards {
+  animation: iron-grab-resist-impact-shards var(--skill-duration, 300ms) ease-out both;
+}
+
+.skill-impact-shape-iron-spark[data-vfx-cue="iron-grab-slam"] .skill-impact-core {
+  animation: iron-grab-slam-impact-core var(--skill-duration, 420ms) cubic-bezier(0.06, 0.9, 0.14, 1) both;
+}
+
+.skill-impact-shape-iron-spark[data-vfx-cue="iron-grab-slam"] .skill-impact-ring {
+  animation: iron-grab-slam-impact-ring var(--skill-duration, 420ms) ease-out both;
+}
+
+.skill-impact-shape-iron-spark[data-vfx-cue="iron-grab-slam"] .skill-impact-shards {
+  animation: iron-grab-slam-impact-shards var(--skill-duration, 420ms) ease-out both;
+}
+
+.hit-impact.is-grab-caught {
+  filter: drop-shadow(0 0 22px rgba(45, 212, 191, 0.92)) brightness(1.24);
+}
+
+.hit-impact.is-grab-resisted {
+  filter: drop-shadow(0 0 24px rgba(148, 163, 184, 0.9)) brightness(1.18);
+}
+
+.hit-impact.is-grab-thrown {
+  width: 184px;
+  height: 118px;
+  filter: drop-shadow(0 12px 28px rgba(251, 146, 60, 0.96)) brightness(1.4);
+}
+
+.damage-number.is-grab-caught,
+.damage-number.is-grab-resisted {
+  color: #ccfbf1;
+  text-shadow: 0 2px 0 #134e4a, 0 0 18px rgba(45, 212, 191, 0.9);
+}
+
+.damage-number.is-grab-thrown {
+  color: #fef08a;
+  font-size: 27px;
+  text-shadow: 0 3px 0 #9a3412, 0 0 24px rgba(251, 146, 60, 0.98);
+}
+
+@keyframes player-iron-palm-grab-throw {
+  0% { transform: translate3d(0, 0, 0) scale(var(--model-scale-x, 1), 1); }
+  16% { transform: translate3d(calc(12px * var(--model-scale-x, 1)), 3px, 0) scale(var(--model-scale-x, 1), 0.97) rotate(-3deg); }
+  34% { transform: translate3d(calc(30px * var(--model-scale-x, 1)), -2px, 0) scale(var(--model-scale-x, 1), 1.03) rotate(4deg); }
+  58% { transform: translate3d(calc(25px * var(--model-scale-x, 1)), -8px, 0) scale(var(--model-scale-x, 1), 1.01) rotate(-7deg); }
+  76% { transform: translate3d(calc(40px * var(--model-scale-x, 1)), 16px, 0) scale(var(--model-scale-x, 1), 0.94) rotate(11deg); }
+  100% { transform: translate3d(0, 0, 0) scale(var(--model-scale-x, 1), 1); }
+}
+
+@keyframes player-frame-grab-hold {
+  0% { transform: translate3d(0, 2px, 0) scale(1, 0.98); }
+  42%, 78% { transform: translate3d(18px, -5px, 0) scale(1.05, 0.96) rotate(-5deg); }
+  100% { transform: translate3d(15px, -4px, 0) scale(1.03, 0.97) rotate(-3deg); }
+}
+
+@keyframes player-frame-grab-release {
+  0% { transform: translate3d(15px, -4px, 0) scale(1.03, 0.97) rotate(-3deg); }
+  48% { transform: translate3d(34px, 14px, 0) scale(1.08, 0.9) rotate(12deg); }
+  100% { transform: translate3d(0, 0, 0) scale(1, 1); }
+}
+
+@keyframes monster-grabbed-hold {
+  0% { transform: translate3d(10px, 0, 0) scale(var(--model-scale-x, 1), 1); }
+  34% { transform: translate3d(-4px, -16px, 0) scale(var(--model-scale-x, 1), 0.93) rotate(-8deg); }
+  68% { transform: translate3d(3px, -13px, 0) scale(var(--model-scale-x, 1), 0.95) rotate(6deg); }
+  100% { transform: translate3d(0, -15px, 0) scale(var(--model-scale-x, 1), 0.94) rotate(-4deg); }
+}
+
+@keyframes monster-frame-grabbed-hold {
+  0% { transform: translate3d(8px, 0, 0) scale(1, 1); }
+  40%, 72% { transform: translate3d(0, -15px, 0) scale(1.08, 0.9) rotate(-7deg); }
+  100% { transform: translate3d(0, -14px, 0) scale(1.05, 0.92) rotate(-4deg); }
+}
+
+@keyframes monster-grab-throw-arc {
+  0% { transform: translate3d(0, -15px, 0) scale(var(--model-scale-x, 1), 0.94) rotate(-4deg); }
+  42% { transform: translate3d(calc(54px * var(--grab-facing, 1)), -76px, 0) scale(var(--model-scale-x, 1), 1.02) rotate(112deg); }
+  76% { transform: translate3d(calc(92px * var(--grab-facing, 1)), -30px, 0) scale(var(--model-scale-x, 1), 0.97) rotate(218deg); }
+  100% { transform: translate3d(calc(96px * var(--grab-facing, 1)), 16px, 0) scale(var(--model-scale-x, 1), 0.82) rotate(276deg); }
+}
+
+@keyframes monster-frame-grab-throw-arc {
+  0% { transform: translate3d(0, -14px, 0) scale(1.05, 0.92) rotate(-4deg); }
+  44% { transform: translate3d(calc(54px * var(--grab-facing, 1)), -72px, 0) scale(1.04, 0.96) rotate(110deg); }
+  78% { transform: translate3d(calc(90px * var(--grab-facing, 1)), -28px, 0) scale(1, 0.94) rotate(215deg); }
+  100% { transform: translate3d(calc(96px * var(--grab-facing, 1)), 16px, 0) scale(1.12, 0.76) rotate(274deg); }
+}
+
+@keyframes enemy-grab-clamp-pulse {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(1.5, 0.55) rotate(-14deg); }
+  28% { opacity: 1; transform: translate(-50%, -50%) scale(0.88, 1.16) rotate(5deg); }
+  70% { opacity: 0.88; transform: translate(-50%, -50%) scale(1.04, 0.92) rotate(-3deg); }
+  100% { opacity: 0.56; transform: translate(-50%, -50%) scale(0.96, 1.02) rotate(0deg); }
+}
+
+@keyframes iron-grab-catch-impact-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.2); }
+  34% { opacity: 1; transform: translate(-50%, -50%) scaleX(1.18); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.72); }
+}
+
+@keyframes iron-grab-catch-impact-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(1.5, 0.45); }
+  38% { opacity: 1; transform: translate(-50%, -50%) scale(0.82, 1.18); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.16, 0.78); }
+}
+
+@keyframes iron-grab-catch-impact-shards {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  32% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.25); }
+}
+
+@keyframes iron-grab-resist-impact-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(0deg); }
+  36% { opacity: 1; transform: translate(-50%, -50%) scale(1.25) rotate(18deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.82) rotate(-12deg); }
+}
+
+@keyframes iron-grab-resist-impact-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  44% { opacity: 1; transform: translate(-50%, -50%) scale(1.25); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.65); }
+}
+
+@keyframes iron-grab-resist-impact-shards {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7) rotate(0deg); }
+  42% { opacity: 1; transform: translate(-50%, -50%) scale(1.18) rotate(14deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.42) rotate(-12deg); }
+}
+
+@keyframes iron-grab-slam-impact-core {
+  0% { opacity: 0; transform: translate(-50%, -90%) scale(0.45, 1.4); }
+  38% { opacity: 1; transform: translate(-50%, -50%) scale(1.35, 0.72); }
+  100% { opacity: 0; transform: translate(-50%, -38%) scale(1.8, 0.38); }
+}
+
+@keyframes iron-grab-slam-impact-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.45, 1.2); }
+  46% { opacity: 1; transform: translate(-50%, -50%) scale(1.2, 0.68); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.9, 0.36); }
+}
+
+@keyframes iron-grab-slam-impact-shards {
+  0% { opacity: 0; transform: translate(-50%, -70%) scale(0.5); }
+  40% { opacity: 1; transform: translate(-50%, -42%) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -20%) scale(1.65); }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -2750,6 +2971,10 @@ p {
   filter: drop-shadow(0 16px 12px rgba(2, 6, 23, 0.8)) drop-shadow(0 0 14px rgba(34, 211, 238, 0.34));
 }
 
+.player-frame-sprite:not([data-frame-class-id="ember-warden"]):not([data-frame-class-id="liuli-blademage"]) {
+  display: none;
+}
+
 .enemy-frame-sprite {
   left: 50%;
   bottom: -26px;
@@ -3441,7 +3666,7 @@ p {
 }
 
 .combat-player[data-player-motion="skill"][data-skill-animation-preset="iron-palm"] .combat-player-art {
-  animation: player-iron-palm-jab var(--skill-duration, 440ms) cubic-bezier(0.14, 0.82, 0.16, 1) both;
+  animation: player-iron-palm-grab-throw var(--skill-duration, 720ms) cubic-bezier(0.14, 0.82, 0.16, 1) both;
 }
 
 .combat-player[data-player-motion="shield"][data-skill-animation-preset="iron-guard"] .combat-player-art,

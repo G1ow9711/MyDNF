@@ -21,6 +21,55 @@ const stylesCss = readFileSync("src/styles.css", "utf8");
 const genericEnemyAnimations = ["enemy-cast-pulse", "enemy-core-flicker", "enemy-trail-flow"];
 
 describe("real browser computed style regressions", () => {
+  it("uses synchronized Iron Palm player, held-target, throw-arc, and grab VFX animations", async () => {
+    const playerComputed = await computePlayerSkillPhaseStylesInRealBrowser(stylesCss, [
+      {
+        key: "catch",
+        skillId: "iron-palm",
+        preset: "iron-palm",
+        weaponArc: "shield-jab",
+        vfxShape: "iron-spark",
+        phase: "grab-catch",
+        cue: "iron-grab-catch",
+        durationMs: 720,
+        grabPhase: "hold"
+      },
+      {
+        key: "throw",
+        skillId: "iron-palm",
+        preset: "iron-palm",
+        weaponArc: "shield-jab",
+        vfxShape: "iron-spark",
+        phase: "grab-throw",
+        cue: "iron-grab-slam",
+        durationMs: 720,
+        grabPhase: "release"
+      }
+    ]);
+    const enemyComputed = await computeEnemyModelMotionStylesInRealBrowser(stylesCss, [
+      { key: "held", motion: "grabbed", grabPhase: "held", durationMs: 320 },
+      { key: "thrown", motion: "grab-throw", grabPhase: "thrown", durationMs: 420 }
+    ]);
+    const impactComputed = await computeSkillImpactVfxStylesInRealBrowser(stylesCss, [
+      { key: "catch", shape: "iron-spark", phase: "grab-catch", cue: "iron-grab-catch", durationMs: 300 },
+      { key: "resist", shape: "iron-spark", phase: "grab-resist", cue: "iron-grab-resist", durationMs: 300 },
+      { key: "throw", shape: "iron-spark", phase: "grab-throw", cue: "iron-grab-slam", durationMs: 420 }
+    ]);
+
+    expect(playerComputed.catch.player.animationName).toBe("player-iron-palm-grab-throw");
+    expect(playerComputed.catch.frame.animationName).toBe("player-frame-grab-hold");
+    expect(playerComputed.throw.frame.animationName).toBe("player-frame-grab-release");
+    expect(enemyComputed.held.art.animationName).toBe("monster-grabbed-hold");
+    expect(enemyComputed.held.frame.animationName).toBe("monster-frame-grabbed-hold");
+    expect(enemyComputed.held.grab.animationName).toBe("enemy-grab-clamp-pulse");
+    expect(enemyComputed.thrown.art.animationName).toBe("monster-grab-throw-arc");
+    expect(enemyComputed.thrown.frame.animationName).toBe("monster-frame-grab-throw-arc");
+    expect(impactComputed.catch.core.animationName).toBe("iron-grab-catch-impact-core");
+    expect(impactComputed.resist.core.animationName).toBe("iron-grab-resist-impact-core");
+    expect(impactComputed.throw.core.animationName).toBe("iron-grab-slam-impact-core");
+    expect(impactComputed.throw.core.animationDuration).toBe("0.42s");
+  }, 30000);
+
   it("uses directional wall-bounce model and crack animations in the browser cascade", async () => {
     const fixtures: EnemyModelMotionFixture[] = [
       { key: "right-wall", motion: "wall-bounce", wallBounceSide: "right" },

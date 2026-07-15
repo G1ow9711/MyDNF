@@ -103,6 +103,7 @@ export class CombatSpriteStage {
     const playerX = Number(scene.dataset.playerX ?? "0");
 
     if (playerElement && playerSprite && ["ember-warden", "liuli-blademage"].includes(playerSprite.dataset.frameClassId ?? "")) {
+      const chargeState = playerElement.querySelector<HTMLElement>(".player-charge-state");
       const skillHitAtMs = Number(playerElement.dataset.playerSkillHitAtMs ?? "0");
       const skillProgress = playerElement.dataset.playerSkillHitPhase && skillHitAtMs > 0
         ? intervalProgress(
@@ -122,10 +123,14 @@ export class CombatSpriteStage {
         id: "player",
         x: playerX,
         motion: playerElement.dataset.playerMotion ?? "idle",
-        progress: (playerElement.dataset.playerMotion === "skill" ? skillProgress : normalProgress),
+        progress: playerElement.dataset.playerMotion === "skill-charge"
+          ? progress(chargeState?.dataset.playerChargeProgress)
+          : playerElement.dataset.playerMotion === "skill"
+            ? skillProgress
+            : normalProgress,
         facing: playerElement.dataset.playerFacing === "left" ? -1 : 1,
         defeated: playerElement.dataset.playerState === "defeated",
-        skillId: playerElement.dataset.activeSkillId,
+        skillId: playerElement.dataset.activeSkillId || chargeState?.dataset.playerChargeSkillId,
         skillPhase: playerElement.dataset.playerSkillHitPhase,
         skillStage: playerElement.dataset.playerSkillStage,
         comboStep: Number(playerElement.dataset.playerNormalComboStep ?? "0")
@@ -170,11 +175,13 @@ export class CombatSpriteStage {
     let frame = Math.floor(elapsedMs / 180) % 4;
     let state = "idle";
     const flowingLightSkill = actor.id === "player" && actor.skillId === "flowing-light-chain";
+    const meteorCharge = actor.id === "player" && actor.skillId === "meteor-knuckle" && actor.motion === "skill-charge";
 
     actor.sprite.dataset.spriteComboStep = "";
     actor.sprite.dataset.spriteComboPhase = "";
     actor.sprite.dataset.spriteReactionStep = "";
     actor.sprite.dataset.spriteSkillReaction = "";
+    actor.sprite.dataset.spriteChargeTier = "";
 
     if (actor.id === "player") {
       const classId = actor.sprite.dataset.frameClassId ?? "ember-warden";
@@ -183,7 +190,7 @@ export class CombatSpriteStage {
         : classId === "liuli-blademage"
           ? 'url("/assets/sprites/liuli-blademage-atlas.png")'
           : 'url("/assets/sprites/ember-warden-atlas.png")';
-      actor.sprite.dataset.spriteSkill = flowingLightSkill ? "flowing-light-chain" : "";
+      actor.sprite.dataset.spriteSkill = flowingLightSkill ? "flowing-light-chain" : meteorCharge ? "meteor-knuckle" : "";
       actor.sprite.dataset.spriteSkillPhase = flowingLightSkill ? (actor.skillPhase || actor.skillStage || "windup") : "";
     } else {
       actor.sprite.style.backgroundImage = `url("/assets/sprites/${actor.atlas ?? "ash-cinder-imp"}-atlas.png")`;
@@ -193,7 +200,12 @@ export class CombatSpriteStage {
 
     const swordDanceEnemyReaction = actor.id === "player" ? undefined : swordDanceEnemyReactionFrames[actor.hitPhase ?? ""];
 
-    if (flowingLightSkill) {
+    if (meteorCharge) {
+      const p = clamp01(actor.progress);
+      frame = p < 0.18 ? 8 : p < 0.4 ? 9 : p < 0.72 ? 10 : 11;
+      state = "skill-charge";
+      actor.sprite.dataset.spriteChargeTier = p >= 1 ? "maximum" : p >= 0.4 ? "charged" : "quick";
+    } else if (flowingLightSkill) {
       const p = clamp01(actor.progress);
       if (actor.skillPhase === "chain-open") {
         frame = Math.min(3, Math.floor(p * 4));

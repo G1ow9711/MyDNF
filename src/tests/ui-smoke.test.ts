@@ -8,6 +8,7 @@ import {
   createCombatRun,
   enterRoomGate,
   finishRoom,
+  startMeteorKnuckleCharge,
   performAction,
   roomGateForRun,
   stepCombat,
@@ -3206,6 +3207,36 @@ describe("town app shell", () => {
     expect(html).toContain('data-screen-shake="ultimate"');
     expect(html).toContain('data-screen-flash="meteor"');
     expect(html).not.toContain('data-screen-shake="skill"');
+  });
+
+  it("renders a seeked meteor charge pose, meter, and authored charge VFX before release", () => {
+    const initialState = createInitialState();
+    const state = {
+      ...initialState,
+      player: {
+        ...initialState.player,
+        heat: 100,
+        classResources: { ...initialState.player.classResources, "ember-warden": 100 }
+      }
+    };
+    const baseRun = createCombatRun(state, "cinder-kiln-alley");
+    const chargingRun = startMeteorKnuckleCharge({
+      ...baseRun,
+      elapsedMs: 350,
+      player: { ...baseRun.player, resource: { ...baseRun.player.resource, current: 100 } }
+    });
+    const halfChargeRun = { ...chargingRun, elapsedMs: chargingRun.elapsedMs + 350 };
+    const html = renderAppHtml({ state, mode: "combat", combatRun: halfChargeRun });
+
+    expect(html).toContain('data-player-motion="skill-charge"');
+    expect(html).toContain('data-player-charge-progress="0.500"');
+    expect(html).toContain('data-player-charge-tier="charged"');
+    expect(html).toContain('class="meteor-charge-vfx"');
+    expect(html).toContain('style="--meteor-charge-progress: 0.500;"');
+    expect(stylesCss).toContain('.combat-player[data-player-charge-state="charging"] .combat-player-art');
+    expect(stylesCss).toContain('.combat-player[data-player-charge-state="charging"] .combat-weapon');
+    expect(stylesCss).toContain("@keyframes player-meteor-charge");
+    expect(stylesCss).toContain("@keyframes meteor-charge-ring");
   });
 
   it("resolves meteor-knuckle player, weapon, cast, and target impact animations to dedicated keyframes", () => {

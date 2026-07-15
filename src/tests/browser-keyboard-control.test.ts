@@ -2734,6 +2734,94 @@ const readCriticalHitEvidenceExpression = `
 (() => globalThis.__browserCriticalEvidence ?? null)()
 `;
 
+type BrowserMeteorChargeState = {
+  chargeState: string;
+  chargeProgress: number;
+  chargeTier: string;
+  playerMotion: string;
+  activeSkill: string;
+  playerAnimation: string;
+  weaponAnimation: string;
+  vfxRingAnimation: string;
+  spriteState: string;
+  spriteFrame: number;
+  spriteChargeTier: string;
+  enemyHp: number;
+  impactSkillId: string;
+  audioIds: string[];
+  sampledFrames: number[];
+  sampledTiers: string[];
+};
+
+const installMeteorChargeRecorderExpression = `
+(() => {
+  globalThis.__meteorChargeAudioIds = [];
+  globalThis.__meteorChargeSamples = [];
+  if (globalThis.__meteorChargeAudioListener) {
+    globalThis.removeEventListener("mydnf:audio-playback", globalThis.__meteorChargeAudioListener);
+  }
+  globalThis.__meteorChargeObserver?.disconnect?.();
+  const sample = () => {
+    const player = document.querySelector(".combat-player");
+    const charge = player?.querySelector(".player-charge-state");
+    const sprite = player?.querySelector(".player-frame-sprite");
+    if (!player || !charge || !sprite) return;
+    const next = {
+      state: charge.getAttribute("data-player-charge-state") ?? "",
+      tier: charge.getAttribute("data-player-charge-tier") ?? "",
+      frame: Number(sprite.getAttribute("data-sprite-frame") ?? "-1")
+    };
+    const previous = globalThis.__meteorChargeSamples.at(-1);
+    if (!previous || previous.state !== next.state || previous.tier !== next.tier || previous.frame !== next.frame) {
+      globalThis.__meteorChargeSamples.push(next);
+    }
+  };
+  globalThis.__meteorChargeObserver = new MutationObserver(sample);
+  globalThis.__meteorChargeObserver.observe(document.documentElement, { attributes: true, childList: true, subtree: true });
+  globalThis.__meteorChargeAudioListener = (event) => {
+    const id = event.detail?.commandId ?? "";
+    if (id.startsWith("meteor-charge-")) globalThis.__meteorChargeAudioIds.push(id);
+  };
+  globalThis.addEventListener("mydnf:audio-playback", globalThis.__meteorChargeAudioListener);
+  sample();
+  return true;
+})()
+`;
+
+const readMeteorChargeStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const player = document.querySelector(".combat-player");
+  const charge = player?.querySelector(".player-charge-state");
+  const art = player?.querySelector(".combat-player-art");
+  const weapon = player?.querySelector(".combat-weapon");
+  const vfx = player?.querySelector(".meteor-charge-vfx");
+  const sprite = player?.querySelector(".player-frame-sprite");
+  const samples = globalThis.__meteorChargeSamples ?? [];
+  return {
+    chargeState: charge?.getAttribute("data-player-charge-state") ?? "",
+    chargeProgress: Number(charge?.getAttribute("data-player-charge-progress") ?? "0"),
+    chargeTier: charge?.getAttribute("data-player-charge-tier") ?? "",
+    playerMotion: player?.getAttribute("data-player-motion") ?? "",
+    activeSkill: player?.getAttribute("data-active-skill-id") ?? "",
+    playerAnimation: art ? getComputedStyle(art).animationName : "none",
+    weaponAnimation: weapon ? getComputedStyle(weapon).animationName : "none",
+    vfxRingAnimation: vfx ? getComputedStyle(vfx, "::before").animationName : "none",
+    spriteState: sprite?.getAttribute("data-sprite-state") ?? "",
+    spriteFrame: Number(sprite?.getAttribute("data-sprite-frame") ?? "-1"),
+    spriteChargeTier: sprite?.getAttribute("data-sprite-charge-tier") ?? "",
+    enemyHp: Array.from(document.querySelectorAll(".combat-enemy")).reduce(
+      (total, enemy) => total + Number(enemy.getAttribute("data-enemy-hp-current") ?? "0"),
+      0
+    ),
+    impactSkillId: scene?.getAttribute("data-impact-skill-id") ?? "",
+    audioIds: globalThis.__meteorChargeAudioIds ?? [],
+    sampledFrames: [...new Set(samples.filter((sample) => sample.state === "charging").map((sample) => sample.frame))],
+    sampledTiers: [...new Set(samples.filter((sample) => sample.state === "charging").map((sample) => sample.tier))]
+  };
+})()
+`;
+
 describe("real browser keyboard control", () => {
   it("renders KOF-style player and monster action frames through real combat controls", async () => {
     const server = await startViteServer();
@@ -6216,6 +6304,77 @@ describe("real browser keyboard control", () => {
         expect(impactIndex).toBeGreaterThan(windupIndex);
         expect(hurtIndex).toBeGreaterThan(impactIndex);
         expect(audioPlayback.every((event) => event.channel === "sfx" && event.noteCount >= 3)).toBe(true);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
+  it("charges and releases meteor-knuckle through a real held H key with synced frames and VFX", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
+        await seedSaveAndReload(page, createCrowdCombatAcceptanceState());
+        await enterDungeonWithKeyboard(page);
+        await page.evaluate<boolean>(installMeteorChargeRecorderExpression);
+        const before = await page.evaluate<BrowserMeteorChargeState>(readMeteorChargeStateExpression);
+
+        await page.keyDown("KeyH");
+        let quick: BrowserMeteorChargeState;
+        let charged: BrowserMeteorChargeState;
+        try {
+          quick = await page.waitFor<BrowserMeteorChargeState>(
+            readMeteorChargeStateExpression,
+            (state) =>
+              state.chargeState === "charging" &&
+              state.chargeProgress >= 0.08 &&
+              state.chargeProgress < 0.4 &&
+              state.chargeTier === "quick" &&
+              state.playerMotion === "skill-charge",
+            1200
+          );
+          charged = await page.waitFor<BrowserMeteorChargeState>(
+            readMeteorChargeStateExpression,
+            (state) =>
+              state.chargeState === "charging" &&
+              state.chargeProgress >= 0.45 &&
+              state.chargeTier === "charged" &&
+              state.playerMotion === "skill-charge" &&
+              state.spriteState === "skill-charge" &&
+              state.spriteChargeTier === "charged",
+            1800
+          );
+        } finally {
+          await page.keyUp("KeyH");
+        }
+
+        const released = await page.waitFor<BrowserMeteorChargeState>(
+          readMeteorChargeStateExpression,
+          (state) =>
+            state.chargeState === "none" &&
+            state.activeSkill === "meteor-knuckle" &&
+            state.audioIds.includes("meteor-charge-start") &&
+            state.audioIds.includes("meteor-charge-release"),
+          1600
+        );
+        const impacted = await page.waitFor<BrowserMeteorChargeState>(
+          readMeteorChargeStateExpression,
+          (state) => state.enemyHp < before.enemyHp && state.impactSkillId === "meteor-knuckle",
+          3000
+        );
+
+        expect(quick.chargeProgress).toBeLessThan(charged.chargeProgress);
+        expect(charged.spriteFrame).toBeGreaterThanOrEqual(9);
+        expect(charged.playerAnimation).toBe("player-meteor-charge");
+        expect(charged.weaponAnimation).toBe("weapon-meteor-charge");
+        expect(charged.vfxRingAnimation).toBe("meteor-charge-ring");
+        expect(charged.sampledTiers).toEqual(expect.arrayContaining(["quick", "charged"]));
+        expect(released.audioIds).toEqual(expect.arrayContaining(["meteor-charge-start", "meteor-charge-release"]));
+        expect(released.audioIds.filter((id) => id === "meteor-charge-start")).toHaveLength(1);
+        expect(released.audioIds.filter((id) => id === "meteor-charge-release")).toHaveLength(1);
+        expect(impacted.enemyHp).toBeLessThan(before.enemyHp);
       });
     } finally {
       await server.close();

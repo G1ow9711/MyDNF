@@ -3290,6 +3290,126 @@ p {
   object-position: center bottom;
 }
 
+.combat-player[data-player-charge-state="charging"] .combat-player-art,
+.combat-player:has(.player-charge-state[data-player-charge-state="charging"]) .combat-player-art {
+  animation: player-meteor-charge 700ms cubic-bezier(0.16, 0.82, 0.18, 1) both paused;
+  animation-delay: calc(var(--meteor-charge-progress, 0) * -700ms);
+  filter: drop-shadow(0 0 24px rgba(251, 146, 60, 0.84)) brightness(1.18) saturate(1.2);
+}
+
+.combat-player[data-player-charge-state="charging"] .combat-weapon,
+.combat-player:has(.player-charge-state[data-player-charge-state="charging"]) .combat-weapon {
+  animation: weapon-meteor-charge 280ms ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 18px rgba(250, 204, 21, 0.92)) drop-shadow(0 0 28px rgba(239, 68, 68, 0.48));
+}
+
+.meteor-charge-vfx {
+  position: absolute;
+  left: 47%;
+  bottom: 50%;
+  width: 92px;
+  height: 92px;
+  z-index: 4;
+  pointer-events: none;
+  transform: translate(-50%, 50%);
+  filter: drop-shadow(0 0 16px rgba(251, 146, 60, 0.9));
+}
+
+.meteor-charge-vfx::before,
+.meteor-charge-vfx::after,
+.meteor-charge-vfx i,
+.meteor-charge-vfx b,
+.meteor-charge-vfx em {
+  content: "";
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+}
+
+.meteor-charge-vfx::before {
+  border: 3px solid rgba(254, 215, 170, 0.92);
+  border-radius: 50%;
+  box-shadow: inset 0 0 18px rgba(239, 68, 68, 0.68), 0 0 22px rgba(251, 146, 60, 0.76);
+  animation: meteor-charge-ring 700ms ease-out both paused;
+  animation-delay: calc(var(--meteor-charge-progress, 0) * -700ms);
+}
+
+.meteor-charge-vfx::after {
+  inset: 15%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 251, 235, 0.98) 0 14%, rgba(250, 204, 21, 0.86) 24%, rgba(239, 68, 68, 0.62) 52%, transparent 72%);
+  animation: meteor-charge-core 700ms ease-in both paused;
+  animation-delay: calc(var(--meteor-charge-progress, 0) * -700ms);
+}
+
+.meteor-charge-vfx i {
+  inset: -20%;
+  border: 2px dashed rgba(253, 186, 116, 0.78);
+  border-radius: 50%;
+  animation: meteor-charge-sparks 700ms linear both paused;
+  animation-delay: calc(var(--meteor-charge-progress, 0) * -700ms);
+}
+
+.meteor-charge-vfx b {
+  inset: 42% -48%;
+  background: linear-gradient(90deg, transparent, rgba(255, 247, 237, 0.92), transparent);
+  transform: rotate(-18deg);
+  animation: meteor-charge-cross 700ms ease-in both paused;
+  animation-delay: calc(var(--meteor-charge-progress, 0) * -700ms);
+}
+
+.meteor-charge-vfx em {
+  inset: -34% 44%;
+  background: linear-gradient(180deg, transparent, rgba(251, 146, 60, 0.86), rgba(255, 255, 255, 0.96), transparent);
+  transform: rotate(24deg);
+  animation: meteor-charge-cross 700ms ease-in both paused;
+  animation-delay: calc(var(--meteor-charge-progress, 0) * -700ms);
+}
+
+.meteor-charge-vfx[data-charge-tier="maximum"] {
+  filter: drop-shadow(0 0 22px rgba(255, 255, 255, 0.92)) drop-shadow(0 0 34px rgba(239, 68, 68, 0.86));
+}
+
+.player-frame-sprite[data-sprite-state="skill-charge"] {
+  filter: drop-shadow(0 0 18px rgba(251, 146, 60, 0.84)) brightness(1.16) saturate(1.2);
+}
+
+@keyframes player-meteor-charge {
+  0% { transform: scaleX(var(--model-scale-x, 1)) translate(0, 0) rotate(0deg); }
+  38% { transform: scaleX(var(--model-scale-x, 1)) translate(-5px, 3px) rotate(-2deg); }
+  72% { transform: scaleX(var(--model-scale-x, 1)) translate(-10px, 5px) rotate(-4deg); }
+  100% { transform: scaleX(var(--model-scale-x, 1)) translate(-14px, 7px) rotate(-6deg); }
+}
+
+@keyframes weapon-meteor-charge {
+  from { transform: scaleX(var(--weapon-facing, 1)) translate(-2px, 1px) rotate(-4deg); }
+  to { transform: scaleX(var(--weapon-facing, 1)) translate(4px, -3px) rotate(5deg); }
+}
+
+@keyframes meteor-charge-ring {
+  0% { opacity: 0.3; transform: scale(0.44) rotate(0deg); }
+  45% { opacity: 0.82; transform: scale(0.8) rotate(110deg); }
+  100% { opacity: 1; transform: scale(1.24) rotate(260deg); }
+}
+
+@keyframes meteor-charge-core {
+  0% { opacity: 0.3; transform: scale(0.34); }
+  70% { opacity: 0.9; transform: scale(0.88); }
+  100% { opacity: 1; transform: scale(1.18); }
+}
+
+@keyframes meteor-charge-sparks {
+  0% { opacity: 0.2; transform: scale(0.5) rotate(0deg); }
+  100% { opacity: 1; transform: scale(1.18) rotate(220deg); }
+}
+
+@keyframes meteor-charge-cross {
+  0% { opacity: 0; scale: 0.3; }
+  70% { opacity: 0.72; scale: 0.9; }
+  100% { opacity: 1; scale: 1.16; }
+}
+
 .player-motion-trail {
   position: absolute;
   inset: 0;

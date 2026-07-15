@@ -350,7 +350,7 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Keep dialogue runtime-only while reusing the authoritative quest reward and unlock rules.
 - [x] Replace direct mounted reward claiming with short, skippable mouse/keyboard dialogue flow.
 - [x] Render a full story scene with environment, portrait, speaker, progress, next, and skip controls.
-- [ ] Verify active briefing and ready turn-in through real browser controls before full regression and Chinese push.
+- [x] Verify active briefing and ready turn-in through real browser controls before full regression and Chinese push.
 
 ## Task 190 Articulated Player And Monster Combat Models
 - [x] Replace whole-PNG combat actors with a persistent transparent Three.js articulated model stage and explicit fallback.
@@ -542,7 +542,21 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify knockdown, protected wake-up, blocked pressure, and post-protection hit using real keys.
 - [x] Run full regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 214 DNF Meteor Knuckle Hold-To-Charge
+- [x] Compare the current runtime against the authoritative DNF combat and acceptance specifications.
+- [x] Select real 0-700 ms hold/release charging as the missing player-visible mechanic.
+- [x] Add RED core, mounted UI/audio, and real-keyboard acceptance coverage.
+- [x] Implement the mechanic through authoritative combat state and synchronized model/VFX/audio.
+- [x] Run regression/build, inspect visual evidence, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 214 final subagent review correctly found charge action lock did not suppress ordinary movement and release did not clear a late buffered action. Two focused RED tests reproduced both defects before the production fix.
+- Task 214's first mounted RED patch targeted a stale app-test title and was rejected atomically. The tests were split by exact file context and no partial edit occurred.
+- Task 214's first app markup patch tried to replace the one-line actor root with a partial line and was rejected atomically. Charge diagnostics were mounted as a dedicated child state node instead.
+- Task 214's first TypeScript build found one closure narrowing gap and one broad app-action return type. Capturing the guarded charge timestamp and checking `action.type` fixed both without behavior changes.
+- Task 214's first browser predicate required every computed style in one short hold window; screenshot encoding then consumed the remaining charge time and correctly produced automatic maximum release. Acceptance now samples quick and charged frames first, releases the real key immediately, and validates styles, audio, and impact independently.
+- Task 214 combined PowerShell search escaped quoted event-listener patterns incorrectly and failed before reading files. No files changed; subsequent searches use separate literal patterns.
+- Task 214 first subagent spawn combined full-history context with an explicit explorer type, which the coordinator rejects. No agent started; retry omits the redundant type while preserving read-only scopes.
 - Task 213 subagent review found that delayed slam effects were resolved before downed recovery, hitstop shifted actor timers without shifting the wake event, and DOM replacement restarted CSS animations. All three now share the authoritative wake timeline.
 - The strengthened Task 213 keyboard route proved the old X assertion was a false positive because the target was 289 px outside the light hitbox. The accepted route uses Ink Shot's authored 380 px range, checks facing/lane/range and remaining protection, then proves real input, no protected HP loss, and later skill damage.
 - Five live monsters repeatedly interrupted close-range post-wake casts. The final acceptance keeps natural enemy AI and uses ranged skills instead of extending protection or mutating combat state.

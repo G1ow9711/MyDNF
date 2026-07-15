@@ -7910,4 +7910,49 @@ describe("playable app integration actions", () => {
       Object.defineProperty(globalThis, "removeEventListener", { configurable: true, value: previousRemoveEventListener });
     }
   });
+
+  it("starts, renders, and releases meteor-knuckle charge through app actions", () => {
+    let model = createAppModel({
+      storage: new MemoryStorage(),
+      initialState: withHeat(createInitialState(), 100)
+    });
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            enemies: model.combatRun.enemies.map((enemy) => ({ ...enemy, nextAttackAtMs: 9999 }))
+          }
+        : undefined
+    };
+
+    const charging = reduceAppAction(model, {
+      type: "combatSkillChargeStart",
+      skillId: "meteor-knuckle",
+      inputMethod: "hotkey"
+    });
+    const chargingHtml = renderAppHtml(charging);
+
+    expect(charging.combatRun?.player.activeChargeSkillId).toBe("meteor-knuckle");
+    expect(charging.combatRun?.player.resource.current).toBe(0);
+    expect(chargingHtml).toContain('data-player-motion="skill-charge"');
+    expect(chargingHtml).toContain('data-player-charge-state="charging"');
+    expect(chargingHtml).toContain('data-player-charge-tier="quick"');
+    expect(chargingHtml).toContain('data-meteor-charge-vfx="true"');
+    expect(charging.audio.commandQueue.at(-1)).toEqual({ type: "sfx", id: "meteor-charge-start" });
+
+    const advanced = reduceAppAction(charging, { type: "combatTick" });
+    const released = reduceAppAction(advanced, {
+      type: "combatSkillChargeRelease",
+      skillId: "meteor-knuckle"
+    });
+    const releasedHtml = renderAppHtml(released);
+
+    expect(released.combatRun?.player.activeChargeSkillId).toBeUndefined();
+    expect(released.combatRun?.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "meteor-knuckle")).toHaveLength(2);
+    expect(releasedHtml).toContain('data-player-charge-state="none"');
+    expect(releasedHtml).toContain('data-active-skill-id="meteor-knuckle"');
+    expect(released.audio.commandQueue.at(-1)).toEqual({ type: "sfx", id: "meteor-charge-release" });
+  });
 });

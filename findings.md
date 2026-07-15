@@ -1729,3 +1729,34 @@
 - Full immunity is enforced in direct hits, dynamic target selection, scheduled hits, grabs, pursuit, and enemy attack startup; the 520 ms completion restores normal targeting and AI.
 - Because combat markup is rebuilt every tick, ordinary CSS animation playback restarted continuously. Model, ring, and aura animations are now paused and sought with an authoritative progress variable, so computed transforms and opacity advance across replacement frames.
 - Real-browser evidence uses a real heavy launch followed by Ink Shot inside its authored 380 px hitbox. It proves accepted skill input, unchanged protected-target HP, advancing model/ring frames, wake audio, and later live skill damage after protection.
+
+## Task 214 DNF Fidelity Gap Audit
+- The authoritative acceptance checklist still defines broad completion gates beyond the completed Task213 slice; the overall goal remains active.
+- Task189's focused real-browser dialogue route already proved ready turn-in, active briefing, Enter progression, Escape skip, and saved rewards, so its stale unchecked plan item is corrected without claiming a new implementation.
+- The next combat slice must add authoritative input/timing behavior and observable enemy response. A visual-only effect would not materially advance the strict DNF gameplay target.
+- The design explicitly requires Meteor Knuckle to charge for up to 700 ms. Current keyboard mapping only exposes held membership as `skillId`, and `performAction()` immediately schedules fixed 420/640 ms fall/impact frames; no press duration or release event exists.
+- Task214 therefore selects real hold-to-charge Meteor Knuckle: keydown starts an interruptible charge, keyup or the 700 ms cap releases it, charge ratio changes damage/range/stagger feedback, and the mounted actor/VFX/HUD must expose the same authoritative phase.
+- Existing Meteor Knuckle already owns two delayed stages: a 420 ms falling launcher and a 640 ms slam/guard-break impact with dedicated VFX. Charging should parameterize and defer this proven release chain, not replace it.
+- Existing generic skill input is edge-triggered from a held-key set and `CombatInput` has no release bit. Task214 needs a narrow app action and player charge state so other 29 skill routes preserve their current semantics.
+- The mounted keyboard handler already distinguishes non-repeat keydown and global keyup, so Meteor can use a narrow `chargeStart`/`chargeRelease` path while click actions and every other skill keep their existing immediate-cast contract.
+- Existing release stages should remain interruptible. Charge state must clear on player hurt/defeat and must auto-release at the 700 ms cap to avoid a stuck action after focus loss.
+- Resource and cooldown should commit on charge start, while the proven Meteor hitboxes are created only on release. This prevents free cancel retries and makes interruption meaningful without duplicating skill costs.
+- Auto release must split a large combat frame at the exact 700 ms boundary, just like buffered actions split at their execution timestamp; otherwise frame rate changes damage timing.
+- Implemented charge state now commits all current Heat and cooldown on keydown, exposes exact start/max timestamps, freezes movement, and creates no damage hitbox until release.
+- Release ratio scales damage, reach, lane width, target cap, hitstop, knockback, and guard-break eligibility while preserving Meteor's proven fall and slam stages.
+- Monster damage clears an active charge without refund. Hitstop shifts the charge clock, cap, action lock, and mounted start event together.
+- Final subagent review found directional input still moved the player under action lock and a late buffered normal attack survived manual release. Charge movement now resolves to zero and both release paths clear the old buffer before scheduling Meteor.
+- The mounted Ember atlas uses frames 8/9/10/11 for quick-to-maximum charge, while the body, gauntlet, fire ring, sparks, and authored audio share the same authoritative progress/tier.
+- Real held-H evidence recorded quick and charged tiers, increasing action frames, `player-meteor-charge`, `weapon-meteor-charge`, `meteor-charge-ring`, manual release audio, and later live monster HP loss.
+- The real-keyboard route also requires exactly one start and one release sound, preventing repeated render/audio dispatch from passing on mere id presence.
+- Visual inspection at 1440x900 found the first ring anchor too low at the waist/leg line; its final anchor is moved to the charging arm height before commit.
+
+## Post-Task214 Ecosystem Backlog
+- Parallel ecosystem audit found that set bonuses currently aggregate stats/labels but do not implement the authored playstyle triggers or prove four Liuli Furnace clear builds. This is the highest-value build-system slice after the current input mechanic.
+- Costume shop ownership is not yet a five-slot equipped appearance system; only two cosmetic ids exist, and there is no equipped visual layer, opening history, or persisted non-combat bonus.
+- Trade offers and auction resolution are not advanced by the authoritative dungeon-return boundary. A later slice should rotate offers, settle expiring listings with demand/price/fees, and persist a market result log after a real dungeon return.
+
+## Post-Task214 Combat Backlog
+- Parallel combat audit found the largest foundational gap is the player's received-hit chain: enemy attacks currently create displacement/hurt lock, not launched, falling, downed, natural rise, and true downed quick-recovery states. This should be Task215 after the bounded charge mechanic.
+- The current cancel window remains a broad `comboStep > 0` boolean gate. A later DNF cancel-graph slice must make routes skill-specific, hit-confirmed, dash/final-normal aware, and subject to a local cancel lockout.
+- Ink Shadow Ranger and Iron Forge Guardian still use whole-image fallback motion because only Ember and Liuli own runtime frame atlases. Full four-class frame coverage remains a visual completion blocker.

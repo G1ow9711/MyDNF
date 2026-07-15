@@ -7,14 +7,17 @@ import { advanceClass, selectBaseClass, upgradeSkill } from "../systems/classes"
 import { applyQuestEvent, claimQuestReward } from "../systems/quests";
 import {
   applyHit,
-createCombatRun,
-enterRoomGate,
-finishRoom,
-pickupRoomFloorLoot,
-performAction,
-roomGateForRun,
-spawnRoomFloorLoot,
+  createCombatRun,
+  enterRoomGate,
+  finishRoom,
+  meteorKnuckleMaxChargeMs,
+  pickupRoomFloorLoot,
+  performAction,
+  releaseMeteorKnuckleCharge,
+  roomGateForRun,
   skillCooldownRemaining,
+  spawnRoomFloorLoot,
+  startMeteorKnuckleCharge,
   stepCombat,
   type CombatArenaHazardEvent,
   type CombatBossPhaseEvent,
@@ -8677,6 +8680,169 @@ describe("combat actions and impact feel", () => {
     expect(impactHits.every((event) => event.actionTags?.includes("knockdown"))).toBe(true);
     expect(impact.enemies.every((enemy) => enemy.downed && (enemy.downedUntilMs ?? 0) > impact.elapsedMs)).toBe(true);
     expect(impact.enemies.every((enemy) => (enemy.armorBrokenUntilMs ?? 0) > impact.elapsedMs)).toBe(true);
+  });
+
+  it("starts meteor-knuckle as a paid charge without scheduling impact damage", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 330, y: 340, hp: 600, maxHp: 600, armor: 0 }]
+    );
+
+    const charging = startMeteorKnuckleCharge(run);
+    const held = stepCombat(charging, { moveX: 1, moveY: -1, dash: true }, 350);
+    const released = releaseMeteorKnuckleCharge(held);
+
+    expect(charging.player.resource.current).toBe(0);
+    expect(charging.player.heat).toBe(0);
+    expect(skillCooldownRemaining(charging, "meteor-knuckle")).toBe(16000);
+    expect(charging.player).toMatchObject({
+      activeChargeSkillId: "meteor-knuckle",
+      chargeStartedAtMs: 0,
+      chargeMaxAtMs: meteorKnuckleMaxChargeMs
+    });
+    expect(charging.scheduledEnemyHitEffects).toHaveLength(0);
+    expect(charging.events.at(-1)).toMatchObject({
+      kind: "skill-charge",
+      skillId: "meteor-knuckle",
+      phase: "start",
+      occurredAtMs: 0
+    });
+    expect(held.player.x).toBe(240);
+    expect(held.player.y).toBe(340);
+    expect(held.player.activeChargeSkillId).toBe("meteor-knuckle");
+    expect(scheduledSkillTimes(released, "meteor-knuckle")).toEqual([770, 990]);
+    expect(released.player.activeChargeSkillId).toBeUndefined();
+    expect(released.events.at(-1)).toMatchObject({
+      kind: "skill-charge",
+      skillId: "meteor-knuckle",
+      phase: "release",
+      occurredAtMs: 350,
+      chargeDurationMs: 350,
+      chargeRatio: 0.5,
+      chargeTier: "charged"
+    });
+  });
+
+  it("auto-releases meteor-knuckle at the exact 700 ms charge cap across a large frame", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 330, y: 340, hp: 1000, maxHp: 1000, armor: 0 }]
+    );
+
+    const advanced = stepCombat(startMeteorKnuckleCharge(run), {}, 900);
+    const releaseEvent = advanced.events.find(
+      (event) => event.kind === "skill-charge" && event.skillId === "meteor-knuckle" && event.phase === "release"
+    );
+
+    expect(advanced.elapsedMs).toBe(900);
+    expect(advanced.player.activeChargeSkillId).toBeUndefined();
+    expect(scheduledSkillTimes(advanced, "meteor-knuckle")).toEqual([1120, 1340]);
+    expect(releaseEvent).toMatchObject({
+      occurredAtMs: meteorKnuckleMaxChargeMs,
+      chargeDurationMs: meteorKnuckleMaxChargeMs,
+      chargeRatio: 1,
+      chargeTier: "maximum"
+    });
+  });
+
+  it("clears an action buffered near the charge cap when meteor-knuckle releases", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 330, y: 340, hp: 1000, maxHp: 1000, armor: 0 }]
+    );
+    const held = stepCombat(startMeteorKnuckleCharge(run), {}, 560);
+    const buffered = performAction(held, { type: "light" });
+    const released = releaseMeteorKnuckleCharge(buffered);
+    const advanced = stepCombat(released, {}, 180);
+
+    expect(buffered.player.bufferedAction).toEqual({ type: "light" });
+    expect(released.player.bufferedAction).toBeUndefined();
+    expect(released.player.bufferedActionExecuteAtMs).toBeUndefined();
+    expect(advanced.events.some((event) => event.kind === "hit" && event.action === "light")).toBe(false);
+    expect(advanced.player.lastSkillId).toBe("meteor-knuckle");
+  });
+
+  it("shifts the meteor-knuckle charge clock and start event during hitstop", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1 },
+      [{ x: 330, y: 340, hp: 1000, maxHp: 1000, armor: 0 }]
+    );
+    const charging = startMeteorKnuckleCharge(run);
+    const frozen = stepCombat(
+      { ...charging, player: { ...charging.player, hitstopUntilMs: 100 } },
+      {},
+      100
+    );
+    const released = stepCombat(frozen, {}, meteorKnuckleMaxChargeMs);
+
+    expect(frozen.player.chargeStartedAtMs).toBe(100);
+    expect(frozen.player.chargeMaxAtMs).toBe(800);
+    expect(frozen.events.at(-1)).toMatchObject({ kind: "skill-charge", phase: "start", occurredAtMs: 100 });
+    expect(released.events).toContainEqual(
+      expect.objectContaining({ kind: "skill-charge", phase: "release", occurredAtMs: 800, chargeTier: "maximum" })
+    );
+  });
+
+  it("makes a maximum meteor-knuckle charge hit harder than an early release", () => {
+    const createRun = () =>
+      withPlayerAndEnemies(
+        createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),
+        { x: 240, y: 340, facing: 1 },
+        [{ x: 330, y: 340, hp: 2000, maxHp: 2000, armor: 0 }]
+      );
+    const earlyRelease = releaseMeteorKnuckleCharge(stepCombat(startMeteorKnuckleCharge(createRun()), {}, 140));
+    const earlyImpact = stepToElapsed(earlyRelease, scheduledSkillTimes(earlyRelease, "meteor-knuckle").at(-1)!);
+    const maxRelease = stepCombat(startMeteorKnuckleCharge(createRun()), {}, meteorKnuckleMaxChargeMs);
+    const maxImpact = stepToElapsed(maxRelease, scheduledSkillTimes(maxRelease, "meteor-knuckle").at(-1)!);
+    const earlyDamage = 2000 - earlyImpact.enemies[0].hp;
+    const maxDamage = 2000 - maxImpact.enemies[0].hp;
+    const earlyImpactEvent = skillHitEvents(earlyImpact, "meteor-knuckle").find((event) => event.hitPhase === "impact");
+    const maxImpactEvent = skillHitEvents(maxImpact, "meteor-knuckle").find((event) => event.hitPhase === "impact");
+
+    expect(maxDamage).toBeGreaterThan(earlyDamage);
+    expect(earlyImpactEvent?.statusTags).not.toContain("guard-break");
+    expect(earlyImpactEvent?.actionTags).not.toContain("knockdown");
+    expect(earlyImpact.enemies[0].downed).toBe(false);
+    expect(maxImpactEvent?.statusTags).toContain("guard-break");
+    expect(maxImpactEvent?.actionTags).toContain("knockdown");
+    expect(maxImpact.enemies[0].downed).toBe(true);
+    expect(maxImpact.events).toContainEqual(
+      expect.objectContaining({ kind: "skill-charge", phase: "release", chargeTier: "maximum" })
+    );
+  });
+
+  it("cancels an active meteor-knuckle charge when a monster hit interrupts the player", () => {
+    const run = withPlayerAndEnemies(
+      createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"),
+      { x: 240, y: 340, facing: 1, hp: 500, maxHp: 500 },
+      [{ x: 330, y: 340, hp: 600, maxHp: 600, armor: 0 }]
+    );
+    const interruptingRun: CombatRun = {
+      ...run,
+      enemies: run.enemies.map((enemy) => ({
+        ...enemy,
+        attackStartedAtMs: 0,
+        attackImpactAtMs: 180,
+        attackRecoverUntilMs: 620,
+        attackSkillId: "ash-ember-spit",
+        attackHitResolved: false,
+        attackResolvedHits: 0,
+        nextAttackAtMs: 9999
+      }))
+    };
+
+    const charging = startMeteorKnuckleCharge(interruptingRun);
+    const interrupted = stepCombat(charging, {}, 300);
+
+    expect(interrupted.events.some((event) => event.kind === "player-hit")).toBe(true);
+    expect(interrupted.player.activeChargeSkillId).toBeUndefined();
+    expect(interrupted.scheduledEnemyHitEffects.filter((effect) => effect.skillId === "meteor-knuckle")).toHaveLength(0);
+    expect(interrupted.player.resource.current).toBe(0);
+    expect(skillCooldownRemaining(interrupted, "meteor-knuckle")).toBeGreaterThan(15000);
   });
 
   it("rechecks meteor-knuckle targets at the falling impact frame", () => {

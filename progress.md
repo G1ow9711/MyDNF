@@ -4521,3 +4521,19 @@
 - Added wake state/events, hit and grab rejection, AI gating, hitstop synchronization, model/frame motion, progress-seeked ring/aura VFX, and authored wake audio.
 - Strengthened browser proof after exposing a false-positive out-of-range X test. The accepted Ink route checks real facing/lane/range, starts the actual `ink-shot` action, records unchanged protected HP plus multiple computed transform/opacity states, then records post-protection skill damage.
 - Final verification passed 697/697 non-browser tests, 27/27 real-browser computed-style tests, the focused real-keyboard wake route, TypeScript/Vite production build, HTTP 200 on port 5174, screenshot inspection, and diff/whitespace review. Chinese commit and push follow this record update.
+
+## Task 214 DNF Fidelity Gap Audit And Next Combat Mechanic
+- Re-read the authoritative hybrid design and acceptance checklist after Task213 instead of treating the combat slice as overall completion.
+- Corrected Task189's stale unchecked browser-verification item from its recorded focused Chromium evidence; no production behavior changed.
+- Started parallel read-only audits of combat mechanics and non-combat ecosystems after the user's explicit approval. Local review is evaluating an input-driven timing mechanic as the next implementation slice.
+- Confirmed the authored Meteor Knuckle contract is missing: current input has no key-release or hold duration, and the ultimate always schedules the same fixed impact. Selected real 0-700 ms charge/release behavior for Task214.
+- Locked implementation semantics: pay all current Heat and cooldown on start, freeze movement, retain interruptibility, manual keyup release, exact 700 ms automatic release, and hitstop-safe charge timers.
+- Added six core RED tests, then implemented authoritative charge fields/events, all-Heat payment, manual release, charge-scaled damage/range/control, exact cap splitting, hitstop timer shifting, interruption clearing, movement freeze, and release-buffer clearing. All ten Meteor-focused combat tests pass, including the four legacy staged-impact cases.
+- Added app-level charge start/release actions and real H/O keydown/keyup routing. Other skills, command inputs, and click actions keep their existing immediate-cast behavior.
+- Added mounted charge diagnostics, four Ember atlas charge frames, progress-seeked body/fire-ring/spark effects, charging-gauntlet motion, and three distinct authored charge sounds.
+- UI/audio RED failed on the missing app action, idle render, and generic fallback sounds; all three focused suites pass after implementation.
+- Real held-H browser acceptance passed with quick-to-charged frame progression, synchronized computed animation names, manual keyup release, both authored sounds, and live Meteor damage.
+- Final read-only subagent review found and blocked submission on two real state bugs: held movement slid during charge, and a last-180-ms buffered normal survived release. Added RED coverage, froze movement, cleared both buffer paths, and turned both tests green.
+- Final non-browser regression passed 706/706; real Chromium computed-style regression passed 27/27; production TypeScript/Vite build passed.
+- Final focused real-H rerun passed with exact one-shot start/release audio, manual keyup, synchronized charge pose/VFX, and later live damage after the movement/buffer fixes.
+- Inspected the 1440x900 held-charge capture: Chinese ruin environment, five Shanhaijing monsters, player pose, HUD, and charge effect remain readable. The inspection exposed and corrected a low VFX anchor before final rerun.

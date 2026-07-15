@@ -318,6 +318,42 @@ const sfxPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: Ar
       { frequencyHz: 1174.66, startMs: 94, durationMs: 204, gain: 0.08, waveform: "sine" }
     ]
   },
+  "meteor-charge-start": {
+    commandId: "meteor-charge-start",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["gauntlet-prime", "ember-inhale", "charge-rising"],
+    notes: [
+      { frequencyHz: 73.42, startMs: 0, durationMs: 190, gain: 0.28, waveform: "square" },
+      { frequencyHz: 220, startMs: 42, durationMs: 260, gain: 0.18, waveform: "sawtooth" },
+      { frequencyHz: 659.25, startMs: 126, durationMs: 320, gain: 0.12, waveform: "triangle" }
+    ]
+  },
+  "meteor-charge-release": {
+    commandId: "meteor-charge-release",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["pressure-release", "furnace-punch", "air-break"],
+    notes: [
+      { frequencyHz: 55, startMs: 0, durationMs: 170, gain: 0.36, waveform: "square" },
+      { frequencyHz: 329.63, startMs: 18, durationMs: 180, gain: 0.24, waveform: "sawtooth" },
+      { frequencyHz: 1318.51, startMs: 64, durationMs: 220, gain: 0.13, waveform: "triangle" },
+      { frequencyHz: 2637.02, startMs: 112, durationMs: 180, gain: 0.08, waveform: "sine" }
+    ]
+  },
+  "meteor-charge-maximum": {
+    commandId: "meteor-charge-maximum",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["maximum-charge", "meteor-bell", "forge-overload"],
+    notes: [
+      { frequencyHz: 41.2, startMs: 0, durationMs: 260, gain: 0.44, waveform: "square" },
+      { frequencyHz: 164.81, startMs: 16, durationMs: 290, gain: 0.3, waveform: "sawtooth" },
+      { frequencyHz: 987.77, startMs: 58, durationMs: 300, gain: 0.2, waveform: "triangle" },
+      { frequencyHz: 1975.53, startMs: 128, durationMs: 330, gain: 0.14, waveform: "sine" },
+      { frequencyHz: 3135.96, startMs: 206, durationMs: 260, gain: 0.09, waveform: "sine" }
+    ]
+  },
   "enemy-windup-light": {
     commandId: "enemy-windup-light",
     channel: "sfx",

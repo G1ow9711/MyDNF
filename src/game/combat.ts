@@ -319,6 +319,12 @@ export interface CombatPlayer {
   activeGrabTargetId?: string;
   activeGrabStartedAtMs?: number;
   activeGrabUntilMs?: number;
+  activeChargeSkillId?: string;
+  chargeStartedAtMs?: number;
+  chargeMaxAtMs?: number;
+  chargeInputMethod?: CombatSkillInputMethod;
+  chargeResourceCostPaid?: number;
+  chargeCanceledFromCombo?: boolean;
 }
 
 export interface CombatResource {
@@ -435,6 +441,22 @@ export interface CombatSkillCastEvent {
   cooldownDurationMs?: number;
 }
 
+export type CombatSkillChargeTier = "quick" | "charged" | "maximum";
+
+export interface CombatSkillChargeEvent {
+  kind: "skill-charge";
+  id: string;
+  skillId: string;
+  phase: "start" | "release";
+  occurredAtMs: number;
+  chargeStartedAtMs: number;
+  chargeDurationMs: number;
+  chargeRatio: number;
+  chargeTier: CombatSkillChargeTier;
+  inputMethod: CombatSkillInputMethod;
+  resourceCostPaid: number;
+}
+
 export interface CombatRoomClearedEvent {
   kind: "room-cleared";
   dungeonId: DungeonId;
@@ -549,6 +571,7 @@ export type CombatEvent =
   | CombatHitEvent
   | CombatMissEvent
   | CombatSkillCastEvent
+  | CombatSkillChargeEvent
   | CombatRoomClearedEvent
   | CombatRoomTransitionEvent
   | CombatEnemyAttackEvent
@@ -800,6 +823,7 @@ const roomGateEnterRangeX = 34;
 const roomGateEnterRangeY = 76;
 export const roomGateTransitionDurationMs = 480;
 export const actionBufferWindowMs = 180;
+export const meteorKnuckleMaxChargeMs = 700;
 const backstepDistancePx = 74;
 const backstepMovementMs = 180;
 const backstepEvadeMs = 420;
@@ -920,6 +944,19 @@ function shiftEnemyTimersForHitstop(enemy: CombatEnemy, originMs: number, deltaM
 
 function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: number): CombatRun {
   const actionArmorSkillId = playerActionArmorActiveAt(run.player, originMs) ? run.player.lastSkillId : undefined;
+  const chargeActive =
+    run.player.activeChargeSkillId !== undefined &&
+    run.player.chargeMaxAtMs !== undefined &&
+    run.player.chargeMaxAtMs > originMs;
+  const shiftedChargePlayer: CombatPlayer = chargeActive
+    ? {
+        ...run.player,
+        chargeStartedAtMs:
+          run.player.chargeStartedAtMs !== undefined ? run.player.chargeStartedAtMs + deltaMs : run.player.chargeStartedAtMs,
+        chargeMaxAtMs: run.player.chargeMaxAtMs! + deltaMs,
+        actionLockUntilMs: shiftFutureTime(run.player.actionLockUntilMs, originMs, deltaMs)
+      }
+    : run.player;
   const activeSkillMovement =
     actionArmorSkillId && run.player.activeSkillMovement?.skillId === actionArmorSkillId
       ? {
@@ -933,7 +970,7 @@ function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: 
     ...run,
     player: actionArmorSkillId
       ? {
-          ...run.player,
+          ...shiftedChargePlayer,
           actionLockUntilMs: shiftFutureTime(run.player.actionLockUntilMs, originMs, deltaMs),
           cancelWindowUntilMs: shiftFutureTime(run.player.cancelWindowUntilMs, originMs, deltaMs),
           skillCooldowns: {
@@ -945,7 +982,7 @@ function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: 
             run.player.activeGrabStartedAtMs !== undefined ? run.player.activeGrabStartedAtMs + deltaMs : undefined,
           activeGrabUntilMs: shiftFutureOptionalTime(run.player.activeGrabUntilMs, originMs, deltaMs)
         }
-      : run.player,
+      : shiftedChargePlayer,
     enemies: run.enemies.map((enemy) => shiftEnemyTimersForHitstop(enemy, originMs, deltaMs)),
     scheduledEnemyHitEffects: run.scheduledEnemyHitEffects.map((effect) =>
       effect.skillId === actionArmorSkillId
@@ -962,7 +999,16 @@ function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: 
       impactAtMs: hazard.impactAtMs >= originMs ? hazard.impactAtMs + deltaMs : hazard.impactAtMs
     })),
     events: run.events.map((event) =>
-      event.kind === "enemy-wake-up" && event.completeAtMs > originMs
+      event.kind === "skill-charge" &&
+      event.phase === "start" &&
+      event.skillId === run.player.activeChargeSkillId &&
+      chargeActive
+        ? {
+            ...event,
+            occurredAtMs: event.occurredAtMs + deltaMs,
+            chargeStartedAtMs: event.chargeStartedAtMs + deltaMs
+          }
+        : event.kind === "enemy-wake-up" && event.completeAtMs > originMs
         ? {
             ...event,
             occurredAtMs: event.occurredAtMs + deltaMs,
@@ -1142,6 +1188,18 @@ function advancePlayerFramePosition(
   const moveX = input.moveX ?? 0;
   const moveY = input.moveY ?? 0;
   const speed = input.dash ? 0.42 : 0.24;
+
+  if (run.player.activeChargeSkillId === "meteor-knuckle") {
+    return {
+      x: startPosition.x,
+      y: startPosition.y,
+      facing: run.player.facing,
+      movementFinished: false,
+      moveX: 0,
+      moveY: 0,
+      speed: 0
+    };
+  }
 
   if (run.elapsedMs < run.player.boundUntilMs) {
     if (elapsedMs > run.player.boundUntilMs) {
@@ -3292,7 +3350,52 @@ function applyAnvilCrash(run: CombatRun, skill: ClassSkillDefinition, canceledFr
   );
 }
 
-function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): CombatRun {
+function meteorKnuckleChargeTier(chargeRatio: number): CombatSkillChargeTier {
+  if (chargeRatio >= 1) {
+    return "maximum";
+  }
+
+  return chargeRatio >= 0.4 ? "charged" : "quick";
+}
+
+export function meteorKnuckleChargeProgress(run: CombatRun): number {
+  if (
+    run.player.activeChargeSkillId !== "meteor-knuckle" ||
+    run.player.chargeStartedAtMs === undefined ||
+    run.player.chargeMaxAtMs === undefined
+  ) {
+    return 0;
+  }
+
+  return clamp(
+    (run.elapsedMs - run.player.chargeStartedAtMs) / Math.max(1, run.player.chargeMaxAtMs - run.player.chargeStartedAtMs),
+    0,
+    1
+  );
+}
+
+function clearPlayerCharge(player: CombatPlayer): CombatPlayer {
+  return {
+    ...player,
+    activeChargeSkillId: undefined,
+    chargeStartedAtMs: undefined,
+    chargeMaxAtMs: undefined,
+    chargeInputMethod: undefined,
+    chargeResourceCostPaid: undefined,
+    chargeCanceledFromCombo: undefined
+  };
+}
+
+function applyMeteorKnuckle(
+  run: CombatRun,
+  skill: ClassSkillDefinition,
+  canceledFromCombo: boolean,
+  chargeRatio?: number
+): CombatRun {
+  const resolvedChargeRatio = clamp(chargeRatio ?? 1, 0, 1);
+  const chargedRelease = chargeRatio !== undefined;
+  const chargeDamageMultiplier = chargedRelease ? 0.72 + resolvedChargeRatio * 0.68 : 1;
+  const empoweredImpact = !chargedRelease || resolvedChargeRatio >= 0.4;
   const facing = run.player.facing;
   const endPosition = {
     x: clamp(run.player.x + skillMovementDistance(skill) * facing, 0, run.arena.width),
@@ -3303,7 +3406,7 @@ function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, cancele
     skill,
     canceledFromCombo
   );
-  const baseDamage = skillDamage(run, skill);
+  const baseDamage = Math.max(1, Math.round(skillDamage(run, skill) * chargeDamageMultiplier));
   const stages: Array<{
     phase: CombatHitPhase;
     vfxCue: CombatVfxCue;
@@ -3320,7 +3423,7 @@ function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, cancele
       vfxCue: "meteor-fall",
       delayMs: skill.animation.hitFrameMs,
       damageMultiplier: 0.55,
-      hitstopMs: 78,
+      hitstopMs: chargedRelease ? Math.round(60 + 18 * resolvedChargeRatio) : 78,
       knockback: 18,
       juggle: true,
       statusTags: ["stagger"],
@@ -3331,11 +3434,11 @@ function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, cancele
       vfxCue: "meteor-impact",
       delayMs: skill.animation.hitFrameMs + 220,
       damageMultiplier: 1.25,
-      hitstopMs: 134,
-      knockback: 76,
+      hitstopMs: chargedRelease ? Math.round(100 + 34 * resolvedChargeRatio) : 134,
+      knockback: chargedRelease ? Math.round(50 + 26 * resolvedChargeRatio) : 76,
       juggle: false,
-      statusTags: ["guard-break", "stagger"],
-      actionTags: ["slam", "knockdown"]
+      statusTags: empoweredImpact ? ["guard-break", "stagger"] : ["stagger"],
+      actionTags: empoweredImpact ? ["slam", "knockdown"] : []
     }
   ];
 
@@ -3343,9 +3446,9 @@ function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, cancele
     const hitbox: PlayerHitboxDefinition = {
       action: "skill",
       skillId: skill.id,
-      rangeX: skillRangeX(skill.tags),
-      laneRange: skillLaneRange(skill.tags),
-      targetCap: skillTargetCap(skill.tags),
+      rangeX: chargedRelease ? Math.round(230 + 150 * resolvedChargeRatio) : skillRangeX(skill.tags),
+      laneRange: chargedRelease ? Math.round(70 + 26 * resolvedChargeRatio) : skillLaneRange(skill.tags),
+      targetCap: chargedRelease ? Math.max(2, Math.round(2 + 4 * resolvedChargeRatio)) : skillTargetCap(skill.tags),
       frontOnly: skillIsFrontOnly(skill.tags),
       damage: Math.max(1, Math.round(baseDamage * stage.damageMultiplier)),
       hitstopMs: stage.hitstopMs,
@@ -3366,6 +3469,174 @@ function applyMeteorKnuckle(run: CombatRun, skill: ClassSkillDefinition, cancele
       missOnEmpty: stage.phase !== "impact"
     });
   }, castingRun);
+}
+
+export function startMeteorKnuckleCharge(
+  run: CombatRun,
+  inputMethod: CombatSkillInputMethod = "hotkey"
+): CombatRun {
+  if (
+    run.completed ||
+    run.failed ||
+    run.roomTransition ||
+    roomIsCleared(run) ||
+    run.player.defeated ||
+    run.player.activeChargeSkillId
+  ) {
+    return run;
+  }
+
+  if (run.elapsedMs < run.player.hurtLockUntilMs || run.elapsedMs < run.player.boundUntilMs) {
+    return run;
+  }
+
+  const canceledFromCombo = run.player.cancelWindowUntilMs > run.elapsedMs && run.player.comboStep > 0;
+
+  if (run.elapsedMs < run.player.actionLockUntilMs && !canceledFromCombo) {
+    return run;
+  }
+
+  const skill = catalog.classSkills.find(
+    (item) => item.id === "meteor-knuckle" && item.classId === run.state.player.classId
+  );
+
+  if (!skill) {
+    throw new Error("Unknown class skill: meteor-knuckle");
+  }
+
+  const minimumCost = combatSkillResourceCost(skill, inputMethod);
+
+  if (run.player.resource.current < minimumCost) {
+    throw new Error(`Insufficient ${run.player.resource.displayName} for skill: meteor-knuckle`);
+  }
+
+  if (skillCooldownRemaining(run, skill.id) > 0) {
+    throw new Error(`Skill on cooldown: ${skill.id}`);
+  }
+
+  const resourceCostPaid = run.player.resource.current;
+  const cooldownDurationMs = combatSkillCooldownMs(run, skill, inputMethod);
+  const resourcePlayer = spendAndGainPlayerResource(run.player, run, resourceCostPaid, 0);
+  const chargeMaxAtMs = run.elapsedMs + meteorKnuckleMaxChargeMs;
+  const chargeEvent: CombatSkillChargeEvent = {
+    kind: "skill-charge",
+    id: `skill-charge-${run.elapsedMs}-${skill.id}-start`,
+    skillId: skill.id,
+    phase: "start",
+    occurredAtMs: run.elapsedMs,
+    chargeStartedAtMs: run.elapsedMs,
+    chargeDurationMs: 0,
+    chargeRatio: 0,
+    chargeTier: "quick",
+    inputMethod,
+    resourceCostPaid
+  };
+
+  return {
+    ...run,
+    comboCount: 0,
+    comboExpiresAtMs: 0,
+    events: [...run.events, chargeEvent],
+    player: {
+      ...resourcePlayer,
+      comboStep: 0,
+      actionLockUntilMs: chargeMaxAtMs,
+      cancelWindowUntilMs: 0,
+      dashAttackReadyUntilMs: 0,
+      quickRecoverReadyUntilMs: 0,
+      lastSkillId: skill.id,
+      activeSkillMovement: undefined,
+      activeChargeSkillId: skill.id,
+      chargeStartedAtMs: run.elapsedMs,
+      chargeMaxAtMs,
+      chargeInputMethod: inputMethod,
+      chargeResourceCostPaid: resourceCostPaid,
+      chargeCanceledFromCombo: canceledFromCombo,
+      bufferedAction: undefined,
+      bufferedActionQueuedAtMs: undefined,
+      bufferedActionExecuteAtMs: undefined,
+      skillCooldowns: {
+        ...run.player.skillCooldowns,
+        [skill.id]: run.elapsedMs + cooldownDurationMs
+      }
+    }
+  };
+}
+
+export function releaseMeteorKnuckleCharge(run: CombatRun): CombatRun {
+  const player = run.player;
+
+  if (
+    player.activeChargeSkillId !== "meteor-knuckle" ||
+    player.chargeStartedAtMs === undefined ||
+    player.chargeMaxAtMs === undefined
+  ) {
+    return run;
+  }
+
+  const skill = catalog.classSkills.find(
+    (item) => item.id === "meteor-knuckle" && item.classId === run.state.player.classId
+  );
+
+  if (!skill || run.failed || player.defeated) {
+    return {
+      ...run,
+      player: clearPlayerCharge(player)
+    };
+  }
+
+  const chargeStartedAtMs = player.chargeStartedAtMs;
+  const chargeDurationMs = clamp(run.elapsedMs - chargeStartedAtMs, 0, meteorKnuckleMaxChargeMs);
+  const chargeRatio = clamp(chargeDurationMs / meteorKnuckleMaxChargeMs, 0, 1);
+  const chargeTier = meteorKnuckleChargeTier(chargeRatio);
+  const inputMethod = player.chargeInputMethod ?? "hotkey";
+  const resourceCostPaid = player.chargeResourceCostPaid ?? combatSkillResourceCost(skill, inputMethod);
+  const canceledFromCombo = player.chargeCanceledFromCombo ?? false;
+  const releaseBase: CombatRun = {
+    ...run,
+    player: {
+      ...clearBufferedAction(clearPlayerCharge(player)),
+      actionLockUntilMs: run.elapsedMs
+    }
+  };
+  const released = applyMeteorKnuckle(releaseBase, skill, canceledFromCombo, chargeRatio);
+  const events = released.events.map((event) =>
+    event.kind === "skill-cast" && event.skillId === skill.id && event.occurredAtMs === run.elapsedMs
+      ? {
+          ...event,
+          inputMethod,
+          resourceCostPaid,
+          cooldownDurationMs: Math.max(0, player.skillCooldowns[skill.id] - chargeStartedAtMs)
+        }
+      : event
+  );
+  const releaseEvent: CombatSkillChargeEvent = {
+    kind: "skill-charge",
+    id: `skill-charge-${run.elapsedMs}-${skill.id}-release`,
+    skillId: skill.id,
+    phase: "release",
+    occurredAtMs: run.elapsedMs,
+    chargeStartedAtMs,
+    chargeDurationMs,
+    chargeRatio,
+    chargeTier,
+    inputMethod,
+    resourceCostPaid
+  };
+
+  return {
+    ...released,
+    events: [...events, releaseEvent],
+    player: {
+      ...clearBufferedAction(clearPlayerCharge(released.player)),
+      comboStep: 0,
+      actionLockUntilMs: run.elapsedMs + skill.animation.durationMs,
+      cancelWindowUntilMs: 0,
+      dashAttackReadyUntilMs: 0,
+      quickRecoverReadyUntilMs: 0,
+      lastSkillId: skill.id
+    }
+  };
 }
 
 function cinderUppercutHitbox(run: CombatRun, skill: ClassSkillDefinition, canceledFromCombo: boolean): PlayerHitboxDefinition {
@@ -5172,6 +5443,21 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
     return run.completed || run.failed ? clearPendingCombatEffectsIfFailed(hitstopRun) : hitstopRun;
   }
 
+  const chargeMaxAtMs = run.player.activeChargeSkillId === "meteor-knuckle" ? run.player.chargeMaxAtMs : undefined;
+
+  if (chargeMaxAtMs !== undefined && elapsedMs >= chargeMaxAtMs) {
+    const releaseAtMs = Math.max(run.elapsedMs, chargeMaxAtMs);
+    const beforeRelease =
+      releaseAtMs > run.elapsedMs ? advanceCombatFrame(run, input, releaseAtMs - run.elapsedMs) : run;
+    const released =
+      beforeRelease.player.activeChargeSkillId === "meteor-knuckle"
+        ? releaseMeteorKnuckleCharge({ ...beforeRelease, elapsedMs: releaseAtMs })
+        : beforeRelease;
+    const remainingMs = elapsedMs - releaseAtMs;
+
+    return remainingMs > 0 ? stepCombat(released, input, remainingMs) : released;
+  }
+
   const shouldReleaseBuffer =
     buffer !== undefined &&
     bufferExecuteAtMs !== undefined &&
@@ -5750,7 +6036,7 @@ function applyEnemyImpact(
       vfxWindowMs: attack.vfxWindowMs
     };
     const damagedPlayer: CombatPlayer = {
-      ...nextPlayer,
+      ...(controlProtectedImpact ? nextPlayer : clearPlayerCharge(nextPlayer)),
       hp: nextHp,
       x: controlProtectedImpact ? nextPlayer.x : clamp(nextPlayer.x - nextFacing * hitKnockback, 0, arena.width),
       facing: controlProtectedImpact ? nextPlayer.facing : nextFacing,
@@ -7097,7 +7383,7 @@ function applyScheduledArenaHazard(run: CombatRun, hazard: CombatScheduledArenaH
     vfxWindowMs: hazard.vfxWindowMs
   };
   const damagedPlayer: CombatPlayer = {
-    ...run.player,
+    ...clearPlayerCharge(run.player),
     hp: nextHp,
     x: clamp(sampledPlayer.x - nextFacing * hazard.knockback, 0, run.arena.width),
     y: sampledPlayer.y,

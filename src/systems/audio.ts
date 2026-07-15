@@ -318,6 +318,29 @@ const sfxPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: Ar
       { frequencyHz: 1174.66, startMs: 94, durationMs: 204, gain: 0.08, waveform: "sine" }
     ]
   },
+  "skill-cancel-confirm": {
+    commandId: "skill-cancel-confirm",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["cancel-cut", "hit-confirm", "frame-snap"],
+    notes: [
+      { frequencyHz: 196, startMs: 0, durationMs: 62, gain: 0.2, waveform: "square" },
+      { frequencyHz: 783.99, startMs: 18, durationMs: 94, gain: 0.15, waveform: "sawtooth" },
+      { frequencyHz: 1567.98, startMs: 54, durationMs: 112, gain: 0.1, waveform: "triangle" }
+    ]
+  },
+  "kiln-shadow-cancel-haste": {
+    commandId: "kiln-shadow-cancel-haste",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["kiln-shadow", "haste-proc", "dark-gold-wind"],
+    notes: [
+      { frequencyHz: 73.42, startMs: 0, durationMs: 154, gain: 0.25, waveform: "square" },
+      { frequencyHz: 293.66, startMs: 16, durationMs: 164, gain: 0.17, waveform: "sawtooth" },
+      { frequencyHz: 880, startMs: 62, durationMs: 196, gain: 0.12, waveform: "triangle" },
+      { frequencyHz: 1760, startMs: 118, durationMs: 206, gain: 0.08, waveform: "sine" }
+    ]
+  },
   "meteor-charge-start": {
     commandId: "meteor-charge-start",
     channel: "sfx",

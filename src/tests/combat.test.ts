@@ -7,6 +7,7 @@ import { advanceClass, selectBaseClass, upgradeSkill } from "../systems/classes"
 import { applyQuestEvent, claimQuestReward } from "../systems/quests";
 import {
   applyHit,
+  combatSkillCancelState,
   createCombatRun,
   enterRoomGate,
   finishRoom,
@@ -96,6 +97,14 @@ function withEquippedOwnedGear(state: GameState, ownedGear: OwnedGearItem): Game
     },
     ownedGear.instanceId
   );
+}
+
+function equipSetPieces(state: GameState, setId: string, slots: GearSlot[]): GameState {
+  return slots.reduce((next, slot, index) => {
+    const owned = createOwnedGear(gearId(setId, slot), `${setId}-${slot}-combat-${index}`);
+
+    return withEquippedOwnedGear(next, owned);
+  }, state);
 }
 
 function advanceTime(run: CombatRun, dtMs = 220): CombatRun {
@@ -202,6 +211,16 @@ function resolveGroundHeavy(run: CombatRun): CombatRun {
 
 function stepToElapsed(run: CombatRun, elapsedMs: number): CombatRun {
   return stepCombat(run, {}, Math.max(0, elapsedMs - run.elapsedMs));
+}
+
+function advanceToCancelWindow(run: CombatRun): CombatRun {
+  let next = run;
+
+  for (let attempt = 0; attempt < 3 && next.elapsedMs < next.player.cancelWindowStartedAtMs; attempt += 1) {
+    next = stepToElapsed(next, next.player.cancelWindowStartedAtMs);
+  }
+
+  return next;
 }
 
 function quickRecoverState(run: CombatRun): { readyUntilMs: number; startedAtMs: number; untilMs: number } {
@@ -1140,7 +1159,8 @@ describe("combat actions and impact feel", () => {
     expect(hit.player.resource.current).toBe(run.player.resource.current + 8);
     expect(hit.comboCount).toBe(1);
     expect(hit.player.comboStep).toBe(1);
-    expect(hit.player.cancelWindowUntilMs).toBe(cast.player.actionLockUntilMs);
+    expect(hit.player.cancelWindowStartedAtMs).toBe(hitAtMs + 80);
+    expect(hit.player.cancelWindowUntilMs).toBe(hitAtMs + 180);
     expect(hit.player.hitstopUntilMs).toBe(hitAtMs + 42);
   });
 
@@ -1484,7 +1504,7 @@ describe("combat actions and impact feel", () => {
     const cast = performAction(run, { type: "light" });
     const attempted = performAction(cast, { type: "skill", skillId: "spark-combo" });
     const [hitAtMs] = scheduledGroundLightTimes(cast);
-    const confirmed = stepToElapsed(cast, hitAtMs);
+    const confirmed = advanceToCancelWindow(stepToElapsed(cast, hitAtMs));
     const canceled = performAction(confirmed, { type: "skill", skillId: "spark-combo" });
     const [skillCast] = canceled.events.filter((event) => event.kind === "skill-cast" && event.skillId === "spark-combo");
 
@@ -1496,6 +1516,268 @@ describe("combat actions and impact feel", () => {
       skillId: "spark-combo",
       canceledFromCombo: true
     });
+  });
+
+  it("opens a source-aware cancel window exactly 80-180 ms after confirmed impact", () => {
+    const run = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"), {
+      hp: 500,
+      maxHp: 500,
+      nextAttackAtMs: 9999
+    });
+    const cast = performAction(run, { type: "light" });
+    const [hitAtMs] = scheduledGroundLightTimes(cast);
+    const hit = stepToElapsed(cast, hitAtMs);
+    const startedAtMs = hit.player.cancelWindowStartedAtMs;
+    const untilMs = hit.player.cancelWindowUntilMs;
+    const at = (elapsedMs: number): CombatRun => ({
+      ...hit,
+      elapsedMs,
+      player: { ...hit.player, hitstopUntilMs: 0 }
+    });
+
+    expect(hit.player.cancelSource).toBe("normal-chain");
+    expect(startedAtMs - hitAtMs).toBe(80);
+    expect(untilMs - hitAtMs).toBe(180);
+    expect(combatSkillCancelState(at(startedAtMs - 1), "spark-combo")).toBe("pending");
+    expect(combatSkillCancelState(at(startedAtMs), "spark-combo")).toBe("available");
+    expect(combatSkillCancelState(at(untilMs), "spark-combo")).toBe("available");
+    expect(combatSkillCancelState(at(untilMs + 1), "spark-combo")).toBe("none");
+    expect(combatSkillCancelState(at(startedAtMs), "heat-bloom")).toBe("route-blocked");
+  });
+
+  it("creates distinct final-normal and dash-light cancel sources only on real hits", () => {
+    let chain = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"), {
+      hp: 2000,
+      maxHp: 2000,
+      nextAttackAtMs: 9999
+    });
+
+    for (let step = 0; step < 3; step += 1) {
+      chain = resolveGroundLight(performAction(chain, { type: "light" }));
+      if (step < 2) {
+        chain = stepCombat(chain, {}, 320);
+      }
+    }
+
+    expect(chain.player.cancelSource).toBe("normal-finisher");
+    expect(
+      combatSkillCancelState(
+        { ...chain, elapsedMs: chain.player.cancelWindowStartedAtMs, player: { ...chain.player, hitstopUntilMs: 0 } },
+        "heat-bloom"
+      )
+    ).toBe("available");
+
+    const dashBase = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley"), {
+      hp: 500,
+      maxHp: 500,
+      nextAttackAtMs: 9999
+    });
+    const dashed = stepCombat(dashBase, { moveX: 1, moveY: 0, dash: true }, 80);
+    const dashCast = performAction(dashed, { type: "light" });
+    const dashEffect = dashCast.scheduledEnemyHitEffects.find((effect) => effect.hitPhase === "dash-light");
+
+    if (!dashEffect) {
+      throw new Error("Expected scheduled dash-light effect");
+    }
+
+    const dashHit = stepToElapsed(dashCast, dashEffect.applyAtMs);
+    expect(dashHit.player.cancelSource).toBe("dash-light");
+
+    const missBase = createCombatRun(withHeat(createInitialState(), 80), "cinder-kiln-alley");
+    const missed = resolveGroundLight(performAction(missBase, { type: "light" }));
+    expect(missed.player.cancelSource).toBe("none");
+    expect(missed.player.cancelWindowStartedAtMs).toBe(0);
+    expect(missed.player.cancelWindowUntilMs).toBe(0);
+  });
+
+  it("enforces the 800 ms cancel lock and triggers Kiln Shadow haste only on a legal cancel", () => {
+    const equippedState = equipSetPieces(withHeat(createInitialState(), 100), "kiln-shadow", [
+      "weapon",
+      "core",
+      "head",
+      "body",
+      "ring"
+    ]);
+    const run = withEnemyInRange(createCombatRun(equippedState, "cinder-kiln-alley"), {
+      hp: 2000,
+      maxHp: 2000,
+      nextAttackAtMs: 9999
+    });
+    const hit = resolveGroundLight(performAction(run, { type: "light" }));
+    const cancelAtMs = hit.player.cancelWindowStartedAtMs;
+    const ready: CombatRun = {
+      ...hit,
+      elapsedMs: cancelAtMs,
+      player: { ...hit.player, hitstopUntilMs: 0 }
+    };
+    const canceled = performAction(ready, { type: "skill", skillId: "spark-combo" });
+    const setProc = canceled.events.find((event) => event.kind === "set-proc");
+
+    expect(canceled.events).toContainEqual(
+      expect.objectContaining({ kind: "skill-cast", skillId: "spark-combo", canceledFromCombo: true })
+    );
+    expect(canceled.player.cancelLocksBySkillId["spark-combo"]).toBe(cancelAtMs + 800);
+    expect(canceled.player.kilnShadowHasteStartedAtMs).toBe(cancelAtMs);
+    expect(canceled.player.kilnShadowHasteUntilMs).toBe(cancelAtMs + 1800);
+    expect(setProc).toMatchObject({
+      kind: "set-proc",
+      setId: "kiln-shadow",
+      effectId: "kiln-shadow-cancel-haste",
+      sourceSkillId: "spark-combo",
+      durationMs: 1800
+    });
+
+    const lockedProbe: CombatRun = {
+      ...canceled,
+      elapsedMs: cancelAtMs + 400,
+      player: {
+        ...canceled.player,
+        cancelSource: "normal-chain",
+        cancelWindowStartedAtMs: cancelAtMs + 400,
+        cancelWindowUntilMs: cancelAtMs + 580,
+        hitstopUntilMs: 0
+      }
+    };
+    expect(combatSkillCancelState(lockedProbe, "spark-combo")).toBe("lockout");
+    expect(combatSkillCancelState(lockedProbe, "cinder-uppercut")).toBe("available");
+
+    const unlockedProbe: CombatRun = {
+      ...lockedProbe,
+      elapsedMs: cancelAtMs + 801,
+      player: {
+        ...lockedProbe.player,
+        cancelWindowStartedAtMs: cancelAtMs + 801,
+        cancelWindowUntilMs: cancelAtMs + 981
+      }
+    };
+    expect(combatSkillCancelState(unlockedProbe, "spark-combo")).toBe("available");
+
+    const manualRun = createCombatRun(equippedState, "cinder-kiln-alley");
+    const manual = performAction(manualRun, { type: "skill", skillId: "spark-combo" });
+    expect(manual.events.some((event) => event.kind === "set-proc")).toBe(false);
+    expect(manual.player.kilnShadowHasteUntilMs).toBe(0);
+  });
+
+  it("freezes cancel windows, skill locks, and Kiln Shadow haste during hitstop", () => {
+    const run = withEnemyInRange(createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley"), {
+      hp: 1000,
+      maxHp: 1000,
+      nextAttackAtMs: 9999
+    });
+    const hit = resolveGroundLight(performAction(run, { type: "light" }));
+    const windowStart = hit.player.cancelWindowStartedAtMs;
+    const windowEnd = hit.player.cancelWindowUntilMs;
+    const frozenWindow = stepCombat(hit, {}, 42);
+
+    expect(frozenWindow.player.cancelWindowStartedAtMs).toBe(windowStart + 42);
+    expect(frozenWindow.player.cancelWindowUntilMs).toBe(windowEnd + 42);
+
+    const transient: CombatRun = {
+      ...run,
+      elapsedMs: 100,
+      player: {
+        ...run.player,
+        hitstopUntilMs: 140,
+        cancelSource: "normal-finisher",
+        cancelWindowStartedAtMs: 160,
+        cancelWindowUntilMs: 260,
+        cancelLocksBySkillId: { "spark-combo": 900 },
+        kilnShadowHasteStartedAtMs: 80,
+        kilnShadowHasteUntilMs: 1800,
+        bufferedAction: { type: "skill", skillId: "meteor-knuckle", inputMethod: "hotkey" },
+        bufferedActionQueuedAtMs: 100,
+        bufferedActionExecuteAtMs: 160
+      }
+    };
+    const frozenTransient = stepCombat(transient, {}, 40);
+
+    expect(frozenTransient.player.cancelLocksBySkillId["spark-combo"]).toBe(940);
+    expect(frozenTransient.player.kilnShadowHasteStartedAtMs).toBe(120);
+    expect(frozenTransient.player.kilnShadowHasteUntilMs).toBe(1840);
+    expect(frozenTransient.player.bufferedActionExecuteAtMs).toBe(200);
+  });
+
+  it("lets final-normal cancel into Meteor charge while preserving source and local lock", () => {
+    const run = createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley");
+    const ready: CombatRun = {
+      ...run,
+      player: {
+        ...run.player,
+        actionLockUntilMs: 200,
+        comboStep: 3,
+        cancelSource: "normal-finisher",
+        cancelWindowStartedAtMs: 0,
+        cancelWindowUntilMs: 180
+      }
+    };
+    const charging = startMeteorKnuckleCharge(ready);
+    const released = releaseMeteorKnuckleCharge(stepCombat(charging, {}, 100));
+    const cast = released.events.find((event) => event.kind === "skill-cast" && event.skillId === "meteor-knuckle");
+
+    expect(charging.player.activeChargeSkillId).toBe("meteor-knuckle");
+    expect(charging.player.chargeCanceledFromCombo).toBe(true);
+    expect(charging.player.chargeCancelSource).toBe("normal-finisher");
+    expect(charging.player.cancelLocksBySkillId["meteor-knuckle"]).toBe(800);
+    expect(cast).toMatchObject({
+      kind: "skill-cast",
+      skillId: "meteor-knuckle",
+      canceledFromCombo: true,
+      cancelSource: "normal-finisher"
+    });
+  });
+
+  it("buffers a held Meteor charge to the cancel opening frame and lets key release clear it early", () => {
+    const run = createCombatRun(withHeat(createInitialState(), 100), "cinder-kiln-alley");
+    const pending: CombatRun = {
+      ...run,
+      elapsedMs: 100,
+      player: {
+        ...run.player,
+        actionLockUntilMs: 220,
+        comboStep: 3,
+        cancelSource: "normal-finisher",
+        cancelWindowStartedAtMs: 180,
+        cancelWindowUntilMs: 280
+      }
+    };
+    const queued = startMeteorKnuckleCharge(pending);
+    const releasedEarly = releaseMeteorKnuckleCharge(queued);
+    const charging = stepCombat(queued, {}, 80);
+
+    expect(queued.player.activeChargeSkillId).toBeUndefined();
+    expect(queued.player.bufferedAction).toEqual({ type: "skill", skillId: "meteor-knuckle", inputMethod: "hotkey" });
+    expect(queued.player.bufferedActionExecuteAtMs).toBe(180);
+    expect(releasedEarly.player.bufferedAction).toBeUndefined();
+    expect(releasedEarly.player.bufferedActionExecuteAtMs).toBeUndefined();
+    expect(charging.elapsedMs).toBe(180);
+    expect(charging.player.activeChargeSkillId).toBe("meteor-knuckle");
+    expect(charging.player.chargeStartedAtMs).toBe(180);
+    expect(charging.player.chargeCancelSource).toBe("normal-finisher");
+    expect(charging.player.cancelLocksBySkillId["meteor-knuckle"]).toBe(980);
+  });
+
+  it("applies Kiln Shadow haste to movement and normal attack timing without stacking the multiplier", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const boostedRun: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        kilnShadowHasteStartedAtMs: 0,
+        kilnShadowHasteUntilMs: 1800
+      }
+    };
+    const baseMoved = stepCombat(baseRun, { moveX: 1, moveY: 0, dash: false }, 100);
+    const boostedMoved = stepCombat(boostedRun, { moveX: 1, moveY: 0, dash: false }, 100);
+    const baseLight = performAction(baseRun, { type: "light" });
+    const boostedLight = performAction(boostedRun, { type: "light" });
+
+    expect(boostedMoved.player.x - boostedRun.player.x).toBeCloseTo((baseMoved.player.x - baseRun.player.x) * 1.12, 5);
+    expect(boostedLight.player.normalAttackUntilMs - boostedLight.elapsedMs).toBe(
+      Math.round((baseLight.player.normalAttackUntilMs - baseLight.elapsedMs) * 0.88)
+    );
+    expect(scheduledGroundLightTimes(boostedLight)[0] - boostedLight.elapsedMs).toBe(
+      Math.round((scheduledGroundLightTimes(baseLight)[0] - baseLight.elapsedMs) * 0.88)
+    );
   });
 
   it("lands light attacks inside the 80 ms input-to-hit target and advances combo state", () => {
@@ -2373,7 +2655,7 @@ describe("combat actions and impact feel", () => {
 
   it("allows spark-combo cancel during the hit-confirm window and lands on its jab frame", () => {
     const run = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), { nextAttackAtMs: 9999 });
-    const light = resolveGroundLight(performAction(run, { type: "light" }));
+    const light = advanceToCancelWindow(resolveGroundLight(performAction(run, { type: "light" })));
     const canceled = performAction(light, { type: "skill", skillId: "spark-combo" });
     const [jabAtMs] = scheduledSkillTimes(canceled, "spark-combo");
     const beforeJab = stepToElapsed(canceled, jabAtMs - 1);
@@ -2408,7 +2690,9 @@ describe("combat actions and impact feel", () => {
     });
     const first = resolveGroundLight(performAction(run, { type: "light" }));
     const second = resolveGroundLight(performAction(stepCombat(first, {}, first.player.actionLockUntilMs - first.elapsedMs), { type: "light" }));
-    const third = resolveGroundLight(performAction(stepCombat(second, {}, second.player.actionLockUntilMs - second.elapsedMs), { type: "light" }));
+    const third = advanceToCancelWindow(
+      resolveGroundLight(performAction(stepCombat(second, {}, second.player.actionLockUntilMs - second.elapsedMs), { type: "light" }))
+    );
     const canceled = performAction(third, { type: "skill", skillId: "spark-combo" });
     const [jabAtMs] = scheduledSkillTimes(canceled, "spark-combo");
     const jab = stepToElapsed(canceled, jabAtMs);
@@ -5679,7 +5963,7 @@ describe("combat actions and impact feel", () => {
       { x: 240, y: 340, facing: 1 },
       [{ x: 304, y: 340, hp: 220, maxHp: 220 }]
     );
-    const light = resolveGroundLight(performAction(run, { type: "light" }));
+    const light = advanceToCancelWindow(resolveGroundLight(performAction(run, { type: "light" })));
 
     const cast = performAction(light, { type: "skill", skillId: "cinder-uppercut" });
     const [uppercutAtMs] = scheduledSkillTimes(cast, "cinder-uppercut");

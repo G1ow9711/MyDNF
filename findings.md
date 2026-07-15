@@ -1772,3 +1772,19 @@
 - Mounted action priority must preserve ordinary light-hit feedback after checking bind and authoritative received-hit phases; otherwise adding the new lifecycle silently removes non-launch hurt animation.
 - Real-browser evidence should read the current downed sprite/frame from the same DOM snapshot that proves the KeyC window. A second requestAnimationFrame history recorder can miss a short mounted phase under full-suite load even when the authoritative state is correct.
 - Received-hit input lock and invulnerability are separate contracts. Launch, fall, and prone phases reject player input but remain hittable; only natural-rise and explicit quick-rise own recovery invulnerability.
+
+## Task 216 Hit-Confirmed Cancel And Dynamic Set Audit
+- Current cancel eligibility is `cancelWindowUntilMs > elapsedMs && comboStep > 0`; it has no opening timestamp, source type, per-skill route, or lockout.
+- Ground light currently writes the action-recovery end directly as the cancel-window end. Dash-light produces no cancel window, while the final normal hit is indistinguishable from the first two outside `comboStep`.
+- Existing class skill tags are useful for authored identity but are not a complete cancel contract. Explicit `cancelFrom` data keeps route changes reviewable and prevents an unrelated tag edit from changing controls.
+- Existing epic set evaluation aggregates only static stats. A typed runtime effect id on active bonuses is the smallest reusable bridge from equipment composition into combat state.
+- The selected first dynamic proc is Kiln Shadow five-piece because its authored description already depends on successful cancel chains; it exercises both systems without inventing a new set identity.
+- Cancel lockout belongs to the target skill id, not one global boolean. This prevents the same route from being replayed while preserving legitimate branching into another skill.
+- UI eligibility must call the same authoritative per-skill cancel resolver as combat. Deriving button state from a scene-level boolean reintroduces false routes even when the core correctly rejects them.
+- The 80-180 ms contract creates a 100 ms playable window: pre-open input is `pending`, the close boundary remains inclusive, and hitstop shifts both endpoints together.
+- Immediate cancel casts occur inside the current action lock, so direct-action audio must enqueue newly created combat events as well as the input swing. Otherwise the core proc exists while its confirmation/proc sounds never reach the browser sink.
+- Runtime set effects belong in the combat profile and player transient state, not the save schema. Equipment composition recreates the profile on run start, while room transitions, defeat/revival, and dungeon completion clear the live haste timer.
+- Real-browser visual review matters independently of DOM assertions: the first passing 750px capture showed controls obscuring actors and the proc label. A combat-specific narrow layout fixed the visible failure without changing timing or hit resolution.
+- Charge skills need the same pre-open buffer semantics as instant skills, but they cannot execute through generic `performAction()` because that bypasses held-key charge state. Reusing `bufferedAction` with the cancel opening as its execution timestamp and routing Meteor back through `startMeteorKnuckleCharge()` preserves one input queue and one authoritative charge lifecycle.
+- Pending held input also needs keyup cancellation. Otherwise tapping H before the opening frame silently starts a full auto-release charge after the key is already up.
+- Desktop Boss HUD offsets are not safe at the new 721-860 px compact breakpoint. Narrow combat acceptance must assert measured width and collision against both status and combo HUD, not only screenshot appearance.

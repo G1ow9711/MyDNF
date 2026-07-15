@@ -1,5 +1,15 @@
 import { catalog } from "../data/catalog";
-import type { ClassSkillDefinition, ConsumableId, DungeonDifficultyId, DungeonId, GameState, GearItem, Rarity } from "./types";
+import type {
+  ClassSkillDefinition,
+  ConsumableId,
+  DungeonDifficultyId,
+  DungeonId,
+  EpicSetEffectId,
+  GameState,
+  GearItem,
+  Rarity,
+  SkillCancelSource
+} from "./types";
 import type { CombatInput } from "./input";
 import { evaluateCombatProfile, type CombatProfile } from "../systems/builds";
 import { classResourceValue, skillCooldownMultiplier, skillDamageMultiplier } from "../systems/classes";
@@ -26,6 +36,8 @@ export type EnemyAttackProfileId =
   | "liuli-kiln-gravity"
   | "liuli-crucible-shards";
 export type CombatSkillInputMethod = "hotkey" | "command";
+export type CombatCancelSource = SkillCancelSource | "none";
+export type CombatSkillCancelState = "none" | "pending" | "available" | "route-blocked" | "lockout";
 export type CombatActionInput =
   | { type: "light" }
   | { type: "heavy" }
@@ -285,7 +297,12 @@ export interface CombatPlayer {
   resource: CombatResource;
   comboStep: number;
   actionLockUntilMs: number;
+  cancelSource: CombatCancelSource;
+  cancelWindowStartedAtMs: number;
   cancelWindowUntilMs: number;
+  cancelLocksBySkillId: Record<string, number>;
+  kilnShadowHasteStartedAtMs: number;
+  kilnShadowHasteUntilMs: number;
   hitstopUntilMs: number;
   invulnerableStartedAtMs: number;
   invulnerableUntilMs: number;
@@ -340,6 +357,7 @@ export interface CombatPlayer {
   chargeInputMethod?: CombatSkillInputMethod;
   chargeResourceCostPaid?: number;
   chargeCanceledFromCombo?: boolean;
+  chargeCancelSource?: SkillCancelSource;
 }
 
 export interface CombatResource {
@@ -447,6 +465,7 @@ export interface CombatSkillCastEvent {
   occurredAtMs: number;
   inputToHitMs: number;
   canceledFromCombo: boolean;
+  cancelSource?: SkillCancelSource;
   statusTags?: CombatSkillStatusTag[];
   actionTags?: CombatActionTag[];
   casterPosition?: CombatVector;
@@ -583,6 +602,17 @@ export interface CombatEnemyWakeUpEvent {
   completeAtMs: number;
 }
 
+export interface CombatSetProcEvent {
+  kind: "set-proc";
+  id: string;
+  setId: "kiln-shadow";
+  effectId: EpicSetEffectId;
+  sourceSkillId: string;
+  cancelSource: SkillCancelSource;
+  occurredAtMs: number;
+  durationMs: number;
+}
+
 export type CombatEvent =
   | CombatHitEvent
   | CombatMissEvent
@@ -596,7 +626,8 @@ export type CombatEvent =
   | CombatEnemySummonEvent
   | CombatBossPhaseEvent
   | CombatArenaHazardEvent
-  | CombatEnemyWakeUpEvent;
+  | CombatEnemyWakeUpEvent
+  | CombatSetProcEvent;
 
 export interface CombatLootEvent {
   dungeonId: DungeonId;
@@ -698,7 +729,7 @@ export interface CombatScheduledEnemyHitEffect {
   missOnEmpty?: boolean;
   comboStepOnHit?: number;
   resourceGainOnHit?: number;
-  cancelWindowUntilMsOnHit?: number;
+  cancelSourceOnHit?: SkillCancelSource;
   resetComboStepOnMiss?: boolean;
   playerShieldWindowMs?: number;
   playerShieldReduction?: number;
@@ -842,6 +873,12 @@ const roomGateEnterRangeY = 76;
 export const roomGateTransitionDurationMs = 480;
 export const actionBufferWindowMs = 180;
 export const meteorKnuckleMaxChargeMs = 700;
+export const cancelWindowOpenDelayMs = 80;
+export const cancelWindowCloseDelayMs = 180;
+export const cancelSkillLockMs = 800;
+export const kilnShadowHasteDurationMs = 1800;
+const kilnShadowAttackTimingMultiplier = 0.88;
+const kilnShadowMoveSpeedMultiplier = 1.12;
 const backstepDistancePx = 74;
 const backstepMovementMs = 180;
 const backstepEvadeMs = 420;
@@ -1005,6 +1042,33 @@ function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: 
         actionLockUntilMs: shiftFutureTime(run.player.actionLockUntilMs, originMs, deltaMs)
       }
     : shiftedChargePlayer;
+  const cancelWindowActive = run.player.cancelWindowUntilMs > originMs;
+  const kilnShadowHasteActive = run.player.kilnShadowHasteUntilMs > originMs;
+  const shiftedTransientPlayer: CombatPlayer = {
+    ...shiftedPlayer,
+    cancelWindowStartedAtMs: cancelWindowActive
+      ? run.player.cancelWindowStartedAtMs + deltaMs
+      : run.player.cancelWindowStartedAtMs,
+    cancelWindowUntilMs: cancelWindowActive ? run.player.cancelWindowUntilMs + deltaMs : run.player.cancelWindowUntilMs,
+    cancelLocksBySkillId: Object.fromEntries(
+      Object.entries(run.player.cancelLocksBySkillId).map(([skillId, untilMs]) => [
+        skillId,
+        shiftFutureTime(untilMs, originMs, deltaMs)
+      ])
+    ),
+    bufferedActionExecuteAtMs:
+      run.player.bufferedAction?.type === "skill" &&
+      run.player.bufferedAction.skillId === "meteor-knuckle" &&
+      cancelWindowActive
+        ? shiftFutureOptionalTime(run.player.bufferedActionExecuteAtMs, originMs, deltaMs)
+        : run.player.bufferedActionExecuteAtMs,
+    kilnShadowHasteStartedAtMs: kilnShadowHasteActive
+      ? run.player.kilnShadowHasteStartedAtMs + deltaMs
+      : run.player.kilnShadowHasteStartedAtMs,
+    kilnShadowHasteUntilMs: kilnShadowHasteActive
+      ? run.player.kilnShadowHasteUntilMs + deltaMs
+      : run.player.kilnShadowHasteUntilMs
+  };
   const activeSkillMovement =
     actionArmorSkillId && run.player.activeSkillMovement?.skillId === actionArmorSkillId
       ? {
@@ -1018,9 +1082,8 @@ function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: 
     ...run,
     player: actionArmorSkillId
       ? {
-          ...shiftedPlayer,
+          ...shiftedTransientPlayer,
           actionLockUntilMs: shiftFutureTime(run.player.actionLockUntilMs, originMs, deltaMs),
-          cancelWindowUntilMs: shiftFutureTime(run.player.cancelWindowUntilMs, originMs, deltaMs),
           skillCooldowns: {
             ...run.player.skillCooldowns,
             [actionArmorSkillId]: shiftFutureTime(run.player.skillCooldowns[actionArmorSkillId] ?? 0, originMs, deltaMs)
@@ -1030,7 +1093,7 @@ function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: 
             run.player.activeGrabStartedAtMs !== undefined ? run.player.activeGrabStartedAtMs + deltaMs : undefined,
           activeGrabUntilMs: shiftFutureOptionalTime(run.player.activeGrabUntilMs, originMs, deltaMs)
         }
-      : shiftedPlayer,
+      : shiftedTransientPlayer,
     enemies: run.enemies.map((enemy) => shiftEnemyTimersForHitstop(enemy, originMs, deltaMs)),
     scheduledEnemyHitEffects: run.scheduledEnemyHitEffects.map((effect) =>
       effect.skillId === actionArmorSkillId
@@ -1288,7 +1351,8 @@ function advancePlayerFramePosition(
 ): { x: number; y: number; facing: 1 | -1; movementFinished: boolean; moveX: number; moveY: number; speed: number } {
   const moveX = input.moveX ?? 0;
   const moveY = input.moveY ?? 0;
-  const speed = input.dash ? 0.42 : 0.24;
+  const baseSpeed = input.dash ? 0.42 : 0.24;
+  const speed = baseSpeed * (kilnShadowHasteActiveAt(run.player, run.elapsedMs) ? kilnShadowMoveSpeedMultiplier : 1);
 
   if (run.player.activeChargeSkillId === "meteor-knuckle") {
     return {
@@ -1504,7 +1568,12 @@ function lockPlayerForRoomTransition(player: CombatPlayer, transition: CombatRoo
     facing: 1,
     comboStep: 0,
     actionLockUntilMs: Math.max(player.actionLockUntilMs, transition.completeAtMs),
+    cancelSource: "none",
+    cancelWindowStartedAtMs: 0,
     cancelWindowUntilMs: 0,
+    cancelLocksBySkillId: {},
+    kilnShadowHasteStartedAtMs: 0,
+    kilnShadowHasteUntilMs: 0,
     hitstopUntilMs: Math.min(player.hitstopUntilMs, transition.startedAtMs),
     boundUntilMs: Math.min(player.boundUntilMs, transition.startedAtMs),
     airState: "grounded",
@@ -3541,7 +3610,8 @@ function clearPlayerCharge(player: CombatPlayer): CombatPlayer {
     chargeMaxAtMs: undefined,
     chargeInputMethod: undefined,
     chargeResourceCostPaid: undefined,
-    chargeCanceledFromCombo: undefined
+    chargeCanceledFromCombo: undefined,
+    chargeCancelSource: undefined
   };
 }
 
@@ -3650,18 +3720,26 @@ export function startMeteorKnuckleCharge(
     return run;
   }
 
-  const canceledFromCombo = run.player.cancelWindowUntilMs > run.elapsedMs && run.player.comboStep > 0;
-
-  if (run.elapsedMs < run.player.actionLockUntilMs && !canceledFromCombo) {
-    return run;
-  }
-
+  const cancelState = combatSkillCancelState(run, "meteor-knuckle");
+  const canceledFromCombo = cancelState === "available";
+  const cancelSource = canceledFromCombo && run.player.cancelSource !== "none" ? run.player.cancelSource : undefined;
   const skill = catalog.classSkills.find(
     (item) => item.id === "meteor-knuckle" && item.classId === run.state.player.classId
   );
 
   if (!skill) {
     throw new Error("Unknown class skill: meteor-knuckle");
+  }
+
+  if (run.elapsedMs < run.player.actionLockUntilMs && !canceledFromCombo) {
+    const untilCancelOpenMs = run.player.cancelWindowStartedAtMs - run.elapsedMs;
+    const bufferedChargeAction: CombatActionInput = { type: "skill", skillId: skill.id, inputMethod };
+
+    if (cancelState === "pending" && canBufferAction(run, bufferedChargeAction, untilCancelOpenMs)) {
+      return bufferAction(run, bufferedChargeAction, run.player.cancelWindowStartedAtMs);
+    }
+
+    return run;
   }
 
   const minimumCost = combatSkillResourceCost(skill, inputMethod);
@@ -3691,17 +3769,41 @@ export function startMeteorKnuckleCharge(
     inputMethod,
     resourceCostPaid
   };
+  const triggersKilnShadow =
+    cancelSource !== undefined && run.combatProfile.activeSetEffectIds.includes("kiln-shadow-cancel-haste");
+  const setProcEvent: CombatSetProcEvent | undefined = triggersKilnShadow
+    ? {
+        kind: "set-proc",
+        id: `set-proc-${run.elapsedMs}-kiln-shadow-${skill.id}`,
+        setId: "kiln-shadow",
+        effectId: "kiln-shadow-cancel-haste",
+        sourceSkillId: skill.id,
+        cancelSource,
+        occurredAtMs: run.elapsedMs,
+        durationMs: kilnShadowHasteDurationMs
+      }
+    : undefined;
 
   return {
     ...run,
     comboCount: 0,
     comboExpiresAtMs: 0,
-    events: [...run.events, chargeEvent],
+    events: [...run.events, chargeEvent, ...(setProcEvent ? [setProcEvent] : [])],
     player: {
       ...resourcePlayer,
       comboStep: 0,
       actionLockUntilMs: chargeMaxAtMs,
+      cancelSource: "none",
+      cancelWindowStartedAtMs: 0,
       cancelWindowUntilMs: 0,
+      cancelLocksBySkillId:
+        cancelSource === undefined
+          ? resourcePlayer.cancelLocksBySkillId
+          : { ...resourcePlayer.cancelLocksBySkillId, [skill.id]: run.elapsedMs + cancelSkillLockMs },
+      kilnShadowHasteStartedAtMs: triggersKilnShadow ? run.elapsedMs : resourcePlayer.kilnShadowHasteStartedAtMs,
+      kilnShadowHasteUntilMs: triggersKilnShadow
+        ? run.elapsedMs + kilnShadowHasteDurationMs
+        : resourcePlayer.kilnShadowHasteUntilMs,
       dashAttackReadyUntilMs: 0,
       quickRecoverReadyUntilMs: 0,
       lastSkillId: skill.id,
@@ -3712,6 +3814,7 @@ export function startMeteorKnuckleCharge(
       chargeInputMethod: inputMethod,
       chargeResourceCostPaid: resourceCostPaid,
       chargeCanceledFromCombo: canceledFromCombo,
+      chargeCancelSource: cancelSource,
       bufferedAction: undefined,
       bufferedActionQueuedAtMs: undefined,
       bufferedActionExecuteAtMs: undefined,
@@ -3731,7 +3834,9 @@ export function releaseMeteorKnuckleCharge(run: CombatRun): CombatRun {
     player.chargeStartedAtMs === undefined ||
     player.chargeMaxAtMs === undefined
   ) {
-    return run;
+    return player.bufferedAction?.type === "skill" && player.bufferedAction.skillId === "meteor-knuckle"
+      ? { ...run, player: clearBufferedAction(player) }
+      : run;
   }
 
   const skill = catalog.classSkills.find(
@@ -3752,6 +3857,7 @@ export function releaseMeteorKnuckleCharge(run: CombatRun): CombatRun {
   const inputMethod = player.chargeInputMethod ?? "hotkey";
   const resourceCostPaid = player.chargeResourceCostPaid ?? combatSkillResourceCost(skill, inputMethod);
   const canceledFromCombo = player.chargeCanceledFromCombo ?? false;
+  const cancelSource = player.chargeCancelSource;
   const releaseBase: CombatRun = {
     ...run,
     player: {
@@ -3764,6 +3870,7 @@ export function releaseMeteorKnuckleCharge(run: CombatRun): CombatRun {
     event.kind === "skill-cast" && event.skillId === skill.id && event.occurredAtMs === run.elapsedMs
       ? {
           ...event,
+          cancelSource,
           inputMethod,
           resourceCostPaid,
           cooldownDurationMs: Math.max(0, player.skillCooldowns[skill.id] - chargeStartedAtMs)
@@ -3791,6 +3898,8 @@ export function releaseMeteorKnuckleCharge(run: CombatRun): CombatRun {
       ...clearBufferedAction(clearPlayerCharge(released.player)),
       comboStep: 0,
       actionLockUntilMs: run.elapsedMs + skill.animation.durationMs,
+      cancelSource: "none",
+      cancelWindowStartedAtMs: 0,
       cancelWindowUntilMs: 0,
       dashAttackReadyUntilMs: 0,
       quickRecoverReadyUntilMs: 0,
@@ -5431,7 +5540,12 @@ export function createCombatRun(
       resource,
       comboStep: 0,
       actionLockUntilMs: 0,
+      cancelSource: "none",
+      cancelWindowStartedAtMs: 0,
       cancelWindowUntilMs: 0,
+      cancelLocksBySkillId: {},
+      kilnShadowHasteStartedAtMs: 0,
+      kilnShadowHasteUntilMs: 0,
       hitstopUntilMs: 0,
       invulnerableStartedAtMs: 0,
       invulnerableUntilMs: 0,
@@ -5659,7 +5773,10 @@ export function stepCombat(run: CombatRun, input: CombatInput, dtMs: number): Co
         actionLockUntilMs: bufferExecuteAtMs
       }
     };
-    const released = performAction(releaseBase, buffer);
+    const released =
+      buffer.type === "skill" && buffer.skillId === "meteor-knuckle"
+        ? startMeteorKnuckleCharge(releaseBase, skillInputMethod(buffer))
+        : performAction(releaseBase, buffer);
     const remainingMs = elapsedMs - bufferExecuteAtMs;
 
     return remainingMs > 0 ? stepCombat(released, input, remainingMs) : released;
@@ -6248,6 +6365,9 @@ function applyEnemyImpact(
       quickRecoverReadyUntilMs: controlProtectedImpact ? nextPlayer.quickRecoverReadyUntilMs : quickRecoverReadyUntilMs,
       quickRecoverStartedAtMs: controlProtectedImpact ? nextPlayer.quickRecoverStartedAtMs : 0,
       quickRecoverUntilMs: controlProtectedImpact ? nextPlayer.quickRecoverUntilMs : 0,
+      cancelSource: controlProtectedImpact ? nextPlayer.cancelSource : "none",
+      cancelWindowStartedAtMs: controlProtectedImpact ? nextPlayer.cancelWindowStartedAtMs : 0,
+      cancelWindowUntilMs: controlProtectedImpact ? nextPlayer.cancelWindowUntilMs : 0,
       actionLockUntilMs: startsReceivedHitLifecycle
         ? Math.max(nextPlayer.actionLockUntilMs, receivedHitRecoverAtMs)
         : nextPlayer.actionLockUntilMs,
@@ -6539,7 +6659,7 @@ function schedulePlayerHitboxEffect(
   origin: CombatVector,
   facing: 1 | -1,
   presentation: Pick<CombatScheduledEnemyHitEffect, "id" | "hitPhase" | "vfxCue" | "vfxWindowMs" | "missOnEmpty"> &
-    Partial<Pick<CombatScheduledEnemyHitEffect, "comboStepOnHit" | "resourceGainOnHit" | "cancelWindowUntilMsOnHit" | "resetComboStepOnMiss">>
+    Partial<Pick<CombatScheduledEnemyHitEffect, "comboStepOnHit" | "resourceGainOnHit" | "cancelSourceOnHit" | "resetComboStepOnMiss">>
 ): CombatRun {
   const effect: CombatScheduledEnemyHitEffect = {
     id: presentation.id,
@@ -6571,7 +6691,7 @@ function schedulePlayerHitboxEffect(
     missOnEmpty: presentation.missOnEmpty ?? true,
     comboStepOnHit: presentation.comboStepOnHit,
     resourceGainOnHit: presentation.resourceGainOnHit,
-    cancelWindowUntilMsOnHit: presentation.cancelWindowUntilMsOnHit,
+    cancelSourceOnHit: presentation.cancelSourceOnHit,
     resetComboStepOnMiss: presentation.resetComboStepOnMiss
   };
 
@@ -6634,6 +6754,8 @@ function applyScheduledPlayerHitboxEffect(
       player: {
         ...run.player,
         comboStep: 0,
+        cancelSource: "none",
+        cancelWindowStartedAtMs: 0,
         cancelWindowUntilMs: 0,
         normalAttackUntilMs: 0,
         normalAttackStartedAtMs: 0,
@@ -7078,9 +7200,14 @@ function applyScheduledEnemyHitEffect(
       player: {
         ...nextPlayerWithResource,
         comboStep: effect.comboStepOnHit ?? nextPlayerWithResource.comboStep,
+        cancelSource: effect.cancelSourceOnHit ?? nextPlayerWithResource.cancelSource,
+        cancelWindowStartedAtMs:
+          effect.cancelSourceOnHit !== undefined
+            ? effect.applyAtMs + cancelWindowOpenDelayMs
+            : nextPlayerWithResource.cancelWindowStartedAtMs,
         cancelWindowUntilMs:
-          effect.cancelWindowUntilMsOnHit !== undefined
-            ? Math.max(nextPlayerWithResource.cancelWindowUntilMs, effect.cancelWindowUntilMsOnHit)
+          effect.cancelSourceOnHit !== undefined
+            ? effect.applyAtMs + cancelWindowCloseDelayMs
             : nextPlayerWithResource.cancelWindowUntilMs,
         hitstopUntilMs: Math.max(impactResolvedRun.player.hitstopUntilMs, effect.applyAtMs + hitstopMs),
         activeGrabSkillId: effect.grabResult === "thrown" ? undefined : nextPlayerWithResource.activeGrabSkillId,
@@ -7119,6 +7246,8 @@ function applyScheduledMissEffect(run: CombatRun, effect: CombatScheduledMissEff
       ? {
           ...run.player,
           comboStep: 0,
+          cancelSource: "none",
+          cancelWindowStartedAtMs: 0,
           cancelWindowUntilMs: 0
         }
       : run.player,
@@ -7626,6 +7755,9 @@ function applyScheduledArenaHazard(run: CombatRun, hazard: CombatScheduledArenaH
     quickRecoverReadyUntilMs: startsReceivedHitLifecycle ? receivedHitLandAtMs + quickRecoverReadyWindowMs : 0,
     quickRecoverStartedAtMs: 0,
     quickRecoverUntilMs: 0,
+    cancelSource: "none",
+    cancelWindowStartedAtMs: 0,
+    cancelWindowUntilMs: 0,
     airState: startsReceivedHitLifecycle ? "grounded" : run.player.airState,
     jumpStartedAtMs: startsReceivedHitLifecycle ? 0 : run.player.jumpStartedAtMs,
     airborneUntilMs: startsReceivedHitLifecycle ? 0 : run.player.airborneUntilMs,
@@ -7675,30 +7807,62 @@ function completeSkillAction(
   statusTags: CombatSkillStatusTag[],
   inputMethod: CombatSkillInputMethod = "hotkey"
 ): CombatRun {
+  const cancelSource =
+    combatSkillCancelState(run, skill.id) === "available" && run.player.cancelSource !== "none"
+      ? run.player.cancelSource
+      : undefined;
   const prismGain = prismCycleGain(run, skill.id);
   const resourceCostPaid = combatSkillResourceCost(skill, inputMethod);
   const cooldownDurationMs = combatSkillCooldownMs(run, skill, inputMethod);
   const resourcePlayer = spendAndGainPlayerResource(hitRun.player, run, resourceCostPaid, skill.resourceGain + prismGain);
   const statusPlayer = applyPlayerSkillStatus(resourcePlayer, run, statusTags, skill.id);
-  const events = hitRun.events.map((event) =>
+  const castEvents = hitRun.events.map((event) =>
     event.kind === "skill-cast" && event.skillId === skill.id && event.occurredAtMs === run.elapsedMs
       ? {
           ...event,
+          cancelSource,
           inputMethod,
           resourceCostPaid,
           cooldownDurationMs
         }
       : event
   );
+  const triggersKilnShadow =
+    cancelSource !== undefined && run.combatProfile.activeSetEffectIds.includes("kiln-shadow-cancel-haste");
+  const setProcEvent: CombatSetProcEvent | undefined = triggersKilnShadow
+    ? {
+        kind: "set-proc",
+        id: `set-proc-${run.elapsedMs}-kiln-shadow-${skill.id}`,
+        setId: "kiln-shadow",
+        effectId: "kiln-shadow-cancel-haste",
+        sourceSkillId: skill.id,
+        cancelSource,
+        occurredAtMs: run.elapsedMs,
+        durationMs: kilnShadowHasteDurationMs
+      }
+    : undefined;
 
   return {
     ...hitRun,
-    events,
+    events: setProcEvent ? [...castEvents, setProcEvent] : castEvents,
     player: {
       ...statusPlayer,
       comboStep: 0,
       actionLockUntilMs: run.elapsedMs + skill.animation.durationMs,
+      cancelSource: "none",
+      cancelWindowStartedAtMs: 0,
       cancelWindowUntilMs: 0,
+      cancelLocksBySkillId:
+        cancelSource === undefined
+          ? statusPlayer.cancelLocksBySkillId
+          : {
+              ...statusPlayer.cancelLocksBySkillId,
+              [skill.id]: run.elapsedMs + cancelSkillLockMs
+            },
+      kilnShadowHasteStartedAtMs: triggersKilnShadow ? run.elapsedMs : statusPlayer.kilnShadowHasteStartedAtMs,
+      kilnShadowHasteUntilMs: triggersKilnShadow
+        ? run.elapsedMs + kilnShadowHasteDurationMs
+        : statusPlayer.kilnShadowHasteUntilMs,
       dashAttackReadyUntilMs: 0,
       quickRecoverReadyUntilMs: 0,
       lastSkillId: skill.id,
@@ -7712,6 +7876,42 @@ function completeSkillAction(
       }
     }
   };
+}
+
+function kilnShadowHasteActiveAt(player: CombatPlayer, elapsedMs: number): boolean {
+  return player.kilnShadowHasteUntilMs > elapsedMs;
+}
+
+function playerNormalAttackTimingMultiplier(player: CombatPlayer, elapsedMs: number): number {
+  return kilnShadowHasteActiveAt(player, elapsedMs) ? kilnShadowAttackTimingMultiplier : 1;
+}
+
+export function combatSkillCancelState(run: CombatRun, skillId: string): CombatSkillCancelState {
+  const source = run.player.cancelSource;
+
+  if (source === "none" || run.player.cancelWindowUntilMs <= 0 || run.elapsedMs > run.player.cancelWindowUntilMs) {
+    return "none";
+  }
+
+  const skill = catalog.classSkills.find((item) => item.id === skillId && item.classId === run.state.player.classId);
+
+  if (!skill) {
+    return "none";
+  }
+
+  if (run.elapsedMs < run.player.cancelWindowStartedAtMs) {
+    return "pending";
+  }
+
+  if (!skill.cancelFrom.includes(source)) {
+    return "route-blocked";
+  }
+
+  if ((run.player.cancelLocksBySkillId[skillId] ?? 0) > run.elapsedMs) {
+    return "lockout";
+  }
+
+  return "available";
 }
 
 function canBufferAction(run: CombatRun, action: CombatActionInput, remainingLockMs: number): boolean {
@@ -7736,14 +7936,14 @@ function canBufferAction(run: CombatRun, action: CombatActionInput, remainingLoc
   return skillCooldownRemaining(run, action.skillId) <= remainingLockMs;
 }
 
-function bufferAction(run: CombatRun, action: CombatActionInput): CombatRun {
+function bufferAction(run: CombatRun, action: CombatActionInput, executeAtMs = run.player.actionLockUntilMs): CombatRun {
   return {
     ...run,
     player: {
       ...run.player,
       bufferedAction: action,
       bufferedActionQueuedAtMs: run.elapsedMs,
-      bufferedActionExecuteAtMs: run.player.actionLockUntilMs
+      bufferedActionExecuteAtMs: executeAtMs
     }
   };
 }
@@ -7775,6 +7975,8 @@ function performQuickRecoverAction(run: CombatRun): CombatRun {
       ...recoveredPlayer,
       comboStep: 0,
       actionLockUntilMs: recoverUntilMs,
+      cancelSource: "none",
+      cancelWindowStartedAtMs: 0,
       cancelWindowUntilMs: 0,
       hurtLockUntilMs: run.elapsedMs,
       receivedHitStartedAtMs: 0,
@@ -7812,6 +8014,9 @@ function canStartDashLight(run: CombatRun): boolean {
 }
 
 function performDashLightAction(run: CombatRun): CombatRun {
+  const timingMultiplier = playerNormalAttackTimingMultiplier(run.player, run.elapsedMs);
+  const inputToHitMs = Math.round(dashLightInputToHitMs * timingMultiplier);
+  const actionMs = Math.round(dashLightActionMs * timingMultiplier);
   const origin = samplePlayerPosition(run.player, run.elapsedMs);
   const endPosition = {
     x: clamp(origin.x + dashLightLungePx * run.player.facing, 0, run.arena.width),
@@ -7824,7 +8029,7 @@ function performDashLightAction(run: CombatRun): CombatRun {
       activeSkillMovement: {
         skillId: "dash-light",
         startAtMs: run.elapsedMs,
-        endAtMs: run.elapsedMs + dashLightInputToHitMs,
+        endAtMs: run.elapsedMs + inputToHitMs,
         startX: origin.x,
         startY: origin.y,
         endX: endPosition.x,
@@ -7845,7 +8050,7 @@ function performDashLightAction(run: CombatRun): CombatRun {
       hitstopMs: 58,
       knockback: 32,
       juggle: false,
-      inputToHitMs: dashLightInputToHitMs,
+      inputToHitMs,
       canceledFromCombo: false,
       statusTags: ["stagger"]
     },
@@ -7855,7 +8060,8 @@ function performDashLightAction(run: CombatRun): CombatRun {
       id: `dash-light-${run.elapsedMs}`,
       hitPhase: "dash-light",
       vfxCue: "dash-light-slash",
-      vfxWindowMs: 260
+      vfxWindowMs: 260,
+      cancelSourceOnHit: "dash-light"
     }
   );
 
@@ -7864,11 +8070,13 @@ function performDashLightAction(run: CombatRun): CombatRun {
     player: {
       ...scheduledRun.player,
       comboStep: 0,
-      actionLockUntilMs: Math.max(run.player.actionLockUntilMs, run.elapsedMs + dashLightActionMs),
+      actionLockUntilMs: Math.max(run.player.actionLockUntilMs, run.elapsedMs + actionMs),
+      cancelSource: "none",
+      cancelWindowStartedAtMs: 0,
       cancelWindowUntilMs: 0,
       dashAttackReadyUntilMs: 0,
       dashAttackStartedAtMs: run.elapsedMs,
-      dashAttackUntilMs: run.elapsedMs + dashLightActionMs,
+      dashAttackUntilMs: run.elapsedMs + actionMs,
       bufferedAction: undefined,
       bufferedActionQueuedAtMs: undefined,
       bufferedActionExecuteAtMs: undefined
@@ -7929,6 +8137,8 @@ function performAirLightAction(run: CombatRun): CombatRun {
       ...scheduledRun.player,
       comboStep: 0,
       actionLockUntilMs: Math.max(run.player.actionLockUntilMs, run.elapsedMs + airLightActionMs),
+      cancelSource: "none",
+      cancelWindowStartedAtMs: 0,
       cancelWindowUntilMs: 0,
       airAttackUsed: true,
       airAttackType: "light",
@@ -7979,6 +8189,8 @@ function performAirHeavyAction(run: CombatRun): CombatRun {
       ...scheduledRun.player,
       comboStep: 0,
       actionLockUntilMs: Math.max(run.player.actionLockUntilMs, run.elapsedMs + airHeavyActionMs),
+      cancelSource: "none",
+      cancelWindowStartedAtMs: 0,
       cancelWindowUntilMs: 0,
       airAttackUsed: true,
       airAttackType: "heavy",
@@ -8043,7 +8255,8 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   }
 
   const locked = run.elapsedMs < run.player.actionLockUntilMs;
-  const canceledFromCombo = action.type === "skill" && run.player.cancelWindowUntilMs > run.elapsedMs && run.player.comboStep > 0;
+  const cancelState = action.type === "skill" ? combatSkillCancelState(run, action.skillId) : "none";
+  const canceledFromCombo = cancelState === "available";
 
   if (locked && !canceledFromCombo) {
     const remainingLockMs = run.player.actionLockUntilMs - run.elapsedMs;
@@ -8058,12 +8271,15 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   if (action.type === "light") {
     const comboStep = nextLightComboStep(run);
     const combo = lightComboSteps[comboStep - 1];
+    const timingMultiplier = playerNormalAttackTimingMultiplier(run.player, run.elapsedMs);
+    const inputToHitMs = Math.round(combo.inputToHitMs * timingMultiplier);
+    const actionLockMs = Math.round(combo.actionLockMs * timingMultiplier);
     const origin = samplePlayerPosition(run.player, run.elapsedMs);
     const endPosition = {
       x: clamp(origin.x + groundLightLungePx(comboStep) * run.player.facing, 0, run.arena.width),
       y: origin.y
     };
-    const actionLockUntilMs = run.elapsedMs + combo.actionLockMs;
+    const actionLockUntilMs = run.elapsedMs + actionLockMs;
     const movingRun: CombatRun = {
       ...run,
       player: {
@@ -8071,7 +8287,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         activeSkillMovement: {
           skillId: `ground-light-${comboStep}`,
           startAtMs: run.elapsedMs,
-          endAtMs: run.elapsedMs + combo.inputToHitMs,
+          endAtMs: run.elapsedMs + inputToHitMs,
           startX: origin.x,
           startY: origin.y,
           endX: endPosition.x,
@@ -8091,7 +8307,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
       hitstopMs: combo.hitstopMs,
       knockback: combo.knockback,
       juggle: combo.juggle,
-      inputToHitMs: combo.inputToHitMs,
+      inputToHitMs,
       canceledFromCombo,
       actionTags: combo.actionTags
       },
@@ -8104,7 +8320,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         vfxWindowMs: combo.vfxWindowMs,
         comboStepOnHit: comboStep,
         resourceGainOnHit: 8,
-        cancelWindowUntilMsOnHit: actionLockUntilMs,
+        cancelSourceOnHit: comboStep === lightComboSteps.length ? "normal-finisher" : "normal-chain",
         resetComboStepOnMiss: true
       }
     );
@@ -8115,6 +8331,8 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         ...scheduledRun.player,
         comboStep,
         actionLockUntilMs,
+        cancelSource: "none",
+        cancelWindowStartedAtMs: 0,
         cancelWindowUntilMs: 0,
         normalAttackStartedAtMs: run.elapsedMs,
         normalAttackUntilMs: actionLockUntilMs,
@@ -8130,12 +8348,15 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
   }
 
   if (action.type === "heavy") {
+    const timingMultiplier = playerNormalAttackTimingMultiplier(run.player, run.elapsedMs);
+    const inputToHitMs = Math.round(groundHeavyInputToHitMs * timingMultiplier);
+    const actionMs = Math.round(groundHeavyActionMs * timingMultiplier);
     const origin = samplePlayerPosition(run.player, run.elapsedMs);
     const endPosition = {
       x: clamp(origin.x + groundHeavyLungePx * run.player.facing, 0, run.arena.width),
       y: origin.y
     };
-    const actionLockUntilMs = run.elapsedMs + groundHeavyActionMs;
+    const actionLockUntilMs = run.elapsedMs + actionMs;
     const movingRun: CombatRun = {
       ...run,
       player: {
@@ -8143,7 +8364,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         activeSkillMovement: {
           skillId: "ground-heavy",
           startAtMs: run.elapsedMs,
-          endAtMs: run.elapsedMs + groundHeavyInputToHitMs,
+          endAtMs: run.elapsedMs + inputToHitMs,
           startX: origin.x,
           startY: origin.y,
           endX: endPosition.x,
@@ -8163,7 +8384,7 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         hitstopMs: 72,
         knockback: 60,
         juggle: true,
-        inputToHitMs: groundHeavyInputToHitMs,
+        inputToHitMs,
         canceledFromCombo,
         actionTags: ["launcher"]
       },
@@ -8185,6 +8406,8 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         ...scheduledRun.player,
         comboStep: 0,
         actionLockUntilMs,
+        cancelSource: "none",
+        cancelWindowStartedAtMs: 0,
         cancelWindowUntilMs: 0,
         normalAttackStartedAtMs: run.elapsedMs,
         normalAttackUntilMs: actionLockUntilMs,
@@ -8216,6 +8439,8 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         quickRecoverReadyUntilMs: 0,
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + jumpActionLockMs,
+        cancelSource: "none",
+        cancelWindowStartedAtMs: 0,
         cancelWindowUntilMs: 0,
         bufferedAction: undefined,
         bufferedActionQueuedAtMs: undefined,
@@ -8246,6 +8471,8 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
         },
         comboStep: 0,
         actionLockUntilMs: run.elapsedMs + backstepActionLockMs,
+        cancelSource: "none",
+        cancelWindowStartedAtMs: 0,
         cancelWindowUntilMs: 0,
         dashAttackReadyUntilMs: 0,
         quickRecoverReadyUntilMs: 0,
@@ -8503,7 +8730,12 @@ export function performConsumableAction(run: CombatRun, consumableId: Consumable
       hp: Math.ceil(run.player.maxHp * revivalTokenRecoveryRatio),
       comboStep: 0,
       actionLockUntilMs: run.elapsedMs + 260,
+      cancelSource: "none",
+      cancelWindowStartedAtMs: 0,
       cancelWindowUntilMs: 0,
+      cancelLocksBySkillId: {},
+      kilnShadowHasteStartedAtMs: 0,
+      kilnShadowHasteUntilMs: 0,
       hitstopUntilMs: run.elapsedMs,
       hurtLockUntilMs: run.elapsedMs,
       boundUntilMs: 0,
@@ -8800,7 +9032,12 @@ export function finishRoom(run: CombatRun): CombatRun {
       facing: 1,
       comboStep: 0,
       actionLockUntilMs: 0,
+      cancelSource: "none",
+      cancelWindowStartedAtMs: 0,
       cancelWindowUntilMs: 0,
+      cancelLocksBySkillId: {},
+      kilnShadowHasteStartedAtMs: 0,
+      kilnShadowHasteUntilMs: 0,
       hitstopUntilMs: 0,
       boundUntilMs: 0,
       airState: "grounded",

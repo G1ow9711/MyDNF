@@ -148,7 +148,10 @@ export interface EpicSetBonus {
   displayName: string;
   description: string;
   stats: StatBlock;
+  effectId?: EpicSetEffectId;
 }
+
+export type EpicSetEffectId = "kiln-shadow-cancel-haste";
 
 export interface EpicSet {
   id: string;
@@ -191,8 +194,11 @@ export interface ClassSkillDefinition {
   resourceGain: number;
   cooldownMs: number;
   tags: string[];
+  cancelFrom: SkillCancelSource[];
   animation: SkillAnimationDefinition;
 }
+
+export type SkillCancelSource = "normal-chain" | "normal-finisher" | "dash-light";
 
 export interface ClassAdvancementDefinition {
   id: AdvancementId;

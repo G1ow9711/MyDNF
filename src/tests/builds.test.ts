@@ -128,4 +128,16 @@ describe("equipment build evaluation", () => {
     expect(profile.backAttackDamageMultiplier).toBe(1.28);
     expect(profile.counterHitDamageMultiplier).toBe(1.25);
   });
+
+  it("exposes the Kiln Shadow runtime cancel proc only at five equipped pieces", () => {
+    const threePiece = evaluateCombatProfile(
+      equipSetPieces(createInitialState(), "kiln-shadow", ["weapon", "core", "head"])
+    );
+    const fivePiece = evaluateCombatProfile(
+      equipSetPieces(createInitialState(), "kiln-shadow", ["weapon", "core", "head", "body", "ring"])
+    );
+
+    expect(threePiece.activeSetEffectIds).not.toContain("kiln-shadow-cancel-haste");
+    expect(fivePiece.activeSetEffectIds).toContain("kiln-shadow-cancel-haste");
+  });
 });

@@ -11,6 +11,7 @@ import { SAVE_KEY } from "../systems/save";
 import { AUDIO_SETTINGS_KEY } from "../ui/app";
 import { createInitialState, createOwnedGear } from "../game/state";
 import { advanceClass, selectBaseClass, skillResetGoldCost } from "../systems/classes";
+import { equipItem } from "../systems/inventory";
 
 type BrowserCombatState = {
   objective: string;
@@ -272,6 +273,8 @@ type BrowserNormalComboAudioPlayback = {
 
 type BrowserComboCancelState = {
   objective: string;
+  elapsedMs: number;
+  enemyHp: number;
   playerX: number;
   activeSkill: string;
   skillReleaseSource: string;
@@ -284,6 +287,27 @@ type BrowserComboCancelState = {
   comboCancelActive: string;
   comboCancelSkillId: string;
   comboCancelMsRemaining: number;
+  cancelSource: string;
+  cancelWindowStartedAtMs: number;
+  cancelWindowUntilMs: number;
+  cancelRouteSkillIds: string[];
+  cancelLockState: string;
+  cancelLockMsRemaining: number;
+  skillCancelStates: Array<{
+    skillId: string;
+    cancelSource: string;
+    state: string;
+    lockMsRemaining: number;
+  }>;
+  kilnShadowHasteActive: string;
+  kilnShadowHasteMsRemaining: number;
+  kilnShadowVfx: string;
+  kilnShadowEffect: string;
+  kilnShadowSourceSkillId: string;
+  kilnShadowCancelSource: string;
+  kilnShadowLabel: string;
+  kilnShadowWind: boolean;
+  kilnShadowAfterimage: boolean;
   hitstopActive: string;
   impactCue: string;
   actionBufferState: string;
@@ -301,6 +325,7 @@ type BrowserComboCancelState = {
   skillVfxWaveAnimation: string;
   skillVfxSparksAnimation: string;
   skillCancelToast: string;
+  skillCancelToastSource: string;
 };
 
 type BrowserRoomFlowState = {
@@ -2021,9 +2046,21 @@ const readComboCancelStateExpression = `
   const impact = document.querySelector("[data-impact-spark='true']");
   const skillVfx = document.querySelector('[data-player-skill-vfx="spark-combo"]');
   const skillCancelToast = document.querySelector("[data-skill-cancel-toast='true']");
+  const kilnShadowVfx = document.querySelector("[data-kiln-shadow-proc-vfx='true']");
+  const skillCancelStates = Array.from(document.querySelectorAll("[data-combat-skill-id]")).map((button) => ({
+    skillId: button.getAttribute("data-combat-skill-id") ?? "",
+    cancelSource: button.getAttribute("data-cancel-source") ?? "",
+    state: button.getAttribute("data-combo-cancel-button-state") ?? "",
+    lockMsRemaining: Number(button.getAttribute("data-cancel-lock-ms-remaining") || "0")
+  }));
 
   return {
     objective: scene?.getAttribute("data-combat-objective") ?? "",
+    elapsedMs: Number(scene?.getAttribute("data-combat-elapsed-ms") || "0"),
+    enemyHp: Array.from(document.querySelectorAll(".combat-enemy")).reduce(
+      (total, enemy) => total + Number(enemy.getAttribute("data-enemy-hp-current") || "0"),
+      0
+    ),
     playerX: Number(actorX),
     activeSkill: player?.getAttribute("data-active-skill-id") ?? "",
     skillReleaseSource: player?.getAttribute("data-skill-release-source") ?? "",
@@ -2036,6 +2073,22 @@ const readComboCancelStateExpression = `
     comboCancelActive: scene?.getAttribute("data-combo-cancel-active") ?? "",
     comboCancelSkillId: scene?.getAttribute("data-combo-cancel-skill-id") ?? "",
     comboCancelMsRemaining: Number(scene?.getAttribute("data-combo-cancel-ms-remaining") || "0"),
+    cancelSource: scene?.getAttribute("data-cancel-source") ?? "",
+    cancelWindowStartedAtMs: Number(scene?.getAttribute("data-cancel-window-started-at-ms") || "0"),
+    cancelWindowUntilMs: Number(scene?.getAttribute("data-cancel-window-until-ms") || "0"),
+    cancelRouteSkillIds: (scene?.getAttribute("data-cancel-route-skill-ids") ?? "").split(",").filter(Boolean),
+    cancelLockState: scene?.getAttribute("data-cancel-lock-state") ?? "",
+    cancelLockMsRemaining: Number(scene?.getAttribute("data-cancel-lock-ms-remaining") || "0"),
+    skillCancelStates,
+    kilnShadowHasteActive: scene?.getAttribute("data-kiln-shadow-haste-active") ?? "",
+    kilnShadowHasteMsRemaining: Number(scene?.getAttribute("data-kiln-shadow-haste-ms-remaining") || "0"),
+    kilnShadowVfx: kilnShadowVfx?.getAttribute("data-kiln-shadow-proc-vfx") ?? "",
+    kilnShadowEffect: kilnShadowVfx?.getAttribute("data-set-proc-effect") ?? "",
+    kilnShadowSourceSkillId: kilnShadowVfx?.getAttribute("data-set-proc-source-skill-id") ?? "",
+    kilnShadowCancelSource: kilnShadowVfx?.getAttribute("data-set-proc-cancel-source") ?? "",
+    kilnShadowLabel: kilnShadowVfx?.querySelector(".kiln-shadow-label")?.textContent?.trim() ?? "",
+    kilnShadowWind: Boolean(kilnShadowVfx?.querySelector(".kiln-shadow-wind")),
+    kilnShadowAfterimage: Boolean(kilnShadowVfx?.querySelector(".kiln-shadow-afterimage")),
     hitstopActive: scene?.getAttribute("data-hitstop-active") ?? "",
     impactCue: impact?.getAttribute("data-vfx-cue") ?? "",
     actionBufferState: scene?.getAttribute("data-action-buffer-state") ?? "",
@@ -2052,9 +2105,37 @@ const readComboCancelStateExpression = `
     skillVfxCoreAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-core")).animationName : "",
     skillVfxWaveAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-wave")).animationName : "",
     skillVfxSparksAnimation: skillVfx ? getComputedStyle(skillVfx.querySelector(".skill-sparks")).animationName : "",
-    skillCancelToast: skillCancelToast?.getAttribute("data-combo-cancel-skill-id") ?? ""
+    skillCancelToast: skillCancelToast?.getAttribute("data-combo-cancel-skill-id") ?? "",
+    skillCancelToastSource: skillCancelToast?.getAttribute("data-cancel-source") ?? ""
   };
 })()
+`;
+
+const installComboCancelAudioRecorderExpression = `
+(() => {
+  globalThis.__comboCancelAudioPlayback = [];
+  if (globalThis.__comboCancelAudioListener) {
+    globalThis.removeEventListener("mydnf:audio-playback", globalThis.__comboCancelAudioListener);
+  }
+  globalThis.__comboCancelAudioListener = (event) => {
+    const detail = event.detail ?? {};
+    const commandId = String(detail.commandId ?? "");
+    if (commandId === "skill-cancel-confirm" || commandId === "kiln-shadow-cancel-haste") {
+      globalThis.__comboCancelAudioPlayback.push({
+        commandId,
+        channel: detail.channel ?? "",
+        noteCount: Number(detail.noteCount ?? 0),
+        textureTags: Array.isArray(detail.textureTags) ? detail.textureTags : []
+      });
+    }
+  };
+  globalThis.addEventListener("mydnf:audio-playback", globalThis.__comboCancelAudioListener);
+  return true;
+})()
+`;
+
+const readComboCancelAudioPlaybackExpression = `
+(() => globalThis.__comboCancelAudioPlayback ?? [])()
 `;
 
 const installSparkComboPhaseRecorderExpression = `
@@ -3827,6 +3908,8 @@ describe("real browser keyboard control", () => {
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
+        await seedSaveAndReload(page, createKilnShadowCancelState());
+        await page.evaluate<boolean>(installComboCancelAudioRecorderExpression);
         await enterDungeonWithKeyboard(page);
         await page.waitFor<BrowserComboCancelState>(
           readComboCancelStateExpression,
@@ -3851,6 +3934,7 @@ describe("real browser keyboard control", () => {
         );
         await settlePlayerReceivedHit(page);
 
+        const beforeHit = await page.evaluate<BrowserComboCancelState>(readComboCancelStateExpression);
         await page.pressKey("KeyX");
         const cancelWindow = await page.waitFor<BrowserComboCancelState>(
           readComboCancelStateExpression,
@@ -3858,15 +3942,28 @@ describe("real browser keyboard control", () => {
             state.comboCancelWindowActive === "true" &&
             state.comboCancelAvailable === "true" &&
             state.comboCancelState === "available" &&
+            state.cancelSource === "normal-chain" &&
+            state.enemyHp < beforeHit.enemyHp &&
             state.impactCue === "ground-light-slash-1",
-          700
+          1200
         );
 
         expect(cancelWindow.objective).toBe("active");
+        expect(cancelWindow.enemyHp).toBeLessThan(beforeHit.enemyHp);
         expect(cancelWindow.comboCancelWindowActive).toBe("true");
         expect(cancelWindow.comboCancelAvailable).toBe("true");
         expect(cancelWindow.comboCancelState).toBe("available");
         expect(cancelWindow.comboCancelMsRemaining).toBeGreaterThan(0);
+        expect(cancelWindow.cancelSource).toBe("normal-chain");
+        expect(cancelWindow.elapsedMs).toBeGreaterThanOrEqual(cancelWindow.cancelWindowStartedAtMs);
+        expect(cancelWindow.cancelWindowUntilMs - cancelWindow.cancelWindowStartedAtMs).toBe(100);
+        expect(cancelWindow.cancelRouteSkillIds).toEqual(["spark-combo", "cinder-uppercut", "furnace-step"]);
+        expect(cancelWindow.skillCancelStates).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ skillId: "spark-combo", cancelSource: "normal-chain", state: "available" }),
+            expect.objectContaining({ skillId: "heat-bloom", cancelSource: "normal-chain", state: "route-blocked" })
+          ])
+        );
         expect(cancelWindow.impactCue).toBe("ground-light-slash-1");
 
         await page.pressKey("KeyA");
@@ -3876,7 +3973,9 @@ describe("real browser keyboard control", () => {
             state.activeSkill === "spark-combo" &&
             state.skillReleaseSource === "cancel" &&
             state.comboCancelActive === "true" &&
-            state.comboCancelSkillId === "spark-combo",
+            state.comboCancelSkillId === "spark-combo" &&
+            state.kilnShadowHasteActive === "true" &&
+            state.kilnShadowVfx === "true",
           1200
         );
 
@@ -3885,9 +3984,47 @@ describe("real browser keyboard control", () => {
         expect(cancelCast.bufferedAction).toBe("");
         expect(cancelCast.bufferedSkillId).toBe("");
         expect(cancelCast.skillCancelToast).toBe("spark-combo");
+        expect(cancelCast.skillCancelToastSource).toBe("normal-chain");
+        expect(cancelCast.cancelLockState).toBe("active");
+        expect(cancelCast.cancelLockMsRemaining).toBeGreaterThan(0);
+        expect(cancelCast.cancelLockMsRemaining).toBeLessThanOrEqual(800);
+        expect(cancelCast.skillCancelStates).toEqual(
+          expect.arrayContaining([expect.objectContaining({ skillId: "spark-combo", lockMsRemaining: expect.any(Number) })])
+        );
+        expect(cancelCast.skillCancelStates.find((skill) => skill.skillId === "spark-combo")?.lockMsRemaining).toBeGreaterThan(0);
+        expect(cancelCast.kilnShadowHasteMsRemaining).toBeGreaterThan(0);
+        expect(cancelCast.kilnShadowHasteMsRemaining).toBeLessThanOrEqual(1800);
+        expect(cancelCast.kilnShadowEffect).toBe("kiln-shadow-cancel-haste");
+        expect(cancelCast.kilnShadowSourceSkillId).toBe("spark-combo");
+        expect(cancelCast.kilnShadowCancelSource).toBe("normal-chain");
+        expect(cancelCast.kilnShadowLabel).toBe("窑影连环");
+        expect(cancelCast.kilnShadowWind).toBe(true);
+        expect(cancelCast.kilnShadowAfterimage).toBe(true);
         expect(cancelCast.skillVfx).toBe("spark-combo");
         expect(cancelCast.playerAnimation).toBe("player-ember-spark-combo");
         expect(cancelCast.weaponAnimation).toBe("weapon-jab-chain");
+        await page.captureScreenshot(
+          `${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/kiln-shadow-cancel-haste.png`
+        );
+
+        const cancelAudio = await page.waitFor<BrowserNormalComboAudioPlayback[]>(
+          readComboCancelAudioPlaybackExpression,
+          (playback) =>
+            playback.some((event) => event.commandId === "skill-cancel-confirm") &&
+            playback.some((event) => event.commandId === "kiln-shadow-cancel-haste"),
+          2000
+        );
+        const cancelConfirmAudio = cancelAudio.filter((event) => event.commandId === "skill-cancel-confirm");
+        const kilnShadowAudio = cancelAudio.filter((event) => event.commandId === "kiln-shadow-cancel-haste");
+
+        expect(cancelConfirmAudio).toHaveLength(1);
+        expect(cancelConfirmAudio[0]).toEqual(
+          expect.objectContaining({ channel: "sfx", noteCount: 3, textureTags: ["cancel-cut", "hit-confirm", "frame-snap"] })
+        );
+        expect(kilnShadowAudio).toHaveLength(1);
+        expect(kilnShadowAudio[0]).toEqual(
+          expect.objectContaining({ channel: "sfx", noteCount: 4, textureTags: ["kiln-shadow", "haste-proc", "dark-gold-wind"] })
+        );
       });
     } finally {
       await server.close();
@@ -4887,6 +5024,18 @@ describe("real browser keyboard control", () => {
         expect(bossHud.overlapsStatus).toBe(false);
         expect(bossHud.overlapsCombo).toBe(false);
         await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/boss-hud-phase-one.png`);
+        await page.setViewport(750, 485);
+        const narrowBossHud = await page.waitFor<BrowserBossHudState>(
+          readBossHudStateExpression,
+          (state) => state.visible && state.width >= 380 && !state.overlapsStatus && !state.overlapsCombo,
+          1200
+        );
+        expect(narrowBossHud.width).toBeGreaterThanOrEqual(380);
+        expect(narrowBossHud.overlapsStatus).toBe(false);
+        expect(narrowBossHud.overlapsCombo).toBe(false);
+        await page.captureScreenshot(
+          `${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/boss-hud-phase-one-750px.png`
+        );
 
         const evidence = await page.waitFor<BrowserStrictCombatEvidence>(
           readStrictCombatEvidenceExpression,
@@ -6974,6 +7123,36 @@ async function settlePlayerReceivedHit(page: RealBrowserAppPage): Promise<void> 
 
   const finalState = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
   throw new Error(`Player did not finish received-hit recovery: ${JSON.stringify(finalState)}`);
+}
+
+function createKilnShadowCancelState(): GameState {
+  const baseState = createInitialState();
+  const readyState: GameState = {
+    ...baseState,
+    player: {
+      ...baseState.player,
+      heat: 100
+    }
+  };
+
+  return (["weapon", "core", "head", "body", "ring"] as const).reduce((state, slot, index) => {
+    const gear = catalog.gear.find((item) => item.setId === "kiln-shadow" && item.slot === slot);
+
+    if (!gear) {
+      throw new Error(`Expected Kiln Shadow ${slot} gear for combo-cancel browser acceptance`);
+    }
+
+    const owned = createOwnedGear(gear.id, `kiln-shadow-browser-${index}`);
+    const withItem: GameState = {
+      ...state,
+      player: {
+        ...state.player,
+        inventory: [...state.player.inventory, owned]
+      }
+    };
+
+    return equipItem(withItem, owned.instanceId);
+  }, readyState);
 }
 
 function createCrowdCombatAcceptanceState(): GameState {

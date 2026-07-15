@@ -7,6 +7,7 @@ import type {
   GearSlot,
   QuestDef,
   Rarity,
+  SkillCancelSource,
   SkillAnimationDefinition,
   SkillDef,
   TownDef,
@@ -109,7 +110,7 @@ export const skills: SkillDef[] = [
   }
 ];
 
-const classSkillBase: Array<Omit<ClassSkillDefinition, "animation">> = [
+const classSkillBase: Array<Omit<ClassSkillDefinition, "animation" | "cancelFrom">> = [
   { id: "spark-combo", classId: "ember-warden", displayName: "星火连拳", key: "J", resourceCost: 0, resourceGain: 12, cooldownMs: 1200, tags: ["starter", "combo"] },
   { id: "cinder-uppercut", classId: "ember-warden", displayName: "烬焰升龙", key: "K", resourceCost: 0, resourceGain: 10, cooldownMs: 2600, tags: ["launcher"] },
   { id: "furnace-step", classId: "ember-warden", displayName: "炉步冲肩", key: "L", resourceCost: 15, resourceGain: 0, cooldownMs: 3600, tags: ["dash"] },
@@ -146,6 +147,41 @@ const classSkillBase: Array<Omit<ClassSkillDefinition, "animation">> = [
   { id: "black-furnace-aegis", classId: "iron-forge-guardian", displayName: "玄炉护阵", key: "Space", resourceCost: 45, resourceGain: 0, cooldownMs: 14000, tags: ["advancement", "shield"] },
   { id: "mountain-crack-hammer", classId: "iron-forge-guardian", displayName: "裂山锻锤", key: "Space", resourceCost: 60, resourceGain: 0, cooldownMs: 15000, tags: ["advancement", "stagger"] }
 ];
+
+const skillCancelSourcesById: Record<string, SkillCancelSource[]> = {
+  "spark-combo": ["normal-chain", "normal-finisher", "dash-light"],
+  "cinder-uppercut": ["normal-chain", "normal-finisher", "dash-light"],
+  "furnace-step": ["normal-chain", "normal-finisher"],
+  "anvil-crash": ["normal-finisher", "dash-light"],
+  "heat-bloom": ["normal-finisher"],
+  "meteor-knuckle": ["normal-finisher"],
+  "furnace-heart-overdrive": ["normal-finisher"],
+  "mountain-guard-break": ["normal-finisher"],
+  "glass-cut": ["normal-chain", "normal-finisher", "dash-light"],
+  "prism-step": ["normal-chain", "normal-finisher"],
+  "mirror-arc": ["normal-chain", "normal-finisher", "dash-light"],
+  "liuli-rain": ["normal-finisher"],
+  "glass-lotus": ["normal-finisher"],
+  "sword-prism-field": ["normal-finisher"],
+  "flowing-light-chain": ["normal-finisher", "dash-light"],
+  "mirrorflame-burst": ["normal-finisher"],
+  "ink-shot": ["normal-chain", "normal-finisher", "dash-light"],
+  "shadow-roll": ["normal-chain", "normal-finisher"],
+  "marking-bolt": ["normal-chain", "normal-finisher", "dash-light"],
+  "ink-snare": ["normal-finisher"],
+  "crow-feint": ["normal-finisher", "dash-light"],
+  "black-rain-volley": ["normal-finisher"],
+  "night-mark-detonation": ["normal-finisher"],
+  "mechanism-shadow-net": ["normal-finisher"],
+  "iron-palm": ["normal-chain", "normal-finisher", "dash-light"],
+  "anvil-guard": ["normal-chain", "normal-finisher"],
+  "furnace-taunt": ["normal-chain", "normal-finisher"],
+  "shield-quake": ["normal-finisher", "dash-light"],
+  "molten-wall": ["normal-finisher"],
+  "earth-furnace-breaker": ["normal-finisher"],
+  "black-furnace-aegis": ["normal-finisher"],
+  "mountain-crack-hammer": ["normal-finisher", "dash-light"]
+};
 
 const skillAnimationById: Record<string, SkillAnimationDefinition> = {
   "spark-combo": {
@@ -438,7 +474,7 @@ const skillAnimationById: Record<string, SkillAnimationDefinition> = {
   }
 };
 
-function animationForClassSkill(skill: Omit<ClassSkillDefinition, "animation">): SkillAnimationDefinition {
+function animationForClassSkill(skill: Pick<ClassSkillDefinition, "id">): SkillAnimationDefinition {
   const animation = skillAnimationById[skill.id];
 
   if (!animation) {
@@ -450,6 +486,7 @@ function animationForClassSkill(skill: Omit<ClassSkillDefinition, "animation">):
 
 export const classSkills: ClassSkillDefinition[] = classSkillBase.map((skill) => ({
   ...skill,
+  cancelFrom: skillCancelSourcesById[skill.id] ?? [],
   animation: animationForClassSkill(skill)
 }));
 
@@ -548,7 +585,7 @@ export const epicSets: EpicSet[] = [
     bonuses: [
       { pieces: 2, displayName: "暗窑疾步", description: "冲刺后短时提升暴击。", stats: { crit: 10 } },
       { pieces: 3, displayName: "影中挑击", description: "背后攻击与浮空追击伤害提升。", stats: { backAttackDamage: 18 } },
-      { pieces: 5, displayName: "窑影连环", description: "取消连段时获得攻速和移速。", stats: { crit: 14, moveSpeed: 10 } }
+      { pieces: 5, displayName: "窑影连环", description: "取消连段时获得攻速和移速。", stats: { crit: 14, moveSpeed: 10 }, effectId: "kiln-shadow-cancel-haste" }
     ]
   },
   {

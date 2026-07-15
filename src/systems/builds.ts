@@ -1,5 +1,5 @@
 import { catalog } from "../data/catalog";
-import type { EpicSet, EpicSetBonus, GameState, GearItem, OwnedGearItem, StatBlock, StatKey } from "../game/types";
+import type { EpicSet, EpicSetBonus, EpicSetEffectId, GameState, GearItem, OwnedGearItem, StatBlock, StatKey } from "../game/types";
 import { getAmplifiedEquippedStats } from "./upgrades";
 
 export interface BuildSetSummary {
@@ -16,6 +16,7 @@ export interface EquipmentBuildSummary {
   activeBonuses: Array<EpicSetBonus & { setId: string; setName: string }>;
   totalStats: StatBlock;
   buildTags: string[];
+  activeSetEffectIds: EpicSetEffectId[];
 }
 
 export interface CombatProfile {
@@ -29,6 +30,7 @@ export interface CombatProfile {
   cooldownMultiplier: number;
   resourceGainMultiplier: number;
   damageTakenMultiplier: number;
+  activeSetEffectIds: EpicSetEffectId[];
 }
 
 function gearFor(owned: OwnedGearItem): GearItem | undefined {
@@ -84,12 +86,14 @@ export function evaluateEquipmentBuild(state: GameState): EquipmentBuildSummary 
     }))
   );
   const totalStats = activeBonuses.reduce((total, bonus) => addStats(total, bonus.stats), {});
+  const activeSetEffectIds = activeBonuses.flatMap((bonus) => (bonus.effectId ? [bonus.effectId] : []));
 
   return {
     sets,
     activeBonuses,
     totalStats,
-    buildTags: sets.filter((set) => set.activeBonuses.length > 0).map((set) => set.theme)
+    buildTags: sets.filter((set) => set.activeBonuses.length > 0).map((set) => set.theme),
+    activeSetEffectIds
   };
 }
 
@@ -162,6 +166,7 @@ export function evaluateCombatProfile(state: GameState): CombatProfile {
     counterHitDamageMultiplier: 1.25,
     cooldownMultiplier: clamp(1 - cooldown / 100, 0.55, 1),
     resourceGainMultiplier: Math.max(1, 1 + heatGain / 100),
-    damageTakenMultiplier: clamp(100 / (100 + defense), 0.35, 1)
+    damageTakenMultiplier: clamp(100 / (100 + defense), 0.35, 1),
+    activeSetEffectIds: build.activeSetEffectIds
   };
 }

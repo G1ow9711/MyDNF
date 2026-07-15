@@ -256,6 +256,31 @@ describe("catalog", () => {
     });
   });
 
+  it("defines typed cancel routes for every class without making all skills universally cancellable", () => {
+    const allowedSources = new Set(["normal-chain", "normal-finisher", "dash-light"]);
+
+    for (const skill of catalog.classSkills) {
+      expect(Array.isArray(skill.cancelFrom)).toBe(true);
+      expect(skill.cancelFrom.every((source) => allowedSources.has(source))).toBe(true);
+    }
+
+    for (const classDef of catalog.classes) {
+      const classSkills = catalog.classSkills.filter((skill) => skill.classId === classDef.id);
+
+      expect(classSkills.some((skill) => skill.cancelFrom.includes("normal-chain"))).toBe(true);
+      expect(classSkills.some((skill) => skill.cancelFrom.includes("normal-finisher"))).toBe(true);
+      expect(classSkills.some((skill) => skill.cancelFrom.includes("dash-light"))).toBe(true);
+    }
+
+    expect(catalog.classSkills.find((skill) => skill.id === "spark-combo")?.cancelFrom).toEqual([
+      "normal-chain",
+      "normal-finisher",
+      "dash-light"
+    ]);
+    expect(catalog.classSkills.find((skill) => skill.id === "heat-bloom")?.cancelFrom).toEqual(["normal-finisher"]);
+    expect(catalog.classSkills.find((skill) => skill.id === "meteor-knuckle")?.cancelFrom).toEqual(["normal-finisher"]);
+  });
+
   it("provides reachable set bonuses, echo slot data, and unique gear display names", () => {
     for (const epicSet of catalog.epicSets) {
       const requiredPieces = Math.max(...epicSet.bonuses.map((bonus) => bonus.pieces));

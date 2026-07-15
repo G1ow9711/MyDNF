@@ -4558,3 +4558,17 @@
 - Production TypeScript/Vite build passes after final mounted and browser-test stabilization.
 - Final read-only review found one P1 before submission: strong hits granted invulnerability from contact through the entire 1.55 s lifecycle. The fix delays invulnerability start to natural-rise while quick rise keeps its separate 520 ms window.
 - Post-review verification passes 310/310 combat tests, 712/712 non-browser tests, both live heavy-hit quick/natural routes, production build, and whitespace review.
+
+## Task 216 DNF Hit-Confirmed Skill Cancel Graph And Kiln Shadow Proc
+- Started from clean `feature/vertical-slice` at pushed commit `962a2eb`.
+- Parallel read-only audits cover cancel routes/timing and dynamic set integration; the main path independently confirmed the current generic boolean and static-only set profile.
+- Locked the authoritative design in `docs/superpowers/specs/2026-07-16-hit-confirmed-cancel-graph-design.md`: three real-hit sources, 80-180 ms post-impact window, explicit per-skill routes, 800 ms cancel lock, and a 1800 ms Kiln Shadow haste proc.
+- RED coverage proved the old broad cancel gate had no source routes, opening boundary, target-skill lock, runtime set effect, mounted route diagnostics, or authored proc audio.
+- Added hit-confirmed `normal-chain`, `normal-finisher`, and `dash-light` sources; exact 80-180 ms post-impact timing; explicit per-skill `cancelFrom` routes; per-target-skill 800 ms locks; and hitstop-safe transient timestamps.
+- Kiln Shadow five-piece now contributes a typed runtime effect. A successful legal cancel refreshes a 1800 ms haste window with 12% faster normal-attack timing and 12% movement speed, without stacking or entering save data.
+- Mounted combat now exposes source, window, route, lock, and haste diagnostics. Skill buttons render `pending`, `available`, `route-blocked`, and `lockout`; successful cancels play authored confirmation/proc audio and a model-following dark-gold/cyan wind-afterimage effect.
+- Parallel workers completed the bounded CSS layer and UI/real-browser test additions. Main-path review retained disjoint ownership, reran all checks, and closed both agents after completion.
+- Full non-browser regression passes 724/724; all 28 real-browser computed-style regressions pass; production TypeScript/Vite build passes; focused real Edge keyboard acceptance passes the live X-hit to A-skill cancel, exact route set, local lock, set proc, VFX, and both playback events.
+- Visual review at 750x485 exposed the old three-row navigation and top-mounted combat controls hiding actors. The combat-only narrow layout now keeps navigation on one scrollable row, mounts controls at the bottom, and leaves the player, five monsters, HP bars, task tracker, and Kiln Shadow proc visible. The refreshed Edge capture was inspected.
+- Final read-only review found no P0 and two P1 issues before commit. Meteor now buffers a held H/O input to the cancel opening frame, shifts that pending execution through hitstop, and clears it if the key is released early. The 721-860 px Boss HUD now overrides desktop left/right constraints, with a second narrow fallback below 600 px.
+- Post-review real Edge reruns pass both cancel/proc and held-Meteor routes. The three-room Boss route also passes at 750x485 with a >=380 px HUD, no status/combo overlap, and an inspected narrow Boss capture.

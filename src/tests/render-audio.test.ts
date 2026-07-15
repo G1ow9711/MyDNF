@@ -310,6 +310,21 @@ describe("adaptive audio hooks", () => {
     expect(plan.textureTags).not.toContain("ui-click");
   });
 
+  it("builds distinct authored skill-cancel and Kiln Shadow proc sounds", () => {
+    const cancel = createAudioPlaybackPlan({ type: "sfx", id: "skill-cancel-confirm" }, createAudioState().volumes);
+    const kilnShadow = createAudioPlaybackPlan(
+      { type: "sfx", id: "kiln-shadow-cancel-haste" },
+      createAudioState().volumes
+    );
+
+    expect(cancel.notes.length).toBeGreaterThanOrEqual(3);
+    expect(cancel.textureTags).toEqual(expect.arrayContaining(["cancel-cut", "hit-confirm"]));
+    expect(kilnShadow.notes.length).toBeGreaterThanOrEqual(4);
+    expect(kilnShadow.textureTags).toEqual(expect.arrayContaining(["kiln-shadow", "haste-proc"]));
+    expect(cancel.textureTags).not.toContain("ui-click");
+    expect(kilnShadow.textureTags).not.toContain("ui-click");
+  });
+
   it("builds distinct authored meteor charge start, release, and maximum sounds", () => {
     const ids = ["meteor-charge-start", "meteor-charge-release", "meteor-charge-maximum"];
     const plans = ids.map((id) => createAudioPlaybackPlan({ type: "sfx", id }, createAudioState().volumes));

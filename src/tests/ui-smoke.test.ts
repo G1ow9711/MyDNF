@@ -329,6 +329,16 @@ function resolveGroundLight(run: CombatRun): CombatRun {
   return stepToElapsed(run, hitAtMs);
 }
 
+function advanceToCancelWindow(run: CombatRun): CombatRun {
+  let next = run;
+
+  for (let attempt = 0; attempt < 3 && next.elapsedMs < next.player.cancelWindowStartedAtMs; attempt += 1) {
+    next = stepToElapsed(next, next.player.cancelWindowStartedAtMs);
+  }
+
+  return next;
+}
+
 function withSingleReadyEnemy(run: CombatRun, enemyPatch: Partial<CombatEnemy>): CombatRun {
   return {
     ...run,
@@ -3929,7 +3939,7 @@ describe("town app shell", () => {
       maxHp: 180,
       nextAttackAtMs: 9999
     });
-    const light = resolveGroundLight(performAction(run, { type: "light" }));
+    const light = advanceToCancelWindow(resolveGroundLight(performAction(run, { type: "light" })));
     const lightHtml = renderAppHtml({ state, mode: "combat", combatRun: light });
     const canceled = performAction(light, { type: "skill", skillId: "spark-combo" });
     const cancelHtml = renderAppHtml({ state, mode: "combat", combatRun: canceled });

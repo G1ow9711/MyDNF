@@ -13,9 +13,10 @@ import {
   type CombatPlayerReceivedHitState,
   type CombatRun
 } from "../game/combat";
-import { createInitialState } from "../game/state";
-import type { GameState } from "../game/types";
+import { createInitialState, createOwnedGear } from "../game/state";
+import type { GameState, GearSlot } from "../game/types";
 import { advanceClass, selectBaseClass } from "../systems/classes";
+import { equipItem } from "../systems/inventory";
 import { saveGame, SAVE_KEY, type SaveStorage } from "../systems/save";
 import {
   combatActionForCommandSequence,
@@ -83,6 +84,31 @@ function withHeat(state: GameState, heat: number): GameState {
       }
     }
   };
+}
+
+function gearId(setId: string, slot: GearSlot): string {
+  const gear = catalog.gear.find((item) => item.setId === setId && item.slot === slot && item.rarity === "epic");
+
+  if (!gear) {
+    throw new Error(`Missing ${setId} ${slot}`);
+  }
+
+  return gear.id;
+}
+
+function equipSetPieces(state: GameState, setId: string, slots: GearSlot[]): GameState {
+  return slots.reduce((next, slot, index) => {
+    const owned = createOwnedGear(gearId(setId, slot), `${setId}-${slot}-app-${index}`);
+    const withItem: GameState = {
+      ...next,
+      player: {
+        ...next.player,
+        inventory: [...next.player.inventory, owned]
+      }
+    };
+
+    return equipItem(withItem, owned.instanceId);
+  }, state);
 }
 
 function withClassResource(state: GameState, classId: GameState["player"]["classId"], value: number): GameState {
@@ -242,6 +268,16 @@ function resolveGroundLight(run: CombatRun): CombatRun {
   const [hitAtMs] = scheduledGroundLightTimes(run);
 
   return stepToElapsed(run, hitAtMs);
+}
+
+function advanceToCancelWindow(run: CombatRun): CombatRun {
+  let next = run;
+
+  for (let attempt = 0; attempt < 3 && next.elapsedMs < next.player.cancelWindowStartedAtMs; attempt += 1) {
+    next = stepToElapsed(next, next.player.cancelWindowStartedAtMs);
+  }
+
+  return next;
 }
 
 function resolveGroundHeavy(run: CombatRun): CombatRun {
@@ -2715,7 +2751,7 @@ describe("playable app integration actions", () => {
     model = reduceAppAction(model, { type: "combatAction", action: "light" });
     model = {
       ...model,
-      combatRun: model.combatRun ? resolveGroundLight(model.combatRun) : model.combatRun
+      combatRun: model.combatRun ? advanceToCancelWindow(resolveGroundLight(model.combatRun)) : model.combatRun
     };
 
     const confirmHtml = renderAppHtml(model);
@@ -2734,6 +2770,49 @@ describe("playable app integration actions", () => {
     expect(cancelHtml).toContain('data-combo-cancel-skill-id="spark-combo"');
     expect(cancelHtml).toContain('data-skill-cancel-toast="true"');
     expect(cancelHtml).toContain('class="skill-cancel-toast"');
+  });
+
+  it("renders per-skill cancel routes and the live Kiln Shadow five-piece proc", () => {
+    const equipped = equipSetPieces(withHeat(createInitialState(), 100), "kiln-shadow", [
+      "weapon",
+      "core",
+      "head",
+      "body",
+      "ring"
+    ]);
+    let model = createAppModel({ storage: new MemoryStorage(), initialState: equipped });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = placeAliveEnemiesInFront(model);
+    model = reduceAppAction(model, { type: "combatAction", action: "light" });
+    model = {
+      ...model,
+      combatRun: model.combatRun ? advanceToCancelWindow(resolveGroundLight(model.combatRun)) : model.combatRun
+    };
+
+    const routeHtml = renderAppHtml(model);
+
+    expect(routeHtml).toContain('data-cancel-source="normal-chain"');
+    expect(routeHtml).toMatch(/data-combat-skill-id="spark-combo"[^>]*data-combo-cancel-button-state="available"/);
+    expect(routeHtml).toMatch(/data-combat-skill-id="heat-bloom"[^>]*data-combo-cancel-button-state="route-blocked"/);
+    expect(routeHtml).toContain('data-cancel-route-skill-ids="spark-combo,cinder-uppercut,furnace-step"');
+
+    model = reduceAppAction(model, { type: "combatAction", action: "skill", skillId: "spark-combo" });
+    const procHtml = renderAppHtml(model);
+
+    expect(model.combatRun?.events).toContainEqual(
+      expect.objectContaining({ kind: "set-proc", effectId: "kiln-shadow-cancel-haste", sourceSkillId: "spark-combo" })
+    );
+    expect(procHtml).toContain('data-kiln-shadow-haste-active="true"');
+    expect(procHtml).toMatch(/data-kiln-shadow-haste-ms-remaining="1[0-9]{3}"/);
+    expect(procHtml).toContain('data-kiln-shadow-proc-vfx="true"');
+    expect(procHtml).toContain("窑影连环");
+    expect(model.audio.commandQueue).toEqual(
+      expect.arrayContaining([
+        { type: "sfx", id: "skill-cancel-confirm" },
+        { type: "sfx", id: "kiln-shadow-cancel-haste" }
+      ])
+    );
   });
 
   it("queues combat input during the action buffer window instead of skipping past the lock", () => {
@@ -8025,5 +8104,46 @@ describe("playable app integration actions", () => {
     expect(releasedHtml).toContain('data-player-charge-state="none"');
     expect(releasedHtml).toContain('data-active-skill-id="meteor-knuckle"');
     expect(released.audio.commandQueue.at(-1)).toEqual({ type: "sfx", id: "meteor-charge-release" });
+  });
+
+  it("buffers pending Meteor charge input to the cancel opening and clears it on early release", () => {
+    let model = createAppModel({ storage: new MemoryStorage(), initialState: withHeat(createInitialState(), 100) });
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            elapsedMs: 100,
+            enemies: model.combatRun.enemies.map((enemy) => ({ ...enemy, nextAttackAtMs: 9999 })),
+            player: {
+              ...model.combatRun.player,
+              actionLockUntilMs: 220,
+              comboStep: 3,
+              cancelSource: "normal-finisher",
+              cancelWindowStartedAtMs: 180,
+              cancelWindowUntilMs: 280
+            }
+          }
+        : undefined
+    };
+
+    const queued = reduceAppAction(model, {
+      type: "combatSkillChargeStart",
+      skillId: "meteor-knuckle",
+      inputMethod: "hotkey"
+    });
+    const canceled = reduceAppAction(queued, { type: "combatSkillChargeRelease", skillId: "meteor-knuckle" });
+    const charging = reduceAppAction(
+      reduceAppAction(queued, { type: "combatTick" }),
+      { type: "combatTick" }
+    );
+
+    expect(queued.message).toBe("输入已缓冲");
+    expect(queued.combatRun?.player.bufferedActionExecuteAtMs).toBe(180);
+    expect(canceled.combatRun?.player.bufferedAction).toBeUndefined();
+    expect(charging.combatRun?.player.activeChargeSkillId).toBe("meteor-knuckle");
+    expect(charging.combatRun?.player.chargeStartedAtMs).toBe(180);
+    expect(charging.audio.commandQueue).toContainEqual({ type: "sfx", id: "meteor-charge-start" });
   });
 });

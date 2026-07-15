@@ -558,6 +558,14 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Implement the lifecycle through combat state, movement locks, C input, model frames, VFX, and audio.
 - [x] Run scoped regression/build and real Chromium evidence; record incompatible legacy combat-script assumptions before Chinese commit/push.
 
+## Task 216 DNF Hit-Confirmed Skill Cancel Graph And Kiln Shadow Proc
+- [x] Audit the generic combo-cancel boolean, class skill tags, dash-light/final-normal hit sources, and static-only epic-set profile.
+- [x] Lock explicit source-to-skill routes, the 80-180 ms post-impact window, the 800 ms local cancel lock, and the Kiln Shadow five-piece proc contract.
+- [x] Add RED core/build coverage for route eligibility, timing boundaries, miss denial, lockout, and the dynamic set proc.
+- [x] Implement authoritative cancel source/timestamps plus data-driven skill routes and active set-effect ids.
+- [x] Add mounted route/lock/proc diagnostics, synchronized model/VFX/audio feedback, and real-keyboard acceptance.
+- [x] Run full regression/build, inspect browser evidence, then commit and push in Chinese.
+
 ### Errors Encountered
 - A Task 215 record patch mixed a progress-file heading into the task-plan hunk, so verification rejected the combined patch atomically. No file changed; task and progress records were reapplied separately.
 - A Task 215 catalog search used a double-quoted regular expression containing embedded quotes, so PowerShell rejected it before execution. No file changed; the query was rerun with single-quoted patterns.

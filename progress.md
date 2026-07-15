@@ -4512,3 +4512,12 @@
 - Real keyboard acceptance passed with a live trash grab/throw and a live Boss resistance cast under Black Furnace Aegis. The compatibility Iron Vanguard route also passed after updating its expected catch cue.
 - Visual review removed the incorrect Ember atlas duplicate from Iron. The fallback Iron portrait remains intentionally lightweight for this phase while motion and effect timing stay strict.
 - Final verification passed 718/718 non-keyboard and real-browser computed-style tests, both focused real-keyboard Iron routes, production build, HTTP 200 on port 5174, screenshot inspection, and diff/whitespace review. Chinese commit and push follow this record update.
+
+## Task 213 DNF Enemy Wake-Up Protection
+- Audited authoritative downed recovery, shared target filtering, AI timing, hitstop timer shifting, enemy motion priority, and real-keyboard evidence seams. After user approval, two subagents reviewed core timing and UI/browser proof in parallel.
+- Selected a dedicated rising state because the current implementation changes a prone enemy directly to idle and vulnerable on the same tick.
+- Locked initial scope: 520 ms authored rise, full player-hit/grab immunity during the rise, no pursuit or attack startup, hitstop-safe timers, visible protection feedback, and vulnerability restored only after the interval. RED coverage follows.
+- RED tests reproduced late large-frame recovery, stale hitstop event times, and a delayed slam bypassing protection. All three pass after moving recovery to authoritative expiry timestamps and advancing it before every scheduled effect.
+- Added wake state/events, hit and grab rejection, AI gating, hitstop synchronization, model/frame motion, progress-seeked ring/aura VFX, and authored wake audio.
+- Strengthened browser proof after exposing a false-positive out-of-range X test. The accepted Ink route checks real facing/lane/range, starts the actual `ink-shot` action, records unchanged protected HP plus multiple computed transform/opacity states, then records post-protection skill damage.
+- Final verification passed 697/697 non-browser tests, 27/27 real-browser computed-style tests, the focused real-keyboard wake route, TypeScript/Vite production build, HTTP 200 on port 5174, screenshot inspection, and diff/whitespace review. Chinese commit and push follow this record update.

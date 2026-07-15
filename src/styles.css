@@ -4060,6 +4060,52 @@ p {
   filter: saturate(0.88) brightness(0.88);
 }
 
+.actor-model-wake-up,
+.combat-enemy[data-enemy-motion="wake-up"] .enemy-art {
+  transform-origin: 50% 88%;
+  animation: monster-wake-up-rise 520ms cubic-bezier(0.12, 0.86, 0.16, 1) both;
+  animation-delay: calc(var(--enemy-wake-up-progress, 0) * -520ms);
+  animation-play-state: paused;
+  filter: drop-shadow(0 0 18px rgba(186, 230, 253, 0.72)) brightness(1.14) saturate(0.92);
+}
+
+.enemy-wake-up-state {
+  display: none;
+}
+
+.enemy-wake-up-vfx[data-enemy-wake-up-vfx="protected-rise"] {
+  position: absolute;
+  left: 50%;
+  bottom: 4%;
+  z-index: 4;
+  width: 116%;
+  height: 84%;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.enemy-wake-up-vfx[data-enemy-wake-up-vfx="protected-rise"] i,
+.enemy-wake-up-vfx[data-enemy-wake-up-vfx="protected-rise"] b {
+  position: absolute;
+  inset: 8% 4%;
+  border: 2px solid rgba(224, 242, 254, 0.88);
+  border-radius: 50%;
+  box-shadow: 0 0 24px rgba(56, 189, 248, 0.72), inset 0 0 18px rgba(125, 211, 252, 0.26);
+  animation: enemy-wake-up-ring 520ms ease-out both;
+  animation-delay: calc(var(--enemy-wake-up-progress, 0) * -520ms);
+  animation-play-state: paused;
+}
+
+.enemy-wake-up-vfx[data-enemy-wake-up-vfx="protected-rise"] b {
+  inset: 20% 18%;
+  border: 0;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.64), rgba(56, 189, 248, 0.3) 42%, transparent 72%);
+  box-shadow: none;
+  animation: enemy-wake-up-aura 520ms cubic-bezier(0.12, 0.82, 0.16, 1) both;
+  animation-delay: calc(var(--enemy-wake-up-progress, 0) * -520ms);
+  animation-play-state: paused;
+}
+
 .combat-enemy[data-enemy-state="alive"][data-hit-air-action="light"] .enemy-art,
 .combat-enemy[data-enemy-hit-air-action="light"] .enemy-art,
 .combat-enemy[data-enemy-state="alive"][data-enemy-hit-air-action="light"] .enemy-art {
@@ -10238,6 +10284,25 @@ p {
   0% { transform: translateY(-18px) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); opacity: 1; }
   48% { transform: translateY(12px) rotate(9deg) scale(0.94) scaleX(var(--model-scale-x, 1)); opacity: 0.92; }
   100% { transform: translateY(18px) rotate(12deg) scale(0.88) scaleX(var(--model-scale-x, 1)); opacity: 0.82; }
+}
+
+@keyframes monster-wake-up-rise {
+  0% { transform: translateY(18px) rotate(12deg) scale(0.88) scaleX(var(--model-scale-x, 1)); opacity: 0.84; }
+  34% { transform: translateY(12px) rotate(7deg) scale(0.92) scaleX(var(--model-scale-x, 1)); opacity: 0.92; }
+  72% { transform: translateY(-4px) rotate(-2deg) scale(1.04) scaleX(var(--model-scale-x, 1)); opacity: 1; }
+  100% { transform: translateY(0) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); opacity: 1; }
+}
+
+@keyframes enemy-wake-up-ring {
+  0% { opacity: 0; transform: scale(0.48) rotate(-16deg); }
+  28% { opacity: 1; transform: scale(1.04) rotate(8deg); }
+  100% { opacity: 0; transform: scale(1.34) rotate(26deg); }
+}
+
+@keyframes enemy-wake-up-aura {
+  0% { opacity: 0; transform: scale(0.38) translateY(12px); }
+  34% { opacity: 0.92; transform: scale(1.08) translateY(0); }
+  100% { opacity: 0; transform: scale(1.42) translateY(-12px); }
 }
 
 @keyframes monster-hit-react {

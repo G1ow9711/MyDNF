@@ -534,7 +534,19 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Verify one live normal-monster grab and one elite/Boss immunity result using real keys.
 - [x] Run full regression/build, inspect diffs, then commit and push in Chinese.
 
+## Task 213 DNF Enemy Wake-Up Protection
+- [x] Audit downed recovery, target eligibility, AI gating, hitstop timer shifting, mounted motion, and browser-control seams.
+- [x] Lock downed, rising, and vulnerable phases plus the protection duration and reset rules.
+- [x] Add RED core, mounted feedback, audio, browser-computed, and real-keyboard wake-up coverage.
+- [x] Implement authoritative wake-up state plus synchronized model motion, protection VFX, and sound.
+- [x] Verify knockdown, protected wake-up, blocked pressure, and post-protection hit using real keys.
+- [x] Run full regression/build, inspect diffs, then commit and push in Chinese.
+
 ### Errors Encountered
+- Task 213 subagent review found that delayed slam effects were resolved before downed recovery, hitstop shifted actor timers without shifting the wake event, and DOM replacement restarted CSS animations. All three now share the authoritative wake timeline.
+- The strengthened Task 213 keyboard route proved the old X assertion was a false positive because the target was 289 px outside the light hitbox. The accepted route uses Ink Shot's authored 380 px range, checks facing/lane/range and remaining protection, then proves real input, no protected HP loss, and later skill damage.
+- Five live monsters repeatedly interrupted close-range post-wake casts. The final acceptance keeps natural enemy AI and uses ranged skills instead of extending protection or mutating combat state.
+- One combined Vitest worker run stalled under browser load. Verification was split into 697 pure tests, 27 real-browser computed-style tests, and the focused live-keyboard route; all passed.
 - Task 212's first Boss-resistance route cast Iron Palm during a natural Boss attack, so its interruptible 150 ms startup was canceled before the resistance frame. The accepted route opens Black Furnace Aegis first, then casts during the real shield window without changing Boss timing.
 - Task 212's first visual capture exposed the unsupported Iron class rendering an idle Ember frame atlas over its own portrait. Unsupported player frame atlases are now hidden; Iron retains its own animated fallback art until a dedicated atlas exists.
 - Task 212's first full non-keyboard run exposed two old attribute-order assertions and one shield-jab integration assertion. They now assert independent critical metadata and the new catch/throw phases.

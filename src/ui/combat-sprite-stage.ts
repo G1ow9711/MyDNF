@@ -136,13 +136,15 @@ export class CombatSpriteStage {
       const sprite = enemy.querySelector<HTMLElement>(".enemy-frame-sprite");
       if (!sprite) continue;
       const x = Number(enemy.dataset.enemyX ?? "0");
+      const wakeUpState = enemy.querySelector<HTMLElement>(".enemy-wake-up-state");
+      const motion = enemy.dataset.enemyMotion ?? "idle";
       this.applyFrame({
         element: enemy,
         sprite,
         id: enemy.dataset.enemyId ?? "enemy",
         x,
-        motion: enemy.dataset.enemyMotion ?? "idle",
-        progress: progress(enemy.dataset.enemyAttackProgress),
+        motion,
+        progress: motion === "wake-up" ? progress(wakeUpState?.dataset.enemyWakeUpProgress) : progress(enemy.dataset.enemyAttackProgress),
         facing: x >= playerX ? -1 : 1,
         defeated: enemy.dataset.enemyState === "defeated",
         defeatedAtMs: enemy.dataset.enemyDefeatedAtMs ? Number(enemy.dataset.enemyDefeatedAtMs) : undefined,
@@ -225,6 +227,9 @@ export class CombatSpriteStage {
     } else if (actor.id !== "player" && actor.motion === "grab-throw") {
       frame = 14;
       state = "grab-throw";
+    } else if (actor.id !== "player" && actor.motion === "wake-up") {
+      frame = actor.progress < 0.32 ? 14 : actor.progress < 0.72 ? 12 : 0;
+      state = "wake-up";
     } else if (swordDanceEnemyReaction !== undefined) {
       frame = swordDanceEnemyReaction;
       actor.sprite.dataset.spriteSkillReaction = actor.hitPhase ?? "";

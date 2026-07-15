@@ -8,6 +8,7 @@ import {
   enterRoomGate,
   enemyDeathVisibleMs,
   enemySuperArmorActive,
+  enemyWakeUpProtected,
   finishRoom,
   floorLootPickupDelayMs,
   pickupRoomFloorLoot,
@@ -1419,6 +1420,10 @@ function enemyMotion(
     return "knockdown";
   }
 
+  if (enemyWakeUpProtected(enemy, elapsedMs)) {
+    return "wake-up";
+  }
+
   if (elapsedMs < (enemy.controlledUntilMs ?? 0)) {
     return "controlled";
   }
@@ -1452,6 +1457,10 @@ function enemyMotion(
 }
 
 function enemyControlState(enemy: CombatEnemy, elapsedMs: number): string {
+  if (enemyWakeUpProtected(enemy, elapsedMs)) {
+    return "wake-up-protected";
+  }
+
   if (elapsedMs < (enemy.controlledUntilMs ?? 0)) {
     return "controlled";
   }
@@ -2080,6 +2089,11 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
       const armorState = enemyArmorState(enemy, run.elapsedMs);
       const hitstunActive = run.elapsedMs < (enemy.hitstunUntilMs ?? 0);
       const superArmorActive = enemySuperArmorActive(enemy, run.elapsedMs);
+      const wakeUpProtected = enemyWakeUpProtected(enemy, run.elapsedMs);
+      const wakeUpDurationMs = Math.max(1, (enemy.wakeUpUntilMs ?? run.elapsedMs) - (enemy.wakeUpStartedAtMs ?? run.elapsedMs));
+      const wakeUpProgress = wakeUpProtected
+        ? Math.min(1, Math.max(0, (run.elapsedMs - (enemy.wakeUpStartedAtMs ?? run.elapsedMs)) / wakeUpDurationMs))
+        : 0;
       const enemyGrabPhase =
         run.elapsedMs < (enemy.grabbedUntilMs ?? 0)
           ? "held"
@@ -2104,9 +2118,11 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
             <span class="enemy-facing-state" data-enemy-facing="${enemy.facing}" aria-hidden="true"></span>
             <span class="enemy-juggle-state" data-enemy-juggle-count="${enemy.juggleCount}" data-enemy-juggle-protected="${enemy.juggleCount > 3 && enemy.airborne ? "true" : "false"}" aria-hidden="true"></span>
             <span class="enemy-wall-bounce-state" data-enemy-wall-bounce-count="${enemy.wallBounceCount}" data-enemy-wall-bounce-active="${run.elapsedMs < (enemy.wallBounceUntilMs ?? 0) ? "true" : "false"}" data-enemy-wall-bounce-side="${enemy.wallBounceSide ?? ""}" data-enemy-wall-bounce-started-at-ms="${enemy.wallBounceStartedAtMs ?? ""}" data-enemy-wall-bounce-until-ms="${enemy.wallBounceUntilMs ?? ""}" aria-hidden="true"></span>
+            <span class="enemy-wake-up-state" data-enemy-wake-up-protected="${wakeUpProtected ? "true" : "false"}" data-enemy-wake-up-started-at-ms="${enemy.wakeUpStartedAtMs ?? ""}" data-enemy-wake-up-until-ms="${enemy.wakeUpUntilMs ?? ""}" data-enemy-wake-up-progress="${wakeUpProgress.toFixed(3)}" aria-hidden="true"></span>
+            ${wakeUpProtected ? `<span class="enemy-wake-up-vfx" data-enemy-wake-up-vfx="protected-rise" style="--enemy-wake-up-progress: ${wakeUpProgress.toFixed(3)};" aria-hidden="true"><i></i><b></b></span>` : ""}
             <span class="enemy-wall-bounce-crack" aria-hidden="true"></span>
             <span class="enemy-grab-clamp-vfx" aria-hidden="true"></span>
-            <img class="enemy-art actor-model actor-model-${motion}${enemySkillMotionClass ? ` ${enemySkillMotionClass}` : ""}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy, attackVisual, enemyMotionSkillId)}" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
+            <img class="enemy-art actor-model actor-model-${motion}${enemySkillMotionClass ? ` ${enemySkillMotionClass}` : ""}" data-enemy-skill-motion-class="${enemySkillMotionClass}" style="${enemyModelMotionStyle(run, enemy, attackVisual, enemyMotionSkillId)}--enemy-wake-up-progress: ${wakeUpProgress.toFixed(3)};" src="${enemyAsset(enemy)}" alt="${enemy.displayName}" />
             <span class="combat-frame-sprite enemy-frame-sprite" data-frame-atlas="${enemy.kind === "boss" ? "taotie-overseer" : enemy.kind === "elite" ? "zheng-guard" : "ash-cinder-imp"}" aria-hidden="true"></span>
           </div>
           <div class="enemy-health" aria-label="${enemy.displayName} HP ${enemy.hp}/${enemy.maxHp}">
@@ -2921,6 +2937,10 @@ function combatEventSfxIds(event: CombatEvent, run: CombatRun): string[] {
 
   if (event.kind === "enemy-attack") {
     return enemyAttackSfxIds(event, run);
+  }
+
+  if (event.kind === "enemy-wake-up") {
+    return ["enemy-wake-up-protection"];
   }
 
   return event.kind === "player-hit" ? [playerHurtSfxId(event, run)] : [];

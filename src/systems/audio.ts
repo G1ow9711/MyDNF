@@ -307,6 +307,17 @@ const sfxPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: Ar
       { frequencyHz: 880, startMs: 72, durationMs: 138, gain: 0.1, waveform: "triangle" }
     ]
   },
+  "enemy-wake-up-protection": {
+    commandId: "enemy-wake-up-protection",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["rise", "protection-frame", "aether-shell"],
+    notes: [
+      { frequencyHz: 293.66, startMs: 0, durationMs: 146, gain: 0.13, waveform: "sine" },
+      { frequencyHz: 587.33, startMs: 42, durationMs: 178, gain: 0.12, waveform: "triangle" },
+      { frequencyHz: 1174.66, startMs: 94, durationMs: 204, gain: 0.08, waveform: "sine" }
+    ]
+  },
   "enemy-windup-light": {
     commandId: "enemy-windup-light",
     channel: "sfx",

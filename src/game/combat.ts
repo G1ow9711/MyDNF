@@ -244,6 +244,8 @@ export interface CombatEnemy {
   downed: boolean;
   airborneUntilMs?: number;
   downedUntilMs?: number;
+  wakeUpStartedAtMs?: number;
+  wakeUpUntilMs?: number;
   nextAttackAtMs: number;
   attackStartedAtMs?: number;
   attackImpactAtMs?: number;
@@ -535,6 +537,14 @@ export interface CombatArenaHazardEvent {
   vfxWindowMs: number;
 }
 
+export interface CombatEnemyWakeUpEvent {
+  kind: "enemy-wake-up";
+  id: string;
+  enemyId: string;
+  occurredAtMs: number;
+  completeAtMs: number;
+}
+
 export type CombatEvent =
   | CombatHitEvent
   | CombatMissEvent
@@ -546,7 +556,8 @@ export type CombatEvent =
   | CombatPlayerStatusEvent
   | CombatEnemySummonEvent
   | CombatBossPhaseEvent
-  | CombatArenaHazardEvent;
+  | CombatArenaHazardEvent
+  | CombatEnemyWakeUpEvent;
 
 export interface CombatLootEvent {
   dungeonId: DungeonId;
@@ -877,11 +888,15 @@ function shiftEnemyTimersForHitstop(enemy: CombatEnemy, originMs: number, deltaM
   const wallBounceActive = enemy.wallBounceUntilMs !== undefined && enemy.wallBounceUntilMs > originMs;
   const grabActive = enemy.grabbedUntilMs !== undefined && enemy.grabbedUntilMs > originMs;
   const grabThrowActive = enemy.grabThrowUntilMs !== undefined && enemy.grabThrowUntilMs > originMs;
+  const wakeUpActive = enemy.wakeUpUntilMs !== undefined && enemy.wakeUpUntilMs > originMs;
 
   return {
     ...enemy,
     airborneUntilMs: shiftFutureOptionalTime(enemy.airborneUntilMs, originMs, deltaMs),
     downedUntilMs: shiftFutureOptionalTime(enemy.downedUntilMs, originMs, deltaMs),
+    wakeUpStartedAtMs:
+      wakeUpActive && enemy.wakeUpStartedAtMs !== undefined ? enemy.wakeUpStartedAtMs + deltaMs : enemy.wakeUpStartedAtMs,
+    wakeUpUntilMs: wakeUpActive ? enemy.wakeUpUntilMs! + deltaMs : enemy.wakeUpUntilMs,
     wallBounceStartedAtMs:
       wallBounceActive && enemy.wallBounceStartedAtMs !== undefined ? enemy.wallBounceStartedAtMs + deltaMs : enemy.wallBounceStartedAtMs,
     wallBounceUntilMs: wallBounceActive ? enemy.wallBounceUntilMs! + deltaMs : enemy.wallBounceUntilMs,
@@ -945,7 +960,16 @@ function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: 
     scheduledArenaHazards: run.scheduledArenaHazards.map((hazard) => ({
       ...hazard,
       impactAtMs: hazard.impactAtMs >= originMs ? hazard.impactAtMs + deltaMs : hazard.impactAtMs
-    }))
+    })),
+    events: run.events.map((event) =>
+      event.kind === "enemy-wake-up" && event.completeAtMs > originMs
+        ? {
+            ...event,
+            occurredAtMs: event.occurredAtMs + deltaMs,
+            completeAtMs: event.completeAtMs + deltaMs
+          }
+        : event
+    )
   };
 }
 
@@ -2334,7 +2358,7 @@ function enemyOverlapsFrontHitbox(run: CombatRun, enemy: CombatEnemy, hitbox: Pl
 }
 
 function enemyInPlayerHitbox(run: CombatRun, enemy: CombatEnemy, hitbox: PlayerHitboxDefinition): boolean {
-  if (enemy.hp <= 0) {
+  if (enemy.hp <= 0 || enemyWakeUpProtected(enemy, run.elapsedMs)) {
     return false;
   }
 
@@ -2343,6 +2367,18 @@ function enemyInPlayerHitbox(run: CombatRun, enemy: CombatEnemy, hitbox: PlayerH
   const inRange = hitbox.frontOnly ? enemyOverlapsFrontHitbox(run, enemy, hitbox) : xDistance <= hitbox.rangeX;
 
   return inRange && yDistance <= hitbox.laneRange;
+}
+
+export function enemyWakeUpProtected(enemy: CombatEnemy, elapsedMs: number): boolean {
+  if (enemy.hp <= 0) {
+    return false;
+  }
+
+  if (enemy.wakeUpUntilMs !== undefined && elapsedMs < enemy.wakeUpUntilMs) {
+    return true;
+  }
+
+  return enemy.downed && enemy.downedUntilMs !== undefined && elapsedMs >= enemy.downedUntilMs && elapsedMs < enemy.downedUntilMs + 520;
 }
 
 function selectPlayerTargets(run: CombatRun, hitbox: PlayerHitboxDefinition): CombatEnemy[] {
@@ -4849,7 +4885,9 @@ function actionTagsForSkill(tags: string[]): CombatActionTag[] {
   return tags.filter((tag): tag is CombatActionTag => tag === "launcher" || tag === "slam" || tag === "pull" || tag === "knockdown");
 }
 
-function updateEnemyAirStates(run: CombatRun): CombatRun {
+function updateEnemyAirStates(run: CombatRun, atMs: number = run.elapsedMs): CombatRun {
+  const events: CombatEnemyWakeUpEvent[] = [];
+
   return {
     ...run,
     enemies: run.enemies.map((enemy) => {
@@ -4857,14 +4895,17 @@ function updateEnemyAirStates(run: CombatRun): CombatRun {
         return enemy;
       }
 
-      if (enemy.airborne && enemy.airborneUntilMs !== undefined && run.elapsedMs >= enemy.airborneUntilMs) {
-        return {
-          ...enemy,
+      let nextEnemy = enemy;
+
+      if (nextEnemy.airborne && nextEnemy.airborneUntilMs !== undefined && atMs >= nextEnemy.airborneUntilMs) {
+        const landedAtMs = nextEnemy.airborneUntilMs;
+        nextEnemy = {
+          ...nextEnemy,
           airborne: false,
           airborneUntilMs: undefined,
           downed: true,
-          downedUntilMs: Math.max(enemy.downedUntilMs ?? 0, run.elapsedMs + 700),
-          nextAttackAtMs: Math.max(enemy.nextAttackAtMs, run.elapsedMs + 700),
+          downedUntilMs: Math.max(nextEnemy.downedUntilMs ?? 0, landedAtMs + 700),
+          nextAttackAtMs: Math.max(nextEnemy.nextAttackAtMs, landedAtMs + 700),
           attackStartedAtMs: undefined,
           attackImpactAtMs: undefined,
           attackRecoverUntilMs: undefined,
@@ -4879,11 +4920,25 @@ function updateEnemyAirStates(run: CombatRun): CombatRun {
         };
       }
 
-      if (enemy.downed && enemy.downedUntilMs !== undefined && run.elapsedMs >= enemy.downedUntilMs) {
-        return {
-          ...enemy,
+      if (nextEnemy.downed && nextEnemy.downedUntilMs !== undefined && atMs >= nextEnemy.downedUntilMs) {
+        const wakeUpStartedAtMs = nextEnemy.downedUntilMs;
+        const wakeUpUntilMs = wakeUpStartedAtMs + 520;
+        events.push({
+          kind: "enemy-wake-up",
+          id: `enemy-wake-up-${wakeUpStartedAtMs}-${nextEnemy.id}`,
+          enemyId: nextEnemy.id,
+          occurredAtMs: wakeUpStartedAtMs,
+          completeAtMs: wakeUpUntilMs
+        });
+
+        nextEnemy = {
+          ...nextEnemy,
           downed: false,
           downedUntilMs: undefined,
+          wakeUpStartedAtMs: atMs < wakeUpUntilMs ? wakeUpStartedAtMs : undefined,
+          wakeUpUntilMs: atMs < wakeUpUntilMs ? wakeUpUntilMs : undefined,
+          nextAttackAtMs: Math.max(nextEnemy.nextAttackAtMs, wakeUpUntilMs),
+          aiState: "idle",
           juggleCount: 0,
           wallBounceCount: 0,
           wallBounceStartedAtMs: undefined,
@@ -4892,8 +4947,17 @@ function updateEnemyAirStates(run: CombatRun): CombatRun {
         };
       }
 
-      return enemy;
-    })
+      if (nextEnemy.wakeUpUntilMs !== undefined && atMs >= nextEnemy.wakeUpUntilMs) {
+        nextEnemy = {
+          ...nextEnemy,
+          wakeUpStartedAtMs: undefined,
+          wakeUpUntilMs: undefined
+        };
+      }
+
+      return nextEnemy;
+    }),
+    events: [...run.events, ...events]
   };
 }
 
@@ -5252,6 +5316,7 @@ function advanceEnemyApproachMovement(
     recovered.hp <= 0 ||
     recovered.airborne ||
     recovered.downed ||
+    enemyWakeUpProtected(recovered, elapsedMs) ||
     hasActiveEnemyAttack(recovered, elapsedMs) ||
     elapsedMs < (recovered.controlledUntilMs ?? 0) ||
     elapsedMs < (recovered.hitstunUntilMs ?? 0) ||
@@ -5390,6 +5455,7 @@ function beginEnemyAttack(
     recovered.hp <= 0 ||
     recovered.airborne ||
     recovered.downed ||
+    enemyWakeUpProtected(recovered, elapsedMs) ||
     hasActiveEnemyAttack(recovered, elapsedMs) ||
     elapsedMs < recovered.nextAttackAtMs ||
     elapsedMs < (recovered.controlledUntilMs ?? 0) ||
@@ -5794,6 +5860,10 @@ export function applyHit(run: CombatRun, hit: HitDefinition): CombatRun {
 
   if (!target) {
     throw new Error(`Unknown combat target: ${hit.targetId}`);
+  }
+
+  if (enemyWakeUpProtected(target, run.elapsedMs + (hit.inputToHitMs ?? 0))) {
+    return run;
   }
 
   const impactAtMs = run.elapsedMs + (hit.inputToHitMs ?? 0);
@@ -6328,7 +6398,7 @@ function applyScheduledEnemyHitEffect(
 
   const target = impactResolvedRun.enemies.find((enemy) => enemy.id === targetId);
 
-  if (!target || target.hp <= 0) {
+  if (!target || target.hp <= 0 || enemyWakeUpProtected(target, effect.applyAtMs)) {
     return impactResolvedRun;
   }
 
@@ -6760,6 +6830,8 @@ function resolveScheduledCombatEffects(run: CombatRun, movement?: CombatMovement
         continue;
       }
     }
+
+    nextRun = updateEnemyAirStates(nextRun, item.occurredAtMs);
 
     if (item.kind === "enemy-hit") {
       if (item.effect.skillId && canceledSkillIds.has(item.effect.skillId)) {

@@ -3701,6 +3701,14 @@ describe("town app shell", () => {
     expect(stylesCss).toContain('@keyframes otg-impact-crack');
   });
 
+  it("defines enemy wake-up motion and protection feedback", () => {
+    expect(stylesCss).toContain('.combat-enemy[data-enemy-motion="wake-up"] .enemy-art');
+    expect(stylesCss).toContain('.enemy-wake-up-vfx[data-enemy-wake-up-vfx="protected-rise"]');
+    expect(stylesCss).toContain('@keyframes monster-wake-up-rise');
+    expect(stylesCss).toContain('@keyframes enemy-wake-up-ring');
+    expect(stylesCss).toContain('@keyframes enemy-wake-up-aura');
+  });
+
   it("defines directional wall-bounce model and wall-crack feedback", () => {
     expect(stylesCss).toContain('.combat-enemy:has(.enemy-wall-bounce-state[data-enemy-wall-bounce-active="true"])');
     expect(stylesCss).toContain('.actor-model-wall-bounce');

@@ -291,6 +291,15 @@ describe("adaptive audio hooks", () => {
     expect(new Set(plans.map((plan) => plan.textureTags.join(":"))).size).toBe(ids.length);
   });
 
+  it("builds an authored enemy wake-up protection sound", () => {
+    const plan = createAudioPlaybackPlan({ type: "sfx", id: "enemy-wake-up-protection" }, createAudioState().volumes);
+
+    expect(plan.commandId).toBe("enemy-wake-up-protection");
+    expect(plan.notes.length).toBeGreaterThanOrEqual(3);
+    expect(plan.textureTags).toEqual(expect.arrayContaining(["rise", "protection-frame"]));
+    expect(plan.textureTags).not.toContain("ui-click");
+  });
+
   it("processes audio command queues once and restarts music after volume changes", () => {
     const calls: Array<{ kind: "music" | "sfx"; plan: AudioPlaybackPlan }> = [];
     const sink: AudioPlaybackSink = {

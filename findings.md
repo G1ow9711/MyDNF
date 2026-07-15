@@ -1716,3 +1716,16 @@
 - Elite, Boss, and active-super-armor targets take reduced resistance damage but never receive grab coordinates or held-state timers.
 - Real-browser recording proved the live trash target entered held and thrown states with player/enemy model animations, clamp VFX, slam VFX, and both authored sounds; the Boss produced only resistance VFX/audio.
 - Iron has no authored frame atlas. Showing the default Ember atlas created a duplicate character, so unsupported player atlases must stay hidden while the class-specific fallback art carries the action animation.
+
+## Task 213 Enemy Wake-Up Protection Audit
+- Live enemies currently transition directly from `downed: true` to standing when `downedUntilMs` expires. There is no authored rising state or protected interval.
+- Shared player target selection excludes downed enemies except slam attacks, but immediately accepts the enemy on the first standing frame. This permits visually incoherent pressure before a get-up action can finish.
+- The same direct transition resets juggle and wall-bounce counters but does not delay `nextAttackAtMs`, so AI may begin a new windup on the wake-up frame.
+- Wake-up must be authoritative combat state, not a render-only animation: player hitboxes, grabs, enemy pursuit, and enemy attack starts must all respect it.
+- The protected interval must shift with hitstop just like airborne, downed, wall-bounce, and grab timers.
+- Acceptance boundary: a live trash monster is knocked down, enters a visible rising pose after the prone window, rejects a real-key attack during protection without HP loss, then accepts a later real-key hit after protection ends.
+- RED review exposed three timing defects: large frames started protection late, delayed slam effects could cross the downed deadline before protection existed, and hitstop shifted actor timers without shifting the wake event.
+- Recovery now uses the original airborne/downed deadline, advances enemy state at each scheduled effect timestamp, and shifts both state and event timestamps through hitstop.
+- Full immunity is enforced in direct hits, dynamic target selection, scheduled hits, grabs, pursuit, and enemy attack startup; the 520 ms completion restores normal targeting and AI.
+- Because combat markup is rebuilt every tick, ordinary CSS animation playback restarted continuously. Model, ring, and aura animations are now paused and sought with an authoritative progress variable, so computed transforms and opacity advance across replacement frames.
+- Real-browser evidence uses a real heavy launch followed by Ink Shot inside its authored 380 px hitbox. It proves accepted skill input, unchanged protected-target HP, advancing model/ring frames, wake audio, and later live skill damage after protection.

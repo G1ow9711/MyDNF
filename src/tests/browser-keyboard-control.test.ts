@@ -365,6 +365,11 @@ type BrowserRoomFlowState = {
     airborneState: string;
     juggleCount: number;
     juggleProtected: string;
+    motion: string;
+    wakeUpProtected: string;
+    wakeUpStartedAtMs: number;
+    wakeUpUntilMs: number;
+    wakeUpProgress: number;
   }>;
 };
 
@@ -382,6 +387,7 @@ type BrowserPositionalHitState = {
 type BrowserJuggleOtgEvidence = {
   protectedEventIds: string[];
   otgEventIds: string[];
+  heavyTargetIds: string[];
   protectedTargetIds: string[];
   downedTargetIds: string[];
   audioIds: string[];
@@ -389,6 +395,14 @@ type BrowserJuggleOtgEvidence = {
   maxJuggleByTarget: Record<string, number>;
   protectedImpactAnimation: string;
   otgImpactAnimation: string;
+  wakeProtectedTargetIds: string[];
+  wakeAudioIds: string[];
+  wakeModelAnimation: string;
+  wakeModelTransforms: string[];
+  wakeRingOpacities: string[];
+  wakeFrameState: string;
+  wakeRingAnimation: string;
+  wakeAuraAnimation: string;
 };
 
 type BrowserWallBounceEvidence = {
@@ -862,7 +876,12 @@ const readRoomFlowStateExpression = `
     attackSkillId: enemy.getAttribute("data-enemy-attack-skill-id") ?? "",
     airborneState: enemy.getAttribute("data-airborne-state") ?? "",
     juggleCount: Number(enemy.querySelector("[data-enemy-juggle-count]")?.getAttribute("data-enemy-juggle-count") ?? "0"),
-    juggleProtected: enemy.querySelector("[data-enemy-juggle-protected]")?.getAttribute("data-enemy-juggle-protected") ?? "false"
+    juggleProtected: enemy.querySelector("[data-enemy-juggle-protected]")?.getAttribute("data-enemy-juggle-protected") ?? "false",
+    motion: enemy.getAttribute("data-enemy-motion") ?? "",
+    wakeUpProtected: enemy.querySelector("[data-enemy-wake-up-protected]")?.getAttribute("data-enemy-wake-up-protected") ?? "false",
+    wakeUpStartedAtMs: Number(enemy.querySelector("[data-enemy-wake-up-started-at-ms]")?.getAttribute("data-enemy-wake-up-started-at-ms") || "0"),
+    wakeUpUntilMs: Number(enemy.querySelector("[data-enemy-wake-up-until-ms]")?.getAttribute("data-enemy-wake-up-until-ms") || "0"),
+    wakeUpProgress: Number(enemy.querySelector("[data-enemy-wake-up-progress]")?.getAttribute("data-enemy-wake-up-progress") || "0")
   }));
   const rawSave = localStorage.getItem(${JSON.stringify(SAVE_KEY)});
   const saved = rawSave ? JSON.parse(rawSave) : null;
@@ -2308,13 +2327,22 @@ const installJuggleOtgRecorderExpression = `
   globalThis.__juggleOtgEvidence = {
     protectedEventIds: [],
     otgEventIds: [],
+    heavyTargetIds: [],
     protectedTargetIds: [],
     downedTargetIds: [],
     audioIds: [],
     hitSamples: [],
     maxJuggleByTarget: {},
     protectedImpactAnimation: "",
-    otgImpactAnimation: ""
+    otgImpactAnimation: "",
+    wakeProtectedTargetIds: [],
+    wakeAudioIds: [],
+    wakeModelAnimation: "",
+    wakeModelTransforms: [],
+    wakeRingOpacities: [],
+    wakeFrameState: "",
+    wakeRingAnimation: "",
+    wakeAuraAnimation: ""
   };
   globalThis.__juggleOtgObserver?.disconnect();
   if (globalThis.__juggleOtgAudioListener) {
@@ -2335,6 +2363,12 @@ const installJuggleOtgRecorderExpression = `
           otg: impact.getAttribute("data-otg-hit") ?? "false"
         });
       }
+      if (eventId.startsWith("ground-heavy-")) {
+        const heavyTargetId = Array.from(document.querySelectorAll("[data-enemy-id]"))
+          .map((enemy) => enemy.getAttribute("data-enemy-id") ?? "")
+          .find((enemyId) => enemyId && eventId.includes(enemyId));
+        addUnique(evidence.heavyTargetIds, heavyTargetId);
+      }
       if (impact.getAttribute("data-juggle-protected") === "true") {
         addUnique(evidence.protectedEventIds, eventId);
         evidence.protectedImpactAnimation ||= getComputedStyle(impact).animationName;
@@ -2351,6 +2385,21 @@ const installJuggleOtgRecorderExpression = `
       evidence.maxJuggleByTarget[enemyId] = Math.max(evidence.maxJuggleByTarget[enemyId] ?? 0, count);
       if (juggle?.getAttribute("data-enemy-juggle-protected") === "true") addUnique(evidence.protectedTargetIds, enemyId);
       if (enemy.getAttribute("data-airborne-state") === "downed") addUnique(evidence.downedTargetIds, enemyId);
+      const wakeState = enemy.querySelector("[data-enemy-wake-up-protected]");
+      if (wakeState?.getAttribute("data-enemy-wake-up-protected") === "true") {
+        addUnique(evidence.wakeProtectedTargetIds, enemyId);
+        const wakeModel = enemy.querySelector(".enemy-art");
+        const wakeRing = enemy.querySelector(".enemy-wake-up-vfx i");
+        if (wakeModel) {
+          const modelStyle = getComputedStyle(wakeModel);
+          evidence.wakeModelAnimation ||= modelStyle.animationName;
+          addUnique(evidence.wakeModelTransforms, modelStyle.transform);
+        }
+        if (wakeRing) addUnique(evidence.wakeRingOpacities, getComputedStyle(wakeRing).opacity);
+        evidence.wakeFrameState ||= enemy.querySelector(".enemy-frame-sprite")?.getAttribute("data-sprite-state") ?? "";
+        evidence.wakeRingAnimation ||= getComputedStyle(enemy.querySelector(".enemy-wake-up-vfx i")).animationName;
+        evidence.wakeAuraAnimation ||= getComputedStyle(enemy.querySelector(".enemy-wake-up-vfx b")).animationName;
+      }
     }
   };
   globalThis.__juggleOtgObserver = new MutationObserver(sample);
@@ -2358,6 +2407,7 @@ const installJuggleOtgRecorderExpression = `
   globalThis.__juggleOtgAudioListener = (event) => {
     const id = event.detail?.commandId;
     if (id === "juggle-protection-confirm" || id === "otg-hit-confirm") addUnique(globalThis.__juggleOtgEvidence.audioIds, id);
+    if (id === "enemy-wake-up-protection") addUnique(globalThis.__juggleOtgEvidence.wakeAudioIds, id);
   };
   globalThis.addEventListener("mydnf:audio-playback", globalThis.__juggleOtgAudioListener);
   sample();
@@ -4280,6 +4330,141 @@ describe("real browser keyboard control", () => {
       await server.close();
     }
   }, 60000);
+
+  it("blocks a real ranged skill during enemy wake-up and restores skill hits after protection", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
+        await seedSaveAndReload(page, createWakeUpAcceptanceState());
+        await enterDungeonWithKeyboard(page);
+        await moveIntoLiveEnemyRange(page);
+        await waitInBrowser(page, 420);
+        await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
+          readFlowingLightSafeCastWindowExpression,
+          (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
+          5000
+        );
+        await page.keyDown("ArrowRight");
+        try {
+          await page.waitFor<BrowserRoomFlowState>(
+            readRoomFlowStateExpression,
+            (state) =>
+              state.playerHurtLockActive === "false" &&
+              state.enemies.some(
+                (enemy) => enemy.hp > 0 && enemy.x > Number(state.playerX) && enemy.x - Number(state.playerX) <= 92
+              ),
+            2200
+          );
+        } finally {
+          await page.keyUp("ArrowRight");
+        }
+        await waitInBrowser(page, 420);
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.playerActiveSkill === "" && state.playerHurtLockActive === "false",
+          1800
+        );
+        await page.evaluate<boolean>(installJuggleOtgRecorderExpression);
+
+        await page.pressKey("KeyZ");
+        const heavyEvidence = await page.waitFor<BrowserJuggleOtgEvidence>(
+          readJuggleOtgEvidenceExpression,
+          (evidence) => evidence.heavyTargetIds.length > 0,
+          1600
+        );
+        const targetId = heavyEvidence.heavyTargetIds.at(-1);
+        expect(targetId).toBeDefined();
+        if (!targetId) {
+          throw new Error("Expected a real heavy-hit target for wake-up acceptance");
+        }
+
+        const waking = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => {
+            const target = state.enemies.find((enemy) => enemy.id === targetId && enemy.hp > 0);
+            return Boolean(
+              target &&
+                target.motion === "wake-up" &&
+                target.wakeUpProtected === "true" &&
+                target.wakeUpProgress > 0 &&
+                target.wakeUpProgress < 0.45 &&
+                state.playerHurtLockActive === "false"
+            );
+          },
+          2600
+        );
+        const protectedReady = waking;
+        const protectedTarget = protectedReady.enemies.find((enemy) => enemy.id === targetId)!;
+        const protectedHp = protectedTarget.hp;
+        const playerX = Number(protectedReady.playerX);
+        const playerY = Number(protectedReady.playerY);
+        const targetDeltaX = protectedTarget.x - playerX;
+        expect(Math.sign(targetDeltaX)).toBe(Number(protectedReady.playerFacing));
+        expect(Math.abs(targetDeltaX)).toBeLessThanOrEqual(380);
+        expect(Math.abs(protectedTarget.y - playerY)).toBeLessThanOrEqual(56);
+        expect(protectedTarget.wakeUpUntilMs - Number(protectedReady.combatElapsedMs)).toBeGreaterThan(180);
+
+        await page.pressKey("KeyA");
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.playerActiveSkill === "ink-shot" && state.playerHurtLockActive === "false",
+          600
+        );
+        await waitInBrowser(page, 150);
+        const protectedAfterInput = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
+        expect(protectedAfterInput.enemies.find((enemy) => enemy.id === targetId)?.hp).toBe(protectedHp);
+
+        const wakeEvidence = await page.waitFor<BrowserJuggleOtgEvidence>(
+          readJuggleOtgEvidenceExpression,
+          (evidence) =>
+            evidence.wakeProtectedTargetIds.includes(targetId) &&
+            evidence.wakeAudioIds.includes("enemy-wake-up-protection") &&
+            evidence.wakeFrameState === "wake-up",
+          1200
+        );
+        expect(wakeEvidence.wakeModelAnimation).toBe("monster-wake-up-rise");
+        expect(wakeEvidence.wakeModelTransforms.length).toBeGreaterThanOrEqual(2);
+        expect(wakeEvidence.wakeRingOpacities.length).toBeGreaterThanOrEqual(2);
+        expect(wakeEvidence.wakeRingAnimation).toBe("enemy-wake-up-ring");
+        expect(wakeEvidence.wakeAuraAnimation).toBe("enemy-wake-up-aura");
+
+        const vulnerable = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => {
+            const target = state.enemies.find((enemy) => enemy.id === targetId && enemy.hp > 0);
+            return Boolean(
+              target &&
+                target.wakeUpProtected === "false" &&
+                target.x > Number(state.playerX) &&
+                target.x - Number(state.playerX) <= 320 &&
+                Math.abs(target.y - Number(state.playerY)) <= 64 &&
+                state.playerActiveSkill === "" &&
+                state.playerHurtLockActive === "false"
+            );
+          },
+          2200
+        );
+        expect(vulnerable.enemies.find((enemy) => enemy.id === targetId)?.hp).toBe(protectedHp);
+        const vulnerableHpById = Object.fromEntries(vulnerable.enemies.map((enemy) => [enemy.id, enemy.hp]));
+        await page.pressKey("KeyD");
+        await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.playerActiveSkill === "marking-bolt" && state.playerHurtLockActive === "false",
+          600
+        );
+        const postProtectionHit = await page.waitFor<BrowserRoomFlowState>(
+          readRoomFlowStateExpression,
+          (state) => state.enemies.some((enemy) => enemy.hp < (vulnerableHpById[enemy.id] ?? enemy.hp)),
+          1200
+        );
+        expect(postProtectionHit.enemies.some((enemy) => enemy.hp < (vulnerableHpById[enemy.id] ?? enemy.hp))).toBe(true);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 110000);
 
   it("drives a live right-wall bounce with real Flowing Light Chain input", async () => {
     const server = await startViteServer();
@@ -6447,6 +6632,26 @@ function createJuggleOtgAcceptanceState(): GameState {
       dungeonDifficultyPreferences: {
         ...state.player.dungeonDifficultyPreferences,
         "cinder-kiln-alley": "warrior"
+      }
+    }
+  };
+}
+
+function createWakeUpAcceptanceState(): GameState {
+  const state = selectBaseClass(createInitialState(), "ink-shadow-ranger");
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      equipment: {},
+      classResources: {
+        ...state.player.classResources,
+        "ink-shadow-ranger": 100
+      },
+      dungeonDifficultyPreferences: {
+        ...state.player.dungeonDifficultyPreferences,
+        "cinder-kiln-alley": "normal"
       }
     }
   };

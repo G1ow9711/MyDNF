@@ -1844,6 +1844,117 @@ describe("combat actions and impact feel", () => {
     expect(stood.enemies[0]).toMatchObject({ airborne: false, downed: false, juggleCount: 0 });
   });
 
+  it("moves a live downed enemy through a protected wake-up before restoring vulnerability", () => {
+    const base = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 500,
+      maxHp: 500,
+      armor: 0,
+      maxArmor: 0,
+      downed: true,
+      downedUntilMs: 100,
+      nextAttackAtMs: 0
+    });
+    const rising = stepCombat(base, {}, 160);
+    const protectedCast = performAction(rising, { type: "light" });
+    const protectedResolved = stepToElapsed(protectedCast, protectedCast.elapsedMs + 200);
+    const recovered = stepToElapsed(rising, rising.enemies[0].wakeUpUntilMs ?? rising.elapsedMs);
+    const vulnerableCast = performAction(recovered, { type: "light" });
+    const [vulnerableHitAtMs] = scheduledGroundLightTimes(vulnerableCast);
+    const vulnerableResolved = stepToElapsed(vulnerableCast, vulnerableHitAtMs);
+
+    expect(rising.enemies[0]).toMatchObject({
+      downed: false,
+      wakeUpStartedAtMs: 100,
+      wakeUpUntilMs: 620,
+      juggleCount: 0
+    });
+    expect(rising.events.at(-1)).toMatchObject({
+      kind: "enemy-wake-up",
+      enemyId: rising.enemies[0].id,
+      occurredAtMs: 100,
+      completeAtMs: 620
+    });
+    expect(protectedResolved.enemies[0].hp).toBe(500);
+    expect(protectedResolved.events.some((event) => event.kind === "enemy-attack")).toBe(false);
+    expect(protectedResolved.enemies[0].position).toEqual(rising.enemies[0].position);
+    expect(vulnerableResolved.enemies[0].hp).toBeLessThan(500);
+  });
+
+  it("shifts an active enemy wake-up window with hitstop", () => {
+    const base = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 500,
+      maxHp: 500,
+      downed: false,
+      downedUntilMs: undefined,
+      wakeUpStartedAtMs: 100,
+      wakeUpUntilMs: 620,
+      nextAttackAtMs: 620
+    });
+    const frozen: CombatRun = {
+      ...base,
+      elapsedMs: 200,
+      events: [
+        ...base.events,
+        {
+          kind: "enemy-wake-up",
+          id: `enemy-wake-up-100-${base.enemies[0].id}`,
+          enemyId: base.enemies[0].id,
+          occurredAtMs: 100,
+          completeAtMs: 620
+        }
+      ],
+      player: {
+        ...base.player,
+        hitstopUntilMs: 300
+      }
+    };
+    const advanced = stepCombat(frozen, {}, 100);
+
+    expect(advanced.elapsedMs).toBe(300);
+    expect(advanced.enemies[0].wakeUpStartedAtMs).toBe(200);
+    expect(advanced.enemies[0].wakeUpUntilMs).toBe(720);
+    expect(advanced.enemies[0].nextAttackAtMs).toBe(720);
+    expect(advanced.events.at(-1)).toMatchObject({ kind: "enemy-wake-up", occurredAtMs: 200, completeAtMs: 720 });
+  });
+
+  it("starts wake-up before a delayed slam whose hit frame crosses downed recovery", () => {
+    const base = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
+      hp: 500,
+      maxHp: 500,
+      armor: 0,
+      maxArmor: 0,
+      downed: true,
+      downedUntilMs: 100,
+      nextAttackAtMs: 9999
+    });
+    const airborne: CombatRun = {
+      ...base,
+      elapsedMs: 90,
+      player: {
+        ...base.player,
+        airState: "jumping",
+        jumpStartedAtMs: 0,
+        airborneUntilMs: 1000,
+        actionLockUntilMs: 0,
+        hurtLockUntilMs: 0,
+        airAttackUsed: false
+      }
+    };
+    const cast = performAction(airborne, { type: "heavy" });
+    const slam = cast.scheduledEnemyHitEffects.find((effect) => effect.hitPhase === "air-heavy-slam");
+    expect(slam).toBeDefined();
+    const resolved = stepToElapsed(cast, slam!.applyAtMs);
+
+    expect(resolved.enemies[0].hp).toBe(500);
+    expect(resolved.enemies[0]).toMatchObject({
+      downed: false,
+      wakeUpStartedAtMs: 100,
+      wakeUpUntilMs: 620
+    });
+    expect(resolved.events.filter((event) => event.kind === "enemy-wake-up")).toHaveLength(1);
+    expect(resolved.events.some((event) => event.kind === "hit" && event.hitPhase === "air-heavy-slam")).toBe(false);
+  });
+
   it("keeps ordinary follow-up hits on an airborne target inside the juggle chain", () => {
     const base = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       hp: 300,

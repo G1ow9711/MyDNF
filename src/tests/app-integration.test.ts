@@ -2128,6 +2128,41 @@ describe("playable app integration actions", () => {
     expect(downedHtml).toContain('class="enemy-art actor-model actor-model-knockdown"');
   });
 
+  it("renders authoritative enemy wake-up protection motion and VFX", () => {
+    let model = createAppModel({ storage: new MemoryStorage() });
+
+    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+    model = {
+      ...model,
+      combatRun: model.combatRun
+        ? {
+            ...model.combatRun,
+            elapsedMs: 220,
+            enemies: model.combatRun.enemies.map((enemy, index) =>
+              index === 0
+                ? {
+                    ...enemy,
+                    downed: false,
+                    downedUntilMs: undefined,
+                    wakeUpStartedAtMs: 100,
+                    wakeUpUntilMs: 620
+                  }
+                : { ...enemy, hp: 0 }
+            )
+          }
+        : undefined
+    };
+
+    const html = renderAppHtml(model);
+
+    expect(html).toContain('data-enemy-motion="wake-up"');
+    expect(html).toContain('data-enemy-wake-up-protected="true"');
+    expect(html).toContain('data-enemy-wake-up-started-at-ms="100"');
+    expect(html).toContain('data-enemy-wake-up-until-ms="620"');
+    expect(html).toContain('class="enemy-art actor-model actor-model-wake-up"');
+    expect(html).toContain('data-enemy-wake-up-vfx="protected-rise"');
+  });
+
   it("advances automatic combat ticks in short frames so grounded heavy renders windup before impact", () => {
     let model = createAppModel({ storage: new MemoryStorage() });
 

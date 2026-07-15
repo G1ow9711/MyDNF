@@ -12,6 +12,7 @@ import {
   finishRoom,
   meteorKnuckleMaxChargeMs,
   pickupRoomFloorLoot,
+  playerReceivedHitStateAt,
   performAction,
   releaseMeteorKnuckleCharge,
   roomGateForRun,
@@ -431,6 +432,13 @@ enemies: run.enemies.map((enemy, index) => (index === 0 ? { ...enemy, hp: Math.m
 player: {
 ...run.player,
 hp: 0,
+receivedHitStartedAtMs: 10,
+receivedHitLaunchAtMs: 100,
+receivedHitApexAtMs: 280,
+receivedHitLandAtMs: 500,
+receivedHitNaturalRiseAtMs: 1020,
+receivedHitRecoverAtMs: 1380,
+quickRecoverReadyUntilMs: 920,
 defeated: true
 }
 };
@@ -441,6 +449,10 @@ expect(revived.failed).toBe(false);
 expect(revived.player.defeated).toBe(false);
 expect(revived.player.hp).toBe(Math.ceil(revived.player.maxHp * 0.35));
 expect(revived.player.invulnerableUntilMs).toBeGreaterThan(revived.elapsedMs);
+expect(playerReceivedHitStateAt(revived.player, revived.elapsedMs)).toBe("grounded");
+expect(revived.player.receivedHitStartedAtMs).toBe(0);
+expect(revived.player.receivedHitRecoverAtMs).toBe(0);
+expect(revived.player.quickRecoverReadyUntilMs).toBe(0);
 expect(revived.enemies[0]?.hp).toBe(defeatedRun.enemies[0]?.hp);
 expect(revived.state.player.consumables["revival-token"]).toBe(state.player.consumables["revival-token"] - 1);
 expect(revived.events.at(-1)).toMatchObject({ kind: "player-status", action: "consumable", skillId: "revival-token", vfxCue: "revival-token-use" });
@@ -727,8 +739,10 @@ describe("combat difficulty scaling", () => {
     );
 
     expect(playerHit?.damage).toBe(51);
+    expect(playerHit?.reaction).toBe("launch");
     expect(impacted.player.x).toBe(156);
-    expect(impacted.player.hurtLockUntilMs).toBe(620);
+    expect(impacted.player.hurtLockUntilMs).toBe(impacted.player.receivedHitRecoverAtMs);
+    expect(playerReceivedHitStateAt(impacted.player, impacted.elapsedMs)).toBe("hit");
     expect(impacted.player.bufferedAction).toBeUndefined();
   });
 
@@ -4163,7 +4177,7 @@ describe("combat actions and impact feel", () => {
     expect(launchedEnemy.attackSkillId).toBeUndefined();
   });
 
-  it("lets C trigger a DNF-style quick recover during strong monster hurt lock", () => {
+  it("runs strong monster hits through hit, launched, falling, downed, natural-rise, and grounded states", () => {
     const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
     const run = withEnemyInRange(baseRun, {
       ...({ attackProfileId: "ash-crawler-burst" } as unknown as Partial<CombatEnemy>),
@@ -4176,23 +4190,108 @@ describe("combat actions and impact feel", () => {
     const playerHit = impacted.events.find(
       (event): event is CombatPlayerHitEvent => event.kind === "player-hit" && event.skillId === "ash-crawler-burst"
     );
-    const ready = quickRecoverState(impacted);
+    const timeline = impacted.player as CombatRun["player"] & {
+      receivedHitLaunchAtMs: number;
+      receivedHitApexAtMs: number;
+      receivedHitLandAtMs: number;
+      receivedHitNaturalRiseAtMs: number;
+      receivedHitRecoverAtMs: number;
+    };
 
     expect(playerHit).toBeDefined();
+    expect(playerHit?.reaction).toBe("launch");
+    expect(playerReceivedHitStateAt(impacted.player, impacted.elapsedMs)).toBe("hit");
     expect(impacted.player.hurtLockUntilMs).toBeGreaterThan(impacted.elapsedMs);
-    expect(ready.readyUntilMs).toBeGreaterThan(impacted.elapsedMs);
-    expect(ready.readyUntilMs).toBeLessThan(impacted.player.hurtLockUntilMs);
+    expect(quickRecoverState(impacted).readyUntilMs).toBeGreaterThan(timeline.receivedHitLandAtMs);
 
-    const recovered = performAction(impacted, { type: "jump" });
+    const frozenX = impacted.player.x;
+    const hitstopResolved = stepCombat(impacted, { moveX: 1, dash: true }, impacted.player.hitstopUntilMs - impacted.elapsedMs);
+    const shiftedTimeline = hitstopResolved.player as typeof timeline;
+    expect(hitstopResolved.player.x).toBe(frozenX);
+    expect(shiftedTimeline.receivedHitApexAtMs).toBeGreaterThan(timeline.receivedHitApexAtMs);
+    expect(playerReceivedHitStateAt(hitstopResolved.player, hitstopResolved.elapsedMs)).toBe("hit");
+
+    const launched = stepToElapsed(hitstopResolved, shiftedTimeline.receivedHitLaunchAtMs);
+    const falling = stepToElapsed(launched, shiftedTimeline.receivedHitApexAtMs);
+    const downed = stepToElapsed(falling, shiftedTimeline.receivedHitLandAtMs);
+    const naturalRise = stepToElapsed(downed, shiftedTimeline.receivedHitNaturalRiseAtMs);
+    const grounded = stepToElapsed(naturalRise, shiftedTimeline.receivedHitRecoverAtMs);
+
+    expect(playerReceivedHitStateAt(launched.player, launched.elapsedMs)).toBe("launched");
+    expect(playerReceivedHitStateAt(falling.player, falling.elapsedMs)).toBe("falling");
+    expect(playerReceivedHitStateAt(downed.player, downed.elapsedMs)).toBe("downed");
+    expect(downed.player.invulnerableStartedAtMs).toBe(shiftedTimeline.receivedHitNaturalRiseAtMs);
+    expect(downed.elapsedMs).toBeLessThan(downed.player.invulnerableStartedAtMs);
+    expect(playerReceivedHitStateAt(naturalRise.player, naturalRise.elapsedMs)).toBe("natural-rise");
+    expect(naturalRise.elapsedMs).toBeGreaterThanOrEqual(naturalRise.player.invulnerableStartedAtMs);
+    expect(naturalRise.player.invulnerableUntilMs).toBeGreaterThan(shiftedTimeline.receivedHitRecoverAtMs);
+    expect(playerReceivedHitStateAt(grounded.player, grounded.elapsedMs)).toBe("grounded");
+    expect(grounded.player.hurtLockUntilMs).toBeLessThanOrEqual(grounded.elapsedMs);
+  });
+
+  it("shifts zero-origin received-hit phases and control locks together during hitstop", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const frozenRun: CombatRun = {
+      ...baseRun,
+      player: {
+        ...baseRun.player,
+        hitstopUntilMs: 50,
+        hurtLockUntilMs: 1370,
+        actionLockUntilMs: 1370,
+        invulnerableStartedAtMs: 1010,
+        invulnerableUntilMs: 1550,
+        receivedHitStartedAtMs: 0,
+        receivedHitLaunchAtMs: 90,
+        receivedHitApexAtMs: 270,
+        receivedHitLandAtMs: 490,
+        receivedHitNaturalRiseAtMs: 1010,
+        receivedHitRecoverAtMs: 1370,
+        quickRecoverReadyUntilMs: 910
+      }
+    };
+    const shifted = stepCombat(frozenRun, { moveX: 1 }, 50);
+
+    expect(shifted.elapsedMs).toBe(50);
+    expect(shifted.player.x).toBe(frozenRun.player.x);
+    expect(shifted.player.receivedHitStartedAtMs).toBe(50);
+    expect(shifted.player.receivedHitLaunchAtMs).toBe(140);
+    expect(shifted.player.receivedHitApexAtMs).toBe(320);
+    expect(shifted.player.receivedHitLandAtMs).toBe(540);
+    expect(shifted.player.receivedHitNaturalRiseAtMs).toBe(1060);
+    expect(shifted.player.receivedHitRecoverAtMs).toBe(1420);
+    expect(shifted.player.quickRecoverReadyUntilMs).toBe(960);
+    expect(shifted.player.hurtLockUntilMs).toBe(1420);
+    expect(shifted.player.actionLockUntilMs).toBe(1420);
+    expect(shifted.player.invulnerableStartedAtMs).toBe(1060);
+    expect(playerReceivedHitStateAt(shifted.player, shifted.elapsedMs)).toBe("hit");
+  });
+
+  it("accepts C only after floor contact and performs an invulnerable quick rise", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const run = withEnemyInRange(baseRun, {
+      ...({ attackProfileId: "ash-crawler-burst" } as unknown as Partial<CombatEnemy>),
+      position: { x: baseRun.player.x + 92, y: baseRun.player.y },
+      nextAttackAtMs: 1
+    });
+    const telegraph = stepCombat(run, {}, 1);
+    const impacted = stepToElapsed(telegraph, telegraph.enemies[0].attackImpactAtMs ?? 0);
+    const earlyAttempt = performAction(impacted, { type: "jump" });
+    const afterHitstop = stepCombat(impacted, {}, impacted.player.hitstopUntilMs - impacted.elapsedMs);
+    const landAtMs = (afterHitstop.player as CombatRun["player"] & { receivedHitLandAtMs: number }).receivedHitLandAtMs;
+    const downed = stepToElapsed(afterHitstop, landAtMs);
+    const recovered = performAction(downed, { type: "jump" });
     const recovering = quickRecoverState(recovered);
 
-    expect(recovering.startedAtMs).toBe(impacted.elapsedMs);
-    expect(recovering.untilMs).toBeGreaterThan(recovered.elapsedMs);
-    expect(recovered.player.hurtLockUntilMs).toBe(impacted.elapsedMs);
-    expect(recovered.player.boundUntilMs).toBe(0);
+    expect(quickRecoverState(earlyAttempt).startedAtMs).toBe(0);
+    expect(playerReceivedHitStateAt(downed.player, downed.elapsedMs)).toBe("downed");
+    expect(recovering.startedAtMs).toBe(downed.elapsedMs);
+    expect(playerReceivedHitStateAt(recovered.player, recovered.elapsedMs)).toBe("quick-rise");
+    expect(recovered.player.hurtLockUntilMs).toBe(downed.elapsedMs);
     expect(recovered.player.invulnerableUntilMs).toBeGreaterThanOrEqual(recovered.elapsedMs + 500);
     expect(recovered.player.actionLockUntilMs).toBe(recovering.untilMs);
-    expect(recovered.player.airState).toBe("grounded");
+
+    const restored = stepToElapsed(recovered, recovering.untilMs);
+    expect(playerReceivedHitStateAt(restored.player, restored.elapsedMs)).toBe("grounded");
 
     const followUpRun: CombatRun = {
       ...recovered,
@@ -4223,7 +4322,7 @@ describe("combat actions and impact feel", () => {
     expect(protectedByRecover.player.hp).toBe(recovered.player.hp);
   });
 
-  it("does not quick recover from light projectile hits or after the recover window expires", () => {
+  it("keeps light hits out of knockdown and rejects C after the floor recovery window", () => {
     const lightRun = withEnemyInRange(createCombatRun(createInitialState(), "cinder-kiln-alley"), {
       position: { x: 260, y: 345 },
       nextAttackAtMs: 1
@@ -4235,6 +4334,8 @@ describe("combat actions and impact feel", () => {
     expect(lightImpact.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-ember-spit")).toBe(true);
     expect(quickRecoverState(lightImpact).readyUntilMs).toBe(0);
     expect(quickRecoverState(lightAttempt).startedAtMs).toBe(0);
+    expect(lightImpact.events.find((event): event is CombatPlayerHitEvent => event.kind === "player-hit")?.reaction).toBe("light-hit");
+    expect(playerReceivedHitStateAt(lightImpact.player, lightImpact.elapsedMs)).toBe("grounded");
     expect(lightAttempt.player.airState).toBe("grounded");
     expect(lightAttempt.player.hurtLockUntilMs).toBe(lightImpact.player.hurtLockUntilMs);
 
@@ -4246,14 +4347,55 @@ describe("combat actions and impact feel", () => {
     });
     const heavyTelegraph = stepCombat(heavyRun, {}, 1);
     const heavyImpact = stepToElapsed(heavyTelegraph, heavyTelegraph.enemies[0].attackImpactAtMs ?? 0);
-    const readyUntilMs = quickRecoverState(heavyImpact).readyUntilMs;
-    const expired = stepToElapsed(heavyImpact, readyUntilMs + 1);
+    const afterHitstop = stepCombat(heavyImpact, {}, heavyImpact.player.hitstopUntilMs - heavyImpact.elapsedMs);
+    const readyUntilMs = quickRecoverState(afterHitstop).readyUntilMs;
+    const expired = stepToElapsed(afterHitstop, readyUntilMs + 1);
     const expiredAttempt = performAction(expired, { type: "jump" });
 
-    expect(readyUntilMs).toBeGreaterThan(heavyImpact.elapsedMs);
+    expect(playerReceivedHitStateAt(expired.player, expired.elapsedMs)).toBe("downed");
     expect(expired.elapsedMs).toBeLessThan(expired.player.hurtLockUntilMs);
     expect(quickRecoverState(expiredAttempt).startedAtMs).toBe(0);
     expect(expiredAttempt.player.hurtLockUntilMs).toBe(expired.player.hurtLockUntilMs);
+  });
+
+  it("blocks movement, attacks, skills, and consumables through received-hit recovery", () => {
+    const baseRun = createCombatRun(createInitialState(), "cinder-kiln-alley");
+    const run = withEnemyInRange(baseRun, {
+      ...({ attackProfileId: "ash-crawler-burst" } as unknown as Partial<CombatEnemy>),
+      position: { x: baseRun.player.x + 92, y: baseRun.player.y },
+      nextAttackAtMs: 1
+    });
+    const telegraph = stepCombat(run, {}, 1);
+    const impacted = stepToElapsed(telegraph, telegraph.enemies[0].attackImpactAtMs ?? 0);
+    const afterHitstop = stepCombat(impacted, {}, impacted.player.hitstopUntilMs - impacted.elapsedMs);
+    const naturalRiseAtMs = (afterHitstop.player as CombatRun["player"] & { receivedHitNaturalRiseAtMs: number })
+      .receivedHitNaturalRiseAtMs;
+    const naturalRise = stepToElapsed(afterHitstop, naturalRiseAtMs);
+    const unlockedClone: CombatRun = {
+      ...naturalRise,
+      player: {
+        ...naturalRise.player,
+        hurtLockUntilMs: 0,
+        actionLockUntilMs: 0,
+        resource: { ...naturalRise.player.resource, current: naturalRise.player.resource.max },
+        heat: naturalRise.player.resource.max
+      }
+    };
+    const x = unlockedClone.player.x;
+    const hp = unlockedClone.player.hp;
+    const moved = stepCombat(unlockedClone, { moveX: 1, dash: true }, 60);
+    const attacked = performAction(unlockedClone, { type: "heavy" });
+    const skilled = performAction(unlockedClone, { type: "skill", skillId: "spark-combo" });
+    const charging = startMeteorKnuckleCharge(unlockedClone);
+    const consumed = performAction(unlockedClone, { type: "consume", consumableId: "healing-potion" });
+
+    expect(playerReceivedHitStateAt(unlockedClone.player, unlockedClone.elapsedMs)).toBe("natural-rise");
+    expect(moved.player.x).toBe(x);
+    expect(attacked.scheduledEnemyHitEffects).toEqual(unlockedClone.scheduledEnemyHitEffects);
+    expect(skilled.player.lastSkillId).toBe(unlockedClone.player.lastSkillId);
+    expect(charging.player.activeChargeSkillId).toBeUndefined();
+    expect(consumed.player.hp).toBe(hp);
+    expect(consumed.events).toEqual(unlockedClone.events);
   });
 
   it("lets every class jump into a timed airborne state without moving combat lane height", () => {
@@ -10550,11 +10692,13 @@ describe("enemy attacks and player defeat", () => {
       enemyId: phased.enemies[0].id,
       skillId: "taotie-forge-collapse",
       damage: expect.any(Number),
-      feedbackCue: "player-hurt-forge-collapse"
+      feedbackCue: "player-hurt-forge-collapse",
+      reaction: "launch"
     });
     expect(playerHit?.damage ?? 0).toBeGreaterThan(40);
     expect(impacted.player.hp).toBeLessThan(phased.player.hp);
     expect(impacted.player.hurtLockUntilMs).toBeGreaterThan(impacted.elapsedMs);
+    expect(playerReceivedHitStateAt(impacted.player, impacted.elapsedMs)).toBe("hit");
     expect(sidestepped.player.hp).toBe(999);
     expect(sidestepped.events).toEqual(
       expect.arrayContaining([
@@ -11789,6 +11933,8 @@ describe("enemy attacks and player defeat", () => {
     expect(defeated.player.hp).toBe(0);
     expect(defeated.player.defeated).toBe(true);
     expect(defeated.failed).toBe(true);
+    expect(playerReceivedHitStateAt(defeated.player, defeated.elapsedMs)).toBe("grounded");
+    expect(defeated.player.quickRecoverReadyUntilMs).toBe(0);
     expect(() => finishRoom(defeated)).toThrow(/failed combat/i);
   });
 });

@@ -15,7 +15,27 @@ type FrameActor = {
   comboStep?: number;
   reactionStep?: number;
   hitPhase?: string;
+  receivedHitState?: PlayerReceivedHitSpriteState;
 };
+
+type PlayerReceivedHitSpriteState =
+  | "grounded"
+  | "hit"
+  | "launched"
+  | "falling"
+  | "downed"
+  | "quick-rise"
+  | "natural-rise";
+
+const playerReceivedHitSpriteStates = new Set<PlayerReceivedHitSpriteState>([
+  "grounded",
+  "hit",
+  "launched",
+  "falling",
+  "downed",
+  "quick-rise",
+  "natural-rise"
+]);
 
 const swordDanceEnemyReactionFrames: Readonly<Record<string, number>> = {
   "chain-open": 12,
@@ -47,6 +67,40 @@ function actionFrame(progressValue: number): number {
 function intervalProgress(startAtMs: number, endAtMs: number, elapsedMs: number): number {
   if (endAtMs <= startAtMs) return 0;
   return clamp01((elapsedMs - startAtMs) / (endAtMs - startAtMs));
+}
+
+function playerReceivedHitState(element: HTMLElement): PlayerReceivedHitSpriteState {
+  const state = element.dataset.playerReceivedHitState ?? element.dataset.playerMotion ?? "grounded";
+  return playerReceivedHitSpriteStates.has(state as PlayerReceivedHitSpriteState)
+    ? state as PlayerReceivedHitSpriteState
+    : "grounded";
+}
+
+function playerReceivedHitProgress(
+  element: HTMLElement,
+  state: PlayerReceivedHitSpriteState,
+  elapsedMs: number
+): number {
+  if (element.dataset.playerReceivedHitProgress !== undefined) {
+    return progress(element.dataset.playerReceivedHitProgress);
+  }
+
+  const startedAtMs = Number(element.dataset.playerReceivedHitStartedAtMs ?? "0");
+  const launchAtMs = Number(element.dataset.playerReceivedHitLaunchAtMs ?? "0");
+  const apexAtMs = Number(element.dataset.playerReceivedHitApexAtMs ?? "0");
+  const landAtMs = Number(element.dataset.playerReceivedHitLandAtMs ?? "0");
+  const naturalRiseAtMs = Number(element.dataset.playerReceivedHitNaturalRiseAtMs ?? "0");
+  const recoverAtMs = Number(element.dataset.playerReceivedHitRecoverAtMs ?? "0");
+  const quickRiseStartedAtMs = Number(element.dataset.playerQuickRecoverStartedAtMs ?? "0");
+  const quickRiseUntilMs = Number(element.dataset.playerQuickRecoverUntilMs ?? "0");
+
+  if (state === "hit") return intervalProgress(startedAtMs, launchAtMs, elapsedMs);
+  if (state === "launched") return intervalProgress(launchAtMs, apexAtMs, elapsedMs);
+  if (state === "falling") return intervalProgress(apexAtMs, landAtMs, elapsedMs);
+  if (state === "downed") return intervalProgress(landAtMs, naturalRiseAtMs, elapsedMs);
+  if (state === "quick-rise") return intervalProgress(quickRiseStartedAtMs, quickRiseUntilMs, elapsedMs);
+  if (state === "natural-rise") return intervalProgress(naturalRiseAtMs, recoverAtMs, elapsedMs);
+  return 0;
 }
 
 export class CombatSpriteStage {
@@ -103,6 +157,12 @@ export class CombatSpriteStage {
     const playerX = Number(scene.dataset.playerX ?? "0");
 
     if (playerElement && playerSprite && ["ember-warden", "liuli-blademage"].includes(playerSprite.dataset.frameClassId ?? "")) {
+      const receivedHitState = playerReceivedHitState(playerElement);
+      const receivedHitProgress = playerReceivedHitProgress(playerElement, receivedHitState, elapsedMs);
+      root.querySelector<HTMLElement>(".player-reaction-vfx")?.style.setProperty(
+        "--player-received-hit-progress",
+        receivedHitProgress.toFixed(3)
+      );
       const chargeState = playerElement.querySelector<HTMLElement>(".player-charge-state");
       const skillHitAtMs = Number(playerElement.dataset.playerSkillHitAtMs ?? "0");
       const skillProgress = playerElement.dataset.playerSkillHitPhase && skillHitAtMs > 0
@@ -123,17 +183,20 @@ export class CombatSpriteStage {
         id: "player",
         x: playerX,
         motion: playerElement.dataset.playerMotion ?? "idle",
-        progress: playerElement.dataset.playerMotion === "skill-charge"
-          ? progress(chargeState?.dataset.playerChargeProgress)
-          : playerElement.dataset.playerMotion === "skill"
-            ? skillProgress
-            : normalProgress,
+        progress: receivedHitState !== "grounded"
+          ? receivedHitProgress
+          : playerElement.dataset.playerMotion === "skill-charge"
+            ? progress(chargeState?.dataset.playerChargeProgress)
+            : playerElement.dataset.playerMotion === "skill"
+              ? skillProgress
+              : normalProgress,
         facing: playerElement.dataset.playerFacing === "left" ? -1 : 1,
         defeated: playerElement.dataset.playerState === "defeated",
         skillId: playerElement.dataset.activeSkillId || chargeState?.dataset.playerChargeSkillId,
         skillPhase: playerElement.dataset.playerSkillHitPhase,
         skillStage: playerElement.dataset.playerSkillStage,
-        comboStep: Number(playerElement.dataset.playerNormalComboStep ?? "0")
+        comboStep: Number(playerElement.dataset.playerNormalComboStep ?? "0"),
+        receivedHitState
       }, elapsedMs, hitstop);
     }
 
@@ -182,6 +245,9 @@ export class CombatSpriteStage {
     actor.sprite.dataset.spriteReactionStep = "";
     actor.sprite.dataset.spriteSkillReaction = "";
     actor.sprite.dataset.spriteChargeTier = "";
+    if (actor.id === "player") {
+      actor.element.style.setProperty("--player-received-hit-progress", actor.progress.toFixed(3));
+    }
 
     if (actor.id === "player") {
       const classId = actor.sprite.dataset.frameClassId ?? "ember-warden";
@@ -233,6 +299,19 @@ export class CombatSpriteStage {
         actor.sprite.dataset.spriteReactionStep = String(actor.reactionStep);
       }
       state = deathAgeMs < 180 ? "death-impact" : deathAgeMs < 520 ? "death-collapse" : "death-dissolve";
+    } else if (actor.id === "player" && actor.receivedHitState !== undefined && actor.receivedHitState !== "grounded") {
+      const receivedHitState = actor.receivedHitState;
+      const p = clamp01(actor.progress);
+      if (receivedHitState === "hit" || receivedHitState === "launched") {
+        frame = 12;
+      } else if (receivedHitState === "falling") {
+        frame = 13;
+      } else if (receivedHitState === "downed") {
+        frame = p < 0.42 ? 14 : 15;
+      } else {
+        frame = p < 0.34 ? 14 : p < 0.72 ? 12 : 0;
+      }
+      state = receivedHitState;
     } else if (actor.id !== "player" && actor.motion === "grabbed") {
       frame = 13;
       state = "grabbed";

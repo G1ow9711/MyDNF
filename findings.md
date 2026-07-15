@@ -1760,3 +1760,15 @@
 - Parallel combat audit found the largest foundational gap is the player's received-hit chain: enemy attacks currently create displacement/hurt lock, not launched, falling, downed, natural rise, and true downed quick-recovery states. This should be Task215 after the bounded charge mechanic.
 - The current cancel window remains a broad `comboStep > 0` boolean gate. A later DNF cancel-graph slice must make routes skill-specific, hit-confirmed, dash/final-normal aware, and subject to a local cancel lockout.
 - Ink Shadow Ranger and Iron Forge Guardian still use whole-image fallback motion because only Ember and Liuli own runtime frame atlases. Full four-class frame coverage remains a visual completion blocker.
+
+## Task 215 Player Received-Hit Lifecycle Audit
+- Current `CombatPlayer` has jump/landing and quick-recover timestamps but no received-hit airborne, falling, downed, or natural-rise state.
+- Current KeyC recovery eligibility requires the player to remain grounded while hurt-locked. It is an early hurt-lock cancel, not DNF-style downed quick recovery.
+- Task215 must replace that shortcut with one authoritative received-hit lifecycle and preserve ordinary player-controlled jump state separately.
+- Required proof must include movement/attack denial while launched or downed, C working only inside the downed recovery window, natural rise without input, independent quick/natural rise frames and invulnerability, plus hitstop-safe timestamps.
+- The accepted timeline is contact hit -> launched -> falling -> downed -> quick-rise or natural-rise -> grounded. Only the downed phase opens KeyC recovery; movement, attacks, skills, consumables, and direct Meteor charge remain blocked until grounded.
+- Strong enemy profiles and Forge Collapse now declare an explicit reaction instead of deriving launch behavior from cue text or knockback magnitude. Light-hit, bind, pull, and launch remain separate contracts.
+- Hitstop must shift received-hit phase timestamps and every overlapping player lock together. Shifting only the visual timeline creates a dual clock where controls recover before the model stands.
+- Mounted action priority must preserve ordinary light-hit feedback after checking bind and authoritative received-hit phases; otherwise adding the new lifecycle silently removes non-launch hurt animation.
+- Real-browser evidence should read the current downed sprite/frame from the same DOM snapshot that proves the KeyC window. A second requestAnimationFrame history recorder can miss a short mounted phase under full-suite load even when the authoritative state is correct.
+- Received-hit input lock and invulnerability are separate contracts. Launch, fall, and prone phases reject player input but remain hittable; only natural-rise and explicit quick-rise own recovery invulnerability.

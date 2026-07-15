@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { catalog } from "../data/catalog";
-import { applyHit, createCombatRun, performAction, stepCombat, type CombatEnemy, type CombatEnemySummonEvent, type CombatHitEvent, type CombatPlayerHitEvent, type CombatRun } from "../game/combat";
+import {
+  applyHit,
+  createCombatRun,
+  performAction,
+  playerReceivedHitStateAt,
+  stepCombat,
+  type CombatEnemy,
+  type CombatEnemySummonEvent,
+  type CombatHitEvent,
+  type CombatPlayerHitEvent,
+  type CombatPlayerReceivedHitState,
+  type CombatRun
+} from "../game/combat";
 import { createInitialState } from "../game/state";
 import type { GameState } from "../game/types";
 import { advanceClass, selectBaseClass } from "../systems/classes";
@@ -159,6 +171,73 @@ function stepToElapsed(run: CombatRun, elapsedMs: number): CombatRun {
   return stepCombat(run, {}, Math.max(0, elapsedMs - run.elapsedMs));
 }
 
+function createStrongPlayerHitModel(): ReturnType<typeof createAppModel> {
+  let model = createAppModel({ storage: new MemoryStorage() });
+  model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
+  model = {
+    ...model,
+    combatRun: model.combatRun
+      ? {
+          ...model.combatRun,
+          player: {
+            ...model.combatRun.player,
+            x: 260,
+            y: 340,
+            facing: 1 as const,
+            actionLockUntilMs: 0,
+            hurtLockUntilMs: 0
+          },
+          enemies: model.combatRun.enemies.map((enemy, index) =>
+            index === 0
+              ? {
+                  ...enemy,
+                  hp: 180,
+                  maxHp: 180,
+                  attackProfileId: "ash-crawler-burst" as CombatEnemy["attackProfileId"],
+                  position: { x: 352, y: 340 },
+                  nextAttackAtMs: 1
+                }
+              : {
+                  ...enemy,
+                  hp: 0
+                }
+          )
+        }
+      : undefined
+  };
+
+  if (!model.combatRun) {
+    throw new Error("Expected active combat run");
+  }
+
+  const telegraph = stepCombat(model.combatRun, {}, 1);
+  const impacted = stepToElapsed(telegraph, telegraph.enemies[0].attackImpactAtMs ?? 0);
+
+  if (!impacted.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-crawler-burst")) {
+    throw new Error("Expected strong monster hit");
+  }
+
+  return { ...model, combatRun: impacted };
+}
+
+function tickUntilPlayerReceivedHitState(
+  model: ReturnType<typeof createAppModel>,
+  expectedState: CombatPlayerReceivedHitState
+): ReturnType<typeof createAppModel> {
+  for (let tick = 0; tick < 96; tick += 1) {
+    if (
+      model.combatRun &&
+      playerReceivedHitStateAt(model.combatRun.player, model.combatRun.elapsedMs) === expectedState
+    ) {
+      return model;
+    }
+
+    model = reduceAppAction(model, { type: "combatTick" });
+  }
+
+  throw new Error(`Expected player received-hit state: ${expectedState}`);
+}
+
 function resolveGroundLight(run: CombatRun): CombatRun {
   const [hitAtMs] = scheduledGroundLightTimes(run);
 
@@ -231,7 +310,7 @@ function placeAliveEnemiesInFront(model: ReturnType<typeof createAppModel>): Ret
             x: player.x + 76 + nextIndex * 58,
             y: player.y + nextIndex * 8
           },
-          nextAttackAtMs: 9999,
+          nextAttackAtMs: model.combatRun.elapsedMs + 60_000,
           attackStartedAtMs: undefined,
           attackImpactAtMs: undefined,
           attackRecoverUntilMs: undefined,
@@ -258,7 +337,7 @@ function leaveSingleWeakEnemyInFront(model: ReturnType<typeof createAppModel>): 
         ...enemy,
         hp: index === 0 ? 1 : 0,
         armor: 0,
-        nextAttackAtMs: 9999,
+        nextAttackAtMs: placed.combatRun.elapsedMs + 60_000,
         attackStartedAtMs: undefined,
         attackImpactAtMs: undefined,
         attackRecoverUntilMs: undefined,
@@ -274,6 +353,18 @@ function defeatCurrentRoom(model: ReturnType<typeof createAppModel>): ReturnType
 
   for (let attempt = 0; attempt < 40 && next.combatRun?.enemies.some((enemy) => enemy.hp > 0); attempt += 1) {
     next = placeAliveEnemiesInFront(next);
+
+    if (
+      next.combatRun &&
+      playerReceivedHitStateAt(next.combatRun.player, next.combatRun.elapsedMs) !== "grounded"
+    ) {
+      next = {
+        ...next,
+        combatRun: stepToElapsed(next.combatRun, next.combatRun.player.receivedHitRecoverAtMs)
+      };
+      next = placeAliveEnemiesInFront(next);
+    }
+
     next = reduceAppAction(next, { type: "combatAction", action: "heavy" });
 
     if (next.combatRun) {
@@ -3175,81 +3266,61 @@ describe("playable app integration actions", () => {
     expect(combatActionForKeyCode(state, "KeyC")).toEqual({ type: "combatAction", action: "jump" });
   });
 
-  it("uses KeyC as DNF-style quick recover during strong monster hit recovery", () => {
-    let model = createAppModel({
-      storage: new MemoryStorage()
-    });
-
-    model = reduceAppAction(model, { type: "enterDungeon", dungeonId: "cinder-kiln-alley" });
-    model = {
-      ...model,
-      combatRun: model.combatRun
-        ? {
-            ...model.combatRun,
-            player: {
-              ...model.combatRun.player,
-              x: 260,
-              y: 340,
-              facing: 1 as const,
-              actionLockUntilMs: 0,
-              hurtLockUntilMs: 0
-            },
-            enemies: model.combatRun.enemies.map((enemy, index) =>
-              index === 0
-                ? {
-                    ...enemy,
-                    hp: 180,
-                    maxHp: 180,
-                    attackProfileId: "ash-crawler-burst" as CombatEnemy["attackProfileId"],
-                    position: { x: 352, y: 340 },
-                    nextAttackAtMs: 1
-                  }
-                : {
-                    ...enemy,
-                    hp: 0
-                  }
-            )
-          }
-        : undefined
-    };
+  it("renders strong-hit contact, launch, fall, and downed states before mounted quick rise", () => {
+    let model = createStrongPlayerHitModel();
 
     if (!model.combatRun) {
-      throw new Error("Expected active combat run");
-    }
-
-    const telegraph = stepCombat(model.combatRun, {}, 1);
-    const impacted = stepToElapsed(telegraph, telegraph.enemies[0].attackImpactAtMs ?? 0);
-    model = {
-      ...model,
-      combatRun: impacted
-    };
-
-    expect(impacted.events.some((event) => event.kind === "player-hit" && event.skillId === "ash-crawler-burst")).toBe(true);
-    const impactedRun = model.combatRun;
-    if (!impactedRun) {
       throw new Error("Expected impacted combat run");
     }
-    expect(combatActionForKeyCode(model.state, "KeyC", impactedRun.player.resource.current, false, impactedRun)).toEqual({
-      type: "combatAction",
-      action: "jump"
-    });
+
+    const impactedPlayer = model.combatRun.player;
+    const hitHtml = renderAppHtml(model);
+    expect(hitHtml).toContain('data-player-received-hit-state="hit"');
+    expect(hitHtml).toContain('data-player-motion="hit"');
+    expect(hitHtml).toContain(`data-player-received-hit-started-at-ms="${impactedPlayer.receivedHitStartedAtMs}"`);
+    expect(hitHtml).toContain(`data-player-received-hit-launch-at-ms="${impactedPlayer.receivedHitLaunchAtMs}"`);
+    expect(hitHtml).toContain(`data-player-received-hit-apex-at-ms="${impactedPlayer.receivedHitApexAtMs}"`);
+    expect(hitHtml).toContain(`data-player-received-hit-land-at-ms="${impactedPlayer.receivedHitLandAtMs}"`);
+    expect(hitHtml).toContain(`data-player-received-hit-natural-rise-at-ms="${impactedPlayer.receivedHitNaturalRiseAtMs}"`);
+    expect(hitHtml).toContain(`data-player-received-hit-recover-at-ms="${impactedPlayer.receivedHitRecoverAtMs}"`);
+    expect(hitHtml).toContain('data-player-recovery-available="false"');
+
+    model = tickUntilPlayerReceivedHitState(model, "launched");
+    expect(renderAppHtml(model)).toContain('data-player-motion="launched"');
+
+    model = tickUntilPlayerReceivedHitState(model, "falling");
+    expect(renderAppHtml(model)).toContain('data-player-motion="falling"');
+
+    model = tickUntilPlayerReceivedHitState(model, "downed");
+    const downedHtml = renderAppHtml(model);
+    expect(downedHtml).toContain('data-player-motion="downed"');
+    expect(downedHtml).toContain('data-player-reaction-vfx="knockdown-land"');
+    expect(downedHtml).toContain('data-player-recovery-available="true"');
+    expect(model.audio.commandQueue.filter((command) => command.id === "player-knockdown-land")).toHaveLength(1);
 
     model = reduceAppAction(model, { type: "combatAction", action: "jump" });
+    const quickRiseHtml = renderAppHtml(model);
+    expect(quickRiseHtml).toContain('data-player-received-hit-state="quick-rise"');
+    expect(quickRiseHtml).toContain('data-player-motion="quick-rise"');
+    expect(quickRiseHtml).toContain('data-player-reaction-vfx="quick-rise"');
+    expect(quickRiseHtml).toContain('data-player-recovery-vfx="wake-invulnerable"');
+    expect(quickRiseHtml).toContain('data-player-recovery-available="false"');
+    expect(model.audio.commandQueue.filter((command) => command.id === "player-quick-rise")).toHaveLength(1);
+  });
 
-    if (!model.combatRun) {
-      throw new Error("Expected active combat run after quick recover");
-    }
+  it("renders mounted natural rise with compatibility aura and one-shot audio", () => {
+    let model = createStrongPlayerHitModel();
+    model = tickUntilPlayerReceivedHitState(model, "downed");
+    model = tickUntilPlayerReceivedHitState(model, "natural-rise");
 
     const html = renderAppHtml(model);
-
-    expect(html).toContain('data-player-motion="quick-recover"');
-    expect(html).toContain('data-player-state="recovering"');
-    expect(html).toContain('data-player-quick-recover-active="true"');
-    expect(html).toContain('data-player-quick-recover-ready-until-ms=""');
-    expect(html).toContain('data-player-quick-recover-started-at-ms="');
-    expect(html).toContain('data-player-quick-recover-until-ms="');
-    expect(html).toContain('class="combat-player-art actor-model actor-model-quick-recover"');
-    expect(html).toContain('data-hotkey="C"');
+    expect(html).toContain('data-player-received-hit-state="natural-rise"');
+    expect(html).toContain('data-player-motion="natural-rise"');
+    expect(html).toContain('data-player-reaction-vfx="natural-rise"');
+    expect(html).toContain('data-player-recovery-vfx="wake-invulnerable"');
+    expect(html).toContain('data-player-recovery-available="false"');
+    expect(model.audio.commandQueue.filter((command) => command.id === "player-knockdown-land")).toHaveLength(1);
+    expect(model.audio.commandQueue.filter((command) => command.id === "player-natural-rise")).toHaveLength(1);
   });
 
   it("casts airborne heavy slam from the jump lock with dedicated motion and impact hooks", () => {

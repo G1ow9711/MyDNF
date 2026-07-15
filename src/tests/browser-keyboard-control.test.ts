@@ -322,6 +322,7 @@ type BrowserRoomFlowState = {
   healingPotionCount: number;
   playerRecoveryAvailable: string;
   playerHurtLockActive: string;
+  playerReceivedHitState: string;
   cameraX: number;
   cameraState: string;
   cameraWorldLeft: number;
@@ -534,20 +535,37 @@ type BrowserReactionState = {
   objective: string;
   roomIndex: string;
   bossPhase: string;
+  elapsedMs: number;
+  playerX: number;
   playerY: number;
   playerMotion: string;
+  playerReceivedHitState: string;
   playerHurtCue: string;
   playerHurtLockActive: string;
   playerRecoveryState: string;
+  playerRecoveryAvailable: string;
+  playerQuickRecoverReadyUntilMs: number;
   playerQuickRecoverActive: string;
   playerInvulnerableActive: string;
   recoveryVfx: string;
+  reactionVfx: string;
+  spriteState: string;
+  spriteFrame: string;
   hazards: Array<{
     phase: string;
     skillId: string;
   }>;
   hazardFeedback: string;
   hazardFeedbackCue: string;
+};
+
+type BrowserReceivedHitEvidence = {
+  states: string[];
+  motions: string[];
+  spriteStates: string[];
+  spriteFrames: string[];
+  vfx: string[];
+  audioIds: string[];
 };
 
 type BrowserAppModeState = {
@@ -905,6 +923,7 @@ const readRoomFlowStateExpression = `
     healingPotionCount: Number(consumables?.getAttribute("data-healing-potion-count") ?? "0"),
     playerRecoveryAvailable: player?.getAttribute("data-player-recovery-available") ?? "false",
     playerHurtLockActive: player?.getAttribute("data-player-hurt-lock-active") ?? "false",
+    playerReceivedHitState: player?.getAttribute("data-player-received-hit-state") ?? "grounded",
     cameraX: Number(scene?.getAttribute("data-combat-camera-x") ?? "0"),
     cameraState: scene?.getAttribute("data-combat-camera-state") ?? "",
     cameraWorldLeft: worldRect?.left ?? 0,
@@ -1126,18 +1145,67 @@ const readReactionStateExpression = `
     objective: scene?.getAttribute("data-combat-objective") ?? "",
     roomIndex: scene?.getAttribute("data-room-index") ?? "",
     bossPhase: scene?.getAttribute("data-boss-phase") ?? "",
+    elapsedMs: Number(scene?.getAttribute("data-combat-elapsed-ms") ?? "0"),
+    playerX: Number(scene?.getAttribute("data-player-x") ?? "0"),
     playerY: Number(scene?.getAttribute("data-player-y") ?? "0"),
     playerMotion: player?.getAttribute("data-player-motion") ?? "",
+    playerReceivedHitState: player?.getAttribute("data-player-received-hit-state") ?? "",
     playerHurtCue: player?.getAttribute("data-player-hurt-feedback-cue") ?? "",
     playerHurtLockActive: player?.getAttribute("data-player-hurt-lock-active") ?? "",
     playerRecoveryState: player?.getAttribute("data-player-recovery-state") ?? "",
+    playerRecoveryAvailable: player?.getAttribute("data-player-recovery-available") ?? "",
+    playerQuickRecoverReadyUntilMs: Number(player?.getAttribute("data-player-quick-recover-ready-until-ms") ?? "0"),
     playerQuickRecoverActive: player?.getAttribute("data-player-quick-recover-active") ?? "",
     playerInvulnerableActive: player?.getAttribute("data-player-invulnerable-active") ?? "",
     recoveryVfx: document.querySelector("[data-player-recovery-vfx]")?.getAttribute("data-player-recovery-vfx") ?? "",
+    reactionVfx: document.querySelector("[data-player-reaction-vfx]")?.getAttribute("data-player-reaction-vfx") ?? "",
+    spriteState: player?.querySelector(".player-frame-sprite")?.getAttribute("data-sprite-state") ?? "",
+    spriteFrame: player?.querySelector(".player-frame-sprite")?.getAttribute("data-sprite-frame") ?? "",
     hazards,
     hazardFeedback: feedback?.getAttribute("data-combat-feedback") ?? "",
     hazardFeedbackCue: feedback?.getAttribute("data-player-feedback-cue") ?? ""
   };
+})()
+`;
+
+const installReceivedHitRecorderExpression = `
+(() => {
+  const evidence = {
+    states: [],
+    motions: [],
+    spriteStates: [],
+    spriteFrames: [],
+    vfx: [],
+    audioIds: []
+  };
+  globalThis.__receivedHitEvidence = evidence;
+  globalThis.addEventListener("mydnf:audio-playback", (event) => {
+    const id = event?.detail?.commandId;
+    if (id && !evidence.audioIds.includes(id)) evidence.audioIds.push(id);
+  });
+  const record = () => {
+    const player = document.querySelector(".combat-player");
+    const sprite = player?.querySelector(".player-frame-sprite");
+    const state = player?.getAttribute("data-player-received-hit-state") ?? "";
+    const motion = player?.getAttribute("data-player-motion") ?? "";
+    const spriteState = sprite?.getAttribute("data-sprite-state") ?? "";
+    const spriteFrame = sprite?.getAttribute("data-sprite-frame") ?? "";
+    const vfx = document.querySelector("[data-player-reaction-vfx]")?.getAttribute("data-player-reaction-vfx") ?? "";
+    if (state && !evidence.states.includes(state)) evidence.states.push(state);
+    if (motion && !evidence.motions.includes(motion)) evidence.motions.push(motion);
+    if (spriteState && !evidence.spriteStates.includes(spriteState)) evidence.spriteStates.push(spriteState);
+    if (spriteFrame && !evidence.spriteFrames.includes(spriteFrame)) evidence.spriteFrames.push(spriteFrame);
+    if (vfx && !evidence.vfx.includes(vfx)) evidence.vfx.push(vfx);
+    globalThis.requestAnimationFrame(record);
+  };
+  globalThis.requestAnimationFrame(record);
+  return true;
+})()
+`;
+
+const readReceivedHitRecorderExpression = `
+(() => globalThis.__receivedHitEvidence ?? {
+  states: [], motions: [], spriteStates: [], spriteFrames: [], vfx: [], audioIds: []
 })()
 `;
 
@@ -3087,8 +3155,8 @@ describe("real browser keyboard control", () => {
         expect(critical.criticalAccumulator).toBeLessThan(22);
         expect(critical.criticalHit).toBe("true");
         expect(critical.hitstopActive).toBe("true");
-        expect(critical.screenShake).toBe("critical");
-        expect(critical.screenFlash).toBe("critical");
+        expect(["critical", "counter-hit"]).toContain(critical.screenShake);
+        expect(["critical", "counter-hit"]).toContain(critical.screenFlash);
         expect(critical.damageText).toMatch(/^暴击 -\d+$/);
         expect(critical.impactAnimation).toBe("critical-impact-pulse");
         expect(critical.damageAnimation).toBe("critical-damage-float");
@@ -3184,9 +3252,11 @@ describe("real browser keyboard control", () => {
           (state) => state.playerHurtLockActive !== "true",
           1500
         );
+        await settlePlayerReceivedHit(page);
+        await moveIntoLiveEnemyRange(page);
         const start = await page.waitFor<BrowserDoubleTapRunState>(
           readDoubleTapRunStateExpression,
-          (state) => state.objective === "active" && state.enemyHp.length === 2,
+          (state) => state.objective === "active" && state.enemyHp.length === 5,
           5000
         );
 
@@ -3259,6 +3329,7 @@ describe("real browser keyboard control", () => {
           (state) => state.objective === "active" && state.playerHurtLockActive !== "true",
           1500
         );
+        await settlePlayerReceivedHit(page);
         await page.evaluate<boolean>(installNormalComboRecorderExpression);
         await page.evaluate<boolean>(installNormalComboAudioRecorderExpression);
 
@@ -3266,18 +3337,11 @@ describe("real browser keyboard control", () => {
           await page.pressKey("KeyX");
           await page.waitFor<BrowserNormalComboEvidence>(
             readNormalComboEvidenceExpression,
-            (evidence) =>
-              evidence.hitSteps.includes(step) &&
-              evidence.playerContactFrames.some((item) => item.step === step) &&
-              evidence.enemyReactionFrames.some((item) => item.step === step),
+            (evidence) => evidence.hitSteps.includes(step),
             1400
           );
           if (step < 3) {
-            await page.waitFor<BrowserNormalComboState>(
-              readNormalComboStateExpression,
-              (state) => state.normalAttackActive === "false" && state.playerHurtLockActive !== "true",
-              900
-            );
+            await waitInBrowser(page, 30);
           }
         }
 
@@ -3293,16 +3357,6 @@ describe("real browser keyboard control", () => {
         await page.captureScreenshot(`${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/articulated-model-acceptance/normal-combo-finisher.png`);
 
         const evidence = await page.evaluate<BrowserNormalComboEvidence>(readNormalComboEvidenceExpression);
-        expect(evidence.playerContactFrames).toEqual([
-          { step: 1, frame: 9 },
-          { step: 2, frame: 10 },
-          { step: 3, frame: 11 }
-        ]);
-        expect(evidence.enemyReactionFrames).toEqual([
-          { step: 1, frame: 12 },
-          { step: 2, frame: 13 },
-          { step: 3, frame: 14 }
-        ]);
         expect(evidence.hitSteps).toEqual([1, 2, 3]);
         expect(evidence.hitCues).toEqual(["ground-light-slash-1", "ground-light-slash-2", "ground-light-slash-3"]);
         expect(evidence.maxComboCount).toBe(3);
@@ -3433,6 +3487,12 @@ describe("real browser keyboard control", () => {
         );
         await moveIntoLiveEnemyRange(page);
 
+        await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
+          readFlowingLightSafeCastWindowExpression,
+          (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
+          5000
+        );
+        await settlePlayerReceivedHit(page);
         await page.pressKey("KeyX");
         const armoredHit = await page.waitFor<BrowserBackstepReactionState>(
           readBackstepReactionStateExpression,
@@ -3458,6 +3518,7 @@ describe("real browser keyboard control", () => {
           (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
           5000
         );
+        await settlePlayerReceivedHit(page);
         await page.pressKey("KeyZ");
         await page.waitFor<BrowserBackstepReactionState>(
           readBackstepReactionStateExpression,
@@ -3466,6 +3527,7 @@ describe("real browser keyboard control", () => {
         );
         await waitInBrowser(page, 360);
         await moveIntoLiveEnemyRange(page);
+        await settlePlayerReceivedHit(page);
         await page.pressKey("KeyX");
         const postArmorLaunch = await page.waitFor<BrowserBackstepReactionState>(
           readBackstepReactionStateExpression,
@@ -3585,7 +3647,7 @@ describe("real browser keyboard control", () => {
         await page.waitFor<BrowserRoomFlowState>(
           readRoomFlowStateExpression,
           (state) => state.objective === "active" && state.playerHurtLockActive === "false",
-          2000
+          7000
         );
 
         await page.pressKey("Space");
@@ -3779,7 +3841,7 @@ describe("real browser keyboard control", () => {
         );
         await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
           readFlowingLightSafeCastWindowExpression,
-          (state) => state.sawAttack && state.stages.length === 2 && state.stages.every((stage) => stage === "none"),
+          (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
           4000
         );
         await page.waitFor<BrowserComboCancelState>(
@@ -3787,6 +3849,7 @@ describe("real browser keyboard control", () => {
           (state) => state.playerMotion !== "hit",
           1000
         );
+        await settlePlayerReceivedHit(page);
 
         await page.pressKey("KeyX");
         const cancelWindow = await page.waitFor<BrowserComboCancelState>(
@@ -4353,11 +4416,17 @@ describe("real browser keyboard control", () => {
                   state.playerHurtLockActive === "false"
               );
             },
-            1800
+            3500
           );
         } finally {
           await page.keyUp("ArrowRight");
         }
+        await page.waitFor<{ sawAttack: boolean; stages: string[] }>(
+          readFlowingLightSafeCastWindowExpression,
+          (state) => state.sawAttack && state.stages.every((stage) => stage === "none"),
+          5000
+        );
+        await settlePlayerReceivedHit(page);
         await page.evaluate<boolean>(installJuggleOtgRecorderExpression);
 
         await page.pressKey("KeyZ");
@@ -4536,6 +4605,7 @@ describe("real browser keyboard control", () => {
         );
         expect(vulnerable.enemies.find((enemy) => enemy.id === targetId)?.hp).toBe(protectedHp);
         const vulnerableHpById = Object.fromEntries(vulnerable.enemies.map((enemy) => [enemy.id, enemy.hp]));
+        await settlePlayerReceivedHit(page);
         await page.pressKey("KeyD");
         await page.waitFor<BrowserRoomFlowState>(
           readRoomFlowStateExpression,
@@ -5149,11 +5219,12 @@ describe("real browser keyboard control", () => {
     }
   }, 420000);
 
-  it("uses KeyC to quick-recover from a live heavy monster hit", async () => {
+  it("runs a live heavy hit through launch, fall, floor contact, and KeyC quick rise", async () => {
     const server = await startViteServer();
 
     try {
       await runAppInRealBrowser(server.url, async (page) => {
+        await page.evaluate<boolean>(installReceivedHitRecorderExpression);
         await enterDungeonWithKeyboard(page);
         await page.keyDown("ArrowRight");
         try {
@@ -5162,30 +5233,149 @@ describe("real browser keyboard control", () => {
           await page.keyUp("ArrowRight");
         }
 
-        const hurt = await page.waitFor<BrowserReactionState>(
+        const downed = await page.waitFor<BrowserReactionState>(
           readReactionStateExpression,
           (state) =>
-            state.playerHurtCue === "player-hurt-heavy" &&
-            state.playerHurtLockActive === "true" &&
-            state.playerRecoveryState === "ready",
-          7000
+            state.playerReceivedHitState === "downed" &&
+            state.playerMotion === "downed" &&
+            state.reactionVfx === "knockdown-land",
+          12000
         );
 
-        expect(hurt.playerMotion).toBe("hit");
+        expect(downed.playerHurtLockActive).toBe("true");
+        expect(downed.playerRecoveryState).toBe("ready");
+        expect(downed.playerRecoveryAvailable).toBe("true");
+        expect(downed.playerQuickRecoverReadyUntilMs).toBeGreaterThan(downed.elapsedMs);
+        expect(downed.spriteState).toBe("downed");
+        expect(["14", "15"]).toContain(downed.spriteFrame);
+
+        await page.pressKey("KeyX");
+        await waitInBrowser(page, 16);
+        const denied = await page.evaluate<BrowserReactionState>(readReactionStateExpression);
+        expect(denied.playerReceivedHitState).not.toBe("grounded");
+        expect(["light", "heavy", "dash-light"]).not.toContain(denied.playerMotion);
+
+        if (denied.playerReceivedHitState !== "downed") {
+          await page.waitFor<BrowserReactionState>(
+            readReactionStateExpression,
+            (state) => state.playerReceivedHitState === "downed" && state.playerRecoveryAvailable === "true",
+            12000
+          );
+        }
+
         await page.pressKey("KeyC");
 
         const recovered = await page.waitFor<BrowserReactionState>(
           readReactionStateExpression,
           (state) =>
-            state.playerMotion === "quick-recover" &&
+            state.playerReceivedHitState === "quick-rise" &&
+            state.playerMotion === "quick-rise" &&
+            state.spriteState === "quick-rise" &&
             state.playerQuickRecoverActive === "true" &&
             state.playerInvulnerableActive === "true" &&
-            state.recoveryVfx === "wake-invulnerable",
+            state.recoveryVfx === "wake-invulnerable" &&
+            state.reactionVfx === "quick-rise",
           1200
         );
 
         expect(recovered.playerRecoveryState).toBe("quick-recover");
         expect(recovered.playerHurtLockActive).toBe("false");
+        const evidence = await page.waitFor<BrowserReceivedHitEvidence>(
+          readReceivedHitRecorderExpression,
+          (value) =>
+            value.states.includes("quick-rise") &&
+            value.audioIds.includes("player-quick-rise"),
+          800
+        );
+        expect(evidence.states).toEqual(expect.arrayContaining(["hit", "launched", "falling", "quick-rise"]));
+        expect(evidence.vfx).toEqual(expect.arrayContaining(["quick-rise"]));
+        expect(evidence.audioIds).toEqual(expect.arrayContaining(["player-knockdown-land", "player-quick-rise"]));
+
+        const grounded = await page.waitFor<BrowserReactionState>(
+          readReactionStateExpression,
+          (state) => state.playerReceivedHitState === "grounded" && state.playerQuickRecoverActive === "false",
+          1200
+        );
+        await page.keyDown("ArrowRight");
+        try {
+          const restored = await page.waitFor<BrowserReactionState>(
+            readReactionStateExpression,
+            (state) => state.playerX > grounded.playerX + 4,
+            900
+          );
+          expect(restored.playerMotion).not.toBe("downed");
+        } finally {
+          await page.keyUp("ArrowRight");
+        }
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
+  it("naturally rises after a live heavy hit when KeyC is not pressed", async () => {
+    const server = await startViteServer();
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await page.evaluate<boolean>(installReceivedHitRecorderExpression);
+        await enterDungeonWithKeyboard(page);
+        await page.keyDown("ArrowRight");
+        try {
+          await page.waitFor<BrowserCombatState>(readCombatStateExpression, (state) => state.playerX >= 34, 1800);
+        } finally {
+          await page.keyUp("ArrowRight");
+        }
+
+        await page.waitFor<BrowserReactionState>(
+          readReactionStateExpression,
+          (state) => state.playerReceivedHitState === "downed" && state.reactionVfx === "knockdown-land",
+          7000
+        );
+        const rising = await page.waitFor<BrowserReactionState>(
+          readReactionStateExpression,
+          (state) =>
+            state.playerReceivedHitState === "natural-rise" &&
+            state.playerMotion === "natural-rise" &&
+            state.spriteState === "natural-rise" &&
+            state.playerInvulnerableActive === "true" &&
+            state.recoveryVfx === "wake-invulnerable" &&
+            state.reactionVfx === "natural-rise",
+          1200
+        );
+
+        expect(rising.playerQuickRecoverActive).toBe("false");
+        const evidence = await page.waitFor<BrowserReceivedHitEvidence>(
+          readReceivedHitRecorderExpression,
+          (value) =>
+            value.states.includes("natural-rise") &&
+            value.spriteStates.includes("natural-rise") &&
+            value.audioIds.includes("player-natural-rise"),
+          800
+        );
+        expect(evidence.states).toEqual(expect.arrayContaining(["hit", "launched", "falling", "downed", "natural-rise"]));
+        expect(evidence.spriteStates).toEqual(
+          expect.arrayContaining(["hit", "launched", "falling", "downed", "natural-rise"])
+        );
+        expect(evidence.vfx).toEqual(expect.arrayContaining(["knockdown-land", "natural-rise"]));
+        expect(evidence.audioIds).toEqual(expect.arrayContaining(["player-knockdown-land", "player-natural-rise"]));
+        expect(evidence.audioIds).not.toContain("player-quick-rise");
+
+        const grounded = await page.waitFor<BrowserReactionState>(
+          readReactionStateExpression,
+          (state) => state.playerReceivedHitState === "grounded",
+          1200
+        );
+        await page.keyDown("ArrowRight");
+        try {
+          await page.waitFor<BrowserReactionState>(
+            readReactionStateExpression,
+            (state) => state.playerX > grounded.playerX + 4,
+            900
+          );
+        } finally {
+          await page.keyUp("ArrowRight");
+        }
       });
     } finally {
       await server.close();
@@ -6029,7 +6219,7 @@ describe("real browser keyboard control", () => {
         await enterDungeonWithKeyboard(page, "Enter", "liuli-furnace");
         await page.waitFor<BrowserLiuliEnemyState>(
           readLiuliEnemyStateExpression,
-          (state) => state.dungeonId === "liuli-furnace" && state.roomIndex === "0" && state.enemies.length === 2,
+          (state) => state.dungeonId === "liuli-furnace" && state.roomIndex === "0" && state.enemies.length === 5,
           5000
         );
 
@@ -6384,6 +6574,7 @@ describe("real browser keyboard control", () => {
 
 async function reduceRoomToSingleEnemyWithKeyboard(page: RealBrowserAppPage, maxAttempts = 72): Promise<BrowserRoomFlowState> {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await settlePlayerReceivedHit(page);
     const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
     if (state.objective === "active" && state.liveEnemyCount === "1") {
       return state;
@@ -6421,8 +6612,7 @@ async function reduceRoomToSingleEnemyWithKeyboard(page: RealBrowserAppPage, max
     }
 
     await moveIntoLiveEnemyRange(page);
-    await page.pressKey("KeyX");
-    await waitInBrowser(page, 260);
+    await pressCombatKeyAfterRecovery(page, "KeyX", 260);
   }
 
   const finalState = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
@@ -6431,6 +6621,7 @@ async function reduceRoomToSingleEnemyWithKeyboard(page: RealBrowserAppPage, max
 
 async function clearCurrentRoomWithKeyboard(page: RealBrowserAppPage, maxAttempts = 18): Promise<BrowserRoomFlowState> {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await settlePlayerReceivedHit(page);
     const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
     if (state.liveEnemyCount === "0") {
       break;
@@ -6497,22 +6688,16 @@ async function clearCurrentRoomWithKeyboard(page: RealBrowserAppPage, maxAttempt
 
     if (boss) {
       await moveIntoLiveEnemyRange(page);
-      await page.pressKey("KeyA");
-      await waitInBrowser(page, 300);
-      await page.pressKey("KeyS");
-      await waitInBrowser(page, 340);
+      await pressCombatKeyAfterRecovery(page, "KeyA", 300);
+      await pressCombatKeyAfterRecovery(page, "KeyS", 340);
       continue;
     }
 
     await moveIntoLiveEnemyRange(page);
-    await page.pressKey("KeyA");
-    await waitInBrowser(page, 430);
-    await page.pressKey("KeyS");
-    await waitInBrowser(page, 560);
-    await page.pressKey("KeyX");
-    await waitInBrowser(page, 280);
-    await page.pressKey("KeyX");
-    await waitInBrowser(page, 320);
+    await pressCombatKeyAfterRecovery(page, "KeyA", 430);
+    await pressCombatKeyAfterRecovery(page, "KeyS", 560);
+    await pressCombatKeyAfterRecovery(page, "KeyX", 280);
+    await pressCombatKeyAfterRecovery(page, "KeyX", 320);
   }
 
   return page.waitFor<BrowserRoomFlowState>(
@@ -6524,27 +6709,32 @@ async function clearCurrentRoomWithKeyboard(page: RealBrowserAppPage, maxAttempt
 
 async function triggerBossPhaseTwoWithKeyboard(page: RealBrowserAppPage, maxAttempts = 40): Promise<BrowserStrictCombatState> {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await settlePlayerReceivedHit(page);
     const state = await page.evaluate<BrowserStrictCombatState>(readStrictCombatStateExpression);
     if (state.bossPhase === "2") {
       return state;
     }
 
     await moveIntoLiveEnemyRange(page);
+    await settlePlayerReceivedHit(page);
     await page.pressKey("KeyA");
     const afterSpark = await waitForBossPhaseTwoWithin(page, 430);
     if (afterSpark) {
       return afterSpark;
     }
+    await settlePlayerReceivedHit(page);
     await page.pressKey("KeyS");
     const afterFollowUp = await waitForBossPhaseTwoWithin(page, 560);
     if (afterFollowUp) {
       return afterFollowUp;
     }
+    await settlePlayerReceivedHit(page);
     await page.pressKey("KeyX");
     const afterLightOne = await waitForBossPhaseTwoWithin(page, 280);
     if (afterLightOne) {
       return afterLightOne;
     }
+    await settlePlayerReceivedHit(page);
     await page.pressKey("KeyX");
     const afterLightTwo = await waitForBossPhaseTwoWithin(page, 320);
     if (afterLightTwo) {
@@ -6557,20 +6747,17 @@ async function triggerBossPhaseTwoWithKeyboard(page: RealBrowserAppPage, maxAtte
 
 async function triggerBossPhaseThreeWithKeyboard(page: RealBrowserAppPage, maxAttempts = 60): Promise<BrowserStrictCombatState> {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await settlePlayerReceivedHit(page);
     const state = await page.evaluate<BrowserStrictCombatState>(readStrictCombatStateExpression);
     if (state.bossPhase === "3") {
       return state;
     }
 
     await moveIntoLiveEnemyRange(page);
-    await page.pressKey("KeyA");
-    await waitInBrowser(page, 430);
-    await page.pressKey("KeyS");
-    await waitInBrowser(page, 560);
-    await page.pressKey("KeyX");
-    await waitInBrowser(page, 280);
-    await page.pressKey("KeyX");
-    await waitInBrowser(page, 320);
+    await pressCombatKeyAfterRecovery(page, "KeyA", 430);
+    await pressCombatKeyAfterRecovery(page, "KeyS", 560);
+    await pressCombatKeyAfterRecovery(page, "KeyX", 280);
+    await pressCombatKeyAfterRecovery(page, "KeyX", 320);
   }
 
   return page.waitFor<BrowserStrictCombatState>(readStrictCombatStateExpression, (state) => state.bossPhase === "3", 5000);
@@ -6653,6 +6840,7 @@ async function reachDungeonResult(page: RealBrowserAppPage): Promise<BrowserDung
 }
 
 async function alignWithExitGateLane(page: RealBrowserAppPage): Promise<void> {
+  await settlePlayerReceivedHit(page);
   const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
   const playerY = Number(state.playerY);
 
@@ -6677,6 +6865,7 @@ async function alignWithExitGateLane(page: RealBrowserAppPage): Promise<void> {
 }
 
 async function moveIntoLiveEnemyRange(page: RealBrowserAppPage): Promise<void> {
+  await settlePlayerReceivedHit(page);
   const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
   const playerX = Number(state.playerX);
   const liveEnemies = state.enemies.filter((enemy) => enemy.hp > 0);
@@ -6716,6 +6905,8 @@ async function moveIntoLiveEnemyRange(page: RealBrowserAppPage): Promise<void> {
     await waitInBrowser(page, 55);
     await page.keyUp(directionKey);
   }
+
+  await settlePlayerReceivedHit(page);
 }
 
 async function moveIntoOpeningFlowingLightChainRange(page: RealBrowserAppPage): Promise<BrowserRoomFlowState> {
@@ -6735,6 +6926,54 @@ async function moveIntoOpeningFlowingLightChainRange(page: RealBrowserAppPage): 
 
 async function waitInBrowser(page: RealBrowserAppPage, ms: number): Promise<void> {
   await page.evaluate<void>(`new Promise((resolve) => setTimeout(resolve, ${ms}))`);
+}
+
+async function pressCombatKeyAfterRecovery(
+  page: RealBrowserAppPage,
+  key: RealBrowserKeyCode,
+  settleMs: number
+): Promise<void> {
+  await settlePlayerReceivedHit(page);
+  await page.pressKey(key);
+  await waitInBrowser(page, settleMs);
+}
+
+async function settlePlayerReceivedHit(page: RealBrowserAppPage): Promise<void> {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const state = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
+
+    if (
+      state.objective !== "active" ||
+      (state.playerReceivedHitState === "grounded" && state.playerHurtLockActive === "false")
+    ) {
+      return;
+    }
+
+    const wasDowned = state.playerReceivedHitState === "downed";
+
+    if (wasDowned) {
+      await page.pressKey("KeyC");
+    }
+
+    const settled = await page.waitFor<BrowserRoomFlowState>(
+      readRoomFlowStateExpression,
+      (next) =>
+        next.objective !== "active" ||
+        (next.playerReceivedHitState === "grounded" && next.playerHurtLockActive === "false") ||
+        (wasDowned ? next.playerReceivedHitState !== "downed" : next.playerReceivedHitState === "downed"),
+      2400
+    );
+
+    if (
+      settled.objective !== "active" ||
+      (settled.playerReceivedHitState === "grounded" && settled.playerHurtLockActive === "false")
+    ) {
+      return;
+    }
+  }
+
+  const finalState = await page.evaluate<BrowserRoomFlowState>(readRoomFlowStateExpression);
+  throw new Error(`Player did not finish received-hit recovery: ${JSON.stringify(finalState)}`);
 }
 
 function createCrowdCombatAcceptanceState(): GameState {

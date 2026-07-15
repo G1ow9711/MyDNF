@@ -4,6 +4,7 @@ import {
   computeEnemyModelMotionStylesInRealBrowser,
   computeEnemyVfxStylesInRealBrowser,
   computePlayerHurtMotionStylesInRealBrowser,
+  computePlayerReceivedHitStylesInRealBrowser,
   computePlayerSkillPhaseStylesInRealBrowser,
   computeRoomGateStylesInRealBrowser,
   computeSkillImpactVfxStylesInRealBrowser,
@@ -11,6 +12,7 @@ import {
   type EnemyModelMotionFixture,
   type EnemyVfxFixture,
   type PlayerHurtMotionFixture,
+  type PlayerReceivedHitFixture,
   type PlayerSkillPhaseFixture,
   type RoomGateFixture,
   type SkillImpactVfxFixture,
@@ -239,6 +241,41 @@ describe("real browser computed style regressions", () => {
     expect(computed["forge-slam"].art.animationDuration).toBe("0.52s");
     expect(computed["chain-drag"].art.animationDuration).toBe("0.5s");
     expect(computed["chain-smash"].art.animationDuration).toBe("0.56s");
+  }, 30000);
+
+  it("freezes each authoritative player received-hit pose and styles exact reaction VFX hooks", async () => {
+    const fixtures: PlayerReceivedHitFixture[] = [
+      { key: "grounded", state: "grounded" },
+      { key: "hit", state: "hit", progress: 0.5 },
+      { key: "launched", state: "launched", progress: 0.5 },
+      { key: "falling", state: "falling", progress: 0.5 },
+      { key: "downed", state: "downed", progress: 0.5, reactionVfx: "knockdown-land" },
+      { key: "quick-rise", state: "quick-rise", progress: 0.5, reactionVfx: "quick-rise" },
+      { key: "natural-rise", state: "natural-rise", progress: 0.5, reactionVfx: "natural-rise" }
+    ];
+    const computed = await computePlayerReceivedHitStylesInRealBrowser(stylesCss, fixtures);
+
+    expect(computed.grounded.actor.animationName).toBe("none");
+    expect(computed.hit.actor.animationName).toBe("player-received-hit-impact");
+    expect(computed.launched.actor.animationName).toBe("player-received-hit-launch");
+    expect(computed.falling.actor.animationName).toBe("player-received-hit-fall");
+    expect(computed.downed.actor.animationName).toBe("player-received-hit-downed");
+    expect(computed["quick-rise"].actor.animationName).toBe("player-received-hit-quick-rise");
+    expect(computed["natural-rise"].actor.animationName).toBe("player-received-hit-natural-rise");
+    expect(computed.launched.actor.animationDuration).toBe("0.18s");
+    expect(computed.falling.actor.animationDuration).toBe("0.22s");
+    expect(computed.downed.actor.animationDuration).toBe("0.52s");
+    expect(computed["quick-rise"].actor.animationDuration).toBe("0.26s");
+    expect(computed["natural-rise"].actor.animationDuration).toBe("0.36s");
+    for (const key of ["hit", "launched", "falling", "downed", "quick-rise", "natural-rise"] as const) {
+      expect(computed[key].actor.animationPlayState).toBe("paused");
+      expect(computed[key].actor.transform).not.toBe(computed.grounded.actor.transform);
+    }
+    expect(computed.downed.dust.animationName).toBe("player-knockdown-landing-dust");
+    expect(computed["quick-rise"].aura.animationName).toBe("player-quick-rise-aura");
+    expect(computed["natural-rise"].aura.animationName).toBe("player-natural-rise-aura");
+    expect(computed.hit.dust.animationName).toBe("none");
+    expect(computed.launched.aura.animationName).toBe("none");
   }, 30000);
 
   it("uses dedicated enter-rift animations for room gate transition", async () => {

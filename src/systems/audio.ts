@@ -468,6 +468,39 @@ const sfxPatterns: Record<string, Omit<AudioPlaybackPlan, "notes"> & { notes: Ar
       { frequencyHz: 1046.5, startMs: 170, durationMs: 220, gain: 0.09, waveform: "sine" }
     ]
   },
+  "player-knockdown-land": {
+    commandId: "player-knockdown-land",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["floor-impact", "armor-drop", "landing-dust"],
+    notes: [
+      { frequencyHz: 49, startMs: 0, durationMs: 210, gain: 0.42, waveform: "square" },
+      { frequencyHz: 146.83, startMs: 18, durationMs: 180, gain: 0.24, waveform: "sawtooth" },
+      { frequencyHz: 587.33, startMs: 72, durationMs: 150, gain: 0.11, waveform: "triangle" }
+    ]
+  },
+  "player-quick-rise": {
+    commandId: "player-quick-rise",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["quick-stand", "cloth-snap", "recovery-flare"],
+    notes: [
+      { frequencyHz: 164.81, startMs: 0, durationMs: 86, gain: 0.19, waveform: "square" },
+      { frequencyHz: 659.25, startMs: 28, durationMs: 126, gain: 0.15, waveform: "sawtooth" },
+      { frequencyHz: 1318.51, startMs: 72, durationMs: 172, gain: 0.1, waveform: "sine" }
+    ]
+  },
+  "player-natural-rise": {
+    commandId: "player-natural-rise",
+    channel: "sfx",
+    loopMs: 0,
+    textureTags: ["steady-stand", "armor-lift", "recovery-aura"],
+    notes: [
+      { frequencyHz: 110, startMs: 0, durationMs: 150, gain: 0.2, waveform: "square" },
+      { frequencyHz: 329.63, startMs: 54, durationMs: 190, gain: 0.15, waveform: "triangle" },
+      { frequencyHz: 987.77, startMs: 126, durationMs: 214, gain: 0.09, waveform: "sine" }
+    ]
+  },
   "guard-impact": {
     commandId: "guard-impact",
     channel: "sfx",

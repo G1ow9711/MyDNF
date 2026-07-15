@@ -252,6 +252,16 @@ describe("adaptive audio hooks", () => {
     expect(new Set(plans.map((plan) => plan.textureTags.join(":"))).size).toBe(ids.length);
   });
 
+  it("builds distinct authored player knockdown and rise sounds", () => {
+    const ids = ["player-knockdown-land", "player-quick-rise", "player-natural-rise"];
+    const plans = ids.map((id) => createAudioPlaybackPlan({ type: "sfx", id }, createAudioState().volumes));
+
+    expect(plans.map((plan) => plan.commandId)).toEqual(ids);
+    expect(plans.every((plan) => plan.notes.length >= 3)).toBe(true);
+    expect(plans.every((plan) => !plan.textureTags.includes("ui-click"))).toBe(true);
+    expect(new Set(plans.map((plan) => plan.textureTags.join(":"))).size).toBe(ids.length);
+  });
+
   it("builds authored positional-hit confirmation sounds", () => {
     const ids = ["back-attack-confirm", "counter-hit-confirm"];
     const plans = ids.map((id) => createAudioPlaybackPlan({ type: "sfx", id }, createAudioState().volumes));

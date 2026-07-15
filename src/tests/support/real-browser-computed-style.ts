@@ -71,6 +71,13 @@ export type PlayerHurtMotionFixture = {
   feedbackCue: string;
 };
 
+export type PlayerReceivedHitFixture = {
+  key: string;
+  state: "grounded" | "hit" | "launched" | "falling" | "downed" | "quick-rise" | "natural-rise";
+  progress?: number;
+  reactionVfx?: "knockdown-land" | "quick-rise" | "natural-rise";
+};
+
 export type SkillImpactVfxFixture = {
   key: string;
   shape: string;
@@ -123,6 +130,18 @@ export type ComputedPlayerHurtMotionStyles = Record<
   string,
   {
     art: ComputedVfxPartStyle;
+  }
+>;
+
+export type ComputedPlayerReceivedHitStyles = Record<
+  string,
+  {
+    actor: ComputedVfxPartStyle & {
+      animationPlayState: string;
+      transform: string;
+    };
+    dust: ComputedVfxPartStyle;
+    aura: ComputedVfxPartStyle;
   }
 >;
 
@@ -701,6 +720,37 @@ export async function computePlayerHurtMotionStylesInRealBrowser(
   );
 }
 
+export async function computePlayerReceivedHitStylesInRealBrowser(
+  css: string,
+  fixtures: PlayerReceivedHitFixture[]
+): Promise<ComputedPlayerReceivedHitStyles> {
+  return computeStylesInRealBrowser(
+    css,
+    fixtures.map((fixture) => playerReceivedHitFixtureMarkup(fixture)).join("\n"),
+    `
+      (() => {
+        const result = {};
+        for (const root of document.querySelectorAll("[data-player-received-hit-fixture]")) {
+          const actor = getComputedStyle(root);
+          const dust = getComputedStyle(root.querySelector(".player-reaction-dust"));
+          const aura = getComputedStyle(root.querySelector(".player-reaction-ring"));
+          result[root.dataset.playerReceivedHitFixture] = {
+            actor: {
+              animationName: actor.animationName,
+              animationDuration: actor.animationDuration,
+              animationPlayState: actor.animationPlayState,
+              transform: actor.transform
+            },
+            dust: { animationName: dust.animationName, animationDuration: dust.animationDuration },
+            aura: { animationName: aura.animationName, animationDuration: aura.animationDuration }
+          };
+        }
+        return result;
+      })()
+    `
+  );
+}
+
 export async function computeRoomGateStylesInRealBrowser(css: string, fixtures: RoomGateFixture[]): Promise<ComputedRoomGateStyles> {
   return computeStylesInRealBrowser(
     css,
@@ -1126,10 +1176,31 @@ function playerHurtMotionFixtureMarkup(fixture: PlayerHurtMotionFixture): string
     data-player-hurt-fixture="${escapeAttribute(fixture.key)}"
     class="combat-actor combat-player"
     data-player-motion="hit"
+    data-player-received-hit-state="hit"
     data-player-hurt-feedback-cue="${escapeAttribute(fixture.feedbackCue)}"
     style="--model-scale-x: 1;"
   >
     <span class="combat-player-art actor-model actor-model-hit"></span>
+  </div>`;
+}
+
+function playerReceivedHitFixtureMarkup(fixture: PlayerReceivedHitFixture): string {
+  const progressValue = fixture.progress ?? 0.5;
+
+  return `<div
+    data-player-received-hit-fixture="${escapeAttribute(fixture.key)}"
+    class="combat-actor combat-player"
+    data-player-motion="${escapeAttribute(fixture.state)}"
+    data-player-received-hit-state="${escapeAttribute(fixture.state)}"
+    style="--actor-x: 50%; --actor-y: 80%; --actor-depth: 1; --model-scale-x: 1; --player-received-hit-progress: ${progressValue};"
+  >
+    <span class="combat-player-art actor-model actor-model-${escapeAttribute(fixture.state)}"></span>
+    <span class="combat-frame-sprite player-frame-sprite" data-sprite-state="${escapeAttribute(fixture.state)}"></span>
+    <span class="player-reaction-vfx" data-player-reaction-vfx="${escapeAttribute(fixture.reactionVfx ?? "")}">
+      <i class="player-reaction-ring"></i>
+      <i class="player-reaction-core"></i>
+      <i class="player-reaction-dust"></i>
+    </span>
   </div>`;
 }
 

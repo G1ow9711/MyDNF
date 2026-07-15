@@ -3263,6 +3263,47 @@ p {
     drop-shadow(0 0 18px rgba(251, 146, 60, 0.42));
 }
 
+.combat-player[data-player-received-hit-state="hit"],
+.combat-player[data-player-received-hit-state="launched"],
+.combat-player[data-player-received-hit-state="falling"],
+.combat-player[data-player-received-hit-state="downed"],
+.combat-player[data-player-received-hit-state="quick-rise"],
+.combat-player[data-player-received-hit-state="natural-rise"] {
+  transform-origin: 50% 92%;
+  will-change: transform;
+}
+
+.combat-player[data-player-received-hit-state="hit"] {
+  animation: player-received-hit-impact 90ms linear both paused;
+  animation-delay: calc(var(--player-received-hit-progress, 0) * -90ms);
+}
+
+.combat-player[data-player-received-hit-state="launched"] {
+  animation: player-received-hit-launch 180ms cubic-bezier(0.16, 0.82, 0.2, 1) both paused;
+  animation-delay: calc(var(--player-received-hit-progress, 0) * -180ms);
+}
+
+.combat-player[data-player-received-hit-state="falling"] {
+  animation: player-received-hit-fall 220ms cubic-bezier(0.36, 0.04, 0.82, 0.56) both paused;
+  animation-delay: calc(var(--player-received-hit-progress, 0) * -220ms);
+}
+
+.combat-player[data-player-received-hit-state="downed"] {
+  animation: player-received-hit-downed 520ms cubic-bezier(0.18, 0.78, 0.2, 1) both paused;
+  animation-delay: calc(var(--player-received-hit-progress, 0) * -520ms);
+  --ground-shadow-scale: 1.34;
+}
+
+.combat-player[data-player-received-hit-state="quick-rise"] {
+  animation: player-received-hit-quick-rise 260ms cubic-bezier(0.14, 0.86, 0.18, 1) both paused;
+  animation-delay: calc(var(--player-received-hit-progress, 0) * -260ms);
+}
+
+.combat-player[data-player-received-hit-state="natural-rise"] {
+  animation: player-received-hit-natural-rise 360ms cubic-bezier(0.2, 0.72, 0.2, 1) both paused;
+  animation-delay: calc(var(--player-received-hit-progress, 0) * -360ms);
+}
+
 .combat-player[data-skill-release-source="cancel"] {
   filter:
     drop-shadow(0 18px 18px rgba(2, 6, 23, 0.86))
@@ -3854,9 +3895,10 @@ p {
   filter: drop-shadow(0 24px 16px rgba(2, 6, 23, 0.46)) drop-shadow(0 0 18px rgba(125, 211, 252, 0.5)) brightness(1.16);
 }
 
-.actor-model-quick-recover,
-.combat-player[data-player-motion="quick-recover"] .combat-player-art {
-  animation: player-quick-recover-rise 360ms cubic-bezier(0.14, 0.86, 0.18, 1) both;
+.actor-model-quick-rise,
+.actor-model-natural-rise,
+.combat-player[data-player-motion="quick-rise"] .combat-player-art,
+.combat-player[data-player-motion="natural-rise"] .combat-player-art {
   filter: drop-shadow(0 18px 14px rgba(2, 6, 23, 0.54)) drop-shadow(0 0 22px rgba(191, 219, 254, 0.72)) brightness(1.24) saturate(1.12);
 }
 
@@ -4459,6 +4501,7 @@ p {
 .damage-number,
 .combat-feedback,
 .player-skill-vfx,
+.player-reaction-vfx,
 .player-recovery-vfx,
 .enemy-skill-vfx,
 .enemy-summon-vfx,
@@ -4531,6 +4574,80 @@ p {
   transform: translate(-50%, -92%);
   mix-blend-mode: screen;
   pointer-events: none;
+}
+
+.player-reaction-vfx {
+  width: 184px;
+  height: 126px;
+  transform: translate(-50%, -90%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.player-reaction-vfx .player-reaction-ring,
+.player-reaction-vfx .player-reaction-core,
+.player-reaction-vfx .player-reaction-dust {
+  position: absolute;
+  pointer-events: none;
+}
+
+.player-reaction-vfx .player-reaction-dust {
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 58px;
+  border-radius: 50%;
+  opacity: 0;
+  background:
+    radial-gradient(ellipse at 50% 78%, rgba(254, 240, 138, 0.62), rgba(148, 163, 184, 0.38) 38%, transparent 72%),
+    linear-gradient(90deg, transparent 8%, rgba(226, 232, 240, 0.4) 46%, transparent 88%);
+  filter: blur(1px) drop-shadow(0 4px 9px rgba(15, 23, 42, 0.64));
+}
+
+.player-reaction-vfx .player-reaction-ring {
+  inset: 2px 28px 6px;
+  border: 2px solid transparent;
+  border-radius: 48% 48% 42% 42%;
+  opacity: 0;
+}
+
+.player-reaction-vfx .player-reaction-core {
+  inset: 18px 42px 12px;
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.player-reaction-vfx[data-player-reaction-vfx="knockdown-land"] .player-reaction-dust {
+  animation: player-knockdown-landing-dust 520ms cubic-bezier(0.14, 0.74, 0.18, 1) both paused;
+  animation-delay: calc(var(--player-received-hit-progress, 0) * -520ms);
+}
+
+.player-reaction-vfx[data-player-reaction-vfx="quick-rise"] .player-reaction-ring {
+  border-color: rgba(219, 234, 254, 0.82);
+  background: radial-gradient(ellipse, rgba(125, 211, 252, 0.38), rgba(59, 130, 246, 0.16) 50%, transparent 74%);
+  box-shadow: 0 0 28px rgba(147, 197, 253, 0.72), inset 0 0 22px rgba(125, 211, 252, 0.28);
+  animation: player-quick-rise-aura 260ms ease-out both paused;
+  animation-delay: calc(var(--player-received-hit-progress, 0) * -260ms);
+}
+
+.player-reaction-vfx[data-player-reaction-vfx="quick-rise"] .player-reaction-core {
+  background: radial-gradient(ellipse, rgba(255, 255, 255, 0.76), rgba(96, 165, 250, 0.34) 48%, transparent 74%);
+  animation: player-quick-rise-aura 260ms ease-out both paused;
+  animation-delay: calc(var(--player-received-hit-progress, 0) * -260ms);
+}
+
+.player-reaction-vfx[data-player-reaction-vfx="natural-rise"] .player-reaction-ring {
+  border-color: rgba(253, 230, 138, 0.68);
+  background: radial-gradient(ellipse, rgba(251, 191, 36, 0.3), rgba(248, 113, 113, 0.12) 52%, transparent 74%);
+  box-shadow: 0 0 24px rgba(251, 191, 36, 0.48), inset 0 0 20px rgba(253, 186, 116, 0.2);
+  animation: player-natural-rise-aura 360ms ease-out both paused;
+  animation-delay: calc(var(--player-received-hit-progress, 0) * -360ms);
+}
+
+.player-reaction-vfx[data-player-reaction-vfx="natural-rise"] .player-reaction-core {
+  background: radial-gradient(ellipse, rgba(254, 240, 138, 0.52), rgba(251, 146, 60, 0.2) 48%, transparent 74%);
+  animation: player-natural-rise-aura 360ms ease-out both paused;
+  animation-delay: calc(var(--player-received-hit-progress, 0) * -360ms);
 }
 
 .player-recovery-vfx .player-recovery-ring,
@@ -9479,6 +9596,64 @@ p {
   56% { transform: translateX(calc(var(--heavy-lunge-x, 34px) * 0.92)) translateY(-12px) rotate(13deg) scale(1.12) scaleX(var(--model-scale-x, 1)); filter: brightness(1.62) saturate(1.2); }
   76% { transform: translateX(calc(var(--heavy-lunge-x, 34px) * 0.34)) translateY(-4px) rotate(5deg) scale(1.05) scaleX(var(--model-scale-x, 1)); filter: brightness(1.28); }
   100% { transform: translateX(0) translateY(-14px) rotate(0deg) scale(1) scaleX(var(--model-scale-x, 1)); filter: brightness(1.08); }
+}
+
+@keyframes player-received-hit-impact {
+  0% { transform: translate(-50%, -100%) translateX(0) translateY(0) rotate(0deg) scale(1); }
+  55% { transform: translate(-50%, -100%) translateX(-15px) translateY(-4px) rotate(-6deg) scale(1.03, 0.97); }
+  100% { transform: translate(-50%, -100%) translateX(-10px) translateY(-6px) rotate(-5deg) scale(0.98); }
+}
+
+@keyframes player-received-hit-launch {
+  0% { transform: translate(-50%, -100%) translateX(-10px) translateY(-6px) rotate(-5deg) scale(0.98); }
+  58% { transform: translate(-50%, -100%) translateX(-20px) translateY(-58px) rotate(-10deg) scale(1.02); }
+  100% { transform: translate(-50%, -100%) translateX(-24px) translateY(-86px) rotate(-14deg) scale(0.98); }
+}
+
+@keyframes player-received-hit-fall {
+  0% { transform: translate(-50%, -100%) translateX(-24px) translateY(-86px) rotate(-14deg) scale(0.98); }
+  54% { transform: translate(-50%, -100%) translateX(-32px) translateY(-42px) rotate(-38deg) scale(0.98); }
+  88% { transform: translate(-50%, -100%) translateX(-36px) translateY(18px) rotate(-78deg) scale(0.96); }
+  100% { transform: translate(-50%, -100%) translateX(-34px) translateY(26px) rotate(-86deg) scale(0.94); }
+}
+
+@keyframes player-received-hit-downed {
+  0% { transform: translate(-50%, -100%) translateX(-34px) translateY(26px) rotate(-86deg) scale(0.94); }
+  18% { transform: translate(-50%, -100%) translateX(-32px) translateY(31px) rotate(-91deg) scale(0.98, 0.92); }
+  42% { transform: translate(-50%, -100%) translateX(-31px) translateY(28px) rotate(-89deg) scale(0.96); }
+  100% { transform: translate(-50%, -100%) translateX(-31px) translateY(28px) rotate(-89deg) scale(0.96); }
+}
+
+@keyframes player-received-hit-quick-rise {
+  0% { transform: translate(-50%, -100%) translateX(-31px) translateY(28px) rotate(-89deg) scale(0.96); }
+  34% { transform: translate(-50%, -100%) translateX(-14px) translateY(10px) rotate(-42deg) scale(1.02); }
+  72% { transform: translate(-50%, -100%) translateX(4px) translateY(-12px) rotate(7deg) scale(1.06); }
+  100% { transform: translate(-50%, -100%) translateX(0) translateY(0) rotate(0deg) scale(1); }
+}
+
+@keyframes player-received-hit-natural-rise {
+  0% { transform: translate(-50%, -100%) translateX(-31px) translateY(28px) rotate(-89deg) scale(0.96); }
+  34% { transform: translate(-50%, -100%) translateX(-22px) translateY(20px) rotate(-58deg) scale(0.98); }
+  72% { transform: translate(-50%, -100%) translateX(-7px) translateY(5px) rotate(-18deg) scale(1.01); }
+  100% { transform: translate(-50%, -100%) translateX(0) translateY(0) rotate(0deg) scale(1); }
+}
+
+@keyframes player-knockdown-landing-dust {
+  0% { transform: translateY(8px) scale(0.28, 0.4); opacity: 0; }
+  24% { opacity: 0.86; }
+  100% { transform: translateY(-7px) scale(1.28, 0.82); opacity: 0; }
+}
+
+@keyframes player-quick-rise-aura {
+  0% { transform: translateY(18px) scale(0.58, 0.42); opacity: 0; }
+  28% { opacity: 0.88; }
+  100% { transform: translateY(-12px) scale(1.2, 1.3); opacity: 0; }
+}
+
+@keyframes player-natural-rise-aura {
+  0% { transform: translateY(14px) scale(0.68, 0.5); opacity: 0; }
+  34% { opacity: 0.68; }
+  100% { transform: translateY(-6px) scale(1.1, 1.16); opacity: 0; }
 }
 
 @keyframes player-quick-recover-rise {

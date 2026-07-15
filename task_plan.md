@@ -549,7 +549,25 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Implement the mechanic through authoritative combat state and synchronized model/VFX/audio.
 - [x] Run regression/build, inspect visual evidence, then commit and push in Chinese.
 
+## Task 215 DNF Player Launch, Down, And Quick Recovery
+- [x] Confirm the current quick recover is only a ground hurt-lock shortcut and lacks a real received-hit lifecycle.
+- [x] Lock authoritative launched, falling, downed, quick-rise, natural-rise, and grounded timing rules.
+- [x] Add RED core coverage for lifecycle boundaries, control denial, C timing, natural rise, and hitstop synchronization.
+- [x] Close core review gaps for contact/grounded states, explicit attack reactions, arena hazards, charge denial, and revival reset.
+- [x] Add mounted UI/audio, computed-style, and real-keyboard acceptance coverage.
+- [x] Implement the lifecycle through combat state, movement locks, C input, model frames, VFX, and audio.
+- [x] Run scoped regression/build and real Chromium evidence; record incompatible legacy combat-script assumptions before Chinese commit/push.
+
 ### Errors Encountered
+- A Task 215 record patch mixed a progress-file heading into the task-plan hunk, so verification rejected the combined patch atomically. No file changed; task and progress records were reapplied separately.
+- A Task 215 catalog search used a double-quoted regular expression containing embedded quotes, so PowerShell rejected it before execution. No file changed; the query was rerun with single-quoted patterns.
+- Task 215 core review found the initial GREEN contract omitted explicit hit/grounded states, left arena hazards on the old hurt-lock path, and inferred launch semantics from feedback and knockback values. Acceptance was reopened before mounted integration and new RED assertions cover those gaps.
+- Task 215's first pair of UI worker spawns combined a full-history fork with an explicit worker type, which the coordinator rejects. No worker started; retry used standalone worker contexts with complete interface contracts.
+- Task 215's first combined design/test/record patch targeted abbreviated checklist wording instead of the exact persisted Task 215 lines and was rejected atomically. No file changed; the edits were split against fresh context.
+- Task 215's first full 45-route keyboard run passed 30 and exposed 15 legacy scripts that treated `hurtLock=false` as full control or assumed uninterrupted offense inside a five-monster room. Shared clear helpers now use real KeyC recovery, while exact no-hit combo routes remain test debt rather than weakening authoritative received-hit locks.
+- Task 215's first quick-rise recorder assertion depended on a second requestAnimationFrame sampler and missed the already-mounted downed sprite under suite load. Acceptance now proves the downed sprite/frame directly from the same DOM state that opens the KeyC window and uses the recorder only for historical combat/audio evidence.
+- Task 215's Liuli enemy browser route still expected the obsolete two-monster first room. Updating it to the current five-monster formation restored the real windup/model/VFX route without changing production behavior.
+- Final Task 215 review blocked submission because launch, fall, and prone time incorrectly inherited natural-rise invulnerability. The window now starts exactly at natural-rise; focused core and both live received-hit routes pass with real follow-up pressure preserved.
 - Task 214 final subagent review correctly found charge action lock did not suppress ordinary movement and release did not clear a late buffered action. Two focused RED tests reproduced both defects before the production fix.
 - Task 214's first mounted RED patch targeted a stale app-test title and was rejected atomically. The tests were split by exact file context and no partial edit occurred.
 - Task 214's first app markup patch tried to replace the one-line actor root with a partial line and was rejected atomically. Charge diagnostics were mounted as a dedicated child state node instead.

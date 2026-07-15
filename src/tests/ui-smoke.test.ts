@@ -22,6 +22,7 @@ import { createInitialState, createOwnedGear } from "../game/state";
 import type { GameState } from "../game/types";
 import { advanceClass, selectBaseClass } from "../systems/classes";
 import { renderAppHtml } from "../ui/app";
+import { createCombatSpriteStage } from "../ui/combat-sprite-stage";
 import {
   renderAuctionPanel,
   renderClassPanel,
@@ -3442,7 +3443,7 @@ describe("town app shell", () => {
     expect(stylesCss).toContain("@keyframes player-jump-rise");
   });
 
-  it("renders DNF-style quick recover with dedicated player motion hooks", () => {
+  it("renders DNF-style quick rise with authoritative player reaction hooks", () => {
     const state = createInitialState();
     const baseRun = createCombatRun(state, "cinder-kiln-alley");
     const heavyRun = withSingleReadyEnemy(
@@ -3465,17 +3466,114 @@ describe("town app shell", () => {
     );
     const telegraph = stepCombat(heavyRun, {}, 1);
     const impacted = stepToElapsed(telegraph, telegraph.enemies[0].attackImpactAtMs ?? 0);
-    const recovered = performAction(impacted, { type: "jump" });
+    const downed = stepCombat(impacted, {}, 600);
+    const recovered = performAction(downed, { type: "jump" });
     const html = renderAppHtml({ state, mode: "combat", combatRun: recovered });
 
     expect(html).toContain('data-combat-action="jump"');
     expect(html).toContain('data-hotkey="C"');
-    expect(html).toContain('data-player-motion="quick-recover"');
+    expect(html).toContain('data-player-motion="quick-rise"');
+    expect(html).toContain('data-player-received-hit-state="quick-rise"');
     expect(html).toContain('data-player-state="recovering"');
     expect(html).toContain('data-player-quick-recover-active="true"');
-    expect(html).toContain('class="combat-player-art actor-model actor-model-quick-recover"');
-    expect(stylesCss).toContain('.combat-player[data-player-motion="quick-recover"] .combat-player-art');
-    expect(stylesCss).toContain("@keyframes player-quick-recover-rise");
+    expect(html).toContain('data-player-reaction-vfx="quick-rise"');
+    expect(html).toContain('class="combat-player-art actor-model actor-model-quick-rise"');
+    expect(stylesCss).toContain('.combat-player[data-player-received-hit-state="quick-rise"]');
+    expect(stylesCss).toContain('.player-reaction-vfx[data-player-reaction-vfx="quick-rise"] .player-reaction-ring');
+    expect(stylesCss).toContain("@keyframes player-received-hit-quick-rise");
+  });
+
+  it("maps authoritative received-hit states to exact sprite states and atlas frames", async () => {
+    const originalImage = globalThis.Image;
+    class ReadyImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    Object.defineProperty(globalThis, "Image", { configurable: true, writable: true, value: ReadyImage });
+
+    const actorStyleValues = new Map<string, string>();
+    const actorStyle = {
+      setProperty(name: string, value: string) {
+        actorStyleValues.set(name, value);
+      }
+    };
+    const spriteStyleValues = new Map<string, string>();
+    const spriteStyle = {
+      backgroundImage: "",
+      backgroundPosition: "",
+      setProperty(name: string, value: string) {
+        spriteStyleValues.set(name, value);
+      }
+    };
+    const sprite = {
+      dataset: { frameClassId: "ember-warden" },
+      style: spriteStyle
+    } as unknown as HTMLElement;
+    const player = {
+      dataset: {
+        playerFacing: "right",
+        playerMotion: "grounded",
+        playerReceivedHitState: "grounded",
+        playerReceivedHitProgress: "0",
+        playerState: "alive"
+      },
+      style: actorStyle,
+      querySelector(selector: string) {
+        return selector === ".player-frame-sprite" ? sprite : null;
+      }
+    } as unknown as HTMLElement;
+    const scene = {
+      dataset: { combatElapsedMs: "500", hitstopActive: "false", playerX: "260" }
+    } as unknown as HTMLElement;
+    const root = {
+      querySelector(selector: string) {
+        if (selector === ".combat-scene") return scene;
+        if (selector === ".combat-player") return player;
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      }
+    } as unknown as ParentNode;
+
+    try {
+      const stage = createCombatSpriteStage();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const cases = [
+        { state: "hit", progress: 0.5, frame: "12" },
+        { state: "launched", progress: 0.5, frame: "12" },
+        { state: "falling", progress: 0.5, frame: "13" },
+        { state: "downed", progress: 0.2, frame: "14" },
+        { state: "downed", progress: 0.8, frame: "15" },
+        { state: "quick-rise", progress: 0.2, frame: "14" },
+        { state: "quick-rise", progress: 0.5, frame: "12" },
+        { state: "quick-rise", progress: 0.9, frame: "0" },
+        { state: "natural-rise", progress: 0.2, frame: "14" },
+        { state: "natural-rise", progress: 0.5, frame: "12" },
+        { state: "natural-rise", progress: 0.9, frame: "0" }
+      ] as const;
+
+      for (const fixture of cases) {
+        player.dataset.playerMotion = fixture.state;
+        player.dataset.playerReceivedHitState = fixture.state;
+        player.dataset.playerReceivedHitProgress = String(fixture.progress);
+        stage.sync(root);
+        expect(sprite.dataset.spriteState).toBe(fixture.state);
+        expect(sprite.dataset.spriteFrame).toBe(fixture.frame);
+        expect(actorStyleValues.get("--player-received-hit-progress")).toBe(fixture.progress.toFixed(3));
+      }
+      expect(spriteStyleValues.get("--sprite-frame-position")).toBe("0% 0%");
+    } finally {
+      if (originalImage === undefined) {
+        Reflect.deleteProperty(globalThis, "Image");
+      } else {
+        Object.defineProperty(globalThis, "Image", { configurable: true, writable: true, value: originalImage });
+      }
+    }
   });
 
   it("renders DNF-style airborne light attack with player, weapon, and impact hooks", () => {

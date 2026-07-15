@@ -190,6 +190,15 @@ export type CombatPlayerFeedbackCue =
   | "player-hurt-chain-drag"
   | "player-hurt-chain-smash"
   | "player-hurt-world-devour";
+export type CombatPlayerReaction = "none" | "light-hit" | "launch" | "bind" | "pull";
+export type CombatPlayerReceivedHitState =
+  | "grounded"
+  | "hit"
+  | "launched"
+  | "falling"
+  | "downed"
+  | "quick-rise"
+  | "natural-rise";
 export type CombatBossPhaseSkillId = "taotie-forge-collapse" | "taotie-armor-pulse";
 export type CombatArenaHazardPhase = "telegraph" | "active" | "miss";
 export type CombatArenaHazardVfxCue = "taotie-forge-collapse-telegraph" | "taotie-forge-collapse-impact";
@@ -281,6 +290,12 @@ export interface CombatPlayer {
   invulnerableStartedAtMs: number;
   invulnerableUntilMs: number;
   hurtLockUntilMs: number;
+  receivedHitStartedAtMs: number;
+  receivedHitLaunchAtMs: number;
+  receivedHitApexAtMs: number;
+  receivedHitLandAtMs: number;
+  receivedHitNaturalRiseAtMs: number;
+  receivedHitRecoverAtMs: number;
   boundUntilMs: number;
   airState: "grounded" | "jumping" | "landing";
   jumpStartedAtMs: number;
@@ -500,6 +515,7 @@ export interface CombatPlayerHitEvent {
   hitIndex?: number;
   totalHits?: number;
   feedbackCue?: CombatPlayerFeedbackCue;
+  reaction?: CombatPlayerReaction;
   vfxWindowMs?: number;
 }
 
@@ -757,6 +773,8 @@ interface EnemyAttackDefinition {
   vfxWindowMs: number;
   feedbackCue: CombatPlayerFeedbackCue;
   feedbackCues?: CombatPlayerFeedbackCue[];
+  reaction: CombatPlayerReaction;
+  reactions?: CombatPlayerReaction[];
   invulnerabilityMs: number;
   invulnerabilityMsByHit?: number[];
   hurtLockMs: number;
@@ -845,7 +863,13 @@ const groundLightLungePxByComboStep = [18, 22, 28] as const;
 const groundHeavyInputToHitMs = 85;
 const groundHeavyActionMs = 260;
 const groundHeavyLungePx = 34;
-const quickRecoverReadyWindowMs = 260;
+const receivedHitContactMs = 90;
+const receivedHitLaunchMs = 180;
+const receivedHitFallMs = 220;
+const receivedHitDownedMs = 520;
+const receivedHitNaturalRiseMs = 360;
+const receivedHitNaturalRecoveryProtectionMs = 180;
+const quickRecoverReadyWindowMs = 420;
 const quickRecoverActionMs = 260;
 const quickRecoverInvulnerableMs = 520;
 const crowFeintEvadeStartDelayMs = 90;
@@ -957,6 +981,30 @@ function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: 
         actionLockUntilMs: shiftFutureTime(run.player.actionLockUntilMs, originMs, deltaMs)
       }
     : run.player;
+  const receivedHitActive =
+    run.player.receivedHitRecoverAtMs > originMs || run.player.quickRecoverUntilMs > originMs;
+  const shiftedPlayer: CombatPlayer = receivedHitActive
+    ? {
+        ...shiftedChargePlayer,
+        receivedHitStartedAtMs:
+          run.player.receivedHitRecoverAtMs > originMs ? run.player.receivedHitStartedAtMs + deltaMs : 0,
+        receivedHitLaunchAtMs: shiftFutureTime(run.player.receivedHitLaunchAtMs, originMs, deltaMs),
+        receivedHitApexAtMs: shiftFutureTime(run.player.receivedHitApexAtMs, originMs, deltaMs),
+        receivedHitLandAtMs: shiftFutureTime(run.player.receivedHitLandAtMs, originMs, deltaMs),
+        receivedHitNaturalRiseAtMs: shiftFutureTime(run.player.receivedHitNaturalRiseAtMs, originMs, deltaMs),
+        receivedHitRecoverAtMs: shiftFutureTime(run.player.receivedHitRecoverAtMs, originMs, deltaMs),
+        quickRecoverReadyUntilMs: shiftFutureTime(run.player.quickRecoverReadyUntilMs, originMs, deltaMs),
+        quickRecoverStartedAtMs:
+          run.player.quickRecoverUntilMs > originMs ? run.player.quickRecoverStartedAtMs + deltaMs : 0,
+        quickRecoverUntilMs: shiftFutureTime(run.player.quickRecoverUntilMs, originMs, deltaMs),
+        invulnerableStartedAtMs:
+          run.player.invulnerableUntilMs > originMs ? run.player.invulnerableStartedAtMs + deltaMs : 0,
+        invulnerableUntilMs: shiftFutureTime(run.player.invulnerableUntilMs, originMs, deltaMs),
+        hurtLockUntilMs: shiftFutureTime(run.player.hurtLockUntilMs, originMs, deltaMs),
+        boundUntilMs: shiftFutureTime(run.player.boundUntilMs, originMs, deltaMs),
+        actionLockUntilMs: shiftFutureTime(run.player.actionLockUntilMs, originMs, deltaMs)
+      }
+    : shiftedChargePlayer;
   const activeSkillMovement =
     actionArmorSkillId && run.player.activeSkillMovement?.skillId === actionArmorSkillId
       ? {
@@ -970,7 +1018,7 @@ function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: 
     ...run,
     player: actionArmorSkillId
       ? {
-          ...shiftedChargePlayer,
+          ...shiftedPlayer,
           actionLockUntilMs: shiftFutureTime(run.player.actionLockUntilMs, originMs, deltaMs),
           cancelWindowUntilMs: shiftFutureTime(run.player.cancelWindowUntilMs, originMs, deltaMs),
           skillCooldowns: {
@@ -982,7 +1030,7 @@ function shiftCombatTimersForHitstop(run: CombatRun, originMs: number, deltaMs: 
             run.player.activeGrabStartedAtMs !== undefined ? run.player.activeGrabStartedAtMs + deltaMs : undefined,
           activeGrabUntilMs: shiftFutureOptionalTime(run.player.activeGrabUntilMs, originMs, deltaMs)
         }
-      : shiftedChargePlayer,
+      : shiftedPlayer,
     enemies: run.enemies.map((enemy) => shiftEnemyTimersForHitstop(enemy, originMs, deltaMs)),
     scheduledEnemyHitEffects: run.scheduledEnemyHitEffects.map((effect) =>
       effect.skillId === actionArmorSkillId
@@ -1059,6 +1107,59 @@ function playerAirStateAt(player: CombatPlayer, elapsedMs: number): CombatPlayer
   }
 
   return "grounded";
+}
+
+export function playerReceivedHitStateAt(player: CombatPlayer, elapsedMs: number): CombatPlayerReceivedHitState {
+  if (
+    player.quickRecoverUntilMs > elapsedMs &&
+    player.quickRecoverStartedAtMs <= elapsedMs
+  ) {
+    return "quick-rise";
+  }
+
+  if (player.receivedHitRecoverAtMs <= elapsedMs || player.receivedHitRecoverAtMs <= player.receivedHitStartedAtMs) {
+    return "grounded";
+  }
+
+  if (elapsedMs < player.receivedHitLaunchAtMs) {
+    return "hit";
+  }
+
+  if (elapsedMs < player.receivedHitApexAtMs) {
+    return "launched";
+  }
+
+  if (elapsedMs < player.receivedHitLandAtMs) {
+    return "falling";
+  }
+
+  if (elapsedMs < player.receivedHitNaturalRiseAtMs) {
+    return "downed";
+  }
+
+  return "natural-rise";
+}
+
+function clearCompletedPlayerReceivedHitState(player: CombatPlayer, elapsedMs: number): CombatPlayer {
+  const receivedHitComplete = player.receivedHitRecoverAtMs > 0 && elapsedMs >= player.receivedHitRecoverAtMs;
+  const quickRecoverComplete = player.quickRecoverUntilMs > 0 && elapsedMs >= player.quickRecoverUntilMs;
+
+  if (!receivedHitComplete && !quickRecoverComplete) {
+    return player;
+  }
+
+  return {
+    ...player,
+    receivedHitStartedAtMs: receivedHitComplete ? 0 : player.receivedHitStartedAtMs,
+    receivedHitLaunchAtMs: receivedHitComplete ? 0 : player.receivedHitLaunchAtMs,
+    receivedHitApexAtMs: receivedHitComplete ? 0 : player.receivedHitApexAtMs,
+    receivedHitLandAtMs: receivedHitComplete ? 0 : player.receivedHitLandAtMs,
+    receivedHitNaturalRiseAtMs: receivedHitComplete ? 0 : player.receivedHitNaturalRiseAtMs,
+    receivedHitRecoverAtMs: receivedHitComplete ? 0 : player.receivedHitRecoverAtMs,
+    quickRecoverReadyUntilMs: receivedHitComplete ? 0 : player.quickRecoverReadyUntilMs,
+    quickRecoverStartedAtMs: quickRecoverComplete ? 0 : player.quickRecoverStartedAtMs,
+    quickRecoverUntilMs: quickRecoverComplete ? 0 : player.quickRecoverUntilMs
+  };
 }
 
 function updatePlayerAirState(player: CombatPlayer, elapsedMs: number): CombatPlayer {
@@ -1195,6 +1296,38 @@ function advancePlayerFramePosition(
       y: startPosition.y,
       facing: run.player.facing,
       movementFinished: false,
+      moveX: 0,
+      moveY: 0,
+      speed: 0
+    };
+  }
+
+  const receivedHitState = playerReceivedHitStateAt(run.player, run.elapsedMs);
+
+  if (receivedHitState !== "grounded") {
+    const controlUnlockAtMs =
+      receivedHitState === "quick-rise" ? run.player.quickRecoverUntilMs : run.player.receivedHitRecoverAtMs;
+
+    if (elapsedMs > controlUnlockAtMs) {
+      const movableMs = elapsedMs - controlUnlockAtMs;
+      const facing = moveX === 0 ? run.player.facing : moveX > 0 ? 1 : -1;
+
+      return {
+        x: clamp(startPosition.x + moveX * speed * movableMs, 0, run.arena.width),
+        y: clamp(startPosition.y + moveY * speed * movableMs, run.arena.minY, run.arena.maxY),
+        facing,
+        movementFinished: true,
+        moveX,
+        moveY,
+        speed
+      };
+    }
+
+    return {
+      x: startPosition.x,
+      y: startPosition.y,
+      facing: run.player.facing,
+      movementFinished: true,
       moveX: 0,
       moveY: 0,
       speed: 0
@@ -1392,6 +1525,12 @@ function lockPlayerForRoomTransition(player: CombatPlayer, transition: CombatRoo
     quickRecoverReadyUntilMs: 0,
     quickRecoverStartedAtMs: 0,
     quickRecoverUntilMs: 0,
+    receivedHitStartedAtMs: 0,
+    receivedHitLaunchAtMs: 0,
+    receivedHitApexAtMs: 0,
+    receivedHitLandAtMs: 0,
+    receivedHitNaturalRiseAtMs: 0,
+    receivedHitRecoverAtMs: 0,
     activeSkillMovement: {
       skillId: "room-gate-enter",
       startAtMs: transition.startedAtMs,
@@ -1857,6 +1996,8 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxWindowMs: 500,
       feedbackCue: "player-hurt-chain-drag",
       feedbackCues: ["player-hurt-chain-drag", "player-hurt-chain-smash"],
+      reaction: "pull",
+      reactions: ["pull", "launch"],
       invulnerabilityMs: 120,
       hurtLockMs: 380,
       damageMultipliers: [0.75, 1.25],
@@ -1881,6 +2022,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "taotie-devour-bite",
       vfxWindowMs: 520,
       feedbackCue: "player-hurt-devoured",
+      reaction: "pull",
       invulnerabilityMs: 500,
       hurtLockMs: 480,
       windupPullPx: 150
@@ -1903,6 +2045,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "taotie-flame-breath-sustain",
       vfxWindowMs: 480,
       feedbackCue: "player-hurt-boss-breath",
+      reaction: "light-hit",
       invulnerabilityMs: 110,
       hurtLockMs: 240
     };
@@ -1926,6 +2069,8 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxWindowMs: 620,
       feedbackCue: "player-hurt-forge-shackle",
       feedbackCues: ["player-hurt-forge-shackle", "player-hurt-forge-slam"],
+      reaction: "bind",
+      reactions: ["bind", "launch"],
       invulnerabilityMs: 0,
       invulnerabilityMsByHit: [0, 520],
       hurtLockMs: 540,
@@ -1956,6 +2101,8 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxWindowMs: 520,
       feedbackCue: "player-hurt-chain-drag",
       feedbackCues: ["player-hurt-chain-drag", "player-hurt-chain-smash"],
+      reaction: "pull",
+      reactions: ["bind", "launch"],
       invulnerabilityMs: 0,
       invulnerabilityMsByHit: [0, 420],
       hurtLockMs: 440,
@@ -1985,6 +2132,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "taotie-world-devour-impact",
       vfxWindowMs: 740,
       feedbackCue: "player-hurt-world-devour",
+      reaction: "launch",
       invulnerabilityMs: 620,
       hurtLockMs: 660,
       jumpEvade: true
@@ -2007,6 +2155,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "taotie-ash-summon-rift",
       vfxWindowMs: 720,
       feedbackCue: "player-hurt-heavy",
+      reaction: "none",
       invulnerabilityMs: 0,
       hurtLockMs: 0,
       summonProfileIds: ["ash-crawler-burst", "ash-crawler-burst"]
@@ -2029,6 +2178,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "taotie-devour-bite",
       vfxWindowMs: 560,
       feedbackCue: "player-hurt-devoured",
+      reaction: "pull",
       invulnerabilityMs: 520,
       hurtLockMs: 520,
       windupPullPx: 180
@@ -2051,6 +2201,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "taotie-flame-breath-sustain",
       vfxWindowMs: 520,
       feedbackCue: "player-hurt-boss-breath",
+      reaction: "light-hit",
       invulnerabilityMs: 120,
       hurtLockMs: 260
     };
@@ -2072,6 +2223,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "zheng-shockwave-impact",
       vfxWindowMs: 420,
       feedbackCue: "player-hurt-heavy",
+      reaction: "launch",
       invulnerabilityMs: 560,
       hurtLockMs: 420,
       jumpEvade: true
@@ -2094,6 +2246,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "zheng-horn-charge-impact",
       vfxWindowMs: 480,
       feedbackCue: "player-hurt-heavy",
+      reaction: "launch",
       invulnerabilityMs: 560,
       hurtLockMs: 460,
       windupRushPx: 260,
@@ -2117,6 +2270,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "zheng-horn-charge-impact",
       vfxWindowMs: 440,
       feedbackCue: "player-hurt-heavy",
+      reaction: "launch",
       invulnerabilityMs: 540,
       hurtLockMs: 440,
       windupRushPx: 230,
@@ -2140,6 +2294,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "zheng-shockwave-impact",
       vfxWindowMs: 400,
       feedbackCue: "player-hurt-heavy",
+      reaction: "launch",
       invulnerabilityMs: 540,
       hurtLockMs: 400,
       jumpEvade: true
@@ -2162,6 +2317,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "ash-crawler-burst-explode",
       vfxWindowMs: 460,
       feedbackCue: "player-hurt-heavy",
+      reaction: "launch",
       invulnerabilityMs: 560,
       hurtLockMs: 460,
       windupRushPx: 190,
@@ -2185,6 +2341,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "ash-crawler-burst-explode",
       vfxWindowMs: 420,
       feedbackCue: "player-hurt-heavy",
+      reaction: "launch",
       invulnerabilityMs: 540,
       hurtLockMs: 440,
       windupRushPx: 170,
@@ -2208,6 +2365,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
       vfxCue: "ash-ember-spit-impact",
       vfxWindowMs: 340,
       feedbackCue: "player-hurt-light",
+      reaction: "light-hit",
       invulnerabilityMs: 540,
       hurtLockMs: 400
     };
@@ -2228,6 +2386,7 @@ function enemyAttackDefinition(enemy: Pick<CombatEnemy, "kind" | "attackProfileI
     vfxCue: "ash-ember-spit-impact",
     vfxWindowMs: 360,
     feedbackCue: "player-hurt-light",
+    reaction: "light-hit",
     invulnerabilityMs: 560,
     hurtLockMs: 420
   };
@@ -3481,7 +3640,8 @@ export function startMeteorKnuckleCharge(
     run.roomTransition ||
     roomIsCleared(run) ||
     run.player.defeated ||
-    run.player.activeChargeSkillId
+    run.player.activeChargeSkillId ||
+    playerReceivedHitStateAt(run.player, run.elapsedMs) !== "grounded"
   ) {
     return run;
   }
@@ -5295,6 +5455,12 @@ export function createCombatRun(
       quickRecoverReadyUntilMs: 0,
       quickRecoverStartedAtMs: 0,
       quickRecoverUntilMs: 0,
+      receivedHitStartedAtMs: 0,
+      receivedHitLaunchAtMs: 0,
+      receivedHitApexAtMs: 0,
+      receivedHitLandAtMs: 0,
+      receivedHitNaturalRiseAtMs: 0,
+      receivedHitRecoverAtMs: 0,
       shieldUntilMs: 0,
       shieldReduction: 0,
       evadeStartedAtMs: 0,
@@ -5359,7 +5525,16 @@ function advanceCombatFrame(run: CombatRun, input: CombatInput, dtMs: number): C
     comboCount: comboActiveAtElapsed ? run.comboCount : 0,
     comboExpiresAtMs: comboActiveAtElapsed ? run.comboExpiresAtMs : 0,
     player: {
-      ...clearCompletedNormalAttack(updatePlayerAirState(clearCompletedSkillMovement(applyTimedPlayerWindows(run.player, elapsedMs), elapsedMs), elapsedMs), elapsedMs),
+      ...clearCompletedPlayerReceivedHitState(
+        clearCompletedNormalAttack(
+          updatePlayerAirState(
+            clearCompletedSkillMovement(applyTimedPlayerWindows(run.player, elapsedMs), elapsedMs),
+            elapsedMs
+          ),
+          elapsedMs
+        ),
+        elapsedMs
+      ),
       x: framePosition.x,
       y: framePosition.y,
       facing: framePosition.facing,
@@ -5808,10 +5983,6 @@ function playerInEnemyAttackRange(enemy: CombatEnemy, player: CombatPlayer, atta
   return xDistance <= attack.rangeX && yDistance <= attack.laneRange;
 }
 
-function playerHitAllowsQuickRecover(feedbackCue: CombatPlayerFeedbackCue, knockback: number, boundMs: number): boolean {
-  return boundMs <= 0 && feedbackCue !== "player-hurt-light" && knockback >= 60;
-}
-
 function applyEnemyImpact(
   enemy: CombatEnemy,
   player: CombatPlayer,
@@ -5849,6 +6020,7 @@ function applyEnemyImpact(
     const summonProfileIds = attack.summonProfileIds;
     const hitVfxCue = attack.hitVfxCues?.[resolvedHits] ?? attack.vfxCue;
     const hitFeedbackCue = attack.feedbackCues?.[resolvedHits] ?? attack.feedbackCue;
+    const hitReaction = attack.reactions?.[resolvedHits] ?? attack.reaction;
     const hitDamageMultiplier = attack.damageMultipliers?.[resolvedHits] ?? 1;
     const difficultyDamage = Math.max(
       1,
@@ -6018,9 +6190,18 @@ function applyEnemyImpact(
     const actionArmorActive = nextHp > 0 && playerActionArmorActiveAt(nextPlayer, hitTime);
     const controlProtectedImpact = shieldAbsorbedImpact || actionArmorActive;
     const nextFacing: 1 | -1 = nextEnemy.position.x >= nextPlayer.x ? 1 : -1;
+    const startsReceivedHitLifecycle =
+      !controlProtectedImpact && nextHp > 0 && hitReaction === "launch";
+    const receivedHitLaunchAtMs = startsReceivedHitLifecycle ? hitTime + receivedHitContactMs : 0;
+    const receivedHitApexAtMs = startsReceivedHitLifecycle ? receivedHitLaunchAtMs + receivedHitLaunchMs : 0;
+    const receivedHitLandAtMs = startsReceivedHitLifecycle ? receivedHitApexAtMs + receivedHitFallMs : 0;
+    const receivedHitNaturalRiseAtMs = startsReceivedHitLifecycle ? receivedHitLandAtMs + receivedHitDownedMs : 0;
+    const receivedHitRecoverAtMs = startsReceivedHitLifecycle
+      ? receivedHitNaturalRiseAtMs + receivedHitNaturalRiseMs
+      : 0;
     const quickRecoverReadyUntilMs =
-      nextHp > 0 && playerHitAllowsQuickRecover(hitFeedbackCue, hitKnockback, hitBoundMs)
-        ? hitTime + quickRecoverReadyWindowMs
+      startsReceivedHitLifecycle
+        ? receivedHitLandAtMs + quickRecoverReadyWindowMs
         : 0;
     const hitEvent: CombatPlayerHitEvent = {
       kind: "player-hit",
@@ -6033,6 +6214,7 @@ function applyEnemyImpact(
       hitIndex,
       totalHits: attack.hitCount,
       feedbackCue: hitFeedbackCue,
+      reaction: hitReaction,
       vfxWindowMs: attack.vfxWindowMs
     };
     const damagedPlayer: CombatPlayer = {
@@ -6041,13 +6223,42 @@ function applyEnemyImpact(
       x: controlProtectedImpact ? nextPlayer.x : clamp(nextPlayer.x - nextFacing * hitKnockback, 0, arena.width),
       facing: controlProtectedImpact ? nextPlayer.facing : nextFacing,
       hitstopUntilMs: Math.max(nextPlayer.hitstopUntilMs, hitTime + attack.hitstopMs),
-      invulnerableStartedAtMs: hitTime,
-      invulnerableUntilMs: hitTime + hitInvulnerabilityMs,
-      hurtLockUntilMs: controlProtectedImpact ? nextPlayer.hurtLockUntilMs : hitTime + Math.max(attack.hitstopMs, hitHurtLockMs),
+      invulnerableStartedAtMs: startsReceivedHitLifecycle ? receivedHitNaturalRiseAtMs : hitTime,
+      invulnerableUntilMs: startsReceivedHitLifecycle
+        ? receivedHitRecoverAtMs + receivedHitNaturalRecoveryProtectionMs
+        : hitTime + hitInvulnerabilityMs,
+      hurtLockUntilMs: controlProtectedImpact
+        ? nextPlayer.hurtLockUntilMs
+        : startsReceivedHitLifecycle
+          ? receivedHitRecoverAtMs
+          : hitTime + Math.max(attack.hitstopMs, hitHurtLockMs),
+      receivedHitStartedAtMs: controlProtectedImpact
+        ? nextPlayer.receivedHitStartedAtMs
+        : startsReceivedHitLifecycle
+          ? hitTime
+          : 0,
+      receivedHitLaunchAtMs: controlProtectedImpact ? nextPlayer.receivedHitLaunchAtMs : receivedHitLaunchAtMs,
+      receivedHitApexAtMs: controlProtectedImpact ? nextPlayer.receivedHitApexAtMs : receivedHitApexAtMs,
+      receivedHitLandAtMs: controlProtectedImpact ? nextPlayer.receivedHitLandAtMs : receivedHitLandAtMs,
+      receivedHitNaturalRiseAtMs: controlProtectedImpact
+        ? nextPlayer.receivedHitNaturalRiseAtMs
+        : receivedHitNaturalRiseAtMs,
+      receivedHitRecoverAtMs: controlProtectedImpact ? nextPlayer.receivedHitRecoverAtMs : receivedHitRecoverAtMs,
       boundUntilMs: controlProtectedImpact ? nextPlayer.boundUntilMs : Math.max(nextPlayer.boundUntilMs, hitBoundMs > 0 ? hitTime + hitBoundMs : 0),
       quickRecoverReadyUntilMs: controlProtectedImpact ? nextPlayer.quickRecoverReadyUntilMs : quickRecoverReadyUntilMs,
       quickRecoverStartedAtMs: controlProtectedImpact ? nextPlayer.quickRecoverStartedAtMs : 0,
       quickRecoverUntilMs: controlProtectedImpact ? nextPlayer.quickRecoverUntilMs : 0,
+      actionLockUntilMs: startsReceivedHitLifecycle
+        ? Math.max(nextPlayer.actionLockUntilMs, receivedHitRecoverAtMs)
+        : nextPlayer.actionLockUntilMs,
+      airState: startsReceivedHitLifecycle ? "grounded" : nextPlayer.airState,
+      jumpStartedAtMs: startsReceivedHitLifecycle ? 0 : nextPlayer.jumpStartedAtMs,
+      airborneUntilMs: startsReceivedHitLifecycle ? 0 : nextPlayer.airborneUntilMs,
+      landingUntilMs: startsReceivedHitLifecycle ? 0 : nextPlayer.landingUntilMs,
+      airAttackUsed: startsReceivedHitLifecycle ? false : nextPlayer.airAttackUsed,
+      airAttackType: startsReceivedHitLifecycle ? "none" : nextPlayer.airAttackType,
+      airAttackStartedAtMs: startsReceivedHitLifecycle ? 0 : nextPlayer.airAttackStartedAtMs,
+      airAttackUntilMs: startsReceivedHitLifecycle ? 0 : nextPlayer.airAttackUntilMs,
       shieldUntilMs: nextPlayer.shieldUntilMs,
       shieldReduction: nextPlayer.shieldReduction,
       bufferedAction: controlProtectedImpact ? nextPlayer.bufferedAction : undefined,
@@ -7371,6 +7582,14 @@ function applyScheduledArenaHazard(run: CombatRun, hazard: CombatScheduledArenaH
   const damage = Math.max(1, Math.round(difficultyDamage * run.combatProfile.damageTakenMultiplier));
   const nextHp = Math.max(0, sampledPlayer.hp - damage);
   const nextFacing: 1 | -1 = hazard.x >= sampledPlayer.x ? 1 : -1;
+  const startsReceivedHitLifecycle = nextHp > 0;
+  const receivedHitLaunchAtMs = startsReceivedHitLifecycle ? hazard.impactAtMs + receivedHitContactMs : 0;
+  const receivedHitApexAtMs = startsReceivedHitLifecycle ? receivedHitLaunchAtMs + receivedHitLaunchMs : 0;
+  const receivedHitLandAtMs = startsReceivedHitLifecycle ? receivedHitApexAtMs + receivedHitFallMs : 0;
+  const receivedHitNaturalRiseAtMs = startsReceivedHitLifecycle ? receivedHitLandAtMs + receivedHitDownedMs : 0;
+  const receivedHitRecoverAtMs = startsReceivedHitLifecycle
+    ? receivedHitNaturalRiseAtMs + receivedHitNaturalRiseMs
+    : 0;
   const playerHit: CombatPlayerHitEvent = {
     kind: "player-hit",
     id: `player-hit-${hazard.impactAtMs}-${hazard.hazardId}`,
@@ -7380,6 +7599,7 @@ function applyScheduledArenaHazard(run: CombatRun, hazard: CombatScheduledArenaH
     occurredAtMs: hazard.impactAtMs,
     hitstopMs: hazard.hitstopMs,
     feedbackCue: "player-hurt-forge-collapse",
+    reaction: "launch",
     vfxWindowMs: hazard.vfxWindowMs
   };
   const damagedPlayer: CombatPlayer = {
@@ -7389,9 +7609,31 @@ function applyScheduledArenaHazard(run: CombatRun, hazard: CombatScheduledArenaH
     y: sampledPlayer.y,
     facing: nextFacing,
     hitstopUntilMs: Math.max(run.player.hitstopUntilMs, hazard.impactAtMs + hazard.hitstopMs),
-    invulnerableStartedAtMs: hazard.impactAtMs,
-    invulnerableUntilMs: hazard.impactAtMs + 520,
-    hurtLockUntilMs: hazard.impactAtMs + 520,
+    invulnerableStartedAtMs: startsReceivedHitLifecycle ? receivedHitNaturalRiseAtMs : hazard.impactAtMs,
+    invulnerableUntilMs: startsReceivedHitLifecycle
+      ? receivedHitRecoverAtMs + receivedHitNaturalRecoveryProtectionMs
+      : hazard.impactAtMs + 520,
+    hurtLockUntilMs: startsReceivedHitLifecycle ? receivedHitRecoverAtMs : hazard.impactAtMs + 520,
+    actionLockUntilMs: startsReceivedHitLifecycle
+      ? Math.max(run.player.actionLockUntilMs, receivedHitRecoverAtMs)
+      : run.player.actionLockUntilMs,
+    receivedHitStartedAtMs: startsReceivedHitLifecycle ? hazard.impactAtMs : 0,
+    receivedHitLaunchAtMs,
+    receivedHitApexAtMs,
+    receivedHitLandAtMs,
+    receivedHitNaturalRiseAtMs,
+    receivedHitRecoverAtMs,
+    quickRecoverReadyUntilMs: startsReceivedHitLifecycle ? receivedHitLandAtMs + quickRecoverReadyWindowMs : 0,
+    quickRecoverStartedAtMs: 0,
+    quickRecoverUntilMs: 0,
+    airState: startsReceivedHitLifecycle ? "grounded" : run.player.airState,
+    jumpStartedAtMs: startsReceivedHitLifecycle ? 0 : run.player.jumpStartedAtMs,
+    airborneUntilMs: startsReceivedHitLifecycle ? 0 : run.player.airborneUntilMs,
+    landingUntilMs: startsReceivedHitLifecycle ? 0 : run.player.landingUntilMs,
+    airAttackUsed: startsReceivedHitLifecycle ? false : run.player.airAttackUsed,
+    airAttackType: startsReceivedHitLifecycle ? "none" : run.player.airAttackType,
+    airAttackStartedAtMs: startsReceivedHitLifecycle ? 0 : run.player.airAttackStartedAtMs,
+    airAttackUntilMs: startsReceivedHitLifecycle ? 0 : run.player.airAttackUntilMs,
     bufferedAction: undefined,
     bufferedActionQueuedAtMs: undefined,
     bufferedActionExecuteAtMs: undefined,
@@ -7514,16 +7756,18 @@ function canStartQuickRecover(run: CombatRun): boolean {
   return (
     run.player.quickRecoverReadyUntilMs > 0 &&
     run.elapsedMs <= run.player.quickRecoverReadyUntilMs &&
-    run.elapsedMs < run.player.hurtLockUntilMs &&
-    run.elapsedMs >= run.player.boundUntilMs &&
-    playerAirStateAt(run.player, run.elapsedMs) === "grounded" &&
+    playerReceivedHitStateAt(run.player, run.elapsedMs) === "downed" &&
     !quickRecoverActive(run.player, run.elapsedMs)
   );
 }
 
 function performQuickRecoverAction(run: CombatRun): CombatRun {
   const recoverUntilMs = run.elapsedMs + quickRecoverActionMs;
-  const recoveredPlayer = setPlayerInvulnerabilityWindow(run.player, run.elapsedMs, run.elapsedMs + quickRecoverInvulnerableMs);
+  const recoveredPlayer: CombatPlayer = {
+    ...run.player,
+    invulnerableStartedAtMs: run.elapsedMs,
+    invulnerableUntilMs: run.elapsedMs + quickRecoverInvulnerableMs
+  };
 
   return {
     ...run,
@@ -7533,6 +7777,12 @@ function performQuickRecoverAction(run: CombatRun): CombatRun {
       actionLockUntilMs: recoverUntilMs,
       cancelWindowUntilMs: 0,
       hurtLockUntilMs: run.elapsedMs,
+      receivedHitStartedAtMs: 0,
+      receivedHitLaunchAtMs: 0,
+      receivedHitApexAtMs: 0,
+      receivedHitLandAtMs: 0,
+      receivedHitNaturalRiseAtMs: 0,
+      receivedHitRecoverAtMs: 0,
       boundUntilMs: 0,
       quickRecoverReadyUntilMs: 0,
       quickRecoverStartedAtMs: run.elapsedMs,
@@ -7742,6 +7992,16 @@ function performAirHeavyAction(run: CombatRun): CombatRun {
 }
 
 export function performAction(run: CombatRun, action: CombatActionInput): CombatRun {
+  const receivedHitState = playerReceivedHitStateAt(run.player, run.elapsedMs);
+
+  if (
+    action.type === "consume" &&
+    receivedHitState !== "grounded" &&
+    !(action.consumableId === "revival-token" && (run.failed || run.player.defeated))
+  ) {
+    return run;
+  }
+
   if (action.type === "consume") {
     return performConsumableAction(run, action.consumableId);
   }
@@ -7760,6 +8020,10 @@ export function performAction(run: CombatRun, action: CombatActionInput): Combat
 
   if (action.type === "jump" && canStartQuickRecover(run)) {
     return performQuickRecoverAction(run);
+  }
+
+  if (receivedHitState !== "grounded") {
+    return run;
   }
 
   if (run.elapsedMs < run.player.hurtLockUntilMs || run.elapsedMs < run.player.boundUntilMs) {
@@ -8259,6 +8523,12 @@ export function performConsumableAction(run: CombatRun, consumableId: Consumable
       quickRecoverReadyUntilMs: 0,
       quickRecoverStartedAtMs: 0,
       quickRecoverUntilMs: 0,
+      receivedHitStartedAtMs: 0,
+      receivedHitLaunchAtMs: 0,
+      receivedHitApexAtMs: 0,
+      receivedHitLandAtMs: 0,
+      receivedHitNaturalRiseAtMs: 0,
+      receivedHitRecoverAtMs: 0,
       activeSkillMovement: undefined,
       bufferedAction: undefined,
       bufferedActionQueuedAtMs: undefined,
@@ -8551,6 +8821,12 @@ export function finishRoom(run: CombatRun): CombatRun {
       quickRecoverReadyUntilMs: 0,
       quickRecoverStartedAtMs: 0,
       quickRecoverUntilMs: 0,
+      receivedHitStartedAtMs: 0,
+      receivedHitLaunchAtMs: 0,
+      receivedHitApexAtMs: 0,
+      receivedHitLandAtMs: 0,
+      receivedHitNaturalRiseAtMs: 0,
+      receivedHitRecoverAtMs: 0,
       activeSkillMovement: undefined,
       bufferedAction: undefined,
       bufferedActionQueuedAtMs: undefined,

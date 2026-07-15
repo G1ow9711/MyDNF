@@ -4537,3 +4537,24 @@
 - Final non-browser regression passed 706/706; real Chromium computed-style regression passed 27/27; production TypeScript/Vite build passed.
 - Final focused real-H rerun passed with exact one-shot start/release audio, manual keyup, synchronized charge pose/VFX, and later live damage after the movement/buffer fixes.
 - Inspected the 1440x900 held-charge capture: Chinese ruin environment, five Shanhaijing monsters, player pose, HUD, and charge effect remain readable. The inspection exposed and corrected a low VFX anchor before final rerun.
+
+## Task 215 DNF Player Launch, Down, And Quick Recovery
+- Started from a clean branch synchronized with origin after Task214.
+- Re-read the persistent plan and current specs. Confirmed player quick recovery is still a grounded hurt-lock shortcut and does not model launch, fall, prone time, natural rise, or true downed C recovery.
+- Parallel core and mounted/browser audits are locating the exact replacement boundaries while the main path locks authoritative timing rules.
+- Locked the received-hit timing, input, presentation, and acceptance contract in `docs/superpowers/specs/2026-07-15-player-received-hit-lifecycle-design.md`.
+- Core RED failed on the exact missing surfaces: no received-hit state API, C still recovered at impact time, and movement still advanced during heavy hurt lock.
+- Implemented separate received-hit timestamps and phase derivation, hitstop timer shifting, full-chain movement/action/skill/consumable denial, landing-only C recovery, natural recovery, and reset paths.
+- Focused Task 215 core GREEN passed 4/4; full `src/tests/combat.test.ts` regression passed 309/309.
+- A read-only core review correctly rejected that first GREEN as incomplete: it lacked explicit hit/grounded states, arena hazards bypassed the lifecycle, attack reaction semantics depended on knockback/cue values, and direct charge was not state-gated.
+- Reopened RED on explicit event reactions, hit/grounded boundaries, Forge Collapse launch, natural-rise locks with ordinary locks forcibly cleared, direct charge denial, zero-origin hitstop, and revival reset.
+- Added explicit reaction declarations to all 17 enemy attack profiles, a 90 ms contact phase, arena-hazard launch routing, synchronized hitstop locks, direct-charge state denial, and revival-token override/reset behavior.
+- Corrected core suite now passes 310/310 and the production TypeScript/Vite build passes.
+- Added authoritative mounted states for hit, launched, falling, downed, quick-rise, and natural-rise; Ember frame selection, body transforms, landing/rise VFX, and one-shot landing/quick/natural audio all derive from the same combat timeline.
+- Restored ordinary non-launch hurt presentation after integration review so light hits and pull attacks still show the authored hurt motion while bind and received-hit lifecycle states retain priority.
+- Application integration regression passes 150/150. The full non-browser regression passes 712/712, including 310 combat tests, 95 UI smoke tests, and 24 render/audio tests.
+- Real Chromium computed-style regression passes 28/28, including frozen received-hit poses and reaction VFX. Focused live-keyboard acceptance passes quick rise, natural rise, and Liuli five-monster windup/model/VFX routes 3/3.
+- The first full 45-route keyboard compatibility run passed 30/45. Remaining failures are legacy routes that assume uninterrupted offense while live monsters attack; Task215 does not add hidden super armor or bypass the new input locks to satisfy those scripts.
+- Production TypeScript/Vite build passes after final mounted and browser-test stabilization.
+- Final read-only review found one P1 before submission: strong hits granted invulnerability from contact through the entire 1.55 s lifecycle. The fix delays invulnerability start to natural-rise while quick rise keeps its separate 520 ms window.
+- Post-review verification passes 310/310 combat tests, 712/712 non-browser tests, both live heavy-hit quick/natural routes, production build, and whitespace review.

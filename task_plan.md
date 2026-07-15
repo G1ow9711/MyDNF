@@ -566,7 +566,18 @@ Phase 5 - Verification and Delivery (ongoing strict-combat continuation)
 - [x] Add mounted route/lock/proc diagnostics, synchronized model/VFX/audio feedback, and real-keyboard acceptance.
 - [x] Run full regression/build, inspect browser evidence, then commit and push in Chinese.
 
+## Task 217 Four-Class Dedicated Player Frame Atlases
+- [x] Audit the Ink Shadow Ranger and Iron Forge Guardian fallback-art path, frame-stage whitelist, atlas identity, facing, weapon-layer, and browser-test gaps.
+- [x] Generate original 4x4 key-pose atlases for both classes with idle, run, profession attacks, hit, launch, fall, and downed silhouettes.
+- [x] Remove chroma backgrounds, validate alpha/cell occupancy, and register both atlases in the exact public asset manifest.
+- [x] Add RED coverage for class-specific atlas loading, mounted identity, facing, state priority, legacy-art replacement, and visible frame changes.
+- [x] Implement all-four-class preload and synchronization, profession-specific action frames, Iron shield handling, and correct left/right orientation.
+- [x] Run focused/full regression, production build, real Edge keyboard and desktop/narrow visual acceptance.
+- [x] Review, record evidence, commit in Chinese, and push `feature/vertical-slice`.
+
 ### Errors Encountered
+- The Task 217 final read-only reviewer remained running without returning findings after three bounded waits and an interrupt request, so it was shut down. Main-path diff review, full automated checks, and inspected real-browser evidence remain the submission gate.
+- Task 217 combined compatibility exposed a stale KOF mobile assertion and mismatched direction release: the route held `ArrowLeft`, released `ArrowRight`, then required actors to begin below a bottom-mounted control bar. The route now releases the held key and compares actor bottoms against the control bar top.
 - A Task 215 record patch mixed a progress-file heading into the task-plan hunk, so verification rejected the combined patch atomically. No file changed; task and progress records were reapplied separately.
 - A Task 215 catalog search used a double-quoted regular expression containing embedded quotes, so PowerShell rejected it before execution. No file changed; the query was rerun with single-quoted patterns.
 - Task 215 core review found the initial GREEN contract omitted explicit hit/grounded states, left arena hazards on the old hurt-lock path, and inferred launch semantics from feedback and knockback values. Acceptance was reopened before mounted integration and new RED assertions cover those gaps.

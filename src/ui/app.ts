@@ -2204,7 +2204,7 @@ function renderCombatActors(run: CombatRun, state: GameState): string {
         ${playerChargeActive ? `<span class="meteor-charge-vfx" data-meteor-charge-vfx="true" data-charge-tier="${playerChargeTier}" style="--meteor-charge-progress: ${playerChargeProgressText};" aria-hidden="true"><i></i><b></b><em></em></span>` : ""}
         ${playerTrailMarkup(run, playerMotionName, activeSkill)}
         <img class="combat-player-art actor-model actor-model-${playerMotionName}${skillMotionClass}${skillPhaseClass}${normalComboMotionClass}" data-hero-class-id="${state.player.classId}" style="${playerModelMotionStyle(run, activeSkill?.animation)}--meteor-charge-progress: ${playerChargeProgressText};" src="${heroAssetForClass(state.player.classId)}" alt="${classDef?.displayName ?? state.player.classId}" />
-        <span class="combat-frame-sprite player-frame-sprite" data-frame-atlas="ember-warden" data-frame-class-id="${state.player.classId}" aria-hidden="true"></span>
+        <span class="combat-frame-sprite player-frame-sprite" data-frame-atlas="${state.player.classId}" data-frame-class-id="${state.player.classId}" aria-hidden="true"></span>
         ${weaponLayerMarkup(state, "combat", activeSkill?.animation, playerMotionName, normalComboStep, playerSkillStage.hitPhase, playerSkillStage.vfxCue)}
         <div class="player-nameplate">${classDef?.displayName ?? state.player.classId}</div>
       </div>

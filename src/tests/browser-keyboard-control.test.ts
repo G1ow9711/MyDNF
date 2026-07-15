@@ -784,8 +784,10 @@ type BrowserFrameSpriteState = {
   sceneWidth: number;
   sceneHeight: number;
   controlsHeight: number;
+  controlsTop: number;
   controlsBottom: number;
   actorVisualTop: number;
+  actorVisualBottom: number;
 };
 
 type BrowserMonsterSpriteState = {
@@ -801,6 +803,24 @@ type BrowserMonsterSpriteState = {
     background: string;
     oldArtOpacity: string;
   }>;
+};
+
+type BrowserPlayerAtlasState = {
+  stage: string;
+  backgroundReady: boolean;
+  atlas: string;
+  display: string;
+  visibility: string;
+  background: string;
+  fallbackVisibility: string;
+  weaponVisibility: string;
+  spriteState: string;
+  frame: number;
+};
+
+type BrowserPlayerAtlasEvidence = {
+  runFrames: number[];
+  actionFrames: number[];
 };
 
 const readFrameSpriteStateExpression = `
@@ -847,8 +867,10 @@ const readFrameSpriteStateExpression = `
     sceneWidth: Math.round(rect?.width ?? 0),
     sceneHeight: Math.round(rect?.height ?? 0),
     controlsHeight: Math.round(controlsRect?.height ?? 0),
+    controlsTop: Math.round((controlsRect?.top ?? 0) - (rect?.top ?? 0)),
     controlsBottom: Math.round((controlsRect?.bottom ?? 0) - (rect?.top ?? 0)),
-    actorVisualTop: Math.round(Math.min(...actorVisualRects.map((actorRect) => actorRect.top - (rect?.top ?? 0))))
+    actorVisualTop: Math.round(Math.min(...actorVisualRects.map((actorRect) => actorRect.top - (rect?.top ?? 0)))),
+    actorVisualBottom: Math.round(Math.max(...actorVisualRects.map((actorRect) => actorRect.bottom - (rect?.top ?? 0))))
   };
 })()
 `;
@@ -872,6 +894,60 @@ const readMonsterSpriteStateExpression = `
     };
   })
 }))()
+`;
+
+const readPlayerAtlasStateExpression = `
+(() => {
+  const scene = document.querySelector(".combat-scene");
+  const background = document.querySelector(".combat-background-art");
+  const sprite = document.querySelector(".player-frame-sprite");
+  const fallback = document.querySelector(".combat-player-art");
+  const weapon = document.querySelector(".combat-player .weapon-layer");
+  const spriteStyle = sprite ? getComputedStyle(sprite) : null;
+  return {
+    stage: scene?.getAttribute("data-frame-sprite-stage") ?? "",
+    backgroundReady: background instanceof HTMLImageElement && background.complete && background.naturalWidth > 0,
+    atlas: sprite?.getAttribute("data-frame-atlas") ?? "",
+    display: spriteStyle?.display ?? "",
+    visibility: spriteStyle?.visibility ?? "",
+    background: spriteStyle?.backgroundImage ?? "",
+    fallbackVisibility: fallback ? getComputedStyle(fallback).visibility : "",
+    weaponVisibility: weapon ? getComputedStyle(weapon).visibility : "",
+    spriteState: sprite?.getAttribute("data-sprite-state") ?? "",
+    frame: Number(sprite?.getAttribute("data-sprite-frame") ?? "-1")
+  };
+})()
+`;
+
+const installPlayerAtlasRecorderExpression = `
+(() => {
+  globalThis.__playerAtlasEvidence = { runFrames: [], actionFrames: [] };
+  if (globalThis.__playerAtlasRecorder) {
+    cancelAnimationFrame(globalThis.__playerAtlasRecorder);
+  }
+  const startedAt = performance.now();
+  const tick = () => {
+    const sprite = document.querySelector(".player-frame-sprite");
+    const state = sprite?.getAttribute("data-sprite-state") ?? "";
+    const frame = Number(sprite?.getAttribute("data-sprite-frame") ?? "-1");
+    const evidence = globalThis.__playerAtlasEvidence;
+    if (state === "run" && frame >= 4 && frame <= 7 && !evidence.runFrames.includes(frame)) {
+      evidence.runFrames.push(frame);
+    }
+    if (state === "attack" && frame >= 8 && frame <= 11 && !evidence.actionFrames.includes(frame)) {
+      evidence.actionFrames.push(frame);
+    }
+    if (performance.now() - startedAt < 5000) {
+      globalThis.__playerAtlasRecorder = requestAnimationFrame(tick);
+    }
+  };
+  globalThis.__playerAtlasRecorder = requestAnimationFrame(tick);
+  return true;
+})()
+`;
+
+const readPlayerAtlasEvidenceExpression = `
+(() => globalThis.__playerAtlasEvidence ?? { runFrames: [], actionFrames: [] })()
 `;
 
 const readCombatStateExpression = `
@@ -3004,9 +3080,9 @@ describe("real browser keyboard control", () => {
         expect(idle.playerFrame).toBeLessThanOrEqual(3);
         await page.captureScreenshot(`${screenshotRoot}/desktop.png`);
 
-        await page.keyDown("ArrowRight");
+        await page.keyDown("ArrowLeft");
         const running = await page.waitFor<BrowserFrameSpriteState>(readFrameSpriteStateExpression, (state) => state.playerSpriteState === "run" && state.playerFrame >= 4 && state.playerFrame <= 7, 4000);
-        await page.keyUp("ArrowRight");
+        await page.keyUp("ArrowLeft");
         expect(running.playerFrame).not.toBe(idle.playerFrame);
 
         await page.pressKey("KeyX");
@@ -3068,8 +3144,125 @@ describe("real browser keyboard control", () => {
         expect(mobile.playerRootFilter).toBe("none");
         expect(mobile.enemyRootFilters).toEqual(["none", "none", "none", "none", "none"]);
         expect(mobile.controlsHeight).toBeLessThanOrEqual(140);
-        expect(mobile.actorVisualTop).toBeGreaterThanOrEqual(mobile.controlsBottom + 20);
+        expect(mobile.controlsBottom).toBeLessThanOrEqual(mobile.sceneHeight);
+        expect(mobile.actorVisualTop).toBeLessThan(mobile.controlsTop);
+        expect(mobile.actorVisualBottom).toBeLessThanOrEqual(mobile.controlsTop + 4);
         await page.captureScreenshot(`${screenshotRoot}/mobile.png`);
+      });
+    } finally {
+      await server.close();
+    }
+  }, 60000);
+
+  it.each([
+    { classId: "ink-shadow-ranger", screenshotName: "ink-shadow-ranger.png" },
+    { classId: "iron-forge-guardian", screenshotName: "iron-forge-guardian.png" }
+  ] as const)("renders $classId dedicated player action atlas through real Edge controls", async ({ classId, screenshotName }) => {
+    const server = await startViteServer();
+    const screenshotRoot = `${process.cwd().replace(/\\/g, "/")}/.codex-local/tmp/task217-atlas-acceptance`;
+
+    try {
+      await runAppInRealBrowser(server.url, async (page) => {
+        await page.setViewport(1440, 900);
+        await seedSaveAndReload(page, createReadyClassProgressionState());
+        await page.click('[data-mode="classes"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "classes",
+          3000
+        );
+        await page.click(`[data-class-id="${classId}"]`);
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.saved?.player.classId === classId,
+          3000
+        );
+        await page.click('[data-mode="town"]');
+        await page.waitFor<BrowserTownEcosystemState>(
+          readTownEcosystemStateExpression,
+          (state) => state.appMode === "town" && state.saved?.player.classId === classId,
+          3000
+        );
+        await enterDungeonWithKeyboard(page, "Enter", "cinder-kiln-alley");
+
+        const idle = await page.waitFor<BrowserPlayerAtlasState>(
+          readPlayerAtlasStateExpression,
+          (state) =>
+            state.stage === "ready" &&
+            state.backgroundReady &&
+            state.atlas === classId &&
+            state.display !== "none" &&
+            state.visibility === "visible" &&
+            state.background.includes(`${classId}-atlas`) &&
+            state.spriteState === "idle" &&
+            state.frame >= 0 &&
+            state.frame <= 3,
+          10000
+        );
+        expect(idle.atlas).toBe(classId);
+        expect(idle.display).not.toBe("none");
+        expect(idle.visibility).toBe("visible");
+        expect(idle.background).toContain(`${classId}-atlas`);
+        expect(idle.fallbackVisibility).toBe("hidden");
+        expect(idle.weaponVisibility).toBe("hidden");
+        expect(idle.frame).toBeGreaterThanOrEqual(0);
+        expect(idle.frame).toBeLessThanOrEqual(3);
+        await page.captureScreenshot(`${screenshotRoot}/${screenshotName}`);
+
+        await settlePlayerReceivedHit(page);
+        await page.evaluate<boolean>(installPlayerAtlasRecorderExpression);
+        await page.pressKey("KeyX");
+        const action = await page.waitFor<BrowserPlayerAtlasState>(
+          readPlayerAtlasStateExpression,
+          (state) => state.spriteState === "attack" && state.frame >= 8 && state.frame <= 11,
+          2500
+        );
+        const actionEvidence = await page.waitFor<BrowserPlayerAtlasEvidence>(
+          readPlayerAtlasEvidenceExpression,
+          (evidence) => evidence.actionFrames.length >= 1,
+          2500
+        );
+        expect(actionEvidence.actionFrames[0]).toBeGreaterThanOrEqual(8);
+        expect(actionEvidence.actionFrames[0]).toBeLessThanOrEqual(11);
+        expect(actionEvidence.actionFrames.every((frame) => frame >= 8 && frame <= 11)).toBe(true);
+        expect(action.frame).toBeGreaterThanOrEqual(8);
+        expect(action.frame).toBeLessThanOrEqual(11);
+        await page.captureScreenshot(`${screenshotRoot}/${screenshotName.replace(".png", "-action.png")}`);
+        await page.waitFor<BrowserPlayerAtlasState>(
+          readPlayerAtlasStateExpression,
+          (state) => state.spriteState === "idle" && state.frame >= 0 && state.frame <= 3,
+          2000
+        );
+
+        await page.evaluate<boolean>(installPlayerAtlasRecorderExpression);
+        await page.keyDown("ArrowRight");
+        let runEvidence: BrowserPlayerAtlasEvidence;
+        try {
+          runEvidence = await page.waitFor<BrowserPlayerAtlasEvidence>(
+            readPlayerAtlasEvidenceExpression,
+            (evidence) => evidence.runFrames.length >= 2,
+            1800
+          );
+        } finally {
+          await page.keyUp("ArrowRight");
+        }
+        expect(runEvidence.runFrames.length).toBeGreaterThanOrEqual(2);
+        expect(runEvidence.runFrames.every((frame) => frame >= 4 && frame <= 7)).toBe(true);
+
+        await page.setViewport(750, 485);
+        const narrow = await page.waitFor<BrowserPlayerAtlasState>(
+          readPlayerAtlasStateExpression,
+          (state) =>
+            state.stage === "ready" &&
+            state.atlas === classId &&
+            state.display !== "none" &&
+            state.visibility === "visible" &&
+            state.fallbackVisibility === "hidden" &&
+            state.weaponVisibility === "hidden",
+          3000
+        );
+        expect(narrow.background).toContain(`${classId}-atlas`);
+        await page.captureScreenshot(`${screenshotRoot}/${screenshotName.replace(".png", "-narrow.png")}`);
       });
     } finally {
       await server.close();

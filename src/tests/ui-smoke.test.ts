@@ -52,6 +52,20 @@ const publicSpriteAssetModules = import.meta.glob("../../public/assets/sprites/*
 }) as Record<string, string>;
 
 const stylesCss = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+const combatSpriteStageSource = readFileSync(new URL("../ui/combat-sprite-stage.ts", import.meta.url), "utf8");
+
+const dedicatedPlayerAtlasContract = [
+  {
+    classId: "ink-shadow-ranger",
+    skillId: "ink-shot",
+    atlasPath: "/assets/sprites/ink-shadow-ranger-atlas.png"
+  },
+  {
+    classId: "iron-forge-guardian",
+    skillId: "iron-palm",
+    atlasPath: "/assets/sprites/iron-forge-guardian-atlas.png"
+  }
+] as const;
 
 type EnemyAttackPresentationSpec = {
   roomIndex: 0 | 1 | 2;
@@ -264,6 +278,25 @@ function selectorSpecificity(selector: string): number {
   const attributeCount = (selector.match(/\[[^\]]+\]/g) ?? []).length;
 
   return idCount * 100 + (classCount + attributeCount) * 10;
+}
+
+function cssDeclarationsForSelectorTokens(css: string, selectorTokens: readonly string[]): string | undefined {
+  const rules = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = rulePattern.exec(rules))) {
+    const [, selectorText, declarations] = match;
+    const matches = selectorText
+      .split(",")
+      .some((selector) => selectorTokens.every((token) => selector.includes(token)));
+
+    if (matches) {
+      return declarations;
+    }
+  }
+
+  return undefined;
 }
 
 function withHeat(state: GameState, heat: number): GameState {
@@ -596,6 +629,8 @@ describe("town app shell", () => {
     expect(Object.keys(publicSpriteAssetModules).sort()).toEqual([
       "../../public/assets/sprites/ash-cinder-imp-atlas.png",
       "../../public/assets/sprites/ember-warden-atlas.png",
+      "../../public/assets/sprites/ink-shadow-ranger-atlas.png",
+      "../../public/assets/sprites/iron-forge-guardian-atlas.png",
       "../../public/assets/sprites/liuli-blademage-atlas.png",
       "../../public/assets/sprites/liuli-flowing-light-array-atlas.png",
       "../../public/assets/sprites/taotie-overseer-atlas.png",
@@ -604,6 +639,35 @@ describe("town app shell", () => {
 
     for (const assetUrl of Object.values(publicSpriteAssetModules)) {
       expect(assetUrl).toMatch(/\.png$/);
+    }
+  });
+
+  it("declares dedicated Ink Shadow Ranger and Iron Forge Guardian sprite atlas load paths", () => {
+    expect(combatSpriteStageSource).toContain("frameClassId");
+
+    for (const { atlasPath } of dedicatedPlayerAtlasContract) {
+      expect(combatSpriteStageSource).toContain(atlasPath);
+    }
+  });
+
+  it("styles both dedicated class atlases and hides their legacy combat art when the stage is ready", () => {
+    for (const { classId, atlasPath } of dedicatedPlayerAtlasContract) {
+      const atlasDeclarations = cssDeclarationsForSelectorTokens(stylesCss, [
+        ".player-frame-sprite",
+        `[data-frame-class-id="${classId}"]`
+      ]);
+      expect(atlasDeclarations ?? "").toContain(`url("${atlasPath}")`);
+
+      for (const legacyLayerTokens of [[".combat-player-art"], [".combat-player", ".weapon-layer"]]) {
+        const readyDeclarations = cssDeclarationsForSelectorTokens(stylesCss, [
+          ".combat-scene",
+          '[data-frame-sprite-stage="ready"]',
+          `[data-class-id="${classId}"]`,
+          ...legacyLayerTokens
+        ]);
+        expect(readyDeclarations ?? "").toMatch(/opacity\s*:\s*0/);
+        expect(readyDeclarations ?? "").toMatch(/visibility\s*:\s*hidden/);
+      }
     }
   });
 
@@ -3577,6 +3641,95 @@ describe("town app shell", () => {
         expect(actorStyleValues.get("--player-received-hit-progress")).toBe(fixture.progress.toFixed(3));
       }
       expect(spriteStyleValues.get("--sprite-frame-position")).toBe("0% 0%");
+    } finally {
+      if (originalImage === undefined) {
+        Reflect.deleteProperty(globalThis, "Image");
+      } else {
+        Object.defineProperty(globalThis, "Image", { configurable: true, writable: true, value: originalImage });
+      }
+    }
+  });
+
+  it("syncs numeric left-facing Ink and Iron actions to their dedicated atlas frames", async () => {
+    const originalImage = globalThis.Image;
+    const loadedSources: string[] = [];
+    class ReadyImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      set src(value: string) {
+        loadedSources.push(value);
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    Object.defineProperty(globalThis, "Image", { configurable: true, writable: true, value: ReadyImage });
+
+    try {
+      const stage = createCombatSpriteStage();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      for (const { classId, skillId, atlasPath } of dedicatedPlayerAtlasContract) {
+        const actorStyleValues = new Map<string, string>();
+        const actorStyle = {
+          setProperty(name: string, value: string) {
+            actorStyleValues.set(name, value);
+          }
+        };
+        const spriteStyleValues = new Map<string, string>();
+        const spriteStyle = {
+          backgroundImage: "",
+          backgroundPosition: "",
+          setProperty(name: string, value: string) {
+            spriteStyleValues.set(name, value);
+          }
+        };
+        const sprite = {
+          dataset: { frameClassId: classId },
+          style: spriteStyle
+        } as unknown as HTMLElement;
+        const player = {
+          dataset: {
+            playerFacing: "-1",
+            playerMotion: "skill",
+            playerReceivedHitState: "grounded",
+            playerReceivedHitProgress: "0",
+            playerSkillStageProgress: "0.62",
+            playerState: "alive",
+            activeSkillId: skillId
+          },
+          style: actorStyle,
+          querySelector(selector: string) {
+            return selector === ".player-frame-sprite" ? sprite : null;
+          }
+        } as unknown as HTMLElement;
+        const scene = {
+          dataset: { combatElapsedMs: "500", hitstopActive: "false", playerX: "260", classId }
+        } as unknown as HTMLElement;
+        const root = {
+          querySelector(selector: string) {
+            if (selector === ".combat-scene") return scene;
+            if (selector === ".combat-player") return player;
+            return null;
+          },
+          querySelectorAll() {
+            return [];
+          }
+        } as unknown as ParentNode;
+
+        stage.sync(root);
+
+        expect(scene.dataset.frameSpriteStage).toBe("ready");
+        expect(spriteStyle.backgroundImage).toBe(`url("${atlasPath}")`);
+        expect(spriteStyle.backgroundImage).not.toContain("ember-warden-atlas.png");
+        expect(Number(sprite.dataset.spriteFrame)).toBeGreaterThanOrEqual(8);
+        expect(Number(sprite.dataset.spriteFrame)).toBeLessThanOrEqual(11);
+        expect(sprite.dataset.spriteState).toBe("attack");
+        expect(spriteStyleValues.get("--sprite-facing")).toBe("-1");
+      }
+
+      for (const { atlasPath } of dedicatedPlayerAtlasContract) {
+        expect(loadedSources).toContain(atlasPath);
+      }
     } finally {
       if (originalImage === undefined) {
         Reflect.deleteProperty(globalThis, "Image");

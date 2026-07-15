@@ -128,15 +128,15 @@
 }
 
 @keyframes player-frame-grab-hold {
-  0% { transform: translate3d(0, 2px, 0) scale(1, 0.98); }
-  42%, 78% { transform: translate3d(18px, -5px, 0) scale(1.05, 0.96) rotate(-5deg); }
-  100% { transform: translate3d(15px, -4px, 0) scale(1.03, 0.97) rotate(-3deg); }
+  0% { transform: translate3d(0, 2px, 0) scale(var(--sprite-facing, 1), 0.98); }
+  42%, 78% { transform: translate3d(calc(18px * var(--sprite-facing, 1)), -5px, 0) scale(calc(1.05 * var(--sprite-facing, 1)), 0.96) rotate(calc(-5deg * var(--sprite-facing, 1))); }
+  100% { transform: translate3d(calc(15px * var(--sprite-facing, 1)), -4px, 0) scale(calc(1.03 * var(--sprite-facing, 1)), 0.97) rotate(calc(-3deg * var(--sprite-facing, 1))); }
 }
 
 @keyframes player-frame-grab-release {
-  0% { transform: translate3d(15px, -4px, 0) scale(1.03, 0.97) rotate(-3deg); }
-  48% { transform: translate3d(34px, 14px, 0) scale(1.08, 0.9) rotate(12deg); }
-  100% { transform: translate3d(0, 0, 0) scale(1, 1); }
+  0% { transform: translate3d(calc(15px * var(--sprite-facing, 1)), -4px, 0) scale(calc(1.03 * var(--sprite-facing, 1)), 0.97) rotate(calc(-3deg * var(--sprite-facing, 1))); }
+  48% { transform: translate3d(calc(34px * var(--sprite-facing, 1)), 14px, 0) scale(calc(1.08 * var(--sprite-facing, 1)), 0.9) rotate(calc(12deg * var(--sprite-facing, 1))); }
+  100% { transform: translate3d(0, 0, 0) scale(var(--sprite-facing, 1), 1); }
 }
 
 @keyframes monster-grabbed-hold {
@@ -3061,7 +3061,32 @@ p {
   filter: drop-shadow(0 16px 12px rgba(2, 6, 23, 0.8)) drop-shadow(0 0 14px rgba(34, 211, 238, 0.34));
 }
 
-.player-frame-sprite:not([data-frame-class-id="ember-warden"]):not([data-frame-class-id="liuli-blademage"]) {
+.player-frame-sprite[data-frame-class-id="ink-shadow-ranger"] {
+  left: calc(50% + 30px);
+  bottom: -6px;
+  width: clamp(280px, 22vw, 352px);
+  height: clamp(280px, 22vw, 352px);
+  background-image: url("/assets/sprites/ink-shadow-ranger-atlas.png");
+  filter: drop-shadow(0 16px 12px rgba(2, 6, 23, 0.84)) drop-shadow(0 0 15px rgba(168, 85, 247, 0.32));
+}
+
+.player-frame-sprite[data-frame-class-id="iron-forge-guardian"] {
+  left: calc(50% + 10px);
+  bottom: -5px;
+  width: clamp(272px, 21vw, 344px);
+  height: clamp(272px, 21vw, 344px);
+  background-image: url("/assets/sprites/iron-forge-guardian-atlas.png");
+  filter: drop-shadow(0 17px 13px rgba(2, 6, 23, 0.86)) drop-shadow(0 0 16px rgba(249, 115, 22, 0.34));
+}
+
+@media (max-width: 860px) {
+  .player-frame-sprite[data-frame-class-id="ink-shadow-ranger"],
+  .player-frame-sprite[data-frame-class-id="iron-forge-guardian"] {
+    left: calc(50% + 68px);
+  }
+}
+
+.player-frame-sprite:not([data-frame-class-id="ember-warden"]):not([data-frame-class-id="liuli-blademage"]):not([data-frame-class-id="ink-shadow-ranger"]):not([data-frame-class-id="iron-forge-guardian"]) {
   display: none;
 }
 
@@ -3092,10 +3117,16 @@ p {
 
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="ember-warden"] .combat-player-art,
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="liuli-blademage"] .combat-player-art,
+.combat-scene[data-frame-sprite-stage="ready"][data-class-id="ink-shadow-ranger"] .combat-player-art,
+.combat-scene[data-frame-sprite-stage="ready"][data-class-id="iron-forge-guardian"] .combat-player-art,
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="ember-warden"] .combat-player .weapon-layer,
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="liuli-blademage"] .combat-player .weapon-layer,
+.combat-scene[data-frame-sprite-stage="ready"][data-class-id="ink-shadow-ranger"] .combat-player .weapon-layer,
+.combat-scene[data-frame-sprite-stage="ready"][data-class-id="iron-forge-guardian"] .combat-player .weapon-layer,
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="ember-warden"] .player-motion-trail,
 .combat-scene[data-frame-sprite-stage="ready"][data-class-id="liuli-blademage"] .player-motion-trail,
+.combat-scene[data-frame-sprite-stage="ready"][data-class-id="ink-shadow-ranger"] .player-motion-trail,
+.combat-scene[data-frame-sprite-stage="ready"][data-class-id="iron-forge-guardian"] .player-motion-trail,
 .combat-scene[data-frame-sprite-stage="ready"] .combat-enemy .enemy-art {
   opacity: 0;
   visibility: hidden;

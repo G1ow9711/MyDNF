@@ -1788,3 +1788,12 @@
 - Charge skills need the same pre-open buffer semantics as instant skills, but they cannot execute through generic `performAction()` because that bypasses held-key charge state. Reusing `bufferedAction` with the cancel opening as its execution timestamp and routing Meteor back through `startMeteorKnuckleCharge()` preserves one input queue and one authoritative charge lifecycle.
 - Pending held input also needs keyup cancellation. Otherwise tapping H before the opening frame silently starts a full auto-release charge after the key is already up.
 - Desktop Boss HUD offsets are not safe at the new 721-860 px compact breakpoint. Narrow combat acceptance must assert measured width and collision against both status and combo HUD, not only screenshot appearance.
+
+## Task 217 Four-Class Frame Atlas Audit
+- Ink Shadow Ranger and Iron Forge Guardian currently mount a player sprite node but runtime synchronization accepts only Ember Warden and Liuli Blademage. CSS then hides both unsupported sprites, leaving whole-image fallback transforms as the visible model.
+- The mounted `data-frame-atlas` is hard-coded to `ember-warden`; blindly adding classes to the whitelist would display the wrong identity. Atlas selection must be an explicit class-id map.
+- Facing parsing currently expects `left`, while mounted state uses numeric `1/-1`. The frame stage must accept both forms or left-facing poses remain wrong.
+- Both generated 4x4 atlases have coherent right-facing silhouettes across four idle frames, four run frames, four class-action frames, and four received-hit/downed frames. Their exact `#00ff00` backgrounds must be removed before browser use.
+- The generated Ink atlas includes its mechanism crossbow and the Iron atlas includes its shield. Legacy separate weapon layers must therefore be hidden only when the matching dedicated atlas is ready, avoiding doubled weapons.
+- State resolution must prefer defeat/received-hit/grab/skill/attack/jump before guard/run/idle. This prevents persistent Iron guard or movement flags from overriding a real skill pose.
+- Acceptance must prove computed visibility and class-specific `background-image`, then record actual frame-coordinate changes from real movement and skill input. Merely checking an animation name on a hidden node is insufficient.

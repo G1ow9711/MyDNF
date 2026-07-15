@@ -16,6 +16,7 @@ type FrameActor = {
   reactionStep?: number;
   hitPhase?: string;
   receivedHitState?: PlayerReceivedHitSpriteState;
+  grabPhase?: string;
 };
 
 type PlayerReceivedHitSpriteState =
@@ -45,6 +46,13 @@ const swordDanceEnemyReactionFrames: Readonly<Record<string, number>> = {
   "chain-finish": 14
 };
 
+const playerAtlasSources: Readonly<Record<string, string>> = {
+  "ember-warden": "/assets/sprites/ember-warden-atlas.png",
+  "liuli-blademage": "/assets/sprites/liuli-blademage-atlas.png",
+  "ink-shadow-ranger": "/assets/sprites/ink-shadow-ranger-atlas.png",
+  "iron-forge-guardian": "/assets/sprites/iron-forge-guardian-atlas.png"
+};
+
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 }
@@ -62,6 +70,38 @@ function framePosition(index: number): string {
 
 function actionFrame(progressValue: number): number {
   return 8 + Math.min(3, Math.floor(clamp01(progressValue) * 4));
+}
+
+function playerActionFrame(actor: FrameActor): number {
+  const classId = actor.sprite.dataset.frameClassId ?? "ember-warden";
+  const p = clamp01(actor.progress);
+
+  if (classId === "ink-shadow-ranger") {
+    if (["ink-snare", "mechanism-shadow-net"].includes(actor.skillId ?? "")) {
+      return actor.skillPhase?.includes("snap") ? 11 : actor.skillPhase?.includes("bind") ? 10 : p < 0.45 ? 8 : 11;
+    }
+    if (["black-rain-volley", "night-mark-detonation"].includes(actor.skillId ?? "")) {
+      return actor.skillPhase?.includes("burst") ? 11 : actor.skillPhase?.includes("fall") ? 10 : p < 0.42 ? 8 : 9;
+    }
+    if (["shadow-roll", "crow-feint"].includes(actor.skillId ?? "")) {
+      return p < 0.34 ? 8 : p < 0.72 ? 9 : 10;
+    }
+    return p < 0.28 ? 8 : p < 0.76 ? 9 : 10;
+  }
+
+  if (classId === "iron-forge-guardian") {
+    if (actor.grabPhase === "hold") return 9;
+    if (actor.grabPhase === "release") return 11;
+    if (actor.skillId === "shield-quake") return actor.skillStage === "windup" || p < 0.42 ? 10 : 11;
+    if (actor.skillId === "black-furnace-aegis" || actor.motion === "shield" || actor.motion === "counter") return 10;
+    if (actor.skillId === "iron-palm") return p < 0.4 ? 8 : 9;
+  }
+
+  return actionFrame(p);
+}
+
+function playerFacing(value: string | undefined): 1 | -1 {
+  return value === "left" || value === "-1" ? -1 : 1;
 }
 
 function intervalProgress(startAtMs: number, endAtMs: number, elapsedMs: number): number {
@@ -115,9 +155,8 @@ export class CombatSpriteStage {
     }
 
     const sources = [
-      "/assets/sprites/ember-warden-atlas.png",
+      ...Object.values(playerAtlasSources),
       "/assets/sprites/ash-cinder-imp-atlas.png",
-      "/assets/sprites/liuli-blademage-atlas.png",
       "/assets/sprites/liuli-flowing-light-array-atlas.png",
       "/assets/sprites/zheng-guard-atlas.png",
       "/assets/sprites/taotie-overseer-atlas.png"
@@ -156,7 +195,7 @@ export class CombatSpriteStage {
     const playerSprite = playerElement?.querySelector<HTMLElement>(".player-frame-sprite");
     const playerX = Number(scene.dataset.playerX ?? "0");
 
-    if (playerElement && playerSprite && ["ember-warden", "liuli-blademage"].includes(playerSprite.dataset.frameClassId ?? "")) {
+    if (playerElement && playerSprite && playerAtlasSources[playerSprite.dataset.frameClassId ?? ""]) {
       const receivedHitState = playerReceivedHitState(playerElement);
       const receivedHitProgress = playerReceivedHitProgress(playerElement, receivedHitState, elapsedMs);
       root.querySelector<HTMLElement>(".player-reaction-vfx")?.style.setProperty(
@@ -190,13 +229,15 @@ export class CombatSpriteStage {
             : playerElement.dataset.playerMotion === "skill"
               ? skillProgress
               : normalProgress,
-        facing: playerElement.dataset.playerFacing === "left" ? -1 : 1,
+        facing: playerFacing(playerElement.dataset.playerFacing),
         defeated: playerElement.dataset.playerState === "defeated",
+        defeatedAtMs: playerElement.dataset.playerDefeatedAtMs ? Number(playerElement.dataset.playerDefeatedAtMs) : undefined,
         skillId: playerElement.dataset.activeSkillId || chargeState?.dataset.playerChargeSkillId,
         skillPhase: playerElement.dataset.playerSkillHitPhase,
         skillStage: playerElement.dataset.playerSkillStage,
         comboStep: Number(playerElement.dataset.playerNormalComboStep ?? "0"),
-        receivedHitState
+        receivedHitState,
+        grabPhase: playerElement.dataset.playerGrabPhase
       }, elapsedMs, hitstop);
     }
 
@@ -251,11 +292,11 @@ export class CombatSpriteStage {
 
     if (actor.id === "player") {
       const classId = actor.sprite.dataset.frameClassId ?? "ember-warden";
+      const classAtlas = playerAtlasSources[classId] ?? playerAtlasSources["ember-warden"];
       actor.sprite.style.backgroundImage = flowingLightSkill
         ? 'url("/assets/sprites/liuli-flowing-light-array-atlas.png")'
-        : classId === "liuli-blademage"
-          ? 'url("/assets/sprites/liuli-blademage-atlas.png")'
-          : 'url("/assets/sprites/ember-warden-atlas.png")';
+        : `url("${classAtlas}")`;
+      actor.sprite.dataset.frameAtlas = flowingLightSkill ? "liuli-flowing-light-array" : classId;
       actor.sprite.dataset.spriteSkill = flowingLightSkill ? "flowing-light-chain" : meteorCharge ? "meteor-knuckle" : "";
       actor.sprite.dataset.spriteSkillPhase = flowingLightSkill ? (actor.skillPhase || actor.skillStage || "windup") : "";
     } else {
@@ -312,6 +353,9 @@ export class CombatSpriteStage {
         frame = p < 0.34 ? 14 : p < 0.72 ? 12 : 0;
       }
       state = receivedHitState;
+    } else if (actor.id === "player" && actor.grabPhase && actor.grabPhase !== "none") {
+      frame = playerActionFrame(actor);
+      state = actor.grabPhase === "release" ? "grab-release" : actor.grabPhase === "hold" ? "grab-hold" : "attack";
     } else if (actor.id !== "player" && actor.motion === "grabbed") {
       frame = 13;
       state = "grabbed";
@@ -361,13 +405,18 @@ export class CombatSpriteStage {
       const comboPhase = p < 0.24 ? "windup" : p < 0.72 ? "impact" : "recovery";
       const windupFrame = 7 + actor.comboStep;
       const contactFrame = 8 + actor.comboStep;
-      frame = comboPhase === "impact" ? contactFrame : windupFrame;
+      frame = actor.sprite.dataset.frameClassId === "ink-shadow-ranger" || actor.sprite.dataset.frameClassId === "iron-forge-guardian"
+        ? playerActionFrame(actor)
+        : comboPhase === "impact" ? contactFrame : windupFrame;
       state = "attack";
       actor.sprite.dataset.spriteComboStep = String(actor.comboStep);
       actor.sprite.dataset.spriteComboPhase = comboPhase;
     } else if (["light", "heavy", "skill", "air-light", "air-heavy", "dash-light", "attack", "counter", "shield"].includes(actor.motion)) {
-      frame = actionFrame(actor.progress || ((elapsedMs % 420) / 420));
+      frame = playerActionFrame({ ...actor, progress: actor.progress || ((elapsedMs % 420) / 420) });
       state = "attack";
+    } else if (actor.id === "player" && ["jump", "landing", "dodge"].includes(actor.motion)) {
+      frame = actor.motion === "landing" ? 7 : actor.motion === "dodge" ? 4 + Math.min(3, Math.floor(clamp01(actor.progress) * 4)) : actor.progress < 0.5 ? 5 : 6;
+      state = actor.motion;
     } else if (moving) {
       frame = 4 + (Math.floor(elapsedMs / 90) % 4);
       state = "run";
